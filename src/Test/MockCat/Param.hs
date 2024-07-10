@@ -1,7 +1,22 @@
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE InstanceSigs #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE TypeFamilyDependencies #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE UndecidableInstances #-}
 module Test.MockCat.Param where
 
+import Unsafe.Coerce
+import Data.Text hiding (head)
 import Test.MockCat.Cons
+
+newtype Matcher v = Matcher (v -> v -> Bool)
 
 data Param v = Param v (Maybe (Matcher v))
 
@@ -14,41 +29,69 @@ instance Eq a => Eq (Param a) where
 instance Show a => Show (Param a) where
   show (Param v _) = show v
 
-param :: a -> Param a
-param a = Param a Nothing
+-- param :: a -> Param a
+-- param a = Param a Nothing
 
 value :: Param v -> v
 value (Param v _) = v
 
+param :: v -> Param v
+param a = Param a Nothing
 
-class ConsGen a b r | a -> r, b -> r where
-  cons :: a -> b -> r
+-- class ParamGen a b | a -> b where
+--   param :: a -> b
 
-instance ConsGen (a #> b) (b #> c) ((a #> b) #> (b #> c)) where
-  cons = Cons
-instance ConsGen (a #> b) (Param b) ((a #> b) (Param b)) where
-  cons = Cons
-instance ConsGen (Param a) (b #> c) ((Param a) #> (b #> c)) where
-  cons = Cons
-instance ConsGen a (b #> c) ((Param a) #> (b #> c)) where
-  cons a b = Cons (Param a Nothing) b
-instance ConsGen (a #> b) c ((a #> b) #> (Param c)) where
-  cons a b = Cons a (Param b Nothing)
+-- -- ラップされていなかったらする
+-- instance {-# OVERLAPPABLE #-} (b ~ (Param a)) => ParamGen a b where
+--   param a = Param a Nothing
+
+-- -- ラップされていたら何もしない
+-- instance  ParamGen (Param a) (Param a) where
+--   param a = a
+
+-- (|>) :: a -> b -> a #> b
+-- (|>) = Cons
+
+class ConsGen a b r | a b -> r where
+  (|>) :: a -> b -> r
+
+-- class ConsGen a b where
+--   type R a b
+--   (|>) :: a -> b -> R a b
+
+-- instance ConsGen (Cons a b) (Cons b c) (Cons (Cons a b) (Cons b c)) where
+--   (|>) = Cons
+-- instance ConsGen (Cons a b) (Param b) (Cons (Cons a b) (Param b)) where
+--   (|>) = Cons
+-- instance ConsGen (Param a) (Cons b c) (Cons (Param a) (Cons b c)) where
+--   (|>) = Cons
+-- instance ConsGen a (Cons b c) (Cons (Param a) (Cons b c)) where
+--   (|>) a b = Cons (Param a Nothing) b
+-- instance ConsGen (Cons a b) c (Cons (Cons a b) (Param c)) where
+--   (|>) a b = Cons a (Param b Nothing)
+-- instance ConsGen (Param a) (Param b) (Cons (Param a) (Param b)) where
+--   (|>) = Cons
+-- instance ConsGen a (Param b) (Cons (Param a) (Param b)) where
+--   (|>) a b = Cons (Param a Nothing) b
+-- instance  {-# OVERLAPPABLE #-} (c ~ (Param a), d ~ (Param b)) => ConsGen a b c d where
+--   (|>) a b = Cons (param a) (param b)
+-- 左はラップ済み
+instance   ((Param b) ~ d) => ConsGen (Param a) b ((Param a) #> d) where
+  (|>) a b = Cons a (param b)
+-- 右はラップ済み
+instance   ((Param a) ~ c) => ConsGen a (Param b) (c #> (Param b)) where
+  (|>) a b = Cons (param a) b
+-- 左右どちらもラップ済み
 instance ConsGen (Param a) (Param b) ((Param a) #> (Param b)) where
-  cons = Cons
-instance ConsGen a (Param b) ((Param a) #> (Param b)) where
-  cons a b = Cons (Param a Nothing) b
-instance ConsGen (Param a) b ((Param a) #> (Param b)) where
-  cons a b = Cons a (Param b Nothing)
-instance ConsGen a b ((Param a) #> (Param b)) where
-  cons a b = Cons (param a) (param b)
+  (|>) = Cons
+-- 左右どちらもラップされてない
+instance {-# OVERLAPPABLE #-} ((Param a) ~ c, (Param b) ~ d) => ConsGen a b (c #> d) where
+  (|>) a b = Cons (param a) (param b)
 
-infixr 8 :>
-
-newtype Matcher v = Matcher (v -> v -> Bool)
+infixr 8 |>
 
 anyMatcher :: a -> a -> Bool
-anyMatcher _ _ = true
+anyMatcher _ _ = True
 
 any :: Param a
 any = unsafeCoerce (Param "any" $ Just $ Matcher anyMatcher)
@@ -56,15 +99,15 @@ any = unsafeCoerce (Param "any" $ Just $ Matcher anyMatcher)
 matcher :: (a -> Bool) -> String -> Param a
 matcher f msg = Param (unsafeCoerce msg) (Just $ Matcher (\_ a -> f a))
 
-class NotMatcher a r | a -> r where
+class NotMatcher a r where
   notEqual :: a -> r
 
 instance (Eq a, Show a) => NotMatcher (Param a) (Param a) where
-  notEqual (Param v m) = Param (unsafeCoerce $ "Not " <> showWithRemoveEscape v) ((\(Matcher f) -> Matcher (\a b -> true /= f a b)) <$> m)
+  notEqual (Param v m) = Param (unsafeCoerce $ "Not " <> showWithRemoveEscape v) ((\(Matcher f) -> Matcher (\a b -> True /= f a b)) <$> m)
 instance (Eq a, Show a) => NotMatcher a (Param a) where
   notEqual v = Param (unsafeCoerce $ "Not " <> showWithRemoveEscape v) (Just $ Matcher (\_ a -> a /= v))
 
-class LogicalMatcher a b r | a -> r, b -> r where
+class LogicalMatcher a b r where
   or :: a -> b -> r
   and :: a -> b -> r
 
@@ -91,5 +134,4 @@ composeAnd Nothing             (Just (Matcher m2)) = Just $ Matcher (\a b -> m2 
 composeAnd Nothing             Nothing             = Nothing
 
 showWithRemoveEscape :: Show a => a -> String
-showWithRemoveEscape s = do
-  show s # (replace (unsafeRegex "\\\"" global) "")
+showWithRemoveEscape s = unpack $ replace (pack "\\") (pack "") (pack (show s))
