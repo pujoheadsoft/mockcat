@@ -73,14 +73,11 @@ class ConsGen a b r | a b -> r where
 --   (|>) = Cons
 -- instance ConsGen a (Param b) (Cons (Param a) (Param b)) where
 --   (|>) a b = Cons (Param a Nothing) b
--- instance  {-# OVERLAPPABLE #-} (c ~ (Param a), d ~ (Param b)) => ConsGen a b c d where
---   (|>) a b = Cons (param a) (param b)
--- 左はラップ済み
--- instance   ((Param b) ~ d) => ConsGen (Param a) b ((Param a) #> d) where
---   (|>) a b = Cons a (param b)
--- -- 右はラップ済み
--- instance   ((Param a) ~ c) => ConsGen a (Param b) (c #> (Param b)) where
---   (|>) a b = Cons (param a) b
+
+
+
+instance ((Param a) ~ a') => ConsGen a (b #> c) (a' #> b #> c) where
+  (|>) a b = Cons (param a) b
 -- 左右どちらもラップ済み
 instance {-# OVERLAPPING #-} ConsGen (Param a) (Param b) (Param a #> Param b) where
   (|>) = Cons
