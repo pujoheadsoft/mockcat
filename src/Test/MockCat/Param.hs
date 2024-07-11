@@ -1,22 +1,17 @@
 {-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE TypeFamilyDependencies #-}
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
 module Test.MockCat.Param where
 
 import Unsafe.Coerce
 import Data.Text hiding (head)
 import Test.MockCat.Cons
-
-newtype Matcher v = Matcher (v -> v -> Bool)
 
 data Param v = Param v (Maybe (Matcher v))
 
@@ -71,11 +66,13 @@ any = unsafeCoerce (Param "any" $ Just $ Matcher anyMatcher)
 matcher :: (a -> Bool) -> String -> Param a
 matcher f msg = Param (unsafeCoerce msg) (Just $ Matcher (\_ a -> f a))
 
+newtype Matcher v = Matcher (v -> v -> Bool)
+
 class NotMatcher a r where
   notEqual :: a -> r
 
 instance (Eq a, Show a) => NotMatcher (Param a) (Param a) where
-  notEqual (Param v m) = Param (unsafeCoerce $ "Not " <> showWithRemoveEscape v) ((\(Matcher f) -> Matcher (\a b -> True /= f a b)) <$> m)
+  notEqual (Param v m) = Param (unsafeCoerce $ "Not " <> showWithRemoveEscape v) ((\(Matcher f) -> Matcher (\a b -> not (f a b))) <$> m)
 instance (Eq a, Show a) => NotMatcher a (Param a) where
   notEqual v = Param (unsafeCoerce $ "Not " <> showWithRemoveEscape v) (Just $ Matcher (\_ a -> a /= v))
 
@@ -83,26 +80,29 @@ class LogicalMatcher a b r where
   or :: a -> b -> r
   and :: a -> b -> r
 
-instance (Eq a, Show a) => LogicalMatcher (Param a) (Param a) (Param a) where
+instance {-# OVERLAPPING #-} (Eq a, Show a) => LogicalMatcher (Param a) (Param a) (Param a) where
   or  p1@(Param _ m1) p2@(Param _ m2) = Param (unsafeCoerce $ showWithRemoveEscape p1 <> " || " <> showWithRemoveEscape p2) (composeOr m1 m2)
   and p1@(Param _ m1) p2@(Param _ m2) = Param (unsafeCoerce $ showWithRemoveEscape p1 <> " && " <> showWithRemoveEscape p2) (composeAnd m1 m2)
-instance (Eq a, Show a) => LogicalMatcher (Param a) a (Param a) where
+instance {-# OVERLAPPABLE #-} (Eq a, Show a, Param a ~ a') => LogicalMatcher a' a a' where
   or  p1@(Param _ m1) a = Param (unsafeCoerce $ showWithRemoveEscape p1 <> " || " <> showWithRemoveEscape a) (composeOr m1 $ Just $ Matcher (\_ v -> v == a))
   and p1@(Param _ m1) a = Param (unsafeCoerce $ showWithRemoveEscape p1 <> " && " <> showWithRemoveEscape a) (composeAnd m1 $ Just $ Matcher (\_ v -> v == a))
-instance (Eq a, Show a) => LogicalMatcher a a (Param a) where
+instance {-# OVERLAPPABLE #-} (Eq a, Show a, Param a ~ a') => LogicalMatcher a a' a' where
+  or  a p2@(Param _ m2) = Param (unsafeCoerce $ showWithRemoveEscape p2 <> " || " <> showWithRemoveEscape a) (composeOr m2 $ Just $ Matcher (\_ v -> v == a))
+  and a p2@(Param _ m2) = Param (unsafeCoerce $ showWithRemoveEscape p2 <> " && " <> showWithRemoveEscape a) (composeAnd m2 $ Just $ Matcher (\_ v -> v == a))
+instance {-# OVERLAPPABLE #-} (Eq a, Show a, Param a ~ a') => LogicalMatcher a a a' where
   or  a1 a2 = Param (unsafeCoerce $ showWithRemoveEscape a1 <> " || " <> showWithRemoveEscape a2) (Just $ Matcher (\_ a -> a == a1 || a == a2))
   and a1 a2 = Param (unsafeCoerce $ showWithRemoveEscape a1 <> " && " <> showWithRemoveEscape a2) (Just $ Matcher (\_ a -> a == a1 && a == a2))
 
 composeOr :: Maybe (Matcher a) -> Maybe (Matcher a) -> Maybe (Matcher a)
 composeOr (Just (Matcher m1)) (Just (Matcher m2)) = Just $ Matcher (\a b -> m1 a b || m2 a b)
-composeOr (Just (Matcher m1)) Nothing             = Just $ Matcher (\a b -> m1 a b)
-composeOr Nothing             (Just (Matcher m2)) = Just $ Matcher (\a b -> m2 a b)
+composeOr (Just (Matcher m1)) Nothing             = Just $ Matcher m1
+composeOr Nothing             (Just (Matcher m2)) = Just $ Matcher m2
 composeOr Nothing             Nothing             = Nothing
 
 composeAnd :: Maybe (Matcher a) -> Maybe (Matcher a) -> Maybe (Matcher a)
 composeAnd (Just (Matcher m1)) (Just (Matcher m2)) = Just $ Matcher (\a b -> m1 a b && m2 a b)
-composeAnd (Just (Matcher m1)) Nothing             = Just $ Matcher (\a b -> m1 a b)
-composeAnd Nothing             (Just (Matcher m2)) = Just $ Matcher (\a b -> m2 a b)
+composeAnd (Just (Matcher m1)) Nothing             = Just $ Matcher m1
+composeAnd Nothing             (Just (Matcher m2)) = Just $ Matcher m2
 composeAnd Nothing             Nothing             = Nothing
 
 showWithRemoveEscape :: Show a => a -> String
