@@ -55,6 +55,8 @@ param a = Param a Nothing
 class ConsGen a b r | a b -> r where
   (|>) :: a -> b -> r
 
+
+
 -- 左はラップされていない、右は結合済み
 instance {-# OVERLAPPING #-} ConsGen (Param a) (b #> c) (Param a #> b #> c) where
   (|>) = Cons
@@ -65,13 +67,18 @@ instance ((Param a) ~ a') => ConsGen a (b #> c) (a' #> b #> c) where
 instance {-# OVERLAPPING #-} ConsGen (Param a) (Param b) (Param a #> Param b) where
   (|>) = Cons
 -- 左はラップ済み
-instance {-# OVERLAPPABLE #-} ((Param b) ~ d) => ConsGen (Param a) b (Param a #> d) where
+instance {-# OVERLAPPABLE #-} ((Param b) ~ b') => ConsGen (Param a) b (Param a #> b') where
   (|>) a b = Cons a (param b)
+
+-- -- 左結合済み
+-- instance {-# OVERLAPPING #-} ((Param a #> Param b) ~ x, Param c ~ c') => ConsGen (a #> b) c (x #> b #> c') where
+--   (|>) (Cons a b) c = Cons a (Cons b (param c))
+
 -- 右はラップ済み
-instance {-# INCOHERENT #-} ((Param a) ~ c) => ConsGen a (Param b) (c #> Param b) where
+instance {-# INCOHERENT #-} ((Param a) ~ a') => ConsGen a (Param b) (a' #> Param b) where
   (|>) a = Cons (param a)
 -- 左右どちらもラップされてない
-instance {-# OVERLAPPABLE #-} (Param a ~ c, Param b ~ d) => ConsGen a b (c #> d) where
+instance {-# OVERLAPPABLE #-} (Param a ~ a', Param b ~ b') => ConsGen a b (a' #> b') where
   (|>) a b = Cons (param a) (param b)
 
 

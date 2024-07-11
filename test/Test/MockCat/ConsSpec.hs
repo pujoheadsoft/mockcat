@@ -11,6 +11,31 @@ import Test.MockCat.Param as P
 spec :: Spec
 spec = do
   describe "Cons" do
+    describe "|>" do
+      it "a |> b" do
+        True |> False `shouldBe` Cons (param True) (param False)
+
+      it "Param a |> b" do
+        param True |> False `shouldBe` Cons (param True) (param False)
+
+      it "a |> Param b" do
+        True |> param False `shouldBe` Cons (param True) (param False)
+
+      it "Param a |> Param b" do
+        param True |> param False `shouldBe` Cons (param True) (param False)
+
+      it "a |> b |> c" do
+        True |> False |> True `shouldBe` Cons (param True) (Cons (param False) (param True))
+
+      it "Param a |> b |> c" do
+        param True |> False |> True `shouldBe` Cons (param True) (Cons (param False) (param True))
+
+      it "(a |> b) |> c" do
+        -- (True |> False) |> True `shouldBe` Cons (param True) (Cons (param False) (param True))
+        let x = True |> False
+            y = x |> True
+        "" `shouldBe` ""
+
     describe "Show" do
       it "2 arguments" do
         show ((10 :: Int) |> True) `shouldBe` "10,True"
@@ -18,7 +43,7 @@ spec = do
         show ("1" |> False |> [3, 4]) `shouldBe` "\"1\",False,[3,4]"
     describe "Eq" do
       it "2 arguments" do
-        (1 |> "2") `shouldBe` (1 |> "2")
+        ((1 :: Int) |> "2") `shouldBe` ((1 :: Int) |> "2")
       it "3 arguments" do
         ("1" |> False |> [3, 4]) `shouldBe` ("1" |> False |> [3, 4])
     describe "Param" do
