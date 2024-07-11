@@ -83,13 +83,13 @@ class LogicalMatcher a b r where
 instance {-# OVERLAPPING #-} (Eq a, Show a) => LogicalMatcher (Param a) (Param a) (Param a) where
   or  p1@(Param _ m1) p2@(Param _ m2) = Param (unsafeCoerce $ showWithRemoveEscape p1 <> " || " <> showWithRemoveEscape p2) (composeOr m1 m2)
   and p1@(Param _ m1) p2@(Param _ m2) = Param (unsafeCoerce $ showWithRemoveEscape p1 <> " && " <> showWithRemoveEscape p2) (composeAnd m1 m2)
-instance {-# OVERLAPPABLE #-} (Eq a, Show a, Param a ~ a') => LogicalMatcher a' a a' where
+instance {-# OVERLAPPABLE #-} (Eq a, Show a) => LogicalMatcher (Param a) a (Param a) where
   or  p1@(Param _ m1) a = Param (unsafeCoerce $ showWithRemoveEscape p1 <> " || " <> showWithRemoveEscape a) (composeOr m1 $ Just $ Matcher (\_ v -> v == a))
   and p1@(Param _ m1) a = Param (unsafeCoerce $ showWithRemoveEscape p1 <> " && " <> showWithRemoveEscape a) (composeAnd m1 $ Just $ Matcher (\_ v -> v == a))
-instance {-# OVERLAPPABLE #-} (Eq a, Show a, Param a ~ a') => LogicalMatcher a a' a' where
+instance {-# OVERLAPPABLE #-} (Eq a, Show a) => LogicalMatcher a (Param a) (Param a) where
   or  a p2@(Param _ m2) = Param (unsafeCoerce $ showWithRemoveEscape p2 <> " || " <> showWithRemoveEscape a) (composeOr m2 $ Just $ Matcher (\_ v -> v == a))
   and a p2@(Param _ m2) = Param (unsafeCoerce $ showWithRemoveEscape p2 <> " && " <> showWithRemoveEscape a) (composeAnd m2 $ Just $ Matcher (\_ v -> v == a))
-instance {-# OVERLAPPABLE #-} (Eq a, Show a, Param a ~ a') => LogicalMatcher a a a' where
+instance {-# OVERLAPPABLE #-} (Eq a, Show a) => LogicalMatcher a a (Param a) where
   or  a1 a2 = Param (unsafeCoerce $ showWithRemoveEscape a1 <> " || " <> showWithRemoveEscape a2) (Just $ Matcher (\_ a -> a == a1 || a == a2))
   and a1 a2 = Param (unsafeCoerce $ showWithRemoveEscape a1 <> " && " <> showWithRemoveEscape a2) (Just $ Matcher (\_ a -> a == a1 && a == a2))
 
