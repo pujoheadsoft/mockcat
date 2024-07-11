@@ -47,12 +47,15 @@ spec = do
         notEqual "v" == param "x" `shouldBe` True
       it "and" do
         matcher ((0 :: Int) <) "0 < x" `and` matcher (< (3 :: Int)) "x < 3" == param (2 :: Int) `shouldBe` True
-      it "or" do
+      it "a `or` b" do
         let orParam = "x" `or` "y"
+        orParam == param "x" `shouldBe` True
         orParam == param "y" `shouldBe` True
-      it "or2" do
-        let orParam = (matcher ((0 :: Int) <) "0 < x") `or` (10 :: Int)
+      it "matcher `or` b" do
+        let orParam = matcher ((0 :: Int) <) "0 < x" `or` (10 :: Int)
+        orParam == param (1 :: Int) `shouldBe` True
         orParam == param (10 :: Int) `shouldBe` True
-      it "or3" do
-        let orParam = (10 :: Int) `or` (matcher ((0 :: Int) <) "0 < x")
+      it "a `or` matcher" do
+        let orParam = (10 :: Int) `or` matcher ((0 :: Int) <) "0 < x"
         orParam == param (10 :: Int) `shouldBe` True
+        orParam == param (5 :: Int) `shouldBe` True
