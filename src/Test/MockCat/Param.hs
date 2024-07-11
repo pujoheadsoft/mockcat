@@ -29,40 +29,22 @@ instance Eq a => Eq (Param a) where
 instance Show a => Show (Param a) where
   show (Param v _) = show v
 
--- param :: a -> Param a
--- param a = Param a Nothing
-
 value :: Param v -> v
 value (Param v _) = v
 
 param :: v -> Param v
 param a = Param a Nothing
 
--- class ParamGen a b | a -> b where
---   param :: a -> b
-
--- -- ラップされていなかったらする
--- instance {-# OVERLAPPABLE #-} (b ~ (Param a)) => ParamGen a b where
---   param a = Param a Nothing
-
--- -- ラップされていたら何もしない
--- instance  ParamGen (Param a) (Param a) where
---   param a = a
-
--- (|>) :: a -> b -> a #> b
--- (|>) = Cons
-
 class ConsGen a b r | a b -> r where
   (|>) :: a -> b -> r
 
+instance {-# OVERLAPPING #-} ((Param a #> Param b) ~ x, (Param c #> Param d) ~ y) => ConsGen (Param a #> Param b) (Param c #> Param d) (x #> y) where
+  (|>) = Cons
 
--- 左結合済み、右はラップされていない
-instance {-# OVERLAPPING #-} ((Param b #> Param c) ~ x) => ConsGen (Param a #> Param b) c (Param a #> x) where
-  (|>) (Cons a b) c = Cons a (Cons b (param c))
--- 左はラップされていない、右は結合済み
+-- 左はラップ済み、右は結合済み
 instance {-# OVERLAPPING #-} ConsGen (Param a) (b #> c) (Param a #> b #> c) where
   (|>) = Cons
--- 左はラップ済み、右は結合済み
+-- 左はラップされてない、右は結合済み
 instance ((Param a) ~ a') => ConsGen a (b #> c) (a' #> b #> c) where
   (|>) a = Cons (param a)
 -- 左右どちらもラップ済み
@@ -77,10 +59,6 @@ instance {-# INCOHERENT #-} ((Param a) ~ a') => ConsGen a (Param b) (a' #> Param
 -- 左右どちらもラップされてない
 instance {-# OVERLAPPABLE #-} (Param a ~ a', Param b ~ b') => ConsGen a b (a' #> b') where
   (|>) a b = Cons (param a) (param b)
-
-
-
-
 
 infixr 8 |>
 
