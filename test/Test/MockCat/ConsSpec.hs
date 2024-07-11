@@ -31,10 +31,7 @@ spec = do
         param True |> False |> True `shouldBe` Cons (param True) (Cons (param False) (param True))
 
       it "(a |> b) |> c" do
-        -- (True |> False) |> True `shouldBe` Cons (param True) (Cons (param False) (param True))
-        let x = True |> False
-            y = x |> True
-        "" `shouldBe` ""
+        (True |> False) |> True `shouldBe` Cons (param True) (Cons (param False) (param True))
 
     describe "Show" do
       it "2 arguments" do
