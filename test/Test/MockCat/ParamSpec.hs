@@ -59,3 +59,7 @@ spec = do
         let orParam = (10 :: Int) `or` matcher ((0 :: Int) <) "0 < x"
         orParam == param (10 :: Int) `shouldBe` True
         orParam == param (5 :: Int) `shouldBe` True
+      it "matcher `or` matcher" do
+        let orParam = matcher (< (0 :: Int)) "x < 0" `or` matcher ((0 :: Int) <) "0 < x"
+        orParam == param (10 :: Int) `shouldBe` True
+        orParam == param (-1 :: Int) `shouldBe` True
