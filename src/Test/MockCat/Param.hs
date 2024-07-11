@@ -16,7 +16,7 @@ import Test.MockCat.Cons
 data Param v = Param v (Maybe (Matcher v))
 
 instance Eq a => Eq (Param a) where
-  (Param a (Just (Matcher m1))) == (Param b (Just (Matcher m2))) = (m1 a b) && (m2 a b)
+  (Param a (Just (Matcher m1))) == (Param b (Just (Matcher m2))) = m1 a b && m2 a b
   (Param a (Just (Matcher m1))) == (Param b Nothing)             = m1 a b
   (Param a Nothing)             == (Param b (Just (Matcher m2))) = m2 a b
   (Param a Nothing)             == (Param b Nothing)             = a == b
