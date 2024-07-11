@@ -16,6 +16,7 @@ module Test.MockCat.Example where
 import Test.MockCat.TH
 import Test.MockCat.Param
 
+
 type Coproduct :: [*] -> *
 data Coproduct tys where
   Inject :: x -> Coproduct (x:xs)
