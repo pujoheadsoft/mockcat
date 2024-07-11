@@ -5,7 +5,6 @@ module Test.MockCat.ParamSpec (spec) where
 import Prelude hiding (and, or)
 import Test.Hspec
 import Test.MockCat.Cons
-import Test.MockCat.Param
 import Test.MockCat.Param as P
 import Control.Applicative (Alternative(empty))
 
