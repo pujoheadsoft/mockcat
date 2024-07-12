@@ -13,8 +13,8 @@ spec = do
   describe "mock" do
     it "fn" do
       m <- mock $ "a" |> "x"
-      -- let 
-      --   f = fun m
-      --   v = f "a"
-      -- v `shouldBe` "x"
-      verify m "a"
+      let 
+        f = fun m
+        v = f "c"
+      v `shouldBe` "x"
+      -- verify m "a"

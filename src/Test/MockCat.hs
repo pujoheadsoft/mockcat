@@ -16,6 +16,8 @@ import Control.Monad.IO.Class (MonadIO (liftIO))
 import Data.Function ((&))
 import Control.Monad (guard)
 import Data.Text (unpack, replace, pack)
+import GHC.Stack (HasCallStack)
+import Control.Exception (evaluate)
 
 data Mock fun params = Mock (Maybe MockName) fun (Verifier params)
 type MockName = String
@@ -71,7 +73,7 @@ extractReturnValueWithValidate name params inputParams s = do
 validateWithStoreParams :: Eq a => Show a => Maybe MockName -> IORef (CalledParamsList a) -> a -> a -> IO ()
 validateWithStoreParams name s expected actual = do
   a <- storeCalledParams s actual
-  pure $ validateParams name expected a
+  validateParams name expected a
 
 data CalledParamsStore params = CalledParamsStore {
   calledParamsList :: CalledParamsList params,
@@ -83,11 +85,10 @@ storeCalledParams ref a = do
   modifyIORef' ref (++ [a])
   pure a
 
-validateParams :: Eq a => Show a => Maybe MockName -> a -> a -> ()
+validateParams :: Eq a => Show a => Maybe MockName -> a -> a -> IO ()
 validateParams name expected actual =
-  if expected == actual then ()
-  else error $ message name expected actual
-
+  if expected == actual then pure ()
+  else evaluate . errorWithoutStackTrace $ message name expected actual
 
 {-
   Function was not called with expected arguments.
@@ -124,7 +125,7 @@ _verify :: Eq params => Show params => Mock fun params -> VerifyMatchType params
 _verify (Mock name _ (Verifier ref)) matcher = do
   calledParamsList <- liftIO $ readIORef ref
   case doVerify name calledParamsList matcher of
-    Just (VerifyFailed msg) -> fail msg
+    Just (VerifyFailed msg) -> errorWithoutStackTrace msg
     Nothing -> pure ()
 
 newtype VerifyFailed = VerifyFailed Message
