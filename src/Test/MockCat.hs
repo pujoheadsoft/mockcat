@@ -11,21 +11,28 @@ import Data.Maybe
 import Data.List (intercalate)
 import Test.MockCat.ParamDivider
 
-data Mock fun params = Mock (Maybe MockName) fun
+data Mock fun params = Mock (Maybe MockName) fun (Verifier params)
 type MockName = String
+newtype Verifier params = Verifier (CalledParamsList params)
 
 class MockBuilder params fun verifyParams | params -> fun, params -> verifyParams where
   build :: Maybe MockName -> params -> IO (Mock fun verifyParams)
 
 
--- instance (Show a, Eq a)
---   => MockBuilder (Param a #> Param r) (a -> r) (Param a) where
---   build name params = do
---     s <- store
---     createMock name s.calledParamsList (\a2 -> extractReturnValueWithValidate name params (p a2) s)
+instance (Show a, Eq a)
+  => MockBuilder (Param a :> Param r) (a -> r) (Param a) where
+  build name params = do
+    s <- _store
+    createMock name (calledParamsList s) (\a2 -> extractReturnValueWithValidate name params (p a2) s)
 
--- createMock :: Eq params => Show params => Maybe MockName -> CalledParamsList params -> fun -> IO (Mock fun params)
--- createMock name l fn = pure $ Mock name fn
+p :: a -> Param a
+p = param
+
+_store :: IO (CalledParamsStore params)
+_store = undefined
+
+createMock :: Eq params => Show params => Maybe MockName -> CalledParamsList params -> fun -> IO (Mock fun params)
+createMock name l fn = pure $ Mock name fn (Verifier l)
 
 type CalledParamsList params = [params]
 
