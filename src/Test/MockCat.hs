@@ -2,7 +2,7 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
-module Test.MockCat (mock, fun, verify) where
+module Test.MockCat (mock, fun, verify, hasBeenCalledWith) where
 
 import Test.MockCat.Param hiding (any)
 import Test.MockCat.Cons
@@ -141,3 +141,10 @@ formatCalledParamsList calledParams
 
 _replace :: Show a => String -> a -> String
 _replace r s = unpack $ replace (pack r) (pack "") (pack (show s))
+
+hasBeenCalledWith
+  :: Verify params input
+  => Mock fun params
+  -> input
+  -> IO ()
+hasBeenCalledWith = verify

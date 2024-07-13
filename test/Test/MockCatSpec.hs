@@ -2,23 +2,23 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# OPTIONS_GHC -Wno-type-defaults #-}
 {-# LANGUAGE OverloadedRecordDot #-}
+{-# OPTIONS_GHC -Wno-unused-do-bind #-}
 module Test.MockCatSpec (spec) where
 
 import Test.Hspec
 import Test.MockCat
 import Test.MockCat.Param
-import Test.MockCat
 import Control.Exception (evaluate)
 
 data Fixture mock r = Fixture {
   name :: String,
-  create :: () -> IO mock,
+  create :: IO mock,
   execute :: mock -> r,
   executeFailed :: Maybe (mock -> r),
-  expected :: r
-  -- verifyMock :: mock -> IO (),
+  expected :: r,
+  verifyMock :: mock -> IO (),
+  verifyFailed :: mock -> IO ()
   -- verifyCount :: mock -> Int -> IO (),
-  -- verifyFailed :: mock -> IO ()
 }
 
 -- data VerifyOrderFixture mock r m = VerifyOrderFixture {
@@ -32,26 +32,26 @@ data Fixture mock r = Fixture {
 -- mock test template
 mockTest :: (Eq r, Show r) => Fixture mock r -> SpecWith (Arg Expectation)
 mockTest f = describe f.name do
-  it "Returns a set value when called with a set argument." do
-    m <- f.create ()
+  it "Expected argument is applied, the expected value is returned." do
+    m <- f.create
     f.execute m `shouldBe` f.expected
 
-  it "Failure to call with set arguments." do
+  it "Unexpected argument is applied, an exception is thrown." do
     case f.executeFailed of
       Just func -> do
-        m <- f.create ()
+        m <- f.create
         evaluate (func m) `shouldThrow` anyErrorCall
       Nothing -> pure ()
 
-  -- it "that the call was made with the set arguments." do
-  --   m <- f.create unit
-  --   let _ = f.execute m
-  --   f.verifyMock m
+  it "Expected arguments are applied, the verification succeeds." do
+    m <- f.create
+    evaluate $ f.execute m
+    f.verifyMock m
 
-  -- it "fails if the call is made with arguments different from those set." do
-  --   m <- f.create unit
-  --   let _ = f.execute m
-  --   expectError $ f.verifyFailed m
+  it "Unexpected arguments are applied, the verification fails." do
+    m <- f.create
+    evaluate $ f.execute m 
+    f.verifyFailed m `shouldThrow` anyErrorCall
 
   -- it "the number of times it has been called with the set arguments (0 times)." do
   --   m <- f.create unit
@@ -69,10 +69,12 @@ spec :: Spec
 spec = do
   mockTest Fixture {
     name = "",
-    create = \_ -> mock $ "a" |> False,
+    create = mock $ "a" |> False,
     execute = (`fun` "a"),
     executeFailed = Just (\m -> fun m "x"),
-    expected = False
+    expected = False,
+    verifyMock = (`hasBeenCalledWith` "a"),
+    verifyFailed = (`hasBeenCalledWith` "2")
   }
 
   -- describe "mock" do
