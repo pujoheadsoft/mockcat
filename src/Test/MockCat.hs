@@ -21,7 +21,6 @@ module Test.MockCat
   )
 where
 
-import Control.Exception (evaluate)
 import Control.Monad (guard)
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Data.IORef (IORef, modifyIORef', newIORef, readIORef)
@@ -32,6 +31,7 @@ import GHC.IO (unsafePerformIO)
 import Test.MockCat.Cons
 import Test.MockCat.Param hiding (any)
 import Test.MockCat.ParamDivider
+import Data.Function ((&))
 
 data Mock fun params = Mock (Maybe MockName) fun (Verifier params)
 
@@ -87,21 +87,15 @@ extractReturnValueWithValidate name params inputParams s = do
   validateWithStoreParams name s (args params) inputParams
   pure $ returnValue params
 
-validateWithStoreParams :: (Eq a) => (Show a) => Maybe MockName -> IORef (CalledParamsList a) -> a -> a -> IO ()
-validateWithStoreParams name s expected actual = do
-  a <- storeCalledParams s actual
-  validateParams name expected a
-
-storeCalledParams :: IORef (CalledParamsList a) -> a -> IO a
-storeCalledParams ref a = do
-  modifyIORef' ref (++ [a])
-  pure a
+validateWithStoreParams :: (Eq a, Show a) => Maybe MockName -> IORef (CalledParamsList a) -> a -> a -> IO ()
+validateWithStoreParams name ref expected actual = do
+  validateParams name expected actual
+  modifyIORef' ref (++ [actual])
 
 validateParams :: (Eq a) => (Show a) => Maybe MockName -> a -> a -> IO ()
-validateParams name expected actual =
-  if expected == actual
-    then pure ()
-    else evaluate . errorWithoutStackTrace $ message name expected actual
+validateParams name expected actual = 
+  if expected == actual then pure ()
+  else errorWithoutStackTrace $ message name expected actual
 
 {-
   Function was not called with expected arguments.
@@ -138,9 +132,8 @@ instance (Eq a, Show a) => Verify a a where
 _verify :: (Eq params) => (Show params) => Mock fun params -> VerifyMatchType params -> IO ()
 _verify (Mock name _ (Verifier ref)) matchType = do
   calledParamsList <- liftIO $ readIORef ref
-  case doVerify name calledParamsList matchType of
-    Just (VerifyFailed msg) -> errorWithoutStackTrace msg
-    Nothing -> pure ()
+  let result = doVerify name calledParamsList matchType
+  result & maybe mempty (\(VerifyFailed msg) -> errorWithoutStackTrace msg)
 
 newtype VerifyFailed = VerifyFailed Message
 
