@@ -1,6 +1,6 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE DataKinds #-}
-module Test.MockCat.Cons where
+module Test.MockCat.Cons ((:>)(..)) where
 
 data a :> b = a :> b
 

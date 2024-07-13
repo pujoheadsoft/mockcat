@@ -28,10 +28,8 @@ library
       Lib
       Test.MockCat
       Test.MockCat.Cons
-      Test.MockCat.Example
       Test.MockCat.Param
       Test.MockCat.ParamDivider
-      Test.MockCat.TH
   other-modules:
       Paths_mockcat
   autogen-modules:
