@@ -12,6 +12,62 @@ import Test.MockCat.Param (any, (|>))
 import Control.Exception (evaluate)
 import Data.Function ((&))
 
+spec :: Spec
+spec = do
+  describe "Test of Mock" do
+    mockTest Fixture {
+      name = "arity = 1",
+      create = mock $ "a" |> False,
+      execute = (`fun` "a"),
+      executeFailed = Just (`fun` "x"),
+      expected = False,
+      verifyMock = (`hasBeenCalledWith` "a"),
+      verifyFailed = (`hasBeenCalledWith` "2"),
+      verifyCount = \m c -> m `hasBeenCalledTimes` c `with` "a"
+    }
+
+    mockTest Fixture {
+      name = "arity = 2",
+      create = mock $ "a" |> "b" |> False,
+      execute = \m -> fun m "a" "b",
+      executeFailed = Just (\m -> fun m "a" "x"),
+      expected = False,
+      verifyMock = \m -> hasBeenCalledWith m $ "a" |> "b",
+      verifyFailed = \m -> hasBeenCalledWith m $ "2" |> "b",
+      verifyCount = \m c -> m `hasBeenCalledTimes` c `with` ("a" |> "b")
+    }
+
+  describe "Order Verification" do
+    describe "exactly sequential order." do
+      mockOrderTest VerifyOrderFixture {
+        name = "arity = 1",
+        create = mock $ any |> (),
+        execute = \m -> do
+          evaluate $ fun m "a"
+          evaluate $ fun m "b"
+          evaluate $ fun m "c",
+        verifyMock = \m -> m `hasBeenCalledInOrder` [
+          "a",
+          "b",
+          "c"
+        ],
+        verifyFailed = \m -> m `hasBeenCalledInOrder` [
+          "a",
+          "b",
+          "b"
+        ]
+      }
+
+  -- describe "mock" do
+  --   it "fn" do
+  --     m <- mock $ "a" |> "x"
+  --     let
+  --       f = fun m
+  --       v = f "c"
+  --     v `shouldBe` "x"
+      --verify m "a"
+
+
 data Fixture mock r = Fixture {
   name :: String,
   create :: IO mock,
@@ -80,47 +136,3 @@ mockOrderTest f = describe f.name do
     m <- f.create
     f.execute m
     f.verifyFailed m `shouldThrow` anyErrorCall
-
-spec :: Spec
-spec = do
-  describe "Test of Mock" do
-    mockTest Fixture {
-      name = "arity = 1",
-      create = mock $ "a" |> False,
-      execute = (`fun` "a"),
-      executeFailed = Just (`fun` "x"),
-      expected = False,
-      verifyMock = (`hasBeenCalledWith` "a"),
-      verifyFailed = (`hasBeenCalledWith` "2"),
-      verifyCount = \m c -> m `hasBeenCalledTimes` c `with` "a"
-    }
-
-  describe "Order Verification" do
-    describe "exactly sequential order." do
-      mockOrderTest VerifyOrderFixture {
-        name = "arity = 1", 
-        create = mock $ any |> (),
-        execute = \m -> do
-          evaluate $ fun m "a"
-          evaluate $ fun m "b"
-          evaluate $ fun m "c",
-        verifyMock = \m -> m `hasBeenCalledInOrder` [
-          "a",
-          "b",
-          "c"
-        ],
-        verifyFailed = \m -> m `hasBeenCalledInOrder` [
-          "a",
-          "b",
-          "b"
-        ]
-      }
-
-  -- describe "mock" do
-  --   it "fn" do
-  --     m <- mock $ "a" |> "x"
-  --     let
-  --       f = fun m
-  --       v = f "c"
-  --     v `shouldBe` "x"
-      --verify m "a"

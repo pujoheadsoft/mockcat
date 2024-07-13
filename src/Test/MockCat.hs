@@ -52,6 +52,12 @@ fun (Mock _ f _) = f
 class MockBuilder params fun verifyParams | params -> fun, params -> verifyParams where
   build :: Maybe MockName -> params -> IO (Mock fun verifyParams)
 
+instance (Show a, Eq a, Show b, Eq b)
+  => MockBuilder (Param a :> Param b :> Param r) (a -> b -> r) (Param a :> Param b) where
+  build name params = do
+    s <- newIORef ([] :: CalledParamsList params)
+    createMock name s (\a2 b2 -> unsafePerformIO $ extractReturnValueWithValidate name params (p a2 :> p b2) s)
+
 instance
   (Show a, Eq a) =>
   MockBuilder (Param a :> Param r) (a -> r) (Param a)
@@ -126,8 +132,8 @@ class Verify params input where
 instance (Eq a, Show a) => Verify (Param a) a where
   verify v a = _verify v (MatchAny (param a))
 
--- instance (Eq a, Show a) => Verify a a where
---   verify v a = _verify v (MatchAny a)
+instance (Eq a, Show a) => Verify a a where
+  verify v a = _verify v (MatchAny a)
 
 _verify :: (Eq params) => (Show params) => Mock fun params -> VerifyMatchType params -> IO ()
 _verify (Mock name _ (Verifier ref)) matchType = do
@@ -205,10 +211,10 @@ instance VerifyCount CountVerifyMethod (Param a) a where
 instance VerifyCount Int (Param a) a where
   verifyCount v count a = _verifyCount v (param a) (Equal count)
 
-instance VerifyCount CountVerifyMethod a a where
+instance {-# OVERLAPPABLE #-} VerifyCount CountVerifyMethod a a where
   verifyCount v count a = _verifyCount v a count
 
-instance VerifyCount Int a a where
+instance {-# OVERLAPPABLE #-} VerifyCount Int a a where
   verifyCount v count a = _verifyCount v a (Equal count)
 
 _verifyCount :: (Eq params) => Mock fun params -> params -> CountVerifyMethod -> IO ()
