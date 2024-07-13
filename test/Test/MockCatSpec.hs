@@ -6,9 +6,13 @@
 module Test.MockCatSpec (spec) where
 
 import Test.Hspec
-import Test.MockCat
+import Test.MockCat (mock, fun, hasBeenCalledWith, hasBeenCalledTimes, with)
 import Test.MockCat.Param
 import Control.Exception (evaluate)
+import Data.Function ((&))
+import Control.Monad (replicateM_)
+import Data.Foldable (forM_)
+import Data.Traversable (for)
 
 data Fixture mock r = Fixture {
   name :: String,
@@ -17,8 +21,8 @@ data Fixture mock r = Fixture {
   executeFailed :: Maybe (mock -> r),
   expected :: r,
   verifyMock :: mock -> IO (),
-  verifyFailed :: mock -> IO ()
-  -- verifyCount :: mock -> Int -> IO (),
+  verifyFailed :: mock -> IO (),
+  verifyCount :: mock -> Int -> IO ()
 }
 
 -- data VerifyOrderFixture mock r m = VerifyOrderFixture {
@@ -37,11 +41,9 @@ mockTest f = describe f.name do
     f.execute m `shouldBe` f.expected
 
   it "Unexpected argument is applied, an exception is thrown." do
-    case f.executeFailed of
-      Just func -> do
-        m <- f.create
-        evaluate (func m) `shouldThrow` anyErrorCall
-      Nothing -> pure ()
+    f.executeFailed & maybe mempty \func -> do
+      m <- f.create
+      evaluate (func m) `shouldThrow` anyErrorCall
 
   it "Expected arguments are applied, the verification succeeds." do
     m <- f.create
@@ -50,31 +52,36 @@ mockTest f = describe f.name do
 
   it "Unexpected arguments are applied, the verification fails." do
     m <- f.create
-    evaluate $ f.execute m 
+    evaluate $ f.execute m
     f.verifyFailed m `shouldThrow` anyErrorCall
 
-  -- it "the number of times it has been called with the set arguments (0 times)." do
-  --   m <- f.create unit
-  --   f.verifyCount m 0
+  it "The number of times a function has been applied can be verification (0 times)." do
+    m <- f.create
+    f.verifyCount m 0
 
-  -- it "the number of times it has been called with the set arguments (3 times)." do
-  --   m <- f.create unit
-  --   let
-  --     _ = f.execute m
-  --     _ = f.execute m
-  --     _ = f.execute m
-  --   f.verifyCount m 3
+  it "The number of times a function has been applied can be verification (3 times)." do
+    m <- f.create
+    evaluate $ f.execute m
+    evaluate $ f.execute m
+    evaluate $ f.execute m
+    f.verifyCount m 3
+
+  it "Fails to verification the number of times it has been applied, an exception is thrown." do
+    m <- f.create
+    evaluate $ f.execute m
+    f.verifyCount m 3 `shouldThrow` anyErrorCall
 
 spec :: Spec
 spec = do
   mockTest Fixture {
-    name = "",
+    name = "Test of Mock (arity = 1)",
     create = mock $ "a" |> False,
     execute = (`fun` "a"),
-    executeFailed = Just (\m -> fun m "x"),
+    executeFailed = Just (`fun` "x"),
     expected = False,
     verifyMock = (`hasBeenCalledWith` "a"),
-    verifyFailed = (`hasBeenCalledWith` "2")
+    verifyFailed = (`hasBeenCalledWith` "2"),
+    verifyCount = \m c -> m `hasBeenCalledTimes` c `with` "a"
   }
 
   -- describe "mock" do

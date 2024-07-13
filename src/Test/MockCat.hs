@@ -2,7 +2,7 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
-module Test.MockCat (mock, fun, verify, hasBeenCalledWith) where
+module Test.MockCat (mock, fun, verify, hasBeenCalledWith, verifyCount, hasBeenCalledTimes, with) where
 
 import Test.MockCat.Param hiding (any)
 import Test.MockCat.Cons
@@ -148,3 +148,62 @@ hasBeenCalledWith
   -> input
   -> IO ()
 hasBeenCalledWith = verify
+
+class VerifyCount countType params a where
+  verifyCount :: Eq params => Mock fun params -> countType -> a -> IO ()
+
+data CountVerifyMethod =
+    Equal Int
+  | LessThanEqual Int
+  | GreaterThanEqual Int
+  | LessThan Int
+  | GreaterThan Int
+
+instance Show CountVerifyMethod where
+  show (Equal e)            = show e
+  show (LessThanEqual e)    = "<= " <> show e
+  show (LessThan e)         = "< " <> show e
+  show (GreaterThanEqual e) = ">= " <> show e
+  show (GreaterThan e)      = "> " <> show e
+
+compareCount :: CountVerifyMethod -> Int -> Bool
+compareCount (Equal e) a            = a == e
+compareCount (LessThanEqual e) a    = a <= e
+compareCount (LessThan e) a         = a <  e
+compareCount (GreaterThanEqual e) a = a >= e
+compareCount (GreaterThan e) a      = a >  e
+
+instance VerifyCount CountVerifyMethod (Param a) a where
+  verifyCount v count a = _verifyCount v (param a) count
+
+instance VerifyCount Int (Param a) a where
+  verifyCount v count a =  _verifyCount v (param a) (Equal count)
+
+instance VerifyCount CountVerifyMethod a a where
+  verifyCount v count a = _verifyCount v a count
+
+instance VerifyCount Int a a where
+  verifyCount v count a = _verifyCount v a (Equal count)
+
+_verifyCount :: Eq params => Mock fun params -> params -> CountVerifyMethod -> IO ()
+_verifyCount (Mock name _ (Verifier ref)) v method = do
+  calledParamsList <- readIORef ref
+  let
+    callCount = length (filter (v ==) calledParamsList)
+  if compareCount method callCount then pure ()
+  else errorWithoutStackTrace $ intercalate "\n" [
+    "function" <> mockNameLabel name <> "was not called the expected number of times.",
+    "  expected: " <> show method,
+    "  but was : " <> show callCount]
+
+hasBeenCalledTimes
+  :: VerifyCount countType params a
+  => Eq params
+  => Mock fun params
+  -> countType
+  -> a
+  -> IO ()
+hasBeenCalledTimes = verifyCount
+
+with :: (a -> IO ()) -> a -> IO ()
+with f = f
