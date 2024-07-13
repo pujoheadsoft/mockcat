@@ -5,14 +5,12 @@
 {-# OPTIONS_GHC -Wno-unused-do-bind #-}
 module Test.MockCatSpec (spec) where
 
+import Prelude hiding (any)
 import Test.Hspec
-import Test.MockCat (mock, fun, hasBeenCalledWith, hasBeenCalledTimes, with)
-import Test.MockCat.Param
+import Test.MockCat (mock, fun, hasBeenCalledWith, hasBeenCalledTimes, with, hasBeenCalledInOrder)
+import Test.MockCat.Param (any, (|>))
 import Control.Exception (evaluate)
 import Data.Function ((&))
-import Control.Monad (replicateM_)
-import Data.Foldable (forM_)
-import Data.Traversable (for)
 
 data Fixture mock r = Fixture {
   name :: String,
@@ -25,13 +23,13 @@ data Fixture mock r = Fixture {
   verifyCount :: mock -> Int -> IO ()
 }
 
--- data VerifyOrderFixture mock r m = VerifyOrderFixture {
---   name :: String,
---   create :: () -> m mock,
---   execute :: mock -> r,
---   verifyMock :: mock -> m (),
---   verifyFailed :: mock -> m ()
--- }
+data VerifyOrderFixture mock r = VerifyOrderFixture {
+  name :: String,
+  create :: IO mock,
+  execute :: mock -> IO r,
+  verifyMock :: mock -> IO (),
+  verifyFailed :: mock -> IO ()
+}
 
 -- mock test template
 mockTest :: (Eq r, Show r) => Fixture mock r -> SpecWith (Arg Expectation)
@@ -71,6 +69,18 @@ mockTest f = describe f.name do
     evaluate $ f.execute m
     f.verifyCount m 3 `shouldThrow` anyErrorCall
 
+mockOrderTest :: VerifyOrderFixture mock r -> SpecWith (Arg Expectation)
+mockOrderTest f = describe f.name do
+  it "If the functions are applied in the expected order, the verification succeeds." do
+    m <- f.create
+    f.execute m
+    f.verifyMock m
+
+  it "If the functions are not applied in the expected order, verification fails." do
+    m <- f.create
+    f.execute m
+    f.verifyFailed m `shouldThrow` anyErrorCall
+
 spec :: Spec
 spec = do
   mockTest Fixture {
@@ -83,6 +93,27 @@ spec = do
     verifyFailed = (`hasBeenCalledWith` "2"),
     verifyCount = \m c -> m `hasBeenCalledTimes` c `with` "a"
   }
+
+  describe "Order Verification" do
+    describe "exactly sequential order." do
+      mockOrderTest VerifyOrderFixture {
+        name = "1 Arguments", 
+        create = mock $ any |> (),
+        execute = \m -> do
+          evaluate $ fun m "a"
+          evaluate $ fun m "b"
+          evaluate $ fun m "c",
+        verifyMock = \m -> m `hasBeenCalledInOrder` [
+          "a",
+          "b",
+          "c"
+        ],
+        verifyFailed = \m -> m `hasBeenCalledInOrder` [
+          "a",
+          "b",
+          "b"
+        ]
+      }
 
   -- describe "mock" do
   --   it "fn" do
