@@ -83,21 +83,22 @@ mockOrderTest f = describe f.name do
 
 spec :: Spec
 spec = do
-  mockTest Fixture {
-    name = "Test of Mock (arity = 1)",
-    create = mock $ "a" |> False,
-    execute = (`fun` "a"),
-    executeFailed = Just (`fun` "x"),
-    expected = False,
-    verifyMock = (`hasBeenCalledWith` "a"),
-    verifyFailed = (`hasBeenCalledWith` "2"),
-    verifyCount = \m c -> m `hasBeenCalledTimes` c `with` "a"
-  }
+  describe "Test of Mock" do
+    mockTest Fixture {
+      name = "arity = 1",
+      create = mock $ "a" |> False,
+      execute = (`fun` "a"),
+      executeFailed = Just (`fun` "x"),
+      expected = False,
+      verifyMock = (`hasBeenCalledWith` "a"),
+      verifyFailed = (`hasBeenCalledWith` "2"),
+      verifyCount = \m c -> m `hasBeenCalledTimes` c `with` "a"
+    }
 
   describe "Order Verification" do
     describe "exactly sequential order." do
       mockOrderTest VerifyOrderFixture {
-        name = "1 Arguments", 
+        name = "arity = 1", 
         create = mock $ any |> (),
         execute = \m -> do
           evaluate $ fun m "a"
