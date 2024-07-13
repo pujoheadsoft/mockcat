@@ -28,13 +28,90 @@ spec = do
 
     mockTest Fixture {
       name = "arity = 2",
-      create = mock $ "a" |> "b" |> False,
+      create = mock $ "a" |> "b" |> True,
       execute = \m -> fun m "a" "b",
       executeFailed = Just (\m -> fun m "a" "x"),
-      expected = False,
+      expected = True,
       verifyMock = \m -> hasBeenCalledWith m $ "a" |> "b",
       verifyFailed = \m -> hasBeenCalledWith m $ "2" |> "b",
       verifyCount = \m c -> m `hasBeenCalledTimes` c `with` ("a" |> "b")
+    }
+
+    mockTest Fixture {
+      name = "arity = 3",
+      create = mock $ (100 :: Int) |> "1" |> True |> (11.1 :: Float),
+      expected = 11.1 :: Float,
+      execute = \m -> fun m (100 :: Int) "1" True,
+      executeFailed = Just \m -> fun m (100 :: Int) "1" False,
+      verifyMock = \m -> m `hasBeenCalledWith` ((100 :: Int) |> "1" |> True),
+      verifyFailed = \m -> m `hasBeenCalledWith` ((100 :: Int) |> "1" |> False),
+      verifyCount = \m c -> m `hasBeenCalledTimes` c `with` ((100 :: Int) |> "1" |> True)
+    }
+
+    mockTest Fixture {
+      name = "arity = 4",
+      create = mock $ "a" |> "b" |> "c" |> False,
+      execute = \m -> fun m "a" "b" "c",
+      executeFailed = Just (\m -> fun m "a" "b" "x"),
+      expected = False,
+      verifyMock = \m -> hasBeenCalledWith m $ "a" |> "b" |> "c",
+      verifyFailed = \m -> hasBeenCalledWith m $ "a" |> "b" |> "d",
+      verifyCount = \m c -> m `hasBeenCalledTimes` c `with` ("a" |> "b" |> "c")
+    }
+
+    mockTest Fixture {
+      name = "arity = 5",
+      create = mock $ "a" |> "b" |> "c" |> "d" |> True,
+      execute = \m -> fun m "a" "b" "c" "d",
+      executeFailed = Just (\m -> fun m "a" "b" "c" "x"),
+      expected = True,
+      verifyMock = \m -> hasBeenCalledWith m $ "a" |> "b" |> "c" |> "d",
+      verifyFailed = \m -> hasBeenCalledWith m $ "a" |> "b" |> "c" |> "x",
+      verifyCount = \m c -> m `hasBeenCalledTimes` c `with` ("a" |> "b" |> "c" |> "d")
+    }
+
+    mockTest Fixture {
+      name = "arity = 6",
+      create = mock $ "a" |> "b" |> "c" |> "d" |> "e" |> False,
+      execute = \m -> fun m "a" "b" "c" "d" "e",
+      executeFailed = Just (\m -> fun m "a" "b" "c" "d" "x"),
+      expected = False,
+      verifyMock = \m -> hasBeenCalledWith m $ "a" |> "b" |> "c" |> "d" |> "e",
+      verifyFailed = \m -> hasBeenCalledWith m $ "a" |> "b" |> "c" |> "d" |> "x",
+      verifyCount = \m c -> m `hasBeenCalledTimes` c `with` ("a" |> "b" |> "c" |> "d" |> "e")
+    }
+
+    mockTest Fixture {
+      name = "arity = 7",
+      create = mock $ "a" |> "b" |> "c" |> "d" |> "e" |> "f" |> True,
+      execute = \m -> fun m "a" "b" "c" "d" "e" "f",
+      executeFailed = Just (\m -> fun m "a" "b" "c" "d" "e" "x"),
+      expected = True,
+      verifyMock = \m -> hasBeenCalledWith m $ "a" |> "b" |> "c" |> "d" |> "e" |> "f",
+      verifyFailed = \m -> hasBeenCalledWith m $ "a" |> "b" |> "c" |> "d" |> "e" |> "x",
+      verifyCount = \m c -> m `hasBeenCalledTimes` c `with` ("a" |> "b" |> "c" |> "d" |> "e" |> "f")
+    }
+
+    mockTest Fixture {
+      name = "arity = 8",
+      create = mock $ "a" |> "b" |> "c" |> "d" |> "e" |> "f" |> "g" |> False,
+      execute = \m -> fun m "a" "b" "c" "d" "e" "f" "g",
+      executeFailed = Just (\m -> fun m "a" "b" "c" "d" "e" "f" "x"),
+      expected = False,
+      verifyMock = \m -> hasBeenCalledWith m $ "a" |> "b" |> "c" |> "d" |> "e" |> "f" |> "g",
+      verifyFailed = \m -> hasBeenCalledWith m $ "a" |> "b" |> "c" |> "d" |> "e" |> "f" |> "y",
+      verifyCount = \m c -> m `hasBeenCalledTimes` c `with` ("a" |> "b" |> "c" |> "d" |> "e" |> "f" |> "g")
+    }
+
+    mockTest Fixture {
+      name = "arity = 9",
+      create = mock $ "a" |> "b" |> "c" |> "d" |> "e" |> "f" |> "g" |> "h" |> False,
+      execute = \m -> fun m "a" "b" "c" "d" "e" "f" "g" "h",
+      executeFailed = Just (\m -> fun m "a" "b" "c" "d" "e" "f" "g" "x"),
+      expected = False,
+      verifyMock = \m -> hasBeenCalledWith m $ "a" |> "b" |> "c" |> "d" |> "e" |> "f" |> "g" |> "h",
+      verifyFailed = \m -> hasBeenCalledWith m $ "a" |> "b" |> "c" |> "d" |> "e" |> "f" |> "g" |> "x",
+      verifyCount = \m c -> m `hasBeenCalledTimes` c `with` ("a" |> "b" |> "c" |> "d" |> "e" |> "f" |> "g" |> "h")
     }
 
   describe "Order Verification" do

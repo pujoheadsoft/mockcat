@@ -52,6 +52,69 @@ fun (Mock _ f _) = f
 class MockBuilder params fun verifyParams | params -> fun, params -> verifyParams where
   build :: Maybe MockName -> params -> IO (Mock fun verifyParams)
 
+instance (Show a, Eq a, Show b, Eq b, Show c, Eq c, Show d, Eq d, Show e, Eq e, Show f, Eq f, Show g, Eq g, Show h, Eq h, Show i, Eq i)
+  => MockBuilder
+    (Param a :> Param b :> Param c :> Param d :> Param e :> Param f :> Param g :> Param h :> Param i :> Param r)
+    (a -> b -> c -> d -> e -> f -> g -> h -> i -> r)
+    (Param a :> Param b :> Param c :> Param d :> Param e :> Param f :> Param g :> Param h :> Param i) where
+  build name params = do
+    s <- newIORef ([] :: CalledParamsList params)
+    createMock name s (\a2 b2 c2 d2 e2 f2 g2 h2 i2 ->
+      unsafePerformIO $ extractReturnValueWithValidate name params (p a2 :> p b2 :> p c2 :> p d2 :> p e2 :> p f2 :> p g2 :> p h2 :> p i2) s)
+
+instance (Show a, Eq a, Show b, Eq b, Show c, Eq c, Show d, Eq d, Show e, Eq e, Show f, Eq f, Show g, Eq g, Show h, Eq h)
+  => MockBuilder
+    (Param a :> Param b :> Param c :> Param d :> Param e :> Param f :> Param g :> Param h :> Param r)
+    (a -> b -> c -> d -> e -> f -> g -> h -> r)
+    (Param a :> Param b :> Param c :> Param d :> Param e :> Param f :> Param g :> Param h) where
+  build name params = do
+    s <- newIORef ([] :: CalledParamsList params)
+    createMock name s (\a2 b2 c2 d2 e2 f2 g2 h2 ->
+      unsafePerformIO $ extractReturnValueWithValidate name params (p a2 :> p b2 :> p c2 :> p d2 :> p e2 :> p f2 :> p g2 :> p h2) s)
+
+instance (Show a, Eq a, Show b, Eq b, Show c, Eq c, Show d, Eq d, Show e, Eq e, Show f, Eq f, Show g, Eq g)
+  => MockBuilder
+    (Param a :> Param b :> Param c :> Param d :> Param e :> Param f :> Param g :> Param r)
+    (a -> b -> c -> d -> e -> f -> g -> r)
+    (Param a :> Param b :> Param c :> Param d :> Param e :> Param f :> Param g) where
+  build name params = do
+    s <- newIORef ([] :: CalledParamsList params)
+    createMock name s (\a2 b2 c2 d2 e2 f2 g2 ->
+      unsafePerformIO $ extractReturnValueWithValidate name params (p a2 :> p b2 :> p c2 :> p d2 :> p e2 :> p f2 :> p g2) s)
+
+instance (Show a, Eq a, Show b, Eq b, Show c, Eq c, Show d, Eq d, Show e, Eq e, Show f, Eq f)
+  => MockBuilder
+    (Param a :> Param b :> Param c :> Param d :> Param e :> Param f :> Param r)
+    (a -> b -> c -> d -> e -> f -> r)
+    (Param a :> Param b :> Param c :> Param d :> Param e :> Param f) where
+  build name params = do
+    s <- newIORef ([] :: CalledParamsList params)
+    createMock name s (\a2 b2 c2 d2 e2 f2 -> unsafePerformIO $ extractReturnValueWithValidate name params (p a2 :> p b2 :> p c2 :> p d2 :> p e2 :> p f2) s)
+
+instance (Show a, Eq a, Show b, Eq b, Show c, Eq c, Show d, Eq d, Show e, Eq e)
+  => MockBuilder
+    (Param a :> Param b :> Param c :> Param d :> Param e :> Param r)
+    (a -> b -> c -> d -> e -> r)
+    (Param a :> Param b :> Param c :> Param d :> Param e) where
+  build name params = do
+    s <- newIORef ([] :: CalledParamsList params)
+    createMock name s (\a2 b2 c2 d2 e2 -> unsafePerformIO $ extractReturnValueWithValidate name params (p a2 :> p b2 :> p c2 :> p d2 :> p e2) s)
+
+instance (Show a, Eq a, Show b, Eq b, Show c, Eq c, Show d, Eq d)
+  => MockBuilder
+    (Param a :> Param b :> Param c :> Param d :> Param r)
+    (a -> b -> c -> d -> r)
+    (Param a :> Param b :> Param c :> Param d) where
+  build name params = do
+    s <- newIORef ([] :: CalledParamsList params)
+    createMock name s (\a2 b2 c2 d2 -> unsafePerformIO $ extractReturnValueWithValidate name params (p a2 :> p b2 :> p c2 :> p d2) s)
+
+instance (Show a, Eq a, Show b, Eq b, Show c, Eq c)
+  => MockBuilder (Param a :> Param b :> Param c :> Param r) (a -> b -> c -> r) (Param a :> Param b :> Param c) where
+  build name params = do
+    s <- newIORef ([] :: CalledParamsList params)
+    createMock name s (\a2 b2 c2 -> unsafePerformIO $ extractReturnValueWithValidate name params (p a2 :> p b2 :> p c2) s)
+
 instance (Show a, Eq a, Show b, Eq b)
   => MockBuilder (Param a :> Param b :> Param r) (a -> b -> r) (Param a :> Param b) where
   build name params = do
@@ -139,7 +202,7 @@ newtype VerifyFailed = VerifyFailed Message
 
 type Message = String
 
-doVerify :: (Eq a) => (Show a) => Maybe MockName -> CalledParamsList a -> VerifyMatchType a -> Maybe VerifyFailed
+doVerify :: (Eq a, Show a) => Maybe MockName -> CalledParamsList a -> VerifyMatchType a -> Maybe VerifyFailed
 doVerify name list (MatchAny a) = do
   guard $ notElem a list
   pure $ verifyFailedMesssage name list a
@@ -160,8 +223,7 @@ verifyFailedMesssage name calledParams expected =
 formatCalledParamsList :: (Show a) => CalledParamsList a -> String
 formatCalledParamsList calledParams
   | length calledParams == 0 = "Never been called."
-  | length calledParams == 1 =
-      show $ (_replace "[" . _replace "]") calledParams
+  | length calledParams == 1 = show $ (_replace "[" . _replace "]") calledParams
   | otherwise = show calledParams
 
 _replace :: (Show a) => String -> a -> String
@@ -262,9 +324,8 @@ _verifyOrder ::
   IO ()
 _verifyOrder method (Mock name _ (Verifier ref)) matchers = do
   calledParamsList <- readIORef ref
-  case doVerifyOrder method name calledParamsList matchers of
-    Just (VerifyFailed msg) -> errorWithoutStackTrace msg
-    Nothing -> pure ()
+  let result = doVerifyOrder method name calledParamsList matchers
+  result & maybe mempty (\(VerifyFailed msg) -> errorWithoutStackTrace msg)
 
 doVerifyOrder :: (Eq a, Show a) => VerifyOrderMethod -> Maybe MockName -> CalledParamsList a -> [a] -> Maybe VerifyFailed
 doVerifyOrder ExactlySequence name calledValues expectedValues
