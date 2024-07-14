@@ -550,12 +550,12 @@ spec = do
         it "count" do
           m <- mock $ any |> pure @IO True
           evaluate $ fun m "A"
-          let e = "function was not applied the expected number of times.\n\
+          let e = "number of times the function is applied is not the expected number of times.\n\
                   \  expected: 2\n\
                   \   but got: 1"
           m `hasBeenCalledTimes` (2 :: Int) `with` "A" `shouldThrow` errorCall e
 
-        it "verifySequence" do
+        it "verify sequence" do
           m <- mock $ any |> pure @IO False
           evaluate $ fun m "B"
           evaluate $ fun m "C"
@@ -569,17 +569,14 @@ spec = do
                   \   but got 3rd call: \"A\""
           m `hasBeenCalledInOrder` ["A", "B", "C"] `shouldThrow` errorCall e
         
-    --     it "verifySequence (count mismatch)" do
-    --       m <- mock $ any :> 100
-    --       let
-  --         evaluate $ fun m "B"
-  --         evaluate $ fun m "C"
-    --         expected = joinWith "\n" [
-    --           "The number of function calls doesn't match the number of params.",
-    --           "  number of function calls: 2",
-    --           "  number of params:         3"
-    --           ]
-    --       expectErrorWithMessage expected $ m `hasBeenCalledInOrder` ["A", "B", "C"]
+        it "verify sequence (count mismatch)" do
+          m <- mock $ any |> True
+          evaluate $ fun m "B"
+          evaluate $ fun m "C"
+          let e = "number of times the function is applied is not the expected number of times.\n\
+                  \  expected: 2\n\
+                  \   but got: 3"
+          m `hasBeenCalledInOrder` ["A", "B", "C"] `shouldThrow` errorCall e
         
     --     it "verifyPartiallySequence" do
     --       m <- mock $ any :> 100

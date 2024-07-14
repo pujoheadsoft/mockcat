@@ -458,7 +458,7 @@ _verifyOrder method (Mock name _ (Verifier ref)) matchers = do
 doVerifyOrder :: (Eq a, Show a) => VerifyOrderMethod -> Maybe MockName -> CalledParamsList a -> [a] -> Maybe VerifyFailed
 doVerifyOrder ExactlySequence name calledValues expectedValues
   | length calledValues /= length expectedValues = do
-      let header = "The number of function" <> mockNameLabel name <> "calls doesn't match the number of params."
+      let header = "number of times the function" <> mockNameLabel name <> " is applied is not the expected number of times."
       pure $ verifyFailedOrderParamCountMismatch header calledValues expectedValues
   | otherwise = do
       let unexpectedOrders = collectUnExpectedOrder calledValues expectedValues
@@ -502,8 +502,8 @@ verifyFailedOrderParamCountMismatch header calledValues expectedValues =
     intercalate
       "\n"
       [ header,
-        "  number of function calls: " <> show (length calledValues),
-        "  number of params:         " <> show (length expectedValues)
+        "  expected: " <> show (length calledValues),
+        "   but got: " <> show (length expectedValues)
       ]
 
 verifyFailedSequence :: (Show a) => Maybe MockName -> [VerifyOrderResult a] -> VerifyFailed
