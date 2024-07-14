@@ -547,16 +547,13 @@ spec = do
                                                             \  expected: \"X\"\n\
                                                             \  but was : \"A\""
 
-    --     it "count" do
-    --       m <- mock $ any :> 100
-    --       let
-    --         _ = fun m "A"
-    --         expected = joinWith "\n" [
-    --           "function was not called the expected number of times.",
-    --           "  expected: 2",
-    --           "  but was : 1"
-    --           ]
-    --       expectErrorWithMessage expected $ m `hasBeenCalledTimes` 2 `with` "A"
+        it "count" do
+          m <- mock $ any |> pure @IO True
+          evaluate $ fun m "A"
+          let e = "function was not called the expected number of times.\n\
+                  \  expected: 2\n\
+                  \  but was : 1"
+          m `hasBeenCalledTimes` (2 :: Int) `with` "A" `shouldThrow` errorCall e
 
     --     it "verifySequence" do
     --       m <- mock $ any :> 100
