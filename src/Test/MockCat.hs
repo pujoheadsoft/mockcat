@@ -21,7 +21,8 @@ module Test.MockCat
     hasBeenCalledTimesGreaterThanEqual,
     hasBeenCalledTimesLessThanEqual,
     hasBeenCalledTimesGreaterThan,
-    hasBeenCalledTimesLessThan
+    hasBeenCalledTimesLessThan,
+    namedMock
   )
 where
 
@@ -49,6 +50,14 @@ mock ::
   params ->
   m (Mock fun verifyParams)
 mock params = liftIO $ build Nothing params
+
+namedMock ::
+     MockBuilder params fun verifyParams
+  => (MonadIO m)
+  => MockName
+  -> params
+  -> m (Mock fun verifyParams)
+namedMock name params = liftIO $ build (Just name) params
 
 fun :: Mock fun v -> fun
 fun (Mock _ f _) = f
@@ -303,7 +312,7 @@ messageForMultiMock name expecteds actual =
   ]
 
 mockNameLabel :: Maybe MockName -> String
-mockNameLabel = fromMaybe mempty . enclose " " . enclose "`"
+mockNameLabel = maybe mempty (" " <>) . enclose "`"
 
 enclose :: String -> Maybe String -> Maybe String
 enclose e = fmap (\v -> e <> v <> e)
@@ -458,16 +467,14 @@ _verifyOrder method (Mock name _ (Verifier ref)) matchers = do
 doVerifyOrder :: (Eq a, Show a) => VerifyOrderMethod -> Maybe MockName -> CalledParamsList a -> [a] -> Maybe VerifyFailed
 doVerifyOrder ExactlySequence name calledValues expectedValues
   | length calledValues /= length expectedValues = do
-      let header = "function" <> mockNameLabel name <> " was not applied the expected number of times."
-      pure $ verifyFailedOrderParamCountMismatch header calledValues expectedValues
+      pure $ verifyFailedOrderParamCountMismatch name calledValues expectedValues
   | otherwise = do
       let unexpectedOrders = collectUnExpectedOrder calledValues expectedValues
       guard $ length unexpectedOrders > 0
       pure $ verifyFailedSequence name unexpectedOrders
 doVerifyOrder PartiallySequence name calledValues expectedValues
   | length calledValues < length expectedValues = do
-      let header = "function" <> mockNameLabel name <> " was not applied the expected number of times."
-      pure $ verifyFailedOrderParamCountMismatch header calledValues expectedValues
+      pure $ verifyFailedOrderParamCountMismatch name calledValues expectedValues
   | otherwise = do
       guard $ isOrderNotMatched calledValues expectedValues
       pure $ verifyFailedPartiallySequence name calledValues expectedValues
@@ -496,12 +503,12 @@ isOrderNotMatched calledValues expectedValues =
       (Just calledValues)
       expectedValues
 
-verifyFailedOrderParamCountMismatch :: String -> CalledParamsList a -> [a] -> VerifyFailed
-verifyFailedOrderParamCountMismatch header calledValues expectedValues =
+verifyFailedOrderParamCountMismatch :: Maybe MockName -> CalledParamsList a -> [a] -> VerifyFailed
+verifyFailedOrderParamCountMismatch name calledValues expectedValues =
   VerifyFailed $
     intercalate
       "\n"
-      [ header,
+      [ "function" <> mockNameLabel name <> " was not applied the expected number of times.",
         "  expected: " <> show (length expectedValues),
         "   but got: " <> show (length calledValues)
       ]
@@ -511,7 +518,7 @@ verifyFailedSequence name fails =
   VerifyFailed $
     intercalate
       "\n"
-      ( ("function " <> mockNameLabel name <> "was not applied with expected order.") : (verifyOrderFailedMesssage <$> fails)
+      ( ("function" <> mockNameLabel name <> " was not applied with expected order.") : (verifyOrderFailedMesssage <$> fails)
       )
 
 verifyOrderFailedMesssage :: (Show a) => VerifyOrderResult a -> String
