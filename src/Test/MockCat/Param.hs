@@ -50,27 +50,21 @@ class ConsGen a b r | a b -> r where
 instance {-# OVERLAPPING #-} ((Param a :> Param b) ~ x, (Param c :> Param d) ~ y) => ConsGen (Param a :> Param b) (Param c :> Param d) (x :> y) where
   (|>) = (:>)
 
--- 左はラップ済み、右は結合済み
 instance {-# OVERLAPPING #-} ConsGen (Param a) (b :> c) (Param a :> b :> c) where
   (|>) = (:>)
 
--- 左はラップされてない、右は結合済み
 instance ((Param a) ~ a') => ConsGen a (b :> c) (a' :> b :> c) where
   (|>) a = (:>) (param a)
 
--- 左右どちらもラップ済み
 instance {-# OVERLAPPING #-} ConsGen (Param a) (Param b) (Param a :> Param b) where
   (|>) = (:>)
 
--- 左はラップ済み
 instance {-# OVERLAPPABLE #-} ((Param b) ~ b') => ConsGen (Param a) b (Param a :> b') where
   (|>) a b = (:>) a (param b)
 
--- 右はラップ済み
 instance {-# INCOHERENT #-} ((Param a) ~ a') => ConsGen a (Param b) (a' :> Param b) where
   (|>) a = (:>) (param a)
 
--- 左右どちらもラップされてない
 instance {-# OVERLAPPABLE #-} (Param a ~ a', Param b ~ b') => ConsGen a b (a' :> b') where
   (|>) a b = (:>) (param a) (param b)
 

@@ -22,7 +22,9 @@ module Test.MockCat
     hasBeenCalledTimesLessThanEqual,
     hasBeenCalledTimesGreaterThan,
     hasBeenCalledTimesLessThan,
-    namedMock
+    namedMock,
+    module Test.MockCat.Cons,
+    module Test.MockCat.Param
   )
 where
 
@@ -34,7 +36,7 @@ import Data.Maybe
 import Data.Text (pack, replace, unpack)
 import GHC.IO (unsafePerformIO)
 import Test.MockCat.Cons
-import Test.MockCat.Param hiding (any)
+import Test.MockCat.Param
 import Test.MockCat.ParamDivider
 import Data.Function ((&))
 
@@ -344,7 +346,7 @@ doVerify name list (MatchAny a) = do
   guard $ notElem a list
   pure $ verifyFailedMesssage name list a
 doVerify name list (MatchAll a) = do
-  guard $ any (a /=) list
+  guard $ Prelude.any (a /=) list
   pure $ verifyFailedMesssage name list a
 
 verifyFailedMesssage :: (Show a) => Maybe MockName -> CalledParamsList a -> a -> VerifyFailed
