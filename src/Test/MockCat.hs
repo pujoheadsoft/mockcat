@@ -32,6 +32,7 @@ import Test.MockCat.Cons
 import Test.MockCat.Param hiding (any)
 import Test.MockCat.ParamDivider
 import Data.Function ((&))
+import Data.List (find)
 
 data Mock fun params = Mock (Maybe MockName) fun (Verifier params)
 
@@ -52,6 +53,7 @@ fun (Mock _ f _) = f
 class MockBuilder params fun verifyParams | params -> fun, params -> verifyParams where
   build :: Maybe MockName -> params -> IO (Mock fun verifyParams)
 
+-- instances
 instance (Show a, Eq a, Show b, Eq b, Show c, Eq c, Show d, Eq d, Show e, Eq e, Show f, Eq f, Show g, Eq g, Show h, Eq h, Show i, Eq i)
   => MockBuilder
     (Param a :> Param b :> Param c :> Param d :> Param e :> Param f :> Param g :> Param h :> Param i :> Param r)
@@ -129,6 +131,14 @@ instance
     s <- newIORef ([] :: CalledParamsList params)
     createMock name s (\a2 -> unsafePerformIO $ extractReturnValueWithValidate name params (p a2) s)
 
+instance (Show a, Eq a)
+  => MockBuilder [Param a :> Param r] (a -> r) (Param a) where
+  build name params = do
+    s <- newIORef ([] :: CalledParamsList params)
+    createMock name s (\a2 -> unsafePerformIO $ findReturnValueWithStore name params (p a2) s)
+
+-- ------
+
 p :: a -> Param a
 p = param
 
@@ -150,13 +160,42 @@ extractReturnValueWithValidate name params inputParams s = do
   validateWithStoreParams name s (args params) inputParams
   pure $ returnValue params
 
+findReturnValueWithStore ::
+     Eq args
+  => Show args
+  => ParamDivider params args (Param r)
+  => Maybe MockName
+  -> CalledParamsList params
+  -> args
+  -> IORef (CalledParamsList args)
+  -> IO r
+findReturnValueWithStore name paramsList inputParams ref = do
+  modifyIORef' ref (++ [inputParams])
+  let 
+    expectedArgs = args <$> paramsList
+    r =  findReturnValue paramsList inputParams
+  maybe 
+    (errorWithoutStackTrace $ messageForMultiMock name expectedArgs inputParams)
+    pure
+    r
+
+findReturnValue ::
+     Eq args
+  => ParamDivider params args (Param r)
+  => CalledParamsList params
+  -> args
+  -> Maybe r
+findReturnValue paramsList inputParams = do
+  find (\params -> args params == inputParams) paramsList
+    >>= \params -> pure $ returnValue params
+
 validateWithStoreParams :: (Eq a, Show a) => Maybe MockName -> IORef (CalledParamsList a) -> a -> a -> IO ()
 validateWithStoreParams name ref expected actual = do
   validateParams name expected actual
   modifyIORef' ref (++ [actual])
 
 validateParams :: (Eq a) => (Show a) => Maybe MockName -> a -> a -> IO ()
-validateParams name expected actual = 
+validateParams name expected actual =
   if expected == actual then pure ()
   else errorWithoutStackTrace $ message name expected actual
 
@@ -173,6 +212,23 @@ message name expected actual =
       "  expected: " <> show expected,
       "  but was : " <> show actual
     ]
+
+{-
+  Function was not called with expected arguments.
+  expected one of the following:
+    "a", 100
+    "b", 200
+  but was actual: "a", 200
+-}
+messageForMultiMock :: Show a => Maybe MockName -> [a] -> a -> String
+messageForMultiMock name expecteds actual =
+  intercalate "\n" [
+    "function" <> mockNameLabel name <> "was not called with expected arguments.",
+    "  expected one of the following:",
+    intercalate "\n" $ ("    " <>) . show <$> expecteds,
+    "  but was actual:",
+    ("    " <>) . show $ actual
+  ]
 
 mockNameLabel :: Maybe MockName -> String
 mockNameLabel = fromMaybe " " . enclose " " . enclose "`"

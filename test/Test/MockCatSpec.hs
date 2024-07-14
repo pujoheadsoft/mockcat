@@ -3,14 +3,16 @@
 {-# OPTIONS_GHC -Wno-type-defaults #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# OPTIONS_GHC -Wno-unused-do-bind #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE TypeFamilies #-}
 module Test.MockCatSpec (spec) where
 
 import Prelude hiding (any)
 import Test.Hspec
 import Test.MockCat (mock, fun, hasBeenCalledWith, hasBeenCalledTimes, with, hasBeenCalledInOrder)
 import Test.MockCat.Param (any, (|>))
-import Control.Exception (evaluate)
 import Data.Function ((&))
+import qualified Control.Exception as E
 
 spec :: Spec
 spec = do
@@ -114,6 +116,29 @@ spec = do
       verifyCount = \m c -> m `hasBeenCalledTimes` c `with` ("a" |> "b" |> "c" |> "d" |> "e" |> "f" |> "g" |> "h")
     }
 
+  describe "Test of Multi Mock" do
+    mockTest Fixture {
+      name = "arity = 1",
+      create = mock [
+        "1" |> True,
+        "2" |> False
+      ],
+      expected = [
+        True,
+        False
+      ],
+      execute = \m -> [fun m "1", fun m "2"],
+      executeFailed = Just \m -> [ fun m "3" ],
+      verifyMock = \m -> do
+        m `hasBeenCalledWith` "1"
+        m `hasBeenCalledWith` "2"
+      ,
+      verifyFailed = (`hasBeenCalledWith` "3"),
+      verifyCount = \m c -> do
+        m `hasBeenCalledTimes` c `with` "1"
+        m `hasBeenCalledTimes` c `with` "2"
+    }
+
   describe "Order Verification" do
     describe "exactly sequential order." do
       mockOrderTest VerifyOrderFixture {
@@ -162,6 +187,16 @@ spec = do
   --       v = f "c"
   --     v `shouldBe` "x"
   --     m `hasBeenCalledWith` "a"
+  -- describe "mock" do
+  --   it "fn" do
+  --     m <- mock ["a" |> "x", "b" |> "y"]
+  --     let
+  --       f = fun m
+  --       v = [f "a", f "b"]
+  --     mapM_ (\x -> evaluate (x `seq` ())) v
+  --     --v `shouldBe` ["x", "y"]
+  --     m `hasBeenCalledWith` "a"
+  --     m `hasBeenCalledWith` "b"
 
 
 data Fixture mock r = Fixture {
@@ -183,8 +218,19 @@ data VerifyOrderFixture mock r = VerifyOrderFixture {
   verifyFailed :: mock -> IO ()
 }
 
+class Eval a where
+  evaluate :: a -> IO a
+
+instance Eval [a] where
+  evaluate v = do
+    mapM_ (\x -> E.evaluate (x `seq` ())) v
+    pure v
+
+instance {-# OVERLAPPABLE #-} Eval a where
+  evaluate = E.evaluate
+
 -- mock test template
-mockTest :: (Eq r, Show r) => Fixture mock r -> SpecWith (Arg Expectation)
+mockTest :: (Eq r, Show r, Eval r) => Fixture mock r -> SpecWith (Arg Expectation)
 mockTest f = describe f.name do
   it "Expected argument is applied, the expected value is returned." do
     m <- f.create
