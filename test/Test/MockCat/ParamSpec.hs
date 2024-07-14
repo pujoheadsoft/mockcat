@@ -26,8 +26,8 @@ spec = do
         param True |> False |> True `shouldBe` (param True) :> ((param False) :> (param True))
 
     describe "Show" do
-      -- it "String" do
-      --   show (param "X") `shouldBe` "X"
+      it "String" do
+        show (param "X") `shouldBe` "X"
       it "Integer" do
         show (param 100) `shouldBe` "100"
       it "Bool" do

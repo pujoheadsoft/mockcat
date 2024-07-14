@@ -23,8 +23,20 @@ instance (Eq a) => Eq (Param a) where
   (Param a Nothing) == (Param b (Just (Matcher m2))) = m2 a b
   (Param a Nothing) == (Param b Nothing) = a == b
 
-instance (Show a) => Show (Param a) where
-  show (Param v _) = show v
+type family ShowResult a where
+  ShowResult String = String
+  ShowResult a = String
+
+class ShowParam a where
+  showParam :: a -> ShowResult a
+
+instance {-# OVERLAPPING #-} ShowParam (Param String) where
+  showParam (Param v _) = v
+instance {-# INCOHERENT #-} Show a => ShowParam (Param a) where
+  showParam (Param v _) = show v
+
+instance ShowParam (Param a) => Show (Param a) where
+  show = showParam
 
 value :: Param v -> v
 value (Param v _) = v
