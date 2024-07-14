@@ -9,7 +9,12 @@ module Test.MockCatSpec (spec) where
 
 import Prelude hiding (any)
 import Test.Hspec
-import Test.MockCat (mock, fun, hasBeenCalledWith, hasBeenCalledTimes, with, hasBeenCalledInOrder)
+import Test.MockCat (
+  mock,
+  fun, hasBeenCalledWith, hasBeenCalledTimes, with, hasBeenCalledInOrder, hasBeenCalledTimesGreaterThanEqual,
+    hasBeenCalledTimesLessThanEqual,
+    hasBeenCalledTimesGreaterThan,
+    hasBeenCalledTimesLessThan)
 import Test.MockCat.Param (any, (|>))
 import Data.Function ((&))
 import qualified Control.Exception as E
@@ -386,6 +391,32 @@ spec = do
           "3" |> "4" |> "5" |> "6" |> "7" |> "8" |> "9" |> "z"
         ]
       }
+
+    describe "The number of times applied can also be verified by specifying conditions." do
+      it "greater than equal" do
+        m <- mock $ "a" |> True
+        evaluate $ fun m "a"
+        evaluate $ fun m "a"
+        evaluate $ fun m "a"
+        m `hasBeenCalledTimesGreaterThanEqual` 3 `with` "a"
+      it "less than equal" do
+        m <- mock $ "a" |> False
+        evaluate $ fun m "a"
+        evaluate $ fun m "a"
+        evaluate $ fun m "a"
+        m `hasBeenCalledTimesLessThanEqual` 3 `with` "a"
+      it "greater than" do
+        m <- mock $ "a" |> True
+        evaluate $ fun m "a"
+        evaluate $ fun m "a"
+        evaluate $ fun m "a"
+        m `hasBeenCalledTimesGreaterThan` 2 `with` "a"
+      it "less than" do
+        m <- mock $ "a" |> False
+        evaluate $ fun m "a"
+        evaluate $ fun m "a"
+        evaluate $ fun m "a"
+        m `hasBeenCalledTimesLessThan` 4 `with` "a"
 
   -- describe "mock" do
   --   it "fn" do

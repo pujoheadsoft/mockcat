@@ -17,7 +17,11 @@ module Test.MockCat
     hasBeenCalledInOrder,
     verifySequence,
     hasBeenCalledInPartialOrder,
-    verifyPartiallySequence
+    verifyPartiallySequence,
+    hasBeenCalledTimesGreaterThanEqual,
+    hasBeenCalledTimesLessThanEqual,
+    hasBeenCalledTimesGreaterThan,
+    hasBeenCalledTimesLessThan
   )
 where
 
@@ -559,3 +563,39 @@ hasBeenCalledInPartialOrder ::
   [input] ->
   IO ()
 hasBeenCalledInPartialOrder = verifyPartiallySequence
+
+hasBeenCalledTimesGreaterThanEqual
+  :: VerifyCount CountVerifyMethod params a
+  => Eq params
+  => Mock fun params
+  -> Int
+  -> a
+  -> IO ()
+hasBeenCalledTimesGreaterThanEqual m i = hasBeenCalledTimes m (GreaterThanEqual i)
+
+hasBeenCalledTimesLessThanEqual
+  :: VerifyCount CountVerifyMethod params a
+  => Eq params
+  => Mock fun params
+  -> Int
+  -> a
+  -> IO ()
+hasBeenCalledTimesLessThanEqual m i = hasBeenCalledTimes m (LessThanEqual i)
+
+hasBeenCalledTimesGreaterThan
+  :: VerifyCount CountVerifyMethod params a
+  => Eq params
+  => Mock fun params
+  -> Int
+  -> a
+  -> IO ()
+hasBeenCalledTimesGreaterThan m i = hasBeenCalledTimes m (GreaterThan i)
+
+hasBeenCalledTimesLessThan
+  :: VerifyCount CountVerifyMethod params a
+  => Eq params
+  => Mock fun params
+  -> Int
+  -> a
+  -> IO ()
+hasBeenCalledTimesLessThan m i = hasBeenCalledTimes m (LessThan i)
