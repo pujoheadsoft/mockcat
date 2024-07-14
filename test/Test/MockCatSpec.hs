@@ -135,6 +135,25 @@ spec = do
         ]
       }
 
+      mockOrderTest VerifyOrderFixture {
+        name = "arity = 9",
+        create = mock $ any |> any |> any |> any |> any |> any |> any |> any |> (),
+        execute = \m -> do
+          evaluate $ fun m "1" "2" "3" "4" "5" "6" "7" "8"
+          evaluate $ fun m "2" "3" "4" "5" "6" "7" "8" "9"
+          evaluate $ fun m "3" "4" "5" "6" "7" "8" "9" "0",
+        verifyMock = \m -> m `hasBeenCalledInOrder` [
+          "1" |> "2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8",
+          "2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8" |> "9",
+          "3" |> "4" |> "5" |> "6" |> "7" |> "8" |> "9" |> "0"
+        ],
+        verifyFailed = \m -> m `hasBeenCalledInOrder` [
+          "1" |> "2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "x",
+          "2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8" |> "y",
+          "3" |> "4" |> "5" |> "6" |> "7" |> "8" |> "9" |> "z"
+        ]
+      }
+
   -- describe "mock" do
   --   it "fn" do
   --     m <- mock $ "a" |> "x"
@@ -142,7 +161,7 @@ spec = do
   --       f = fun m
   --       v = f "c"
   --     v `shouldBe` "x"
-      --verify m "a"
+  --     m `hasBeenCalledWith` "a"
 
 
 data Fixture mock r = Fixture {
