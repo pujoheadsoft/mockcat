@@ -539,13 +539,13 @@ spec = do
                                                   \  but was actual:\n\
                                                   \    \"aaa\",200"
 
-      -- describe "verify" do
-      --   it "simple mock verify" do
-      --     m <- mock $ any |> pure @IO True
-      --     evaluate $ fun m "A"
-      --     m `hasBeenCalledWith` "X" `shouldThrow` errorCall "function was not called with expected arguments.:\n\
-      --                                                       \  expected: \"X\"\n\
-      --                                                       \  but was : \"A\""
+      describe "verify" do
+        it "simple mock verify" do
+          m <- mock $ any |> pure @IO True
+          evaluate $ fun m "A"
+          m `hasBeenCalledWith` "X" `shouldThrow` errorCall "function wasn't called with expected arguments.\n\
+                                                            \  expected: \"X\"\n\
+                                                            \  but was : \"A\""
 
     --     it "count" do
     --       m <- mock $ any :> 100

@@ -28,7 +28,7 @@ where
 import Control.Monad (guard)
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Data.IORef (IORef, modifyIORef', newIORef, readIORef)
-import Data.List (elemIndex, intercalate)
+import Data.List ( elemIndex, intercalate, find )
 import Data.Maybe
 import Data.Text (pack, replace, unpack)
 import GHC.IO (unsafePerformIO)
@@ -36,7 +36,6 @@ import Test.MockCat.Cons
 import Test.MockCat.Param hiding (any)
 import Test.MockCat.ParamDivider
 import Data.Function ((&))
-import Data.List (find)
 
 data Mock fun params = Mock (Maybe MockName) fun (Verifier params)
 
@@ -244,10 +243,10 @@ findReturnValueWithStore ::
   -> IO r
 findReturnValueWithStore name paramsList inputParams ref = do
   modifyIORef' ref (++ [inputParams])
-  let 
+  let
     expectedArgs = args <$> paramsList
     r =  findReturnValue paramsList inputParams
-  maybe 
+  maybe
     (errorWithoutStackTrace $ messageForMultiMock name expectedArgs inputParams)
     pure
     r
@@ -352,7 +351,7 @@ verifyFailedMesssage name calledParams expected =
 formatCalledParamsList :: (Show a) => CalledParamsList a -> String
 formatCalledParamsList calledParams
   | length calledParams == 0 = "Never been called."
-  | length calledParams == 1 = show $ (_replace "[" . _replace "]") calledParams
+  | length calledParams == 1 = init . drop 1 . show $ calledParams
   | otherwise = show calledParams
 
 _replace :: (Show a) => String -> a -> String
