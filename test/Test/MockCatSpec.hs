@@ -5,6 +5,7 @@
 {-# OPTIONS_GHC -Wno-unused-do-bind #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeApplications #-}
 module Test.MockCatSpec (spec) where
 
 import Prelude hiding (any)
@@ -14,7 +15,7 @@ import Test.MockCat (
   fun, hasBeenCalledWith, hasBeenCalledTimes, with, hasBeenCalledInOrder, hasBeenCalledTimesGreaterThanEqual,
     hasBeenCalledTimesLessThanEqual,
     hasBeenCalledTimesGreaterThan,
-    hasBeenCalledTimesLessThan)
+    hasBeenCalledTimesLessThan, hasBeenCalledInPartialOrder)
 import Test.MockCat.Param (any, (|>))
 import Data.Function ((&))
 import qualified Control.Exception as E
@@ -392,32 +393,130 @@ spec = do
         ]
       }
 
-    describe "The number of times applied can also be verified by specifying conditions." do
-      it "greater than equal" do
-        m <- mock $ "a" |> True
-        evaluate $ fun m "a"
-        evaluate $ fun m "a"
-        evaluate $ fun m "a"
-        m `hasBeenCalledTimesGreaterThanEqual` 3 `with` "a"
-      it "less than equal" do
-        m <- mock $ "a" |> False
-        evaluate $ fun m "a"
-        evaluate $ fun m "a"
-        evaluate $ fun m "a"
-        m `hasBeenCalledTimesLessThanEqual` 3 `with` "a"
-      it "greater than" do
-        m <- mock $ "a" |> True
-        evaluate $ fun m "a"
-        evaluate $ fun m "a"
-        evaluate $ fun m "a"
-        m `hasBeenCalledTimesGreaterThan` 2 `with` "a"
-      it "less than" do
-        m <- mock $ "a" |> False
-        evaluate $ fun m "a"
-        evaluate $ fun m "a"
-        evaluate $ fun m "a"
-        m `hasBeenCalledTimesLessThan` 4 `with` "a"
+      mockOrderTest VerifyOrderFixture {
+        name = "number of function calls doesn't match the number of params.", 
+        create = mock $ any |> (),
+        execute = \m -> do
+          evaluate $ fun m "a"
+          pure (),
+        verifyMock = \m -> m `hasBeenCalledInOrder` [
+          "a"
+        ],
+        verifyFailed = \m -> m `hasBeenCalledInOrder` [
+          "a",
+          "b"
+        ]
+      }
 
+    describe "partially sequential order." do
+      mockOrderTest VerifyOrderFixture {
+        name = "arity = 1", 
+        create = mock $ any |> (),
+        execute = \m -> do
+          evaluate $ fun m "a"
+          evaluate $ fun m "b"
+          evaluate $ fun m "c"
+          pure (),
+        verifyMock = \m -> m `hasBeenCalledInPartialOrder` [
+          "a",
+          "c"
+        ],
+        verifyFailed = \m -> m `hasBeenCalledInPartialOrder` [
+          "b",
+          "a"
+        ]
+      }
+
+      mockOrderTest VerifyOrderFixture {
+        name = "arity = 9", 
+        create = mock $ any |> any |> any |> any |> any |> any |> any |> any |> any |> (),
+        execute = \m -> do
+          evaluate $ fun m "a" "" "" "" "" "" "" "" ""
+          evaluate $ fun m "b" "" "" "" "" "" "" "" ""
+          evaluate $ fun m "c" "" "" "" "" "" "" "" ""
+          pure (),
+        verifyMock = \m -> m `hasBeenCalledInPartialOrder` [
+          "a" |> "" |> "" |> "" |> "" |> "" |> "" |> "" |> "",
+          "c" |> "" |> "" |> "" |> "" |> "" |> "" |> "" |> ""
+        ],
+        verifyFailed = \m -> m `hasBeenCalledInPartialOrder` [
+          "b" |> "" |> "" |> "" |> "" |> "" |> "" |> "" |> "",
+          "a" |> "" |> "" |> "" |> "" |> "" |> "" |> "" |> ""
+        ]
+      }
+
+      mockOrderTest VerifyOrderFixture {
+        name = "Uncalled value specified.", 
+        create =  mock $ any |> (),
+        execute = \m -> do
+          evaluate $ fun m "a"
+          evaluate $ fun m "b"
+          evaluate $ fun m "c"
+          pure (),
+        verifyMock = \m -> m `hasBeenCalledInPartialOrder` [
+          "b",
+          "c"
+        ],
+        verifyFailed = \m -> m `hasBeenCalledInPartialOrder` [
+          "a",
+          "d"
+        ]
+      }
+
+      mockOrderTest VerifyOrderFixture {
+        name = "number of function calls doesn't match the number of params", 
+        create = mock $ any |> (),
+        execute = \m -> do
+          evaluate $ fun m "a"
+          pure (),
+        verifyMock = \m -> m `hasBeenCalledInPartialOrder` [
+          "a"
+        ],
+        verifyFailed = \m -> m `hasBeenCalledInPartialOrder` [
+          "a",
+          "b"
+        ]
+      }
+
+  describe "The number of times applied can also be verified by specifying conditions." do
+    it "greater than equal" do
+      m <- mock $ "a" |> True
+      evaluate $ fun m "a"
+      evaluate $ fun m "a"
+      evaluate $ fun m "a"
+      m `hasBeenCalledTimesGreaterThanEqual` 3 `with` "a"
+
+    it "less than equal" do
+      m <- mock $ "a" |> False
+      evaluate $ fun m "a"
+      evaluate $ fun m "a"
+      evaluate $ fun m "a"
+      m `hasBeenCalledTimesLessThanEqual` 3 `with` "a"
+
+    it "greater than" do
+      m <- mock $ "a" |> True
+      evaluate $ fun m "a"
+      evaluate $ fun m "a"
+      evaluate $ fun m "a"
+      m `hasBeenCalledTimesGreaterThan` 2 `with` "a"
+
+    it "less than" do
+      m <- mock $ "a" |> False
+      evaluate $ fun m "a"
+      evaluate $ fun m "a"
+      evaluate $ fun m "a"
+      m `hasBeenCalledTimesLessThan` 4 `with` "a"
+
+  describe "Monad" do
+    it "Return IO Monad." do
+      m <- mock $ "Article Id" |> pure @IO "Article Title"
+
+      result <- fun m "Article Id"
+
+      result `shouldBe` "Article Title"
+      
+      m `hasBeenCalledWith` "Article Id"
+          
   -- describe "mock" do
   --   it "fn" do
   --     m <- mock $ "a" |> "x"
