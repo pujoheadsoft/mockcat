@@ -18,7 +18,7 @@ import Test.MockCat (
     hasBeenCalledTimesLessThan, hasBeenCalledInPartialOrder)
 import Test.MockCat.Param (any, (|>))
 import Data.Function ((&))
-import Data.List (intercalate)
+
 import qualified Control.Exception as E
 
 spec :: Spec
@@ -523,60 +523,57 @@ spec = do
       describe "call" do
         it "simple mock"  do
           m <- mock $ "a" |> pure @IO True
-          fun m "b" `shouldThrow` errorCall "function was not called with expected arguments.\n\
+          fun m "b" `shouldThrow` errorCall "expected arguments were not applied to the function.\n\
                                             \  expected: \"a\"\n\
-                                            \  but was : \"b\""
+                                            \   but got: \"b\""
 
         it "multi mock" do
           m <- mock [
             "aaa" |> (100 :: Int) |> pure @IO True,
             "bbb" |> (200 :: Int) |> pure @IO False
             ]
-          fun m "aaa" 200 `shouldThrow` errorCall "function was not called with expected arguments.\n\
+          fun m "aaa" 200 `shouldThrow` errorCall "expected arguments were not applied to the function.\n\
                                                   \  expected one of the following:\n\
                                                   \    \"aaa\",100\n\
                                                   \    \"bbb\",200\n\
-                                                  \  but was actual:\n\
+                                                  \  but got:\n\
                                                   \    \"aaa\",200"
 
       describe "verify" do
         it "simple mock verify" do
           m <- mock $ any |> pure @IO True
           evaluate $ fun m "A"
-          m `hasBeenCalledWith` "X" `shouldThrow` errorCall "function wasn't called with expected arguments.\n\
+          m `hasBeenCalledWith` "X" `shouldThrow` errorCall "expected arguments were not applied to the function.\n\
                                                             \  expected: \"X\"\n\
-                                                            \  but was : \"A\""
+                                                            \   but got: \"A\""
 
         it "count" do
           m <- mock $ any |> pure @IO True
           evaluate $ fun m "A"
-          let e = "function was not called the expected number of times.\n\
+          let e = "function was not applied the expected number of times.\n\
                   \  expected: 2\n\
-                  \  but was : 1"
+                  \   but got: 1"
           m `hasBeenCalledTimes` (2 :: Int) `with` "A" `shouldThrow` errorCall e
 
-    --     it "verifySequence" do
-    --       m <- mock $ any :> 100
-    --       let
-    --         _ = fun m "B"
-    --         _ = fun m "C"
-    --         _ = fun m "A"
-    --         expected = joinWith "\n" [
-    --           "function was not called with expected order.",
-    --           "  expected 1st call: \"A\"",
-    --           "  but was  1st call: \"B\"",
-    --           "  expected 2nd call: \"B\"",
-    --           "  but was  2nd call: \"C\"",
-    --           "  expected 3rd call: \"C\"",
-    --           "  but was  3rd call: \"A\""
-    --           ]
-    --       expectErrorWithMessage expected $ m `hasBeenCalledInOrder` ["A", "B", "C"]
+        it "verifySequence" do
+          m <- mock $ any |> pure @IO False
+          evaluate $ fun m "B"
+          evaluate $ fun m "C"
+          evaluate $ fun m "A"
+          let e = "function was not applied with expected order.\n\
+                  \  expected 1st call: \"A\"\n\
+                  \   but got 1st call: \"B\"\n\
+                  \  expected 2nd call: \"B\"\n\
+                  \   but got 2nd call: \"C\"\n\
+                  \  expected 3rd call: \"C\"\n\
+                  \   but got 3rd call: \"A\""
+          m `hasBeenCalledInOrder` ["A", "B", "C"] `shouldThrow` errorCall e
         
     --     it "verifySequence (count mismatch)" do
     --       m <- mock $ any :> 100
     --       let
-    --         _ = fun m "B"
-    --         _ = fun m "C"
+  --         evaluate $ fun m "B"
+  --         evaluate $ fun m "C"
     --         expected = joinWith "\n" [
     --           "The number of function calls doesn't match the number of params.",
     --           "  number of function calls: 2",
@@ -587,8 +584,8 @@ spec = do
     --     it "verifyPartiallySequence" do
     --       m <- mock $ any :> 100
     --       let
-    --         _ = fun m "B"
-    --         _ = fun m "A"
+  --         evaluate $ fun m "B"
+  --         evaluate $ fun m "A"
     --         expected = joinWith "\n" [
     --           "function was not called with expected order.",
     --           "  expected order:",
@@ -603,7 +600,7 @@ spec = do
     --     it "verifyPartiallySequence (count mismatch)" do
     --       m <- mock $ any :> 100
     --       let
-    --         _ = fun m "B"
+  --         evaluate $ fun m "B"
     --         expected = joinWith "\n" [
     --           "The number of parameters exceeds the number of function calls.",
     --           "  number of function calls: 1",
@@ -643,7 +640,7 @@ spec = do
     --     it "simple mock verify" do
     --       m <- namedMock "mock function" $ any :> 100
     --       let
-    --         _ = fun m "A"
+  --         evaluate $ fun m "A"
     --         expected = joinWith "\n" [
     --           "function `mock function` was not called with expected arguments.",
     --           "  expected: \"X\"",
@@ -654,7 +651,7 @@ spec = do
     --     it "count" do
     --       m <- namedMock "mock function" $ any :> 100
     --       let
-    --         _ = fun m "A"
+  --         evaluate $ fun m "A"
     --         expected = joinWith "\n" [
     --           "function `mock function` was not called the expected number of times.",
     --           "  expected: 2",
@@ -665,9 +662,9 @@ spec = do
     --     it "verifySequence" do
     --       m <- namedMock "mock function" $ any :> 100
     --       let
-    --         _ = fun m "B"
-    --         _ = fun m "C"
-    --         _ = fun m "A"
+  --         evaluate $ fun m "B"
+  --         evaluate $ fun m "C"
+  --         evaluate $ fun m "A"
     --         expected = joinWith "\n" [
     --           "function `mock function` was not called with expected order.",
     --           "  expected 1st call: \"A\"",
@@ -682,8 +679,8 @@ spec = do
     --     it "verifySequence (count mismatch)" do
     --       m <- namedMock "mockFunc" $ any :> 100
     --       let
-    --         _ = fun m "B"
-    --         _ = fun m "C"
+  --         evaluate $ fun m "B"
+  --         evaluate $ fun m "C"
     --         expected = joinWith "\n" [
     --           "The number of function `mockFunc` calls doesn't match the number of params.",
     --           "  number of function calls: 2",
@@ -694,8 +691,8 @@ spec = do
     --     it "verifyPartiallySequence" do
     --       m <- namedMock "mock function" $ any :> 100
     --       let
-    --         _ = fun m "B"
-    --         _ = fun m "A"
+  --         evaluate $ fun m "B"
+  --         evaluate $ fun m "A"
     --         expected = joinWith "\n" [
     --           "function `mock function` was not called with expected order.",
     --           "  expected order:",
@@ -710,7 +707,7 @@ spec = do
     --     it "verifyPartiallySequence (count mismatch)" do
     --       m <- namedMock "mockFunc" $ any :> 100
     --       let
-    --         _ = fun m "B"
+  --         evaluate $ fun m "B"
     --         expected = joinWith "\n" [
     --           "The number of parameters exceeds the number of function `mockFunc` calls.",
     --           "  number of function calls: 1",
