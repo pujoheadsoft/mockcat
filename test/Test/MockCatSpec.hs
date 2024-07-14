@@ -140,29 +140,211 @@ spec = do
     }
 
     mockTest Fixture {
-      name = "arity = 9", 
+      name = "arity = 2", 
       create = mock [
-        "1" |> "10" |> True  |> "a1" |> "2.0" |> False |> "b2" |> "200" |> True  |> "c3",
-        "2" |> "20" |> False |> "a2" |> "3.0" |> True  |> "b3" |> "300" |> False |> "c4"
+        "1" |> "2" |> True,
+        "2" |> "3" |> False
       ],
       expected = [
-        "c3", 
-        "c4"
+        True, 
+        False
       ], 
       execute = \m -> [
-        fun m "1" "10" True  "a1" "2.0" False "b2" "200" True, 
-        fun m "2" "20" False "a2" "3.0" True  "b3" "300" False
+        fun m "1" "2", 
+        fun m "2" "3"
       ],
-      executeFailed = Just \m -> [ fun m "2" "20" False "a2" "3.0" True "b3" "300" True ],
+      executeFailed = Just \m -> [ fun m "1" "x" ],
       verifyMock = \m -> do 
-        m `hasBeenCalledWith` ("1" |> "10" |> True  |> "a1" |> "2.0" |> False |> "b2" |> "200" |> True)
-        m `hasBeenCalledWith` ("2" |> "20" |> False |> "a2" |> "3.0" |> True  |> "b3" |> "300" |> False)
+        m `hasBeenCalledWith` ("1" |> "2")
+        m `hasBeenCalledWith` ("2" |> "3")
       ,
       verifyCount = \m c -> do
-        m `hasBeenCalledTimes` c `with` ("1" |> "10" |> True  |> "a1" |> "2.0" |> False |> "b2" |> "200" |> True)
-        m `hasBeenCalledTimes` c `with` ("2" |> "20" |> False |> "a2" |> "3.0" |> True  |> "b3" |> "300" |> False)
+        m `hasBeenCalledTimes` c `with` ("1" |> "2")
+        m `hasBeenCalledTimes` c `with` ("2" |> "3")
       ,
-      verifyFailed = \m -> m `hasBeenCalledWith` ("1" |> "10" |> True |> "a1" |> "2.0" |> False |> "b2" |> "200" |> False)
+      verifyFailed = \m -> m `hasBeenCalledWith` ("1" |> "x")
+    }
+
+    mockTest Fixture {
+      name = "arity = 3", 
+      create = mock [
+        "1" |> "2" |> "3" |> True,
+        "2" |> "3" |> "4" |> False
+      ],
+      expected = [
+        True, 
+        False
+      ], 
+      execute = \m -> [
+        fun m "1" "2" "3", 
+        fun m "2" "3" "4"
+      ],
+      executeFailed = Just \m -> [ fun m "1" "2" "x" ],
+      verifyMock = \m -> do 
+        m `hasBeenCalledWith` ("1" |> "2" |> "3")
+        m `hasBeenCalledWith` ("2" |> "3" |> "4")
+      ,
+      verifyCount = \m c -> do
+        m `hasBeenCalledTimes` c `with` ("1" |> "2" |> "3")
+        m `hasBeenCalledTimes` c `with` ("2" |> "3" |> "4")
+      ,
+      verifyFailed = \m -> m `hasBeenCalledWith` ("1" |> "2" |> "x")
+    }
+
+    mockTest Fixture {
+      name = "arity = 4", 
+      create = mock [
+        "1" |> "2" |> "3"  |> "4" |> True,
+        "2" |> "3" |> "4"  |> "5" |> False
+      ],
+      expected = [
+        True, 
+        False
+      ], 
+      execute = \m -> [
+        fun m "1" "2" "3" "4", 
+        fun m "2" "3" "4" "5"
+      ],
+      executeFailed = Just \m -> [ fun m "1" "2" "3" "x" ],
+      verifyMock = \m -> do 
+        m `hasBeenCalledWith` ("1" |> "2" |> "3" |> "4")
+        m `hasBeenCalledWith` ("2" |> "3" |> "4" |> "5")
+      ,
+      verifyCount = \m c -> do
+        m `hasBeenCalledTimes` c `with` ("1" |> "2" |> "3" |> "4")
+        m `hasBeenCalledTimes` c `with` ("2" |> "3" |> "4" |> "5")
+      ,
+      verifyFailed = \m -> m `hasBeenCalledWith` ("1" |> "2" |> "3" |> "x")
+    }
+
+    mockTest Fixture {
+      name = "arity = 5", 
+      create = mock [
+        "1" |> "2" |> "3"  |> "4" |> "5" |> True,
+        "2" |> "3" |> "4"  |> "5" |> "6" |> False
+      ],
+      expected = [
+        True, 
+        False
+      ], 
+      execute = \m -> [
+        fun m "1" "2" "3" "4" "5", 
+        fun m "2" "3" "4" "5" "6"
+      ],
+      executeFailed = Just \m -> [ fun m "1" "2" "3" "4" "x" ],
+      verifyMock = \m -> do 
+        m `hasBeenCalledWith` ("1" |> "2" |> "3"  |> "4" |> "5")
+        m `hasBeenCalledWith` ("2" |> "3" |> "4"  |> "5" |> "6")
+      ,
+      verifyCount = \m c -> do
+        m `hasBeenCalledTimes` c `with` ("1" |> "2" |> "3"  |> "4" |> "5")
+        m `hasBeenCalledTimes` c `with` ("2" |> "3" |> "4"  |> "5" |> "6")
+      ,
+      verifyFailed = \m -> m `hasBeenCalledWith` ("1" |> "2" |> "3"  |> "4" |> "x")
+    }
+
+    mockTest Fixture {
+      name = "arity = 6", 
+      create = mock [
+        "1" |> "2" |> "3"  |> "4" |> "5" |> "6" |> True,
+        "2" |> "3" |> "4"  |> "5" |> "6" |> "7" |> False
+      ],
+      expected = [
+        True, 
+        False
+      ], 
+      execute = \m -> [
+        fun m "1" "2" "3" "4" "5" "6", 
+        fun m "2" "3" "4" "5" "6" "7"
+      ],
+      executeFailed = Just \m -> [ fun m "1" "2" "3" "4" "5" "x" ],
+      verifyMock = \m -> do 
+        m `hasBeenCalledWith` ("1" |> "2" |> "3"  |> "4" |> "5" |> "6")
+        m `hasBeenCalledWith` ("2" |> "3" |> "4"  |> "5" |> "6" |> "7")
+      ,
+      verifyCount = \m c -> do
+        m `hasBeenCalledTimes` c `with` ("1" |> "2" |> "3"  |> "4" |> "5" |> "6")
+        m `hasBeenCalledTimes` c `with` ("2" |> "3" |> "4"  |> "5" |> "6" |> "7")
+      ,
+      verifyFailed = \m -> m `hasBeenCalledWith` ("1" |> "2" |> "3"  |> "4" |> "5" |> "x")
+    }
+
+    mockTest Fixture {
+      name = "arity = 7", 
+      create = mock [
+        "1" |> "2" |> "3"  |> "4" |> "5" |> "6" |> "7" |> True,
+        "2" |> "3" |> "4"  |> "5" |> "6" |> "7" |> "8" |> False
+      ],
+      expected = [
+        True, 
+        False
+      ], 
+      execute = \m -> [
+        fun m "1" "2" "3" "4" "5" "6" "7", 
+        fun m "2" "3" "4" "5" "6" "7" "8"
+      ],
+      executeFailed = Just \m -> [ fun m "1" "2" "3" "4" "5" "6" "x" ],
+      verifyMock = \m -> do 
+        m `hasBeenCalledWith` ("1" |> "2" |> "3"  |> "4" |> "5" |> "6" |> "7")
+        m `hasBeenCalledWith` ("2" |> "3" |> "4"  |> "5" |> "6" |> "7" |> "8")
+      ,
+      verifyCount = \m c -> do
+        m `hasBeenCalledTimes` c `with` ("1" |> "2" |> "3"  |> "4" |> "5" |> "6" |> "7")
+        m `hasBeenCalledTimes` c `with` ("2" |> "3" |> "4"  |> "5" |> "6" |> "7" |> "8")
+      ,
+      verifyFailed = \m -> m `hasBeenCalledWith` ("1" |> "2" |> "3"  |> "4" |> "5" |> "6" |> "x")
+    }
+
+    mockTest Fixture {
+      name = "arity = 8", 
+      create = mock [
+        "1" |> "2" |> "3"  |> "4" |> "5" |> "6" |> "7" |> "8" |> True,
+        "2" |> "3" |> "4"  |> "5" |> "6" |> "7" |> "8" |> "9" |> False
+      ],
+      expected = [
+        True, 
+        False
+      ], 
+      execute = \m -> [
+        fun m "1" "2" "3" "4" "5" "6" "7" "8", 
+        fun m "2" "3" "4" "5" "6" "7" "8" "9"
+      ],
+      executeFailed = Just \m -> [ fun m "1" "2" "3" "4" "5" "6" "7" "x" ],
+      verifyMock = \m -> do 
+        m `hasBeenCalledWith` ("1" |> "2" |> "3"  |> "4" |> "5" |> "6" |> "7" |> "8")
+        m `hasBeenCalledWith` ("2" |> "3" |> "4"  |> "5" |> "6" |> "7" |> "8" |> "9")
+      ,
+      verifyCount = \m c -> do
+        m `hasBeenCalledTimes` c `with` ("1" |> "2" |> "3"  |> "4" |> "5" |> "6" |> "7" |> "8")
+        m `hasBeenCalledTimes` c `with` ("2" |> "3" |> "4"  |> "5" |> "6" |> "7" |> "8" |> "9")
+      ,
+      verifyFailed = \m -> m `hasBeenCalledWith` ("1" |> "2" |> "3"  |> "4" |> "5" |> "6" |> "7" |> "x")
+    }
+
+    mockTest Fixture {
+      name = "arity = 9", 
+      create = mock [
+        "1" |> "2" |> "3"  |> "4" |> "5" |> "6" |> "7" |> "8" |> "9"  |> True,
+        "2" |> "3" |> "4"  |> "5" |> "6" |> "7" |> "8" |> "9" |> "10" |> False
+      ],
+      expected = [
+        True, 
+        False
+      ], 
+      execute = \m -> [
+        fun m "1" "2" "3" "4" "5" "6" "7" "8" "9", 
+        fun m "2" "3" "4" "5" "6" "7" "8" "9" "10"
+      ],
+      executeFailed = Just \m -> [ fun m "1" "2" "3" "4" "5" "6" "7" "8" "x" ],
+      verifyMock = \m -> do 
+        m `hasBeenCalledWith` ("1" |> "2" |> "3"  |> "4" |> "5" |> "6" |> "7" |> "8" |> "9")
+        m `hasBeenCalledWith` ("2" |> "3" |> "4"  |> "5" |> "6" |> "7" |> "8" |> "9" |> "10")
+      ,
+      verifyCount = \m c -> do
+        m `hasBeenCalledTimes` c `with` ("1" |> "2" |> "3"  |> "4" |> "5" |> "6" |> "7" |> "8" |> "9")
+        m `hasBeenCalledTimes` c `with` ("2" |> "3" |> "4"  |> "5" |> "6" |> "7" |> "8" |> "9" |> "10")
+      ,
+      verifyFailed = \m -> m `hasBeenCalledWith` ("1" |> "2" |> "3"  |> "4" |> "5" |> "6" |> "7" |> "8" |> "x")
     }
 
   describe "Order Verification" do
