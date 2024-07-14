@@ -131,6 +131,75 @@ instance
     s <- newIORef ([] :: CalledParamsList params)
     createMock name s (\a2 -> unsafePerformIO $ extractReturnValueWithValidate name params (p a2) s)
 
+instance (Show a, Eq a, Show b, Eq b, Show c, Eq c, Show d, Eq d, Show e, Eq e, Show f, Eq f, Show g, Eq g, Show h, Eq h, Show i, Eq i)
+  => MockBuilder
+    [Param a :> Param b :> Param c :> Param d :> Param e :> Param f :> Param g :> Param h :> Param i :> Param r]
+    (a -> b -> c -> d -> e -> f -> g -> h -> i -> r)
+    (Param a :> Param b :> Param c :> Param d :> Param e :> Param f :> Param g :> Param h :> Param i) where
+  build name params = do
+    s <- newIORef ([] :: CalledParamsList params)
+    createMock name s (\a2 b2 c2 d2 e2 f2 g2 h2 i2 -> unsafePerformIO $ findReturnValueWithStore name params (p a2 :> p b2 :> p c2 :> p d2 :> p e2 :> p f2 :> p g2 :> p h2 :> p i2) s)
+
+instance (Show a, Eq a, Show b, Eq b, Show c, Eq c, Show d, Eq d, Show e, Eq e, Show f, Eq f, Show g, Eq g, Show h, Eq h)
+  => MockBuilder
+    [Param a :> Param b :> Param c :> Param d :> Param e :> Param f :> Param g :> Param h :> Param r]
+    (a -> b -> c -> d -> e -> f -> g -> h -> r)
+    (Param a :> Param b :> Param c :> Param d :> Param e :> Param f :> Param g :> Param h) where
+  build name params = do
+    s <- newIORef ([] :: CalledParamsList params)
+    createMock name s (\a2 b2 c2 d2 e2 f2 g2 h2 -> unsafePerformIO $ findReturnValueWithStore name params (p a2 :> p b2 :> p c2 :> p d2 :> p e2 :> p f2 :> p g2 :> p h2) s)
+
+instance (Show a, Eq a, Show b, Eq b, Show c, Eq c, Show d, Eq d, Show e, Eq e, Show f, Eq f, Show g, Eq g)
+  => MockBuilder
+    [Param a :> Param b :> Param c :> Param d :> Param e :> Param f :> Param g :> Param r]
+    (a -> b -> c -> d -> e -> f -> g -> r)
+    (Param a :> Param b :> Param c :> Param d :> Param e :> Param f :> Param g) where
+  build name params = do
+    s <- newIORef ([] :: CalledParamsList params)
+    createMock name s (\a2 b2 c2 d2 e2 f2 g2 -> unsafePerformIO $ findReturnValueWithStore name params (p a2 :> p b2 :> p c2 :> p d2 :> p e2 :> p f2 :> p g2) s)
+
+instance (Show a, Eq a, Show b, Eq b, Show c, Eq c, Show d, Eq d, Show e, Eq e, Show f, Eq f)
+  => MockBuilder
+    [Param a :> Param b :> Param c :> Param d :> Param e :> Param f :> Param r]
+    (a -> b -> c -> d -> e -> f -> r)
+    (Param a :> Param b :> Param c :> Param d :> Param e :> Param f) where
+  build name params = do
+    s <- newIORef ([] :: CalledParamsList params)
+    createMock name s (\a2 b2 c2 d2 e2 f2 -> unsafePerformIO $ findReturnValueWithStore name params (p a2 :> p b2 :> p c2 :> p d2 :> p e2 :> p f2) s)
+
+instance (Show a, Eq a, Show b, Eq b, Show c, Eq c, Show d, Eq d, Show e, Eq e)
+  => MockBuilder
+    [Param a :> Param b :> Param c :> Param d :> Param e :> Param r]
+    (a -> b -> c -> d -> e -> r)
+    (Param a :> Param b :> Param c :> Param d :> Param e) where
+  build name params = do
+    s <- newIORef ([] :: CalledParamsList params)
+    createMock name s (\a2 b2 c2 d2 e2 -> unsafePerformIO $ findReturnValueWithStore name params (p a2 :> p b2 :> p c2 :> p d2 :> p e2) s)
+
+instance (Show a, Eq a, Show b, Eq b, Show c, Eq c, Show d, Eq d)
+  => MockBuilder
+    [Param a :> Param b :> Param c :> Param d :> Param r]
+    (a -> b -> c -> d -> r)
+    (Param a :> Param b :> Param c :> Param d) where
+  build name params = do
+    s <- newIORef ([] :: CalledParamsList params)
+    createMock name s (\a2 b2 c2 d2 -> unsafePerformIO $ findReturnValueWithStore name params (p a2 :> p b2 :> p c2 :> p d2) s)
+
+instance (Show a, Eq a, Show b, Eq b, Show c, Eq c)
+  => MockBuilder
+    [Param a :> Param b :> Param c :> Param r]
+    (a -> b -> c -> r)
+    (Param a :> Param b :> Param c) where
+  build name params = do
+    s <- newIORef ([] :: CalledParamsList params)
+    createMock name s (\a2 b2 c2 -> unsafePerformIO $ findReturnValueWithStore name params (p a2 :> p b2 :> p c2) s)
+
+instance (Show a, Eq a, Show b, Eq b)
+  => MockBuilder [Param a :> Param b :> Param r] (a -> b -> r) (Param a :> Param b) where
+  build name params = do
+    s <- newIORef ([] :: CalledParamsList params)
+    createMock name s (\a2 b2 -> unsafePerformIO $ findReturnValueWithStore name params (p a2 :> p b2) s)
+
 instance (Show a, Eq a)
   => MockBuilder [Param a :> Param r] (a -> r) (Param a) where
   build name params = do
