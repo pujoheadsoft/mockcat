@@ -458,7 +458,7 @@ _verifyOrder method (Mock name _ (Verifier ref)) matchers = do
 doVerifyOrder :: (Eq a, Show a) => VerifyOrderMethod -> Maybe MockName -> CalledParamsList a -> [a] -> Maybe VerifyFailed
 doVerifyOrder ExactlySequence name calledValues expectedValues
   | length calledValues /= length expectedValues = do
-      let header = "number of times the function" <> mockNameLabel name <> " is applied is not the expected number of times."
+      let header = "function" <> mockNameLabel name <> " was not applied the expected number of times."
       pure $ verifyFailedOrderParamCountMismatch header calledValues expectedValues
   | otherwise = do
       let unexpectedOrders = collectUnExpectedOrder calledValues expectedValues
@@ -466,7 +466,7 @@ doVerifyOrder ExactlySequence name calledValues expectedValues
       pure $ verifyFailedSequence name unexpectedOrders
 doVerifyOrder PartiallySequence name calledValues expectedValues
   | length calledValues < length expectedValues = do
-      let header = "The number of parameters exceeds the number of function" <> mockNameLabel name <> "calls."
+      let header = "function" <> mockNameLabel name <> " was not applied the expected number of times."
       pure $ verifyFailedOrderParamCountMismatch header calledValues expectedValues
   | otherwise = do
       guard $ isOrderNotMatched calledValues expectedValues
@@ -477,10 +477,10 @@ verifyFailedPartiallySequence name calledValues expectedValues =
   VerifyFailed $
     intercalate
       "\n"
-      [ "function" <> mockNameLabel name <> "was not called with expected order.",
+      [ "function" <> mockNameLabel name <> " was not applied with expected order.",
         "  expected order:",
         intercalate "\n" $ ("    " <>) . show <$> expectedValues,
-        "  actual order:",
+        "  but got:",
         intercalate "\n" $ ("    " <>) . show <$> calledValues
       ]
 
@@ -502,8 +502,8 @@ verifyFailedOrderParamCountMismatch header calledValues expectedValues =
     intercalate
       "\n"
       [ header,
-        "  expected: " <> show (length calledValues),
-        "   but got: " <> show (length expectedValues)
+        "  expected: " <> show (length expectedValues),
+        "   but got: " <> show (length calledValues)
       ]
 
 verifyFailedSequence :: (Show a) => Maybe MockName -> [VerifyOrderResult a] -> VerifyFailed
