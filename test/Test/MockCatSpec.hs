@@ -25,8 +25,8 @@ import Test.MockCat
     mock,
     namedMock,
     with,
-    any, 
-    (|>)
+    any,
+    (|>), matcher, mockFun
   )
 import Prelude hiding (any)
 
@@ -743,6 +743,12 @@ spec = do
                 \  expected: 2\n\
                 \   but got: 1"
           m `hasBeenCalledInPartialOrder` ["A", "C"] `shouldThrow` errorCall e
+
+  describe "matcher" do
+    it "shorthand" do
+      f <- mockFun $ matcher (== "x") "== x" |> True
+      let v = f "x"
+      v `shouldBe` True
 
 data Fixture mock r = Fixture
   { name :: String,
