@@ -24,7 +24,9 @@ module Test.MockCat
     hasBeenCalledTimesLessThan,
     namedMock,
     module Test.MockCat.Cons,
-    module Test.MockCat.Param
+    module Test.MockCat.Param,
+    mockFun,
+    namedMockFun
   )
 where
 
@@ -63,6 +65,21 @@ namedMock name params = liftIO $ build (Just name) params
 
 fun :: Mock fun v -> fun
 fun (Mock _ f _) = f
+
+mockFun ::
+     MockBuilder params fun verifyParams
+  => MonadIO m
+  => params
+  -> m fun
+mockFun params = fun <$> mock params
+
+namedMockFun ::
+     MockBuilder params fun verifyParams
+  => MonadIO m
+  => String
+  -> params
+  -> m fun
+namedMockFun name params = fun <$> namedMock name params
 
 class MockBuilder params fun verifyParams | params -> fun, params -> verifyParams where
   build :: Maybe MockName -> params -> IO (Mock fun verifyParams)
