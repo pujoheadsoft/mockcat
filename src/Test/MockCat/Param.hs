@@ -18,6 +18,7 @@ module Test.MockCat.Param
     or,
     and,
     notEqual,
+    matcher_,
   )
 where
 
@@ -25,6 +26,7 @@ import Data.Text hiding (any, head)
 import Test.MockCat.Cons ((:>) (..))
 import Unsafe.Coerce (unsafeCoerce)
 import Prelude hiding (and, any, or)
+import GHC.Stack (HasCallStack)
 
 data Param v = Param v (Matcher v)
 
@@ -49,12 +51,14 @@ class ShowParam a where
 instance {-# OVERLAPPING #-} ShowParam (Param String) where
   showParam (Param v m) = case m of
     LabelledCustom _ l -> l
-    _ -> v
+    Custom _ -> "[some matcher]"
+    Equals -> v
 
 instance {-# INCOHERENT #-} (Show a) => ShowParam (Param a) where
   showParam (Param v m) = case m of
     LabelledCustom _ l -> l
-    _ -> show v   
+    Custom _ -> "[some matcher]"
+    Equals -> show v   
 
 instance (ShowParam (Param a)) => Show (Param a) where
   show = showParam
@@ -95,10 +99,13 @@ anyMatcher :: a -> a -> Bool
 anyMatcher _ _ = True
 
 any :: Param a
-any = unsafeCoerce (Param "any" $ Custom anyMatcher)
+any = unsafeCoerce (Param "any" $ LabelledCustom anyMatcher "any")
 
 matcher :: (a -> Bool) -> String -> Param a
-matcher f msg = Param (unsafeCoerce f) (LabelledCustom (\_ a -> f a) msg)
+matcher f msg = Param (unsafeCoerce ()) (LabelledCustom (\_ a -> f a) msg)
+
+matcher_ :: HasCallStack => (a -> Bool) -> Param a
+matcher_ f = Param (unsafeCoerce ()) (Custom (\_ a -> f a))
 
 data Matcher v
   = Equals

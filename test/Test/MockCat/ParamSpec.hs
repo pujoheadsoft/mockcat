@@ -7,6 +7,7 @@ import Test.Hspec
 import Test.MockCat.Cons
 import Test.MockCat.Param as P
 import Control.Applicative (Alternative(empty))
+import Test.MockCat (matcher_)
 
 spec :: Spec
 spec = do
@@ -64,3 +65,11 @@ spec = do
         let orParam = matcher (< (0 :: Int)) "x < 0" `or` matcher ((0 :: Int) <) "0 < x"
         orParam == param (10 :: Int) `shouldBe` True
         orParam == param (-1 :: Int) `shouldBe` True
+    
+    describe "Matcher (show)" do
+      it "any" do
+        show (P.any :: Param Int) `shouldBe` "any"
+      it "custom matcher" do
+        show (matcher (/= "x") "/= x") `shouldBe` "/= x"
+      it "custom matcher_" do
+        show (matcher_ (/= (0 :: Int))) `shouldBe` "[some matcher]"
