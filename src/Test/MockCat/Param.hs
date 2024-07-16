@@ -28,13 +28,13 @@ import Unsafe.Coerce (unsafeCoerce)
 import Prelude hiding (and, any, or)
 import GHC.Stack (HasCallStack)
 
-data Param v = Param v (ParamType v)
+data Param v = Param (ParamType v)
 
 instance (Eq a) => Eq (Param a) where
-  (Param _ (Value a)) == (Param _ (Value b)) = a == b
-  (Param _ (Value a)) == (Param b (LabelledCustom m2 _)) = m2 a b
-  (Param a (LabelledCustom m1 _)) == (Param _ (Value b)) = m1 a b
-  (Param a (LabelledCustom m1 _)) == (Param b (LabelledCustom m2 _)) = m1 a b && m2 a b
+  (Param (Value a)) == (Param (Value b)) = a == b
+  (Param (Value a)) == (Param (LabelledCustom m2 _)) = m2 a
+  (Param (LabelledCustom m1 _)) == (Param (Value b)) = m1 b
+  (Param (LabelledCustom _ l1)) == (Param (LabelledCustom _ l2)) = l1 == l2
 
 type family ShowResult a where
   ShowResult String = String
@@ -44,12 +44,12 @@ class ShowParam a where
   showParam :: a -> ShowResult a
 
 instance {-# OVERLAPPING #-} ShowParam (Param String) where
-  showParam (Param v m) = case m of
+  showParam (Param m) = case m of
     LabelledCustom _ l -> l
     (Value a) -> a
 
 instance {-# INCOHERENT #-} (Show a) => ShowParam (Param a) where
-  showParam (Param v m) = case m of
+  showParam (Param m) = case m of
     LabelledCustom _ l -> l
     (Value a) -> show a
 
@@ -57,10 +57,12 @@ instance (ShowParam (Param a)) => Show (Param a) where
   show = showParam
 
 value :: Param v -> v
-value (Param v _) = v
+value (Param m) = case m of
+  Value a -> a
+  _ -> error "not implement"
 
 param :: v -> Param v
-param a = Param a (Value a)
+param a = Param (Value a)
 
 class ConsGen a b r | a b -> r where
   (|>) :: a -> b -> r
@@ -88,66 +90,66 @@ instance {-# OVERLAPPABLE #-} (Param a ~ a', Param b ~ b') => ConsGen a b (a' :>
 
 infixr 8 |>
 
-anyMatcher :: a -> a -> Bool
-anyMatcher _ _ = True
+anyMatcher :: a -> Bool
+anyMatcher _ = True
 
 any :: Param a
-any = unsafeCoerce (Param "any" $ LabelledCustom anyMatcher "any")
+any = unsafeCoerce (Param $ LabelledCustom anyMatcher "any")
 
 matcher :: (a -> Bool) -> String -> Param a
-matcher f msg = Param (unsafeCoerce ()) (LabelledCustom (\_ a -> f a) msg)
+matcher f msg = Param (LabelledCustom f msg)
 
 matcher_ :: HasCallStack => (a -> Bool) -> Param a
-matcher_ f = Param (unsafeCoerce ()) (LabelledCustom (\_ a -> f a) "[some matcher]")
+matcher_ f = Param (LabelledCustom f "[some matcher]")
 
 data ParamType v
   = Value v
-  | LabelledCustom (v -> v -> Bool) String
+  | LabelledCustom (v -> Bool) String
 
 class NotMatcher a r where
   notEqual :: a -> r
 
 instance (Eq a, Show a) => NotMatcher (Param a) (Param a) where
-  notEqual (Param v m) =
+  notEqual (Param m) =
     let newMatcher = case m of
-          LabelledCustom f l -> LabelledCustom (\a b -> not (f a b)) l
+          LabelledCustom f l -> LabelledCustom (not . f) (unsafeCoerce $ "Not " <> showWithRemoveEscape l)
           Value v -> Value v
-     in Param (unsafeCoerce $ "Not " <> showWithRemoveEscape v) newMatcher
+     in Param newMatcher
 
 instance (Eq a, Show a) => NotMatcher a (Param a) where
-  notEqual v = Param (unsafeCoerce $ "Not " <> showWithRemoveEscape v) (LabelledCustom (\_ a -> a /= v) (unsafeCoerce $ "Not " <> showWithRemoveEscape v))
+  notEqual v = Param (LabelledCustom (/= v) (unsafeCoerce $ "Not " <> showWithRemoveEscape v))
 
 class LogicalMatcher a b r where
   or :: a -> b -> r
   and :: a -> b -> r
 
 instance {-# OVERLAPPING #-} (Eq a, Show a) => LogicalMatcher (Param a) (Param a) (Param a) where
-  or p1@(Param _ m1) p2@(Param _ m2) = Param (unsafeCoerce $ showWithRemoveEscape p1 <> " || " <> showWithRemoveEscape p2) (composeOr m1 m2)
-  and p1@(Param _ m1) p2@(Param _ m2) = Param (unsafeCoerce $ showWithRemoveEscape p1 <> " && " <> showWithRemoveEscape p2) (composeAnd m1 m2)
+  or p1@(Param m1) p2@(Param m2) = Param (composeOr m1 m2)
+  and p1@(Param m1) p2@(Param m2) = Param (composeAnd m1 m2)
 
 instance {-# OVERLAPPABLE #-} (Eq a, Show a) => LogicalMatcher (Param a) a (Param a) where
-  or p1@(Param _ m1) a = Param (unsafeCoerce $ showWithRemoveEscape p1 <> " || " <> showWithRemoveEscape a) (composeOr m1 $ LabelledCustom (\_ v -> v == a) (unsafeCoerce $ showWithRemoveEscape p1 <> " || " <> showWithRemoveEscape a))
-  and p1@(Param _ m1) a = Param (unsafeCoerce $ showWithRemoveEscape p1 <> " && " <> showWithRemoveEscape a) (composeAnd m1 $ LabelledCustom (\_ v -> v == a) (unsafeCoerce $ showWithRemoveEscape p1 <> " && " <> showWithRemoveEscape a))
+  or p1@(Param m1) a = Param (composeOr m1 $ LabelledCustom (\v -> v == a) (unsafeCoerce $ showWithRemoveEscape p1 <> " || " <> showWithRemoveEscape a))
+  and p1@(Param m1) a = Param (composeAnd m1 $ LabelledCustom (\v -> v == a) (unsafeCoerce $ showWithRemoveEscape p1 <> " && " <> showWithRemoveEscape a))
 
 instance {-# OVERLAPPABLE #-} (Eq a, Show a) => LogicalMatcher a (Param a) (Param a) where
-  or a p2@(Param _ m2) = Param (unsafeCoerce $ showWithRemoveEscape p2 <> " || " <> showWithRemoveEscape a) (composeOr m2 $ LabelledCustom (\_ v -> v == a) (unsafeCoerce $ showWithRemoveEscape p2 <> " || " <> showWithRemoveEscape a))
-  and a p2@(Param _ m2) = Param (unsafeCoerce $ showWithRemoveEscape p2 <> " && " <> showWithRemoveEscape a) (composeAnd m2 $ LabelledCustom (\_ v -> v == a) (unsafeCoerce $ showWithRemoveEscape p2 <> " && " <> showWithRemoveEscape a))
+  or a p2@(Param m2) = Param (composeOr m2 $ LabelledCustom (\v -> v == a) (unsafeCoerce $ showWithRemoveEscape p2 <> " || " <> showWithRemoveEscape a))
+  and a p2@(Param m2) = Param (composeAnd m2 $ LabelledCustom (\v -> v == a) (unsafeCoerce $ showWithRemoveEscape p2 <> " && " <> showWithRemoveEscape a))
 
 instance {-# OVERLAPPABLE #-} (Eq a, Show a) => LogicalMatcher a a (Param a) where
-  or a1 a2 = Param (unsafeCoerce $ showWithRemoveEscape a1 <> " || " <> showWithRemoveEscape a2) (LabelledCustom (\_ a -> a == a1 || a == a2) (unsafeCoerce $ showWithRemoveEscape a1 <> " || " <> showWithRemoveEscape a2))
-  and a1 a2 = Param (unsafeCoerce $ showWithRemoveEscape a1 <> " && " <> showWithRemoveEscape a2) (LabelledCustom (\_ a -> a == a1 && a == a2) (unsafeCoerce $ showWithRemoveEscape a1 <> " && " <> showWithRemoveEscape a2))
+  or a1 a2 = Param (LabelledCustom (\a -> a == a1 || a == a2) (unsafeCoerce $ showWithRemoveEscape a1 <> " || " <> showWithRemoveEscape a2))
+  and a1 a2 = Param (LabelledCustom (\a -> a == a1 && a == a2) (unsafeCoerce $ showWithRemoveEscape a1 <> " && " <> showWithRemoveEscape a2))
 
 composeOr :: (Eq a, Show a) => ParamType a -> ParamType a -> ParamType a
-composeOr (Value a) (Value b) = LabelledCustom (\a' b' -> a == a' || b == b') ""
-composeOr (Value a) (LabelledCustom m2 l) = LabelledCustom m2 l
-composeOr (LabelledCustom m1 l1) (Value a) = LabelledCustom m1 l1
-composeOr (LabelledCustom m1 l1) (LabelledCustom m2 l2) = LabelledCustom (\a b -> m1 a b || m2 a b) (l1 <> " and " <> l2)
+composeOr (Value a) (Value b) = LabelledCustom (\x -> a == x || b == x) ""
+composeOr (Value a) (LabelledCustom m2 l2) = LabelledCustom (\x -> x == a || m2 x) l2
+composeOr (LabelledCustom m1 l1) (Value a) = LabelledCustom (\x -> m1 x || x == a) l1
+composeOr (LabelledCustom m1 l1) (LabelledCustom m2 l2) = LabelledCustom (\a -> m1 a || m2 a) (l1 <> " and " <> l2)
 
 composeAnd :: (Eq a, Show a) => ParamType a -> ParamType a -> ParamType a
-composeAnd (Value a) (Value b) = LabelledCustom (\a' b' -> a == a' && b == b') ""
-composeAnd (Value a) (LabelledCustom m2 l) = LabelledCustom m2 l
-composeAnd (LabelledCustom m1 l1) (Value b) = LabelledCustom m1 l1
-composeAnd (LabelledCustom m1 l1) (LabelledCustom m2 l2) = LabelledCustom (\a b -> m1 a b && m2 a b) (l1 <> " and " <> l2)
+composeAnd (Value a) (Value b) = LabelledCustom (\x -> a == x && b == x) ""
+composeAnd (Value a) (LabelledCustom m2 l2) = LabelledCustom (\x -> x == a && m2 a) l2
+composeAnd (LabelledCustom m1 l1) (Value b) = LabelledCustom (\x -> m1 x && x == b) l1
+composeAnd (LabelledCustom m1 l1) (LabelledCustom m2 l2) = LabelledCustom (\x -> m1 x && m2 x) (l1 <> " and " <> l2)
 
 showWithRemoveEscape :: (Show a) => a -> String
 showWithRemoveEscape s = unpack $ replace (pack "\\") (pack "") (pack (show s))
