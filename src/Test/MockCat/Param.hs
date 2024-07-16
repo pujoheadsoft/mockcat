@@ -7,6 +7,7 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module Test.MockCat.Param
   ( Param,
@@ -17,8 +18,7 @@ module Test.MockCat.Param
     any,
     or,
     and,
-    notEqual,
-    matcher_,
+    notEqual
   )
 where
 
@@ -26,7 +26,9 @@ import Data.Text hiding (any, head)
 import Test.MockCat.Cons ((:>) (..))
 import Unsafe.Coerce (unsafeCoerce)
 import Prelude hiding (and, any, or)
-import GHC.Stack (HasCallStack)
+import Language.Haskell.TH
+import Test.MockCat.TH
+import Language.Haskell.TH.Syntax
 
 data Param v = Param (ParamType v)
 
@@ -96,11 +98,16 @@ anyMatcher _ = True
 any :: Param a
 any = unsafeCoerce (Param $ LabelledCustom anyMatcher "any")
 
-matcher :: (a -> Bool) -> String -> Param a
-matcher f msg = Param (LabelledCustom f msg)
+matcher :: Q Exp -> Q Exp
+matcher qf = do
+  str <- showExpr qf
+  [| Param (LabelledCustom $qf str) |]
 
-matcher_ :: HasCallStack => (a -> Bool) -> Param a
-matcher_ f = Param (LabelledCustom f "[some matcher]")
+-- matcher :: (a -> Bool) -> Param a
+-- matcher f = $(do
+--   let fName = 'f
+--   str <- showExpr (varE fName)
+--   [| Param (LabelledCustom f str) |])
 
 data ParamType v
   = Value v
