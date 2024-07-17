@@ -8,6 +8,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE BlockArguments #-}
 
 module Test.MockCat.Param
   ( Param,
@@ -15,6 +16,7 @@ module Test.MockCat.Param
     param,
     (|>),
     matcher,
+    matcher2,
     any,
     or,
     and,
@@ -29,6 +31,8 @@ import Prelude hiding (and, any, or)
 import Language.Haskell.TH
 import Test.MockCat.TH
 import Language.Haskell.TH.Syntax
+import Language.Haskell.Meta
+import Language.Haskell.TH.Quote
 
 data Param v = Param (ParamType v)
 
@@ -108,6 +112,21 @@ matcher qf = do
 --   let fName = 'f
 --   str <- showExpr (varE fName)
 --   [| Param (LabelledCustom f str) |])
+
+matcher2 :: QuasiQuoter
+matcher2 = QuasiQuoter
+         { quoteExp = xxx
+         , quotePat  = undefined
+         , quoteType = undefined
+         , quoteDec  = undefined
+         }
+
+xxx :: String -> Q Exp
+xxx s =  do
+  let parsed = parseExp s
+  case parsed of
+    (Left e) -> [|error e|]
+    (Right exp) -> [|Param (LabelledCustom $(pure exp) s)|]
 
 data ParamType v
   = Value v

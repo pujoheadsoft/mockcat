@@ -1,6 +1,7 @@
 {-# LANGUAGE BlockArguments #-}
 {-# OPTIONS_GHC -Wno-type-defaults #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE QuasiQuotes #-}
 module Test.MockCat.ParamSpec (spec) where
 
 import Prelude hiding (and, or)
@@ -9,6 +10,9 @@ import Test.MockCat.Cons
 import Test.MockCat.Param as P
 import Control.Applicative (Alternative(empty))
 import Language.Haskell.TH
+import Language.Haskell.TH.Quote
+import Test.MockCat.Param
+import Test.MockCat.Param (matcher2)
 
 spec :: Spec
 spec = do
@@ -73,3 +77,8 @@ spec = do
         show (P.any :: Param Int) `shouldBe` "any"
       -- it "custom matcher" do
       --   show $(matcher [|(/= "x")|]) `shouldBe` "/= x"
+      it "matcher2" do
+        let a = [matcher2|(\x -> x == Foo "hoge" || x == Foo "foo")|]
+        a == param (Foo "hoge") `shouldBe` True
+
+data Hoge = Foo String | Bar deriving (Eq, Show)

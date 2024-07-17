@@ -40,6 +40,7 @@ library
   build-depends:
       HMock
     , base >=4.7 && <5
+    , haskell-src-meta
     , template-haskell
     , text
   default-language: Haskell2010
@@ -56,6 +57,7 @@ executable mockcat-exe
   build-depends:
       HMock
     , base >=4.7 && <5
+    , haskell-src-meta
     , mockcat
     , template-haskell
     , text
@@ -78,6 +80,7 @@ test-suite mockcat-test
   build-depends:
       HMock
     , base >=4.7 && <5
+    , haskell-src-meta
     , hspec
     , mockcat
     , template-haskell
