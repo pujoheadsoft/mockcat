@@ -24,7 +24,6 @@ dependencies:
 - text
 - template-haskell
 - HMock
-- haskell-src-meta
 
 ghc-options:
 - -Wall

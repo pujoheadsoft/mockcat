@@ -27,7 +27,7 @@ import Test.MockCat
     namedMock,
     with,
     any,
-    (|>), matcher, mockFun
+    (|>), expect, mockFun
   )
 import Prelude hiding (any)
 

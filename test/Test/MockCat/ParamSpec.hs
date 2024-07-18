@@ -12,7 +12,6 @@ import Control.Applicative (Alternative(empty))
 import Language.Haskell.TH
 import Language.Haskell.TH.Quote
 import Test.MockCat.Param
-import Test.MockCat.Param (matcher2)
 
 spec :: Spec
 spec = do
@@ -77,8 +76,8 @@ spec = do
         show (P.any :: Param Int) `shouldBe` "any"
       -- it "custom matcher" do
       --   show $(matcher [|(/= "x")|]) `shouldBe` "/= x"
-      it "matcher2" do
-        let a = [matcher2|(\x -> x == Foo "hoge" || x == Foo "foo")|]
-        a == param (Foo "hoge") `shouldBe` True
-
+      it "expect" do
+        show (expect (> 4) "> 4") `shouldBe` "> 4"
+      it "expect_" do
+        show (expect_ (> 4)) `shouldBe` "[some condition]"
 data Hoge = Foo String | Bar deriving (Eq, Show)

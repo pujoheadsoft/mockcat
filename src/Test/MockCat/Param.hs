@@ -15,8 +15,9 @@ module Test.MockCat.Param
     value,
     param,
     (|>),
-    matcher,
-    matcher2,
+    expect,
+    expect_,
+    expectByExpr,
     any,
     or,
     and,
@@ -30,8 +31,6 @@ import Unsafe.Coerce (unsafeCoerce)
 import Prelude hiding (and, any, or)
 import Language.Haskell.TH
 import Test.MockCat.TH
-import Language.Haskell.TH.Syntax
-import Language.Haskell.Meta
 import Language.Haskell.TH.Quote
 
 data Param v = Param (ParamType v)
@@ -102,31 +101,16 @@ anyMatcher _ = True
 any :: Param a
 any = unsafeCoerce (Param $ LabelledCustom anyMatcher "any")
 
-matcher :: Q Exp -> Q Exp
-matcher qf = do
+expect :: (a -> Bool) -> String -> Param a
+expect f l = Param $ LabelledCustom f l
+
+expect_ :: (a -> Bool) -> Param a
+expect_ f = Param $ LabelledCustom f "[some condition]"
+
+expectByExpr :: Q Exp -> Q Exp
+expectByExpr qf = do
   str <- showExpr qf
   [| Param (LabelledCustom $qf str) |]
-
--- matcher :: (a -> Bool) -> Param a
--- matcher f = $(do
---   let fName = 'f
---   str <- showExpr (varE fName)
---   [| Param (LabelledCustom f str) |])
-
-matcher2 :: QuasiQuoter
-matcher2 = QuasiQuoter
-         { quoteExp = xxx
-         , quotePat  = undefined
-         , quoteType = undefined
-         , quoteDec  = undefined
-         }
-
-xxx :: String -> Q Exp
-xxx s =  do
-  let parsed = parseExp s
-  case parsed of
-    (Left e) -> [|error e|]
-    (Right exp) -> [|Param (LabelledCustom $(pure exp) s)|]
 
 data ParamType v
   = Value v

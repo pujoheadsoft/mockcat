@@ -13,7 +13,7 @@
 module Test.ExampleSpec where
 
 import Test.Hspec
-import Test.MockCat
+import Test.MockCat hiding (expect)
 import Test.HMock
 
 data User = User {
