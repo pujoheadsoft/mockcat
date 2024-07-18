@@ -80,4 +80,6 @@ spec = do
         show (expect (> 4) "> 4") `shouldBe` "> 4"
       it "expect_" do
         show (expect_ (> 4)) `shouldBe` "[some condition]"
+      it "expectByExpr" do
+        show $(expectByExpr [|(> 3)|]) `shouldBe` "(GHC.Classes.> 3)"
 data Hoge = Foo String | Bar deriving (Eq, Show)
