@@ -31,15 +31,15 @@ import Unsafe.Coerce (unsafeCoerce)
 import Prelude hiding (and, any, or)
 import Language.Haskell.TH
 import Test.MockCat.TH
-import Language.Haskell.TH.Quote
 
-data Param v = Param (ParamType v)
+data Param v = Value v
+  | LabelledCustom (v -> Bool) String
 
 instance (Eq a) => Eq (Param a) where
-  (Param (Value a)) == (Param (Value b)) = a == b
-  (Param (Value a)) == (Param (LabelledCustom m2 _)) = m2 a
-  (Param (LabelledCustom m1 _)) == (Param (Value b)) = m1 b
-  (Param (LabelledCustom _ l1)) == (Param (LabelledCustom _ l2)) = l1 == l2
+  (Value a) == (Value b) = a == b
+  (Value a) == (LabelledCustom m2 _) = m2 a
+  (LabelledCustom m1 _) == (Value b) = m1 b
+  (LabelledCustom _ l1) == (LabelledCustom _ l2) = l1 == l2
 
 type family ShowResult a where
   ShowResult String = String
@@ -49,25 +49,22 @@ class ShowParam a where
   showParam :: a -> ShowResult a
 
 instance {-# OVERLAPPING #-} ShowParam (Param String) where
-  showParam (Param m) = case m of
-    LabelledCustom _ l -> l
-    (Value a) -> a
+  showParam (LabelledCustom _ l) = l
+  showParam (Value a) = a
 
 instance {-# INCOHERENT #-} (Show a) => ShowParam (Param a) where
-  showParam (Param m) = case m of
-    LabelledCustom _ l -> l
-    (Value a) -> show a
+  showParam (LabelledCustom _ l) = l
+  showParam (Value a) = show a
 
 instance (ShowParam (Param a)) => Show (Param a) where
   show = showParam
 
 value :: Param v -> v
-value (Param m) = case m of
-  Value a -> a
-  _ -> error "not implement"
+value (Value a) = a
+value _ = error "not implement"
 
 param :: v -> Param v
-param a = Param (Value a)
+param = Value
 
 class ConsGen a b r | a b -> r where
   (|>) :: a -> b -> r
@@ -99,63 +96,56 @@ anyMatcher :: a -> Bool
 anyMatcher _ = True
 
 any :: Param a
-any = unsafeCoerce (Param $ LabelledCustom anyMatcher "any")
+any = unsafeCoerce (LabelledCustom anyMatcher "any")
 
 expect :: (a -> Bool) -> String -> Param a
-expect f l = Param $ LabelledCustom f l
+expect = LabelledCustom
 
 expect_ :: (a -> Bool) -> Param a
-expect_ f = Param $ LabelledCustom f "[some condition]"
+expect_ f = LabelledCustom f "[some condition]"
 
 expectByExpr :: Q Exp -> Q Exp
 expectByExpr qf = do
   str <- showExpr qf
-  [| Param (LabelledCustom $qf str) |]
-
-data ParamType v
-  = Value v
-  | LabelledCustom (v -> Bool) String
+  [| LabelledCustom $qf str |]
 
 class NotMatcher a r where
   notEqual :: a -> r
 
 instance (Eq a, Show a) => NotMatcher (Param a) (Param a) where
-  notEqual (Param m) =
-    let newMatcher = case m of
-          LabelledCustom f l -> LabelledCustom (not . f) (unsafeCoerce $ "Not " <> showWithRemoveEscape l)
-          Value v -> Value v
-     in Param newMatcher
+  notEqual (Value a) = LabelledCustom (/= a) (unsafeCoerce $ "Not " <> showWithRemoveEscape a)
+  notEqual (LabelledCustom f l) = LabelledCustom (not . f) (unsafeCoerce $ "Not " <> showWithRemoveEscape l)
 
 instance (Eq a, Show a) => NotMatcher a (Param a) where
-  notEqual v = Param (LabelledCustom (/= v) (unsafeCoerce $ "Not " <> showWithRemoveEscape v))
+  notEqual v = LabelledCustom (/= v) (unsafeCoerce $ "Not " <> showWithRemoveEscape v)
 
 class LogicalMatcher a b r | a b -> r where
   or :: a -> b -> r
   and :: a -> b -> r
 
 instance {-# OVERLAPPING #-} (Eq a, Show a) => LogicalMatcher (Param a) (Param a) (Param a) where
-  or (Param m1) (Param m2) = Param (composeOr m1 m2)
-  and (Param m1) (Param m2) = Param (composeAnd m1 m2)
+  or = composeOr
+  and = composeAnd
 
 instance {-# OVERLAPPABLE #-} (Eq a, Show a) => LogicalMatcher (Param a) a (Param a) where
-  or p1@(Param m1) a = Param (composeOr m1 $ LabelledCustom (== a) (unsafeCoerce $ showWithRemoveEscape p1 <> " || " <> showWithRemoveEscape a))
-  and p1@(Param m1) a = Param (composeAnd m1 $ LabelledCustom (== a) (unsafeCoerce $ showWithRemoveEscape p1 <> " && " <> showWithRemoveEscape a))
+  or p1 a = composeOr p1 $ LabelledCustom (== a) (unsafeCoerce $ showWithRemoveEscape p1 <> " || " <> showWithRemoveEscape a)
+  and p1 a = composeAnd p1 $ LabelledCustom (== a) (unsafeCoerce $ showWithRemoveEscape p1 <> " && " <> showWithRemoveEscape a)
 
 instance {-# OVERLAPPABLE #-} (Eq a, Show a) => LogicalMatcher a (Param a) (Param a) where
-  or a p2@(Param m2) = Param (composeOr m2 $ LabelledCustom (== a) (unsafeCoerce $ showWithRemoveEscape p2 <> " || " <> showWithRemoveEscape a))
-  and a p2@(Param m2) = Param (composeAnd m2 $ LabelledCustom (== a) (unsafeCoerce $ showWithRemoveEscape p2 <> " && " <> showWithRemoveEscape a))
+  or a p2 = composeOr p2 $ LabelledCustom (== a) (unsafeCoerce $ showWithRemoveEscape p2 <> " || " <> showWithRemoveEscape a)
+  and a p2 = composeAnd p2 $ LabelledCustom (== a) (unsafeCoerce $ showWithRemoveEscape p2 <> " && " <> showWithRemoveEscape a)
 
 instance {-# OVERLAPPABLE #-} (Eq a, Show a, Param a ~ a') => LogicalMatcher a a a' where
-  or a1 a2 = Param (LabelledCustom (\a -> a == a1 || a == a2) (unsafeCoerce $ showWithRemoveEscape a1 <> " || " <> showWithRemoveEscape a2))
-  and a1 a2 = Param (LabelledCustom (\a -> a == a1 && a == a2) (unsafeCoerce $ showWithRemoveEscape a1 <> " && " <> showWithRemoveEscape a2))
+  or a1 a2 = LabelledCustom (\a -> a == a1 || a == a2) (unsafeCoerce $ showWithRemoveEscape a1 <> " || " <> showWithRemoveEscape a2)
+  and a1 a2 = LabelledCustom (\a -> a == a1 && a == a2) (unsafeCoerce $ showWithRemoveEscape a1 <> " && " <> showWithRemoveEscape a2)
 
-composeOr :: (Eq a, Show a) => ParamType a -> ParamType a -> ParamType a
+composeOr :: (Eq a, Show a) => Param a -> Param a -> Param a
 composeOr (Value a) (Value b) = LabelledCustom (\x -> a == x || b == x) ""
 composeOr (Value a) (LabelledCustom m2 l2) = LabelledCustom (\x -> x == a || m2 x) l2
 composeOr (LabelledCustom m1 l1) (Value a) = LabelledCustom (\x -> m1 x || x == a) l1
 composeOr (LabelledCustom m1 l1) (LabelledCustom m2 l2) = LabelledCustom (\a -> m1 a || m2 a) (l1 <> " || " <> l2)
 
-composeAnd :: (Eq a, Show a) => ParamType a -> ParamType a -> ParamType a
+composeAnd :: (Eq a, Show a) => Param a -> Param a -> Param a
 composeAnd (Value a) (Value b) = LabelledCustom (\x -> a == x && b == x) ""
 composeAnd (Value a) (LabelledCustom m2 l2) = LabelledCustom (\x -> x == a && m2 a) l2
 composeAnd (LabelledCustom m1 l1) (Value b) = LabelledCustom (\x -> m1 x && x == b) l1

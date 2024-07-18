@@ -8,10 +8,6 @@ import Prelude hiding (and, or)
 import Test.Hspec
 import Test.MockCat.Cons
 import Test.MockCat.Param as P
-import Control.Applicative (Alternative(empty))
-import Language.Haskell.TH
-import Language.Haskell.TH.Quote
-import Test.MockCat.Param
 
 spec :: Spec
 spec = do
