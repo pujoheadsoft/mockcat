@@ -114,11 +114,11 @@ class NotMatcher a r where
   notEqual :: a -> r
 
 instance (Eq a, Show a) => NotMatcher (Param a) (Param a) where
-  notEqual (Value a) = LabelledCustom (/= a) (unsafeCoerce $ "Not " <> showWithRemoveEscape a)
-  notEqual (LabelledCustom f l) = LabelledCustom (not . f) (unsafeCoerce $ "Not " <> showWithRemoveEscape l)
+  notEqual (Value a) = LabelledCustom (/= a) ("Not " <> showWithRemoveEscape a)
+  notEqual (LabelledCustom f l) = LabelledCustom (not . f) ("Not " <> showWithRemoveEscape l)
 
 instance (Eq a, Show a) => NotMatcher a (Param a) where
-  notEqual v = LabelledCustom (/= v) (unsafeCoerce $ "Not " <> showWithRemoveEscape v)
+  notEqual v = LabelledCustom (/= v) ("Not " <> showWithRemoveEscape v)
 
 class LogicalMatcher a b r | a b -> r where
   or :: a -> b -> r
