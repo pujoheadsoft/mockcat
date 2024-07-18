@@ -82,7 +82,7 @@ spec = do
         andParam == param (4 :: Int) `shouldBe` True
         andParam == param (3 :: Int) `shouldBe` False
 
-    describe "Matcher (show)" do
+    describe "show expectation" do
       it "any" do
         show (P.any :: Param Int) `shouldBe` "any"
 
@@ -95,6 +95,10 @@ spec = do
       it "expectByExpr" do
         show $(expectByExpr [|(> 3)|]) `shouldBe` "(GHC.Classes.> 3)"
 
-      -- it "or" do
-      --   show ((expect (> (4 :: Int)) "> 4") `or` (expect (> (4 :: Int)) "> 4")) `shouldBe` "> 4"
+      it "or" do
+        show (expect (> (4 :: Int)) "> 4" `or` expect (== (10 :: Int)) "== 10") `shouldBe` "> 4 || == 10"
+
+      it "and" do
+        show (expect (> (3 :: Int)) "> 3" `and` expect (< (5 :: Int)) "< 5") `shouldBe` "> 3 && < 5"
+
 data Hoge = Foo String | Bar deriving (Eq, Show)

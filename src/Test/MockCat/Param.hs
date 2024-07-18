@@ -129,7 +129,7 @@ instance (Eq a, Show a) => NotMatcher (Param a) (Param a) where
 instance (Eq a, Show a) => NotMatcher a (Param a) where
   notEqual v = Param (LabelledCustom (/= v) (unsafeCoerce $ "Not " <> showWithRemoveEscape v))
 
-class LogicalMatcher a b r where
+class LogicalMatcher a b r | a b -> r where
   or :: a -> b -> r
   and :: a -> b -> r
 
@@ -145,7 +145,7 @@ instance {-# OVERLAPPABLE #-} (Eq a, Show a) => LogicalMatcher a (Param a) (Para
   or a p2@(Param m2) = Param (composeOr m2 $ LabelledCustom (== a) (unsafeCoerce $ showWithRemoveEscape p2 <> " || " <> showWithRemoveEscape a))
   and a p2@(Param m2) = Param (composeAnd m2 $ LabelledCustom (== a) (unsafeCoerce $ showWithRemoveEscape p2 <> " && " <> showWithRemoveEscape a))
 
-instance {-# OVERLAPPABLE #-} (Eq a, Show a) => LogicalMatcher a a (Param a) where
+instance {-# OVERLAPPABLE #-} (Eq a, Show a, Param a ~ a') => LogicalMatcher a a a' where
   or a1 a2 = Param (LabelledCustom (\a -> a == a1 || a == a2) (unsafeCoerce $ showWithRemoveEscape a1 <> " || " <> showWithRemoveEscape a2))
   and a1 a2 = Param (LabelledCustom (\a -> a == a1 && a == a2) (unsafeCoerce $ showWithRemoveEscape a1 <> " && " <> showWithRemoveEscape a2))
 
@@ -153,13 +153,13 @@ composeOr :: (Eq a, Show a) => ParamType a -> ParamType a -> ParamType a
 composeOr (Value a) (Value b) = LabelledCustom (\x -> a == x || b == x) ""
 composeOr (Value a) (LabelledCustom m2 l2) = LabelledCustom (\x -> x == a || m2 x) l2
 composeOr (LabelledCustom m1 l1) (Value a) = LabelledCustom (\x -> m1 x || x == a) l1
-composeOr (LabelledCustom m1 l1) (LabelledCustom m2 l2) = LabelledCustom (\a -> m1 a || m2 a) (l1 <> " and " <> l2)
+composeOr (LabelledCustom m1 l1) (LabelledCustom m2 l2) = LabelledCustom (\a -> m1 a || m2 a) (l1 <> " || " <> l2)
 
 composeAnd :: (Eq a, Show a) => ParamType a -> ParamType a -> ParamType a
 composeAnd (Value a) (Value b) = LabelledCustom (\x -> a == x && b == x) ""
 composeAnd (Value a) (LabelledCustom m2 l2) = LabelledCustom (\x -> x == a && m2 a) l2
 composeAnd (LabelledCustom m1 l1) (Value b) = LabelledCustom (\x -> m1 x && x == b) l1
-composeAnd (LabelledCustom m1 l1) (LabelledCustom m2 l2) = LabelledCustom (\x -> m1 x && m2 x) (l1 <> " and " <> l2)
+composeAnd (LabelledCustom m1 l1) (LabelledCustom m2 l2) = LabelledCustom (\x -> m1 x && m2 x) (l1 <> " && " <> l2)
 
 showWithRemoveEscape :: (Show a) => a -> String
 showWithRemoveEscape s = unpack $ replace (pack "\\") (pack "") (pack (show s))
