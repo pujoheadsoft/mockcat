@@ -106,7 +106,7 @@ expect_ f = LabelledCustom f "[some condition]"
 
 expectByExpr :: Q Exp -> Q Exp
 expectByExpr qf = do
-  str <- showExpr qf
+  str <- showExp qf
   [| LabelledCustom $qf str |]
 
 class NotMatcher a r where

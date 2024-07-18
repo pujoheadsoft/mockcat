@@ -2,11 +2,11 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# OPTIONS_GHC -Wno-type-defaults #-}
 {-# OPTIONS_GHC -Wno-unused-do-bind #-}
-{-# LANGUAGE TemplateHaskell #-}
 
 module Test.MockCatSpec (spec) where
 
@@ -14,7 +14,9 @@ import qualified Control.Exception as E
 import Data.Function ((&))
 import Test.Hspec
 import Test.MockCat
-  ( fun,
+  ( any,
+    expectByExpr,
+    fun,
     hasBeenCalledInOrder,
     hasBeenCalledInPartialOrder,
     hasBeenCalledTimes,
@@ -24,10 +26,10 @@ import Test.MockCat
     hasBeenCalledTimesLessThanEqual,
     hasBeenCalledWith,
     mock,
+    mockFun,
     namedMock,
     with,
-    any,
-    (|>), expect, mockFun
+    (|>),
   )
 import Prelude hiding (any)
 
@@ -745,11 +747,10 @@ spec = do
                 \   but got: 1"
           m `hasBeenCalledInPartialOrder` ["A", "C"] `shouldThrow` errorCall e
 
-  -- describe "matcher" do
-  --   it "shorthand" do
-  --     f <- mockFun $ $(matcher [|(== "x")|]) |> True
-  --     let v = f "x"
-  --     v `shouldBe` True
+  describe "use expectation" do
+    it "expectByExpr" do
+      f <- mockFun $ $(expectByExpr [|\x -> x == "y" || x == "z"|]) |> True
+      f "y" `shouldBe` True
 
 data Fixture mock r = Fixture
   { name :: String,
