@@ -128,16 +128,16 @@ instance {-# OVERLAPPING #-} (Eq a, Show a) => LogicalMatcher (Param a) (Param a
   and = composeAnd
 
 instance {-# OVERLAPPABLE #-} (Eq a, Show a) => LogicalMatcher (Param a) a (Param a) where
-  or p1 a = composeOr p1 $ LabelledCustom (== a) (unsafeCoerce $ showWithRemoveEscape p1 <> " || " <> showWithRemoveEscape a)
-  and p1 a = composeAnd p1 $ LabelledCustom (== a) (unsafeCoerce $ showWithRemoveEscape p1 <> " && " <> showWithRemoveEscape a)
+  or p1 a = composeOr p1 $ LabelledCustom (== a) (showWithRemoveEscape p1 <> " || " <> showWithRemoveEscape a)
+  and p1 a = composeAnd p1 $ LabelledCustom (== a) (showWithRemoveEscape p1 <> " && " <> showWithRemoveEscape a)
 
 instance {-# OVERLAPPABLE #-} (Eq a, Show a) => LogicalMatcher a (Param a) (Param a) where
-  or a p2 = composeOr p2 $ LabelledCustom (== a) (unsafeCoerce $ showWithRemoveEscape p2 <> " || " <> showWithRemoveEscape a)
-  and a p2 = composeAnd p2 $ LabelledCustom (== a) (unsafeCoerce $ showWithRemoveEscape p2 <> " && " <> showWithRemoveEscape a)
+  or a p2 = composeOr p2 $ LabelledCustom (== a) (showWithRemoveEscape a <> " || " <> showWithRemoveEscape p2)
+  and a p2 = composeAnd p2 $ LabelledCustom (== a) (showWithRemoveEscape a <> " && " <> showWithRemoveEscape p2)
 
 instance {-# OVERLAPPABLE #-} (Eq a, Show a, Param a ~ a') => LogicalMatcher a a a' where
-  or a1 a2 = LabelledCustom (\a -> a == a1 || a == a2) (unsafeCoerce $ showWithRemoveEscape a1 <> " || " <> showWithRemoveEscape a2)
-  and a1 a2 = LabelledCustom (\a -> a == a1 && a == a2) (unsafeCoerce $ showWithRemoveEscape a1 <> " && " <> showWithRemoveEscape a2)
+  or a1 a2 = LabelledCustom (\a -> a == a1 || a == a2) (showWithRemoveEscape a1 <> " || " <> showWithRemoveEscape a2)
+  and a1 a2 = LabelledCustom (\a -> a == a1 && a == a2) (showWithRemoveEscape a1 <> " && " <> showWithRemoveEscape a2)
 
 composeOr :: (Eq a, Show a) => Param a -> Param a -> Param a
 composeOr (Value a) (Value b) = LabelledCustom (\x -> a == x || b == x) ""
