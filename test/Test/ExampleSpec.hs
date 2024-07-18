@@ -45,9 +45,11 @@ spec = do
         user = User { userId = "uid", name = "oldName" }
         updatedUser = User { userId = "uid", name = "newName" }
       updateFun <- mockFun $ user |> updatedUser
+      
       runMockT $ do
         expect $ Find "uid" |-> user
         expect $ Save updatedUser
         execute (Logic { update = updateFun }) "uid"
+
       "" `shouldBe` ""
 

@@ -74,12 +74,16 @@ spec = do
     describe "Matcher (show)" do
       it "any" do
         show (P.any :: Param Int) `shouldBe` "any"
-      -- it "custom matcher" do
-      --   show $(matcher [|(/= "x")|]) `shouldBe` "/= x"
+
       it "expect" do
         show (expect (> 4) "> 4") `shouldBe` "> 4"
+
       it "expect_" do
         show (expect_ (> 4)) `shouldBe` "[some condition]"
+
       it "expectByExpr" do
         show $(expectByExpr [|(> 3)|]) `shouldBe` "(GHC.Classes.> 3)"
+
+      -- it "or" do
+      --   show ((expect (> (4 :: Int)) "> 4") `or` (expect (> (4 :: Int)) "> 4")) `shouldBe` "> 4"
 data Hoge = Foo String | Bar deriving (Eq, Show)

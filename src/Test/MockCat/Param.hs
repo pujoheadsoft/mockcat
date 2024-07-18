@@ -134,16 +134,16 @@ class LogicalMatcher a b r where
   and :: a -> b -> r
 
 instance {-# OVERLAPPING #-} (Eq a, Show a) => LogicalMatcher (Param a) (Param a) (Param a) where
-  or p1@(Param m1) p2@(Param m2) = Param (composeOr m1 m2)
-  and p1@(Param m1) p2@(Param m2) = Param (composeAnd m1 m2)
+  or (Param m1) (Param m2) = Param (composeOr m1 m2)
+  and (Param m1) (Param m2) = Param (composeAnd m1 m2)
 
 instance {-# OVERLAPPABLE #-} (Eq a, Show a) => LogicalMatcher (Param a) a (Param a) where
-  or p1@(Param m1) a = Param (composeOr m1 $ LabelledCustom (\v -> v == a) (unsafeCoerce $ showWithRemoveEscape p1 <> " || " <> showWithRemoveEscape a))
-  and p1@(Param m1) a = Param (composeAnd m1 $ LabelledCustom (\v -> v == a) (unsafeCoerce $ showWithRemoveEscape p1 <> " && " <> showWithRemoveEscape a))
+  or p1@(Param m1) a = Param (composeOr m1 $ LabelledCustom (== a) (unsafeCoerce $ showWithRemoveEscape p1 <> " || " <> showWithRemoveEscape a))
+  and p1@(Param m1) a = Param (composeAnd m1 $ LabelledCustom (== a) (unsafeCoerce $ showWithRemoveEscape p1 <> " && " <> showWithRemoveEscape a))
 
 instance {-# OVERLAPPABLE #-} (Eq a, Show a) => LogicalMatcher a (Param a) (Param a) where
-  or a p2@(Param m2) = Param (composeOr m2 $ LabelledCustom (\v -> v == a) (unsafeCoerce $ showWithRemoveEscape p2 <> " || " <> showWithRemoveEscape a))
-  and a p2@(Param m2) = Param (composeAnd m2 $ LabelledCustom (\v -> v == a) (unsafeCoerce $ showWithRemoveEscape p2 <> " && " <> showWithRemoveEscape a))
+  or a p2@(Param m2) = Param (composeOr m2 $ LabelledCustom (== a) (unsafeCoerce $ showWithRemoveEscape p2 <> " || " <> showWithRemoveEscape a))
+  and a p2@(Param m2) = Param (composeAnd m2 $ LabelledCustom (== a) (unsafeCoerce $ showWithRemoveEscape p2 <> " && " <> showWithRemoveEscape a))
 
 instance {-# OVERLAPPABLE #-} (Eq a, Show a) => LogicalMatcher a a (Param a) where
   or a1 a2 = Param (LabelledCustom (\a -> a == a1 || a == a2) (unsafeCoerce $ showWithRemoveEscape a1 <> " || " <> showWithRemoveEscape a2))
