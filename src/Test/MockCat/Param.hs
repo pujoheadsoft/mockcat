@@ -1,14 +1,14 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeFamilyDependencies #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE BlockArguments #-}
 
 module Test.MockCat.Param
   ( Param,
@@ -21,18 +21,19 @@ module Test.MockCat.Param
     any,
     or,
     and,
-    notEqual
+    notEqual,
   )
 where
 
 import Data.Text hiding (any, head)
+import Language.Haskell.TH
 import Test.MockCat.Cons ((:>) (..))
+import Test.MockCat.TH
 import Unsafe.Coerce (unsafeCoerce)
 import Prelude hiding (and, any, or)
-import Language.Haskell.TH
-import Test.MockCat.TH
 
-data Param v = Value v
+data Param v
+  = Value v
   | LabelledCustom (v -> Bool) String
 
 instance (Eq a) => Eq (Param a) where
@@ -107,7 +108,7 @@ expect_ f = LabelledCustom f "[some condition]"
 expectByExpr :: Q Exp -> Q Exp
 expectByExpr qf = do
   str <- showExp qf
-  [| LabelledCustom $qf str |]
+  [|LabelledCustom $qf str|]
 
 class NotMatcher a r where
   notEqual :: a -> r
