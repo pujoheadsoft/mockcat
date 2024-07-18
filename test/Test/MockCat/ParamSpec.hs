@@ -43,9 +43,6 @@ spec = do
     describe "Returns True if the expected value condition is met." do
       it "any" do
         (P.any :: Param Int) == param 10 `shouldBe` True
-      -- it "custom matcher" do
-      --   let m = [|matcher (== "x")|]
-      --   m == param "x" `shouldBe` True
       it "not equal" do
         notEqual "v" == param "x" `shouldBe` True
       it "a `or` b" do
@@ -88,13 +85,20 @@ spec = do
       it "expect_" do
         show (expect_ (> 4)) `shouldBe` "[some condition]"
 
-      it "expectByExpr" do
-        show $(expectByExpr [|(> 3)|]) `shouldBe` "(GHC.Classes.> 3)"
-
       it "or" do
         show (expect (> (4 :: Int)) "> 4" `or` expect (== (10 :: Int)) "== 10") `shouldBe` "> 4 || == 10"
 
       it "and" do
         show (expect (> (3 :: Int)) "> 3" `and` expect (< (5 :: Int)) "< 5") `shouldBe` "> 3 && < 5"
+    
+    describe "show expectation by Exp" do
+      it "(> 3)" do
+        show $(expectByExpr [|(> 3)|]) `shouldBe` "(> 3)"
 
-data Hoge = Foo String | Bar deriving (Eq, Show)
+      it "lambda" do
+        show $(expectByExpr [|\x -> x == 3 || x == 5|]) `shouldBe` "(\\x -> ((x == 3) || (x == 5)))"
+      
+      it "use data" do
+        show $(expectByExpr [|\x -> x == Foo "foo"|]) `shouldBe` "(\\x -> (x == (Foo \"foo\")))"
+
+data TestData = Foo String | Bar deriving (Eq, Show)
