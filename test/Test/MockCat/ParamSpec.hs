@@ -44,7 +44,7 @@ spec = do
       it "param (not eq)" do
         param 10 == param 11 `shouldBe` False
 
-    describe "Matcher" do
+    describe "Returns True if the expected value condition is met." do
       it "any" do
         (P.any :: Param Int) == param 10 `shouldBe` True
       -- it "custom matcher" do
@@ -52,25 +52,36 @@ spec = do
       --   m == param "x" `shouldBe` True
       it "not equal" do
         notEqual "v" == param "x" `shouldBe` True
-      -- it "and" do
-      --   matcher ((0 :: Int) <) `and` matcher (< (3 :: Int)) == param (2 :: Int) `shouldBe` True
       it "a `or` b" do
         let orParam = "x" `or` "y"
         orParam == param "x" `shouldBe` True
         orParam == param "y" `shouldBe` True
-      -- it "matcher `or` b" do
-      --   let orParam = matcher ((0 :: Int) <) `or` (10 :: Int)
-      --   orParam == param (1 :: Int) `shouldBe` True
-      --   orParam == param (10 :: Int) `shouldBe` True
-      -- it "a `or` matcher" do
-      --   let orParam = (10 :: Int) `or` matcher ((0 :: Int) <)
-      --   orParam == param (10 :: Int) `shouldBe` True
-      --   orParam == param (5 :: Int) `shouldBe` True
-      -- it "matcher `or` matcher" do
-      --   let orParam = matcher (< (0 :: Int)) `or` matcher ((0 :: Int) <)
-      --   orParam == param (10 :: Int) `shouldBe` True
-      --   orParam == param (-1 :: Int) `shouldBe` True
-    
+      it "expect_ `or` b" do
+        let orParam = expect_ (> (0 :: Int)) `or` (10 :: Int)
+        orParam == param (1 :: Int) `shouldBe` True
+        orParam == param (10 :: Int) `shouldBe` True
+      it "a `or` expect_" do
+        let orParam = (10 :: Int) `or` expect_ (> (0 :: Int))
+        orParam == param (10 :: Int) `shouldBe` True
+        orParam == param (5 :: Int) `shouldBe` True
+      it "expect_ `or` expect_" do
+        let orParam = expect_ (< (0 :: Int)) `or` expect_ (> (0 :: Int))
+        orParam == param (10 :: Int) `shouldBe` True
+        orParam == param (-1 :: Int) `shouldBe` True
+
+      it "expect_ `and` b" do
+        let andParam = expect_ (> (0 :: Int)) `and` (10 :: Int)
+        andParam == param (1 :: Int) `shouldBe` False
+        andParam == param (10 :: Int) `shouldBe` True
+      it "a `and` expect_" do
+        let andParam = (10 :: Int) `and` expect_ (> (0 :: Int))
+        andParam == param (10 :: Int) `shouldBe` True
+        andParam == param (5 :: Int) `shouldBe` False
+      it "expect_ `and` expect_" do
+        let andParam = expect_ (> (3 :: Int)) `and` expect_ (< (5 :: Int))
+        andParam == param (4 :: Int) `shouldBe` True
+        andParam == param (3 :: Int) `shouldBe` False
+
     describe "Matcher (show)" do
       it "any" do
         show (P.any :: Param Int) `shouldBe` "any"
