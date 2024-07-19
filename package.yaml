@@ -1,10 +1,10 @@
 name:                mockcat
 version:             0.1.0.0
-github:              "githubuser/mockcat"
-license:             BSD-3-Clause
-author:              "Author name here"
-maintainer:          "example@example.com"
-copyright:           "2024 Author name here"
+github:              pujoheadsoft/mockcat
+license:             "MIT"
+author:              "funnycat <pujoheadsoft@gmail.com>"
+maintainer:          "funnycat <pujoheadsoft@gmail.com>"
+copyright:           "2024 funnycat"
 
 extra-source-files:
 - README.md
@@ -37,17 +37,6 @@ ghc-options:
 
 library:
   source-dirs: src
-
-executables:
-  mockcat-exe:
-    main:                Main.hs
-    source-dirs:         app
-    ghc-options:
-    - -threaded
-    - -rtsopts
-    - -with-rtsopts=-N
-    dependencies:
-    - mockcat
 
 tests:
   mockcat-test:

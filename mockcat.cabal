@@ -1,4 +1,4 @@
-cabal-version: 2.2
+cabal-version: 1.12
 
 -- This file has been generated from package.yaml by hpack version 0.36.0.
 --
@@ -7,12 +7,12 @@ cabal-version: 2.2
 name:           mockcat
 version:        0.1.0.0
 description:    Please see the README on GitHub at <https://github.com/githubuser/mockcat#readme>
-homepage:       https://github.com/githubuser/mockcat#readme
-bug-reports:    https://github.com/githubuser/mockcat/issues
-author:         Author name here
-maintainer:     example@example.com
-copyright:      2024 Author name here
-license:        BSD-3-Clause
+homepage:       https://github.com/pujoheadsoft/mockcat#readme
+bug-reports:    https://github.com/pujoheadsoft/mockcat/issues
+author:         funnycat <pujoheadsoft@gmail.com>
+maintainer:     funnycat <pujoheadsoft@gmail.com>
+copyright:      2024 funnycat
+license:        MIT
 license-file:   LICENSE
 build-type:     Simple
 extra-source-files:
@@ -21,7 +21,7 @@ extra-source-files:
 
 source-repository head
   type: git
-  location: https://github.com/githubuser/mockcat
+  location: https://github.com/pujoheadsoft/mockcat
 
 library
   exposed-modules:
@@ -32,29 +32,11 @@ library
       Test.MockCat.TH
   other-modules:
       Paths_mockcat
-  autogen-modules:
-      Paths_mockcat
   hs-source-dirs:
       src
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints
   build-depends:
       base >=4.7 && <5
-    , template-haskell
-    , text
-  default-language: Haskell2010
-
-executable mockcat-exe
-  main-is: Main.hs
-  other-modules:
-      Paths_mockcat
-  autogen-modules:
-      Paths_mockcat
-  hs-source-dirs:
-      app
-  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
-  build-depends:
-      base >=4.7 && <5
-    , mockcat
     , template-haskell
     , text
   default-language: Haskell2010
@@ -66,8 +48,6 @@ test-suite mockcat-test
       Test.MockCat.ConsSpec
       Test.MockCat.ParamSpec
       Test.MockCatSpec
-      Paths_mockcat
-  autogen-modules:
       Paths_mockcat
   hs-source-dirs:
       test

@@ -70,22 +70,22 @@ param = ExpectValue
 class ConsGen a b r | a b -> r where
   (|>) :: a -> b -> r
 
-instance {-# OVERLAPPING #-} ((Param a :> Param b) ~ x, (Param c :> Param d) ~ y) => ConsGen (Param a :> Param b) (Param c :> Param d) (x :> y) where
+instance ((Param a :> Param b) ~ x, (Param c :> Param d) ~ y) => ConsGen (Param a :> Param b) (Param c :> Param d) (x :> y) where
   (|>) = (:>)
 
-instance {-# OVERLAPPING #-} ConsGen (Param a) (b :> c) (Param a :> b :> c) where
+instance {-# OVERLAPPABLE #-} ConsGen (Param a) (b :> c) (Param a :> b :> c) where
   (|>) = (:>)
 
-instance ((Param a) ~ a') => ConsGen a (b :> c) (a' :> b :> c) where
+instance {-# OVERLAPPABLE #-} ((Param a) ~ a') => ConsGen a (b :> c) (a' :> b :> c) where
   (|>) a = (:>) (param a)
 
-instance {-# OVERLAPPING #-} ConsGen (Param a) (Param b) (Param a :> Param b) where
+instance ConsGen (Param a) (Param b) (Param a :> Param b) where
   (|>) = (:>)
 
 instance {-# OVERLAPPABLE #-} ((Param b) ~ b') => ConsGen (Param a) b (Param a :> b') where
   (|>) a b = (:>) a (param b)
 
-instance {-# INCOHERENT #-} ((Param a) ~ a') => ConsGen a (Param b) (a' :> Param b) where
+instance {-# OVERLAPPABLE #-} ((Param a) ~ a') => ConsGen a (Param b) (a' :> Param b) where
   (|>) a = (:>) (param a)
 
 instance {-# OVERLAPPABLE #-} (Param a ~ a', Param b ~ b') => ConsGen a b (a' :> b') where
