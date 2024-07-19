@@ -24,6 +24,7 @@ dependencies:
 - text
 - template-haskell
 - HMock
+- mtl
 
 ghc-options:
 - -Wall
