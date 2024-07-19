@@ -33,14 +33,14 @@ import Unsafe.Coerce (unsafeCoerce)
 import Prelude hiding (and, any, or)
 
 data Param v
-  = Value v
-  | LabelledCustom (v -> Bool) String
+  = ExpectValue v
+  | ExpectCondition (v -> Bool) String
 
 instance (Eq a) => Eq (Param a) where
-  (Value a) == (Value b) = a == b
-  (Value a) == (LabelledCustom m2 _) = m2 a
-  (LabelledCustom m1 _) == (Value b) = m1 b
-  (LabelledCustom _ l1) == (LabelledCustom _ l2) = l1 == l2
+  (ExpectValue a) == (ExpectValue b) = a == b
+  (ExpectValue a) == (ExpectCondition m2 _) = m2 a
+  (ExpectCondition m1 _) == (ExpectValue b) = m1 b
+  (ExpectCondition _ l1) == (ExpectCondition _ l2) = l1 == l2
 
 type family ShowResult a where
   ShowResult String = String
@@ -50,22 +50,22 @@ class ShowParam a where
   showParam :: a -> ShowResult a
 
 instance {-# OVERLAPPING #-} ShowParam (Param String) where
-  showParam (LabelledCustom _ l) = l
-  showParam (Value a) = a
+  showParam (ExpectCondition _ l) = l
+  showParam (ExpectValue a) = a
 
 instance {-# INCOHERENT #-} (Show a) => ShowParam (Param a) where
-  showParam (LabelledCustom _ l) = l
-  showParam (Value a) = show a
+  showParam (ExpectCondition _ l) = l
+  showParam (ExpectValue a) = show a
 
 instance (ShowParam (Param a)) => Show (Param a) where
   show = showParam
 
 value :: Param v -> v
-value (Value a) = a
+value (ExpectValue a) = a
 value _ = error "not implement"
 
 param :: v -> Param v
-param = Value
+param = ExpectValue
 
 class ConsGen a b r | a b -> r where
   (|>) :: a -> b -> r
@@ -93,32 +93,29 @@ instance {-# OVERLAPPABLE #-} (Param a ~ a', Param b ~ b') => ConsGen a b (a' :>
 
 infixr 8 |>
 
-anyMatcher :: a -> Bool
-anyMatcher _ = True
-
 any :: Param a
-any = unsafeCoerce (LabelledCustom anyMatcher "any")
+any = unsafeCoerce (ExpectCondition (const True) "any")
 
 expect :: (a -> Bool) -> String -> Param a
-expect = LabelledCustom
+expect = ExpectCondition
 
 expect_ :: (a -> Bool) -> Param a
-expect_ f = LabelledCustom f "[some condition]"
+expect_ f = ExpectCondition f "[some condition]"
 
 expectByExpr :: Q Exp -> Q Exp
 expectByExpr qf = do
   str <- showExp qf
-  [|LabelledCustom $qf str|]
+  [|ExpectCondition $qf str|]
 
 class NotMatcher a r where
   notEqual :: a -> r
 
 instance (Eq a, Show a) => NotMatcher (Param a) (Param a) where
-  notEqual (Value a) = LabelledCustom (/= a) ("Not " <> showWithRemoveEscape a)
-  notEqual (LabelledCustom f l) = LabelledCustom (not . f) ("Not " <> showWithRemoveEscape l)
+  notEqual (ExpectValue a) = ExpectCondition (/= a) ("Not " <> showWithRemoveEscape a)
+  notEqual (ExpectCondition f l) = ExpectCondition (not . f) ("Not " <> showWithRemoveEscape l)
 
 instance (Eq a, Show a) => NotMatcher a (Param a) where
-  notEqual v = LabelledCustom (/= v) ("Not " <> showWithRemoveEscape v)
+  notEqual v = ExpectCondition (/= v) ("Not " <> showWithRemoveEscape v)
 
 class LogicalMatcher a b r | a b -> r where
   or :: a -> b -> r
@@ -129,28 +126,28 @@ instance {-# OVERLAPPING #-} (Eq a, Show a) => LogicalMatcher (Param a) (Param a
   and = composeAnd
 
 instance {-# OVERLAPPABLE #-} (Eq a, Show a) => LogicalMatcher (Param a) a (Param a) where
-  or p1 a = composeOr p1 $ LabelledCustom (== a) (showWithRemoveEscape p1 <> " || " <> showWithRemoveEscape a)
-  and p1 a = composeAnd p1 $ LabelledCustom (== a) (showWithRemoveEscape p1 <> " && " <> showWithRemoveEscape a)
+  or p1 a = composeOr p1 $ ExpectCondition (== a) (showWithRemoveEscape p1 <> " || " <> showWithRemoveEscape a)
+  and p1 a = composeAnd p1 $ ExpectCondition (== a) (showWithRemoveEscape p1 <> " && " <> showWithRemoveEscape a)
 
 instance {-# OVERLAPPABLE #-} (Eq a, Show a) => LogicalMatcher a (Param a) (Param a) where
-  or a p2 = composeOr p2 $ LabelledCustom (== a) (showWithRemoveEscape a <> " || " <> showWithRemoveEscape p2)
-  and a p2 = composeAnd p2 $ LabelledCustom (== a) (showWithRemoveEscape a <> " && " <> showWithRemoveEscape p2)
+  or a p2 = composeOr p2 $ ExpectCondition (== a) (showWithRemoveEscape a <> " || " <> showWithRemoveEscape p2)
+  and a p2 = composeAnd p2 $ ExpectCondition (== a) (showWithRemoveEscape a <> " && " <> showWithRemoveEscape p2)
 
 instance {-# OVERLAPPABLE #-} (Eq a, Show a, Param a ~ a') => LogicalMatcher a a a' where
-  or a1 a2 = LabelledCustom (\a -> a == a1 || a == a2) (showWithRemoveEscape a1 <> " || " <> showWithRemoveEscape a2)
-  and a1 a2 = LabelledCustom (\a -> a == a1 && a == a2) (showWithRemoveEscape a1 <> " && " <> showWithRemoveEscape a2)
+  or a1 a2 = ExpectCondition (\a -> a == a1 || a == a2) (showWithRemoveEscape a1 <> " || " <> showWithRemoveEscape a2)
+  and a1 a2 = ExpectCondition (\a -> a == a1 && a == a2) (showWithRemoveEscape a1 <> " && " <> showWithRemoveEscape a2)
 
 composeOr :: (Eq a, Show a) => Param a -> Param a -> Param a
-composeOr (Value a) (Value b) = LabelledCustom (\x -> a == x || b == x) ""
-composeOr (Value a) (LabelledCustom m2 l2) = LabelledCustom (\x -> x == a || m2 x) l2
-composeOr (LabelledCustom m1 l1) (Value a) = LabelledCustom (\x -> m1 x || x == a) l1
-composeOr (LabelledCustom m1 l1) (LabelledCustom m2 l2) = LabelledCustom (\a -> m1 a || m2 a) (l1 <> " || " <> l2)
+composeOr (ExpectValue a) (ExpectValue b) = ExpectCondition (\x -> a == x || b == x) ""
+composeOr (ExpectValue a) (ExpectCondition m2 l2) = ExpectCondition (\x -> x == a || m2 x) l2
+composeOr (ExpectCondition m1 l1) (ExpectValue a) = ExpectCondition (\x -> m1 x || x == a) l1
+composeOr (ExpectCondition m1 l1) (ExpectCondition m2 l2) = ExpectCondition (\a -> m1 a || m2 a) (l1 <> " || " <> l2)
 
 composeAnd :: (Eq a, Show a) => Param a -> Param a -> Param a
-composeAnd (Value a) (Value b) = LabelledCustom (\x -> a == x && b == x) ""
-composeAnd (Value a) (LabelledCustom m2 l2) = LabelledCustom (\x -> x == a && m2 a) l2
-composeAnd (LabelledCustom m1 l1) (Value b) = LabelledCustom (\x -> m1 x && x == b) l1
-composeAnd (LabelledCustom m1 l1) (LabelledCustom m2 l2) = LabelledCustom (\x -> m1 x && m2 x) (l1 <> " && " <> l2)
+composeAnd (ExpectValue a) (ExpectValue b) = ExpectCondition (\x -> a == x && b == x) ""
+composeAnd (ExpectValue a) (ExpectCondition m2 l2) = ExpectCondition (\x -> x == a && m2 a) l2
+composeAnd (ExpectCondition m1 l1) (ExpectValue b) = ExpectCondition (\x -> m1 x && x == b) l1
+composeAnd (ExpectCondition m1 l1) (ExpectCondition m2 l2) = ExpectCondition (\x -> m1 x && m2 x) (l1 <> " && " <> l2)
 
 showWithRemoveEscape :: (Show a) => a -> String
 showWithRemoveEscape s = unpack $ replace (pack "\\") (pack "") (pack (show s))
