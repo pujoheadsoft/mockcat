@@ -23,8 +23,6 @@ dependencies:
 - base >= 4.7 && < 5
 - text
 - template-haskell
-- HMock
-- mtl
 
 ghc-options:
 - -Wall
