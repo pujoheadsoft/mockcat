@@ -126,7 +126,9 @@ namedMockFun ::
   m fun
 namedMockFun name params = fun <$> namedMock name params
 
+-- | Class for make a mock corresponding to the parameter.
 class MockBuilder params fun verifyParams | params -> fun, params -> verifyParams where
+  -- make a mock
   build :: MonadIO m => Maybe MockName -> params -> m (Mock fun verifyParams)
 
 -- instances
@@ -419,6 +421,7 @@ enclose e = fmap (\v -> e <> v <> e)
 -- verify
 data VerifyMatchType a = MatchAny a | MatchAll a
 
+-- | Class for verify mock function.
 class Verify params input where
   verify :: MonadIO m => Mock fun params -> input -> m ()
 
