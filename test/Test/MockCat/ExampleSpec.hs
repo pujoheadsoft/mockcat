@@ -14,7 +14,7 @@ spec = do
     -- assert
     f "value" `shouldBe` True
     -- verify
-    m `hasBeenCalledWith` "value"
+    m `shouldApplyTo` "value"
   
   it "named mock" do
     m <- namedMock "mock" $ "value" |> True

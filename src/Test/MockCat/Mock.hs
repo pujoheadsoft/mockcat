@@ -19,18 +19,18 @@ module Test.MockCat.Mock
   ( mock,
     fun,
     verify,
-    hasBeenCalledWith,
+    shouldApplyTo,
     verifyCount,
-    hasBeenCalledTimes,
+    shouldApplyTimes,
     with,
-    hasBeenCalledInOrder,
+    shouldApplyInOrder,
     verifySequence,
-    hasBeenCalledInPartialOrder,
+    shouldApplyInPartialOrder,
     verifyPartiallySequence,
-    hasBeenCalledTimesGreaterThanEqual,
-    hasBeenCalledTimesLessThanEqual,
-    hasBeenCalledTimesGreaterThan,
-    hasBeenCalledTimesLessThan,
+    shouldApplyTimesGreaterThanEqual,
+    shouldApplyTimesLessThanEqual,
+    shouldApplyTimesGreaterThan,
+    shouldApplyTimesLessThan,
     namedMock,
     module Test.MockCat.Cons,
     module Test.MockCat.Param,
@@ -69,7 +69,7 @@ newtype Verifier params = Verifier (IORef (CalledParamsList params))
     -- assert
     f "value" \`shouldBe\` True
     -- verify
-    m \`hasBeenCalledWith\` "value"
+    m \`shouldApplyTo\` "value"
   @
 
   If you do not need verification and only need stub functions, you can use @'mockFun'@.
@@ -468,12 +468,12 @@ formatCalledParamsList calledParams
 _replace :: Show a => String -> a -> String
 _replace r s = unpack $ replace (pack r) (pack "") (pack (show s))
 
-hasBeenCalledWith ::
+shouldApplyTo ::
   (Verify params input) =>
   Mock fun params ->
   input ->
   IO ()
-hasBeenCalledWith = verify
+shouldApplyTo = verify
 
 class VerifyCount countType params a where
   verifyCount :: (MonadIO m, Eq params) => Mock fun params -> countType -> a -> m ()
@@ -526,7 +526,7 @@ _verifyCount (Mock name _ (Verifier ref)) v method = do
             "   but got: " <> show callCount
           ]
 
-hasBeenCalledTimes ::
+shouldApplyTimes ::
   VerifyCount countType params a =>
   Eq params =>
   MonadIO m =>
@@ -534,7 +534,7 @@ hasBeenCalledTimes ::
   countType ->
   a ->
   m ()
-hasBeenCalledTimes = verifyCount
+shouldApplyTimes = verifyCount
 
 with :: (a -> IO ()) -> a -> IO ()
 with f = f
@@ -667,23 +667,23 @@ collectUnExpectedOrder calledValues expectedValues =
 mapWithIndex :: (Int -> a -> b) -> [a] -> [b]
 mapWithIndex f xs = [f i x | (i, x) <- zip [0 ..] xs]
 
-hasBeenCalledInOrder ::
+shouldApplyInOrder ::
   VerifyOrder params input =>
   MonadIO m =>
   Mock fun params ->
   [input] ->
   m ()
-hasBeenCalledInOrder = verifySequence
+shouldApplyInOrder = verifySequence
 
-hasBeenCalledInPartialOrder ::
+shouldApplyInPartialOrder ::
   VerifyOrder params input =>
   MonadIO m =>
   Mock fun params ->
   [input] ->
   m ()
-hasBeenCalledInPartialOrder = verifyPartiallySequence
+shouldApplyInPartialOrder = verifyPartiallySequence
 
-hasBeenCalledTimesGreaterThanEqual ::
+shouldApplyTimesGreaterThanEqual ::
   VerifyCount CountVerifyMethod params a =>
   MonadIO m =>
   Eq params =>
@@ -691,9 +691,9 @@ hasBeenCalledTimesGreaterThanEqual ::
   Int ->
   a ->
   m ()
-hasBeenCalledTimesGreaterThanEqual m i = hasBeenCalledTimes m (GreaterThanEqual i)
+shouldApplyTimesGreaterThanEqual m i = shouldApplyTimes m (GreaterThanEqual i)
 
-hasBeenCalledTimesLessThanEqual ::
+shouldApplyTimesLessThanEqual ::
   VerifyCount CountVerifyMethod params a =>
   MonadIO m =>
   Eq params =>
@@ -701,9 +701,9 @@ hasBeenCalledTimesLessThanEqual ::
   Int ->
   a ->
   m ()
-hasBeenCalledTimesLessThanEqual m i = hasBeenCalledTimes m (LessThanEqual i)
+shouldApplyTimesLessThanEqual m i = shouldApplyTimes m (LessThanEqual i)
 
-hasBeenCalledTimesGreaterThan ::
+shouldApplyTimesGreaterThan ::
   VerifyCount CountVerifyMethod params a =>
   MonadIO m =>
   Eq params =>
@@ -711,9 +711,9 @@ hasBeenCalledTimesGreaterThan ::
   Int ->
   a ->
   m ()
-hasBeenCalledTimesGreaterThan m i = hasBeenCalledTimes m (GreaterThan i)
+shouldApplyTimesGreaterThan m i = shouldApplyTimes m (GreaterThan i)
 
-hasBeenCalledTimesLessThan ::
+shouldApplyTimesLessThan ::
   VerifyCount CountVerifyMethod params a =>
   MonadIO m =>
   Eq params =>
@@ -721,4 +721,4 @@ hasBeenCalledTimesLessThan ::
   Int ->
   a ->
   m ()
-hasBeenCalledTimesLessThan m i = hasBeenCalledTimes m (LessThan i)
+shouldApplyTimesLessThan m i = shouldApplyTimes m (LessThan i)

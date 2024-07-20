@@ -18,14 +18,14 @@ import Test.MockCat.Mock
   ( any,
     expectByExpr,
     fun,
-    hasBeenCalledInOrder,
-    hasBeenCalledInPartialOrder,
-    hasBeenCalledTimes,
-    hasBeenCalledTimesGreaterThan,
-    hasBeenCalledTimesGreaterThanEqual,
-    hasBeenCalledTimesLessThan,
-    hasBeenCalledTimesLessThanEqual,
-    hasBeenCalledWith,
+    shouldApplyInOrder,
+    shouldApplyInPartialOrder,
+    shouldApplyTimes,
+    shouldApplyTimesGreaterThan,
+    shouldApplyTimesGreaterThanEqual,
+    shouldApplyTimesLessThan,
+    shouldApplyTimesLessThanEqual,
+    shouldApplyTo,
     mock,
     mockFun,
     namedMock,
@@ -85,9 +85,9 @@ spec = do
           execute = (`fun` "a"),
           executeFailed = Just (`fun` "x"),
           expected = False,
-          verifyMock = (`hasBeenCalledWith` "a"),
-          verifyFailed = (`hasBeenCalledWith` "2"),
-          verifyCount = \m c -> m `hasBeenCalledTimes` c `with` "a"
+          verifyMock = (`shouldApplyTo` "a"),
+          verifyFailed = (`shouldApplyTo` "2"),
+          verifyCount = \m c -> m `shouldApplyTimes` c `with` "a"
         }
 
     mockTest
@@ -97,9 +97,9 @@ spec = do
           execute = \m -> fun m "a" "b",
           executeFailed = Just (\m -> fun m "a" "x"),
           expected = True,
-          verifyMock = \m -> hasBeenCalledWith m $ "a" |> "b",
-          verifyFailed = \m -> hasBeenCalledWith m $ "2" |> "b",
-          verifyCount = \m c -> m `hasBeenCalledTimes` c `with` ("a" |> "b")
+          verifyMock = \m -> shouldApplyTo m $ "a" |> "b",
+          verifyFailed = \m -> shouldApplyTo m $ "2" |> "b",
+          verifyCount = \m c -> m `shouldApplyTimes` c `with` ("a" |> "b")
         }
 
     mockTest
@@ -109,9 +109,9 @@ spec = do
           execute = \m -> fun m "a" "b" "c",
           executeFailed = Just (\m -> fun m "a" "b" "x"),
           expected = False,
-          verifyMock = \m -> hasBeenCalledWith m $ "a" |> "b" |> "c",
-          verifyFailed = \m -> hasBeenCalledWith m $ "a" |> "b" |> "d",
-          verifyCount = \m c -> m `hasBeenCalledTimes` c `with` ("a" |> "b" |> "c")
+          verifyMock = \m -> shouldApplyTo m $ "a" |> "b" |> "c",
+          verifyFailed = \m -> shouldApplyTo m $ "a" |> "b" |> "d",
+          verifyCount = \m c -> m `shouldApplyTimes` c `with` ("a" |> "b" |> "c")
         }
 
     mockTest
@@ -121,9 +121,9 @@ spec = do
           execute = \m -> fun m "a" "b" "c" "d",
           executeFailed = Just (\m -> fun m "a" "b" "c" "x"),
           expected = True,
-          verifyMock = \m -> hasBeenCalledWith m $ "a" |> "b" |> "c" |> "d",
-          verifyFailed = \m -> hasBeenCalledWith m $ "a" |> "b" |> "c" |> "x",
-          verifyCount = \m c -> m `hasBeenCalledTimes` c `with` ("a" |> "b" |> "c" |> "d")
+          verifyMock = \m -> shouldApplyTo m $ "a" |> "b" |> "c" |> "d",
+          verifyFailed = \m -> shouldApplyTo m $ "a" |> "b" |> "c" |> "x",
+          verifyCount = \m c -> m `shouldApplyTimes` c `with` ("a" |> "b" |> "c" |> "d")
         }
 
     mockTest
@@ -133,9 +133,9 @@ spec = do
           execute = \m -> fun m "a" "b" "c" "d" "e",
           executeFailed = Just (\m -> fun m "a" "b" "c" "d" "x"),
           expected = False,
-          verifyMock = \m -> hasBeenCalledWith m $ "a" |> "b" |> "c" |> "d" |> "e",
-          verifyFailed = \m -> hasBeenCalledWith m $ "a" |> "b" |> "c" |> "d" |> "x",
-          verifyCount = \m c -> m `hasBeenCalledTimes` c `with` ("a" |> "b" |> "c" |> "d" |> "e")
+          verifyMock = \m -> shouldApplyTo m $ "a" |> "b" |> "c" |> "d" |> "e",
+          verifyFailed = \m -> shouldApplyTo m $ "a" |> "b" |> "c" |> "d" |> "x",
+          verifyCount = \m c -> m `shouldApplyTimes` c `with` ("a" |> "b" |> "c" |> "d" |> "e")
         }
 
     mockTest
@@ -145,9 +145,9 @@ spec = do
           execute = \m -> fun m "a" "b" "c" "d" "e" "f",
           executeFailed = Just (\m -> fun m "a" "b" "c" "d" "e" "x"),
           expected = True,
-          verifyMock = \m -> hasBeenCalledWith m $ "a" |> "b" |> "c" |> "d" |> "e" |> "f",
-          verifyFailed = \m -> hasBeenCalledWith m $ "a" |> "b" |> "c" |> "d" |> "e" |> "x",
-          verifyCount = \m c -> m `hasBeenCalledTimes` c `with` ("a" |> "b" |> "c" |> "d" |> "e" |> "f")
+          verifyMock = \m -> shouldApplyTo m $ "a" |> "b" |> "c" |> "d" |> "e" |> "f",
+          verifyFailed = \m -> shouldApplyTo m $ "a" |> "b" |> "c" |> "d" |> "e" |> "x",
+          verifyCount = \m c -> m `shouldApplyTimes` c `with` ("a" |> "b" |> "c" |> "d" |> "e" |> "f")
         }
 
     mockTest
@@ -157,9 +157,9 @@ spec = do
           execute = \m -> fun m "a" "b" "c" "d" "e" "f" "g",
           executeFailed = Just (\m -> fun m "a" "b" "c" "d" "e" "f" "x"),
           expected = False,
-          verifyMock = \m -> hasBeenCalledWith m $ "a" |> "b" |> "c" |> "d" |> "e" |> "f" |> "g",
-          verifyFailed = \m -> hasBeenCalledWith m $ "a" |> "b" |> "c" |> "d" |> "e" |> "f" |> "y",
-          verifyCount = \m c -> m `hasBeenCalledTimes` c `with` ("a" |> "b" |> "c" |> "d" |> "e" |> "f" |> "g")
+          verifyMock = \m -> shouldApplyTo m $ "a" |> "b" |> "c" |> "d" |> "e" |> "f" |> "g",
+          verifyFailed = \m -> shouldApplyTo m $ "a" |> "b" |> "c" |> "d" |> "e" |> "f" |> "y",
+          verifyCount = \m c -> m `shouldApplyTimes` c `with` ("a" |> "b" |> "c" |> "d" |> "e" |> "f" |> "g")
         }
 
     mockTest
@@ -169,9 +169,9 @@ spec = do
           execute = \m -> fun m "a" "b" "c" "d" "e" "f" "g" "h",
           executeFailed = Just (\m -> fun m "a" "b" "c" "d" "e" "f" "g" "x"),
           expected = False,
-          verifyMock = \m -> hasBeenCalledWith m $ "a" |> "b" |> "c" |> "d" |> "e" |> "f" |> "g" |> "h",
-          verifyFailed = \m -> hasBeenCalledWith m $ "a" |> "b" |> "c" |> "d" |> "e" |> "f" |> "g" |> "x",
-          verifyCount = \m c -> m `hasBeenCalledTimes` c `with` ("a" |> "b" |> "c" |> "d" |> "e" |> "f" |> "g" |> "h")
+          verifyMock = \m -> shouldApplyTo m $ "a" |> "b" |> "c" |> "d" |> "e" |> "f" |> "g" |> "h",
+          verifyFailed = \m -> shouldApplyTo m $ "a" |> "b" |> "c" |> "d" |> "e" |> "f" |> "g" |> "x",
+          verifyCount = \m c -> m `shouldApplyTimes` c `with` ("a" |> "b" |> "c" |> "d" |> "e" |> "f" |> "g" |> "h")
         }
 
     mockTest
@@ -181,9 +181,9 @@ spec = do
           execute = \m -> fun m "a" "b" "c" "d" "e" "f" "g" "h" "i",
           executeFailed = Just (\m -> fun m "a" "b" "c" "d" "e" "f" "g" "h" "x"),
           expected = False,
-          verifyMock = \m -> hasBeenCalledWith m $ "a" |> "b" |> "c" |> "d" |> "e" |> "f" |> "g" |> "h" |> "i",
-          verifyFailed = \m -> hasBeenCalledWith m $ "a" |> "b" |> "c" |> "d" |> "e" |> "f" |> "g" |> "h" |> "x",
-          verifyCount = \m c -> m `hasBeenCalledTimes` c `with` ("a" |> "b" |> "c" |> "d" |> "e" |> "f" |> "g" |> "h" |> "i")
+          verifyMock = \m -> shouldApplyTo m $ "a" |> "b" |> "c" |> "d" |> "e" |> "f" |> "g" |> "h" |> "i",
+          verifyFailed = \m -> shouldApplyTo m $ "a" |> "b" |> "c" |> "d" |> "e" |> "f" |> "g" |> "h" |> "x",
+          verifyCount = \m c -> m `shouldApplyTimes` c `with` ("a" |> "b" |> "c" |> "d" |> "e" |> "f" |> "g" |> "h" |> "i")
         }
 
   describe "Test of Multi Mock" do
@@ -202,12 +202,12 @@ spec = do
           execute = \m -> [fun m "1", fun m "2"],
           executeFailed = Just \m -> [fun m "3"],
           verifyMock = \m -> do
-            m `hasBeenCalledWith` "1"
-            m `hasBeenCalledWith` "2",
-          verifyFailed = (`hasBeenCalledWith` "3"),
+            m `shouldApplyTo` "1"
+            m `shouldApplyTo` "2",
+          verifyFailed = (`shouldApplyTo` "3"),
           verifyCount = \m c -> do
-            m `hasBeenCalledTimes` c `with` "1"
-            m `hasBeenCalledTimes` c `with` "2"
+            m `shouldApplyTimes` c `with` "1"
+            m `shouldApplyTimes` c `with` "2"
         }
 
     mockTest
@@ -228,12 +228,12 @@ spec = do
             ],
           executeFailed = Just \m -> [fun m "1" "x"],
           verifyMock = \m -> do
-            m `hasBeenCalledWith` ("1" |> "2")
-            m `hasBeenCalledWith` ("2" |> "3"),
+            m `shouldApplyTo` ("1" |> "2")
+            m `shouldApplyTo` ("2" |> "3"),
           verifyCount = \m c -> do
-            m `hasBeenCalledTimes` c `with` ("1" |> "2")
-            m `hasBeenCalledTimes` c `with` ("2" |> "3"),
-          verifyFailed = \m -> m `hasBeenCalledWith` ("1" |> "x")
+            m `shouldApplyTimes` c `with` ("1" |> "2")
+            m `shouldApplyTimes` c `with` ("2" |> "3"),
+          verifyFailed = \m -> m `shouldApplyTo` ("1" |> "x")
         }
 
     mockTest
@@ -254,12 +254,12 @@ spec = do
             ],
           executeFailed = Just \m -> [fun m "1" "2" "x"],
           verifyMock = \m -> do
-            m `hasBeenCalledWith` ("1" |> "2" |> "3")
-            m `hasBeenCalledWith` ("2" |> "3" |> "4"),
+            m `shouldApplyTo` ("1" |> "2" |> "3")
+            m `shouldApplyTo` ("2" |> "3" |> "4"),
           verifyCount = \m c -> do
-            m `hasBeenCalledTimes` c `with` ("1" |> "2" |> "3")
-            m `hasBeenCalledTimes` c `with` ("2" |> "3" |> "4"),
-          verifyFailed = \m -> m `hasBeenCalledWith` ("1" |> "2" |> "x")
+            m `shouldApplyTimes` c `with` ("1" |> "2" |> "3")
+            m `shouldApplyTimes` c `with` ("2" |> "3" |> "4"),
+          verifyFailed = \m -> m `shouldApplyTo` ("1" |> "2" |> "x")
         }
 
     mockTest
@@ -280,12 +280,12 @@ spec = do
             ],
           executeFailed = Just \m -> [fun m "1" "2" "3" "x"],
           verifyMock = \m -> do
-            m `hasBeenCalledWith` ("1" |> "2" |> "3" |> "4")
-            m `hasBeenCalledWith` ("2" |> "3" |> "4" |> "5"),
+            m `shouldApplyTo` ("1" |> "2" |> "3" |> "4")
+            m `shouldApplyTo` ("2" |> "3" |> "4" |> "5"),
           verifyCount = \m c -> do
-            m `hasBeenCalledTimes` c `with` ("1" |> "2" |> "3" |> "4")
-            m `hasBeenCalledTimes` c `with` ("2" |> "3" |> "4" |> "5"),
-          verifyFailed = \m -> m `hasBeenCalledWith` ("1" |> "2" |> "3" |> "x")
+            m `shouldApplyTimes` c `with` ("1" |> "2" |> "3" |> "4")
+            m `shouldApplyTimes` c `with` ("2" |> "3" |> "4" |> "5"),
+          verifyFailed = \m -> m `shouldApplyTo` ("1" |> "2" |> "3" |> "x")
         }
 
     mockTest
@@ -306,12 +306,12 @@ spec = do
             ],
           executeFailed = Just \m -> [fun m "1" "2" "3" "4" "x"],
           verifyMock = \m -> do
-            m `hasBeenCalledWith` ("1" |> "2" |> "3" |> "4" |> "5")
-            m `hasBeenCalledWith` ("2" |> "3" |> "4" |> "5" |> "6"),
+            m `shouldApplyTo` ("1" |> "2" |> "3" |> "4" |> "5")
+            m `shouldApplyTo` ("2" |> "3" |> "4" |> "5" |> "6"),
           verifyCount = \m c -> do
-            m `hasBeenCalledTimes` c `with` ("1" |> "2" |> "3" |> "4" |> "5")
-            m `hasBeenCalledTimes` c `with` ("2" |> "3" |> "4" |> "5" |> "6"),
-          verifyFailed = \m -> m `hasBeenCalledWith` ("1" |> "2" |> "3" |> "4" |> "x")
+            m `shouldApplyTimes` c `with` ("1" |> "2" |> "3" |> "4" |> "5")
+            m `shouldApplyTimes` c `with` ("2" |> "3" |> "4" |> "5" |> "6"),
+          verifyFailed = \m -> m `shouldApplyTo` ("1" |> "2" |> "3" |> "4" |> "x")
         }
 
     mockTest
@@ -332,12 +332,12 @@ spec = do
             ],
           executeFailed = Just \m -> [fun m "1" "2" "3" "4" "5" "x"],
           verifyMock = \m -> do
-            m `hasBeenCalledWith` ("1" |> "2" |> "3" |> "4" |> "5" |> "6")
-            m `hasBeenCalledWith` ("2" |> "3" |> "4" |> "5" |> "6" |> "7"),
+            m `shouldApplyTo` ("1" |> "2" |> "3" |> "4" |> "5" |> "6")
+            m `shouldApplyTo` ("2" |> "3" |> "4" |> "5" |> "6" |> "7"),
           verifyCount = \m c -> do
-            m `hasBeenCalledTimes` c `with` ("1" |> "2" |> "3" |> "4" |> "5" |> "6")
-            m `hasBeenCalledTimes` c `with` ("2" |> "3" |> "4" |> "5" |> "6" |> "7"),
-          verifyFailed = \m -> m `hasBeenCalledWith` ("1" |> "2" |> "3" |> "4" |> "5" |> "x")
+            m `shouldApplyTimes` c `with` ("1" |> "2" |> "3" |> "4" |> "5" |> "6")
+            m `shouldApplyTimes` c `with` ("2" |> "3" |> "4" |> "5" |> "6" |> "7"),
+          verifyFailed = \m -> m `shouldApplyTo` ("1" |> "2" |> "3" |> "4" |> "5" |> "x")
         }
 
     mockTest
@@ -358,12 +358,12 @@ spec = do
             ],
           executeFailed = Just \m -> [fun m "1" "2" "3" "4" "5" "6" "x"],
           verifyMock = \m -> do
-            m `hasBeenCalledWith` ("1" |> "2" |> "3" |> "4" |> "5" |> "6" |> "7")
-            m `hasBeenCalledWith` ("2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8"),
+            m `shouldApplyTo` ("1" |> "2" |> "3" |> "4" |> "5" |> "6" |> "7")
+            m `shouldApplyTo` ("2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8"),
           verifyCount = \m c -> do
-            m `hasBeenCalledTimes` c `with` ("1" |> "2" |> "3" |> "4" |> "5" |> "6" |> "7")
-            m `hasBeenCalledTimes` c `with` ("2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8"),
-          verifyFailed = \m -> m `hasBeenCalledWith` ("1" |> "2" |> "3" |> "4" |> "5" |> "6" |> "x")
+            m `shouldApplyTimes` c `with` ("1" |> "2" |> "3" |> "4" |> "5" |> "6" |> "7")
+            m `shouldApplyTimes` c `with` ("2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8"),
+          verifyFailed = \m -> m `shouldApplyTo` ("1" |> "2" |> "3" |> "4" |> "5" |> "6" |> "x")
         }
 
     mockTest
@@ -384,12 +384,12 @@ spec = do
             ],
           executeFailed = Just \m -> [fun m "1" "2" "3" "4" "5" "6" "7" "x"],
           verifyMock = \m -> do
-            m `hasBeenCalledWith` ("1" |> "2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8")
-            m `hasBeenCalledWith` ("2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8" |> "9"),
+            m `shouldApplyTo` ("1" |> "2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8")
+            m `shouldApplyTo` ("2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8" |> "9"),
           verifyCount = \m c -> do
-            m `hasBeenCalledTimes` c `with` ("1" |> "2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8")
-            m `hasBeenCalledTimes` c `with` ("2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8" |> "9"),
-          verifyFailed = \m -> m `hasBeenCalledWith` ("1" |> "2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "x")
+            m `shouldApplyTimes` c `with` ("1" |> "2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8")
+            m `shouldApplyTimes` c `with` ("2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8" |> "9"),
+          verifyFailed = \m -> m `shouldApplyTo` ("1" |> "2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "x")
         }
 
     mockTest
@@ -410,12 +410,12 @@ spec = do
             ],
           executeFailed = Just \m -> [fun m "1" "2" "3" "4" "5" "6" "7" "8" "x"],
           verifyMock = \m -> do
-            m `hasBeenCalledWith` ("1" |> "2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8" |> "9")
-            m `hasBeenCalledWith` ("2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8" |> "9" |> "10"),
+            m `shouldApplyTo` ("1" |> "2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8" |> "9")
+            m `shouldApplyTo` ("2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8" |> "9" |> "10"),
           verifyCount = \m c -> do
-            m `hasBeenCalledTimes` c `with` ("1" |> "2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8" |> "9")
-            m `hasBeenCalledTimes` c `with` ("2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8" |> "9" |> "10"),
-          verifyFailed = \m -> m `hasBeenCalledWith` ("1" |> "2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8" |> "x")
+            m `shouldApplyTimes` c `with` ("1" |> "2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8" |> "9")
+            m `shouldApplyTimes` c `with` ("2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8" |> "9" |> "10"),
+          verifyFailed = \m -> m `shouldApplyTo` ("1" |> "2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8" |> "x")
         }
 
   describe "Order Verification" do
@@ -430,13 +430,13 @@ spec = do
               evaluate $ fun m "c",
             verifyMock = \m ->
               m
-                `hasBeenCalledInOrder` [ "a",
+                `shouldApplyInOrder` [ "a",
                                          "b",
                                          "c"
                                        ],
             verifyFailed = \m ->
               m
-                `hasBeenCalledInOrder` [ "a",
+                `shouldApplyInOrder` [ "a",
                                          "b",
                                          "b"
                                        ]
@@ -452,13 +452,13 @@ spec = do
               evaluate $ fun m "3" "4" "5" "6" "7" "8" "9" "0",
             verifyMock = \m ->
               m
-                `hasBeenCalledInOrder` [ "1" |> "2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8",
+                `shouldApplyInOrder` [ "1" |> "2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8",
                                          "2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8" |> "9",
                                          "3" |> "4" |> "5" |> "6" |> "7" |> "8" |> "9" |> "0"
                                        ],
             verifyFailed = \m ->
               m
-                `hasBeenCalledInOrder` [ "1" |> "2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "x",
+                `shouldApplyInOrder` [ "1" |> "2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "x",
                                          "2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8" |> "y",
                                          "3" |> "4" |> "5" |> "6" |> "7" |> "8" |> "9" |> "z"
                                        ]
@@ -473,11 +473,11 @@ spec = do
               pure (),
             verifyMock = \m ->
               m
-                `hasBeenCalledInOrder` [ "a"
+                `shouldApplyInOrder` [ "a"
                                        ],
             verifyFailed = \m ->
               m
-                `hasBeenCalledInOrder` [ "a",
+                `shouldApplyInOrder` [ "a",
                                          "b"
                                        ]
           }
@@ -494,12 +494,12 @@ spec = do
               pure (),
             verifyMock = \m ->
               m
-                `hasBeenCalledInPartialOrder` [ "a",
+                `shouldApplyInPartialOrder` [ "a",
                                                 "c"
                                               ],
             verifyFailed = \m ->
               m
-                `hasBeenCalledInPartialOrder` [ "b",
+                `shouldApplyInPartialOrder` [ "b",
                                                 "a"
                                               ]
           }
@@ -515,12 +515,12 @@ spec = do
               pure (),
             verifyMock = \m ->
               m
-                `hasBeenCalledInPartialOrder` [ "a" |> "" |> "" |> "" |> "" |> "" |> "" |> "" |> "",
+                `shouldApplyInPartialOrder` [ "a" |> "" |> "" |> "" |> "" |> "" |> "" |> "" |> "",
                                                 "c" |> "" |> "" |> "" |> "" |> "" |> "" |> "" |> ""
                                               ],
             verifyFailed = \m ->
               m
-                `hasBeenCalledInPartialOrder` [ "b" |> "" |> "" |> "" |> "" |> "" |> "" |> "" |> "",
+                `shouldApplyInPartialOrder` [ "b" |> "" |> "" |> "" |> "" |> "" |> "" |> "" |> "",
                                                 "a" |> "" |> "" |> "" |> "" |> "" |> "" |> "" |> ""
                                               ]
           }
@@ -536,12 +536,12 @@ spec = do
               pure (),
             verifyMock = \m ->
               m
-                `hasBeenCalledInPartialOrder` [ "b",
+                `shouldApplyInPartialOrder` [ "b",
                                                 "c"
                                               ],
             verifyFailed = \m ->
               m
-                `hasBeenCalledInPartialOrder` [ "a",
+                `shouldApplyInPartialOrder` [ "a",
                                                 "d"
                                               ]
           }
@@ -555,11 +555,11 @@ spec = do
               pure (),
             verifyMock = \m ->
               m
-                `hasBeenCalledInPartialOrder` [ "a"
+                `shouldApplyInPartialOrder` [ "a"
                                               ],
             verifyFailed = \m ->
               m
-                `hasBeenCalledInPartialOrder` [ "a",
+                `shouldApplyInPartialOrder` [ "a",
                                                 "b"
                                               ]
           }
@@ -570,28 +570,28 @@ spec = do
       evaluate $ fun m "a"
       evaluate $ fun m "a"
       evaluate $ fun m "a"
-      m `hasBeenCalledTimesGreaterThanEqual` 3 `with` "a"
+      m `shouldApplyTimesGreaterThanEqual` 3 `with` "a"
 
     it "less than equal" do
       m <- mock $ "a" |> False
       evaluate $ fun m "a"
       evaluate $ fun m "a"
       evaluate $ fun m "a"
-      m `hasBeenCalledTimesLessThanEqual` 3 `with` "a"
+      m `shouldApplyTimesLessThanEqual` 3 `with` "a"
 
     it "greater than" do
       m <- mock $ "a" |> True
       evaluate $ fun m "a"
       evaluate $ fun m "a"
       evaluate $ fun m "a"
-      m `hasBeenCalledTimesGreaterThan` 2 `with` "a"
+      m `shouldApplyTimesGreaterThan` 2 `with` "a"
 
     it "less than" do
       m <- mock $ "a" |> False
       evaluate $ fun m "a"
       evaluate $ fun m "a"
       evaluate $ fun m "a"
-      m `hasBeenCalledTimesLessThan` 4 `with` "a"
+      m `shouldApplyTimesLessThan` 4 `with` "a"
 
   describe "Monad" do
     it "Return IO Monad." do
@@ -601,7 +601,7 @@ spec = do
 
       result `shouldBe` "Article Title"
 
-      m `hasBeenCalledWith` "Article Id"
+      m `shouldApplyTo` "Article Id"
 
   describe "Appropriate message when a test fails." do
     describe "anonymous mock" do
@@ -633,7 +633,7 @@ spec = do
         it "simple mock verify" do
           m <- mock $ any |> pure @IO True
           evaluate $ fun m "A"
-          m `hasBeenCalledWith` "X"
+          m `shouldApplyTo` "X"
             `shouldThrow` errorCall
               "expected arguments were not applied to the function.\n\
               \  expected: \"X\"\n\
@@ -646,7 +646,7 @@ spec = do
                 "function was not applied the expected number of times.\n\
                 \  expected: 2\n\
                 \   but got: 1"
-          m `hasBeenCalledTimes` (2 :: Int) `with` "A" `shouldThrow` errorCall e
+          m `shouldApplyTimes` (2 :: Int) `with` "A" `shouldThrow` errorCall e
 
         it "verify sequence" do
           m <- mock $ any |> pure @IO False
@@ -661,7 +661,7 @@ spec = do
                 \   but got 2nd call: \"C\"\n\
                 \  expected 3rd call: \"C\"\n\
                 \   but got 3rd call: \"A\""
-          m `hasBeenCalledInOrder` ["A", "B", "C"] `shouldThrow` errorCall e
+          m `shouldApplyInOrder` ["A", "B", "C"] `shouldThrow` errorCall e
 
         it "verify sequence (count mismatch)" do
           m <- mock $ any |> True
@@ -671,7 +671,7 @@ spec = do
                 "function was not applied the expected number of times.\n\
                 \  expected: 3\n\
                 \   but got: 2"
-          m `hasBeenCalledInOrder` ["A", "B", "C"] `shouldThrow` errorCall e
+          m `shouldApplyInOrder` ["A", "B", "C"] `shouldThrow` errorCall e
 
         it "verify partially sequence" do
           m <- mock $ any |> True
@@ -685,7 +685,7 @@ spec = do
                 \  but got:\n\
                 \    \"B\"\n\
                 \    \"A\""
-          m `hasBeenCalledInPartialOrder` ["A", "C"] `shouldThrow` errorCall e
+          m `shouldApplyInPartialOrder` ["A", "C"] `shouldThrow` errorCall e
 
         it "verify partially sequence (count mismatch)" do
           m <- mock $ any |> False
@@ -694,7 +694,7 @@ spec = do
                 "function was not applied the expected number of times.\n\
                 \  expected: 2\n\
                 \   but got: 1"
-          m `hasBeenCalledInPartialOrder` ["A", "C"] `shouldThrow` errorCall e
+          m `shouldApplyInPartialOrder` ["A", "C"] `shouldThrow` errorCall e
 
     describe "named mock" do
       describe "aply" do
@@ -730,7 +730,7 @@ spec = do
                 "expected arguments were not applied to the function `mock function`.\n\
                 \  expected: \"X\"\n\
                 \   but got: \"A\""
-          m `hasBeenCalledWith` "X" `shouldThrow` errorCall e
+          m `shouldApplyTo` "X" `shouldThrow` errorCall e
 
         it "count" do
           m <- namedMock "mock function" $ any |> pure @IO ()
@@ -739,7 +739,7 @@ spec = do
                 "function `mock function` was not applied the expected number of times.\n\
                 \  expected: 2\n\
                 \   but got: 1"
-          m `hasBeenCalledTimes` (2 :: Int) `with` "A" `shouldThrow` errorCall e
+          m `shouldApplyTimes` (2 :: Int) `with` "A" `shouldThrow` errorCall e
 
         it "verify sequence" do
           m <- namedMock "mock function" $ any |> pure @IO ()
@@ -754,7 +754,7 @@ spec = do
                 \   but got 2nd call: \"C\"\n\
                 \  expected 3rd call: \"C\"\n\
                 \   but got 3rd call: \"A\""
-          m `hasBeenCalledInOrder` ["A", "B", "C"] `shouldThrow` errorCall e
+          m `shouldApplyInOrder` ["A", "B", "C"] `shouldThrow` errorCall e
 
         it "verify sequence (count mismatch)" do
           m <- namedMock "mockFunc" $ any |> pure @IO ()
@@ -764,7 +764,7 @@ spec = do
                 "function `mockFunc` was not applied the expected number of times.\n\
                 \  expected: 3\n\
                 \   but got: 2"
-          m `hasBeenCalledInOrder` ["A", "B", "C"] `shouldThrow` errorCall e
+          m `shouldApplyInOrder` ["A", "B", "C"] `shouldThrow` errorCall e
 
         it "verify partially sequence" do
           m <- namedMock "mock function" $ any |> pure @IO ()
@@ -778,7 +778,7 @@ spec = do
                 \  but got:\n\
                 \    \"B\"\n\
                 \    \"A\""
-          m `hasBeenCalledInPartialOrder` ["A", "C"] `shouldThrow` errorCall e
+          m `shouldApplyInPartialOrder` ["A", "C"] `shouldThrow` errorCall e
 
         it "verify partially sequence (count mismatch)" do
           m <- namedMock "mockFunc" $ any |> pure @IO ()
@@ -787,7 +787,7 @@ spec = do
                 "function `mockFunc` was not applied the expected number of times.\n\
                 \  expected: 2\n\
                 \   but got: 1"
-          m `hasBeenCalledInPartialOrder` ["A", "C"] `shouldThrow` errorCall e
+          m `shouldApplyInPartialOrder` ["A", "C"] `shouldThrow` errorCall e
 
   describe "use expectation" do
     it "expectByExpr" do
