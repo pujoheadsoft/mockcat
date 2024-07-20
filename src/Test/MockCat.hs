@@ -82,7 +82,7 @@ namedMockFun ::
 namedMockFun name params = fun <$> namedMock name params
 
 class MockBuilder params fun verifyParams | params -> fun, params -> verifyParams where
-  build :: Maybe MockName -> params -> IO (Mock fun verifyParams)
+  build :: MonadIO m => Maybe MockName -> params -> m (Mock fun verifyParams)
 
 -- instances
 instance
@@ -93,7 +93,7 @@ instance
     (Param a :> Param b :> Param c :> Param d :> Param e :> Param f :> Param g :> Param h :> Param i)
   where
   build name params = do
-    s <- newIORef ([] :: CalledParamsList params)
+    s <- liftIO $ newIORef ([] :: CalledParamsList params)
     createMock
       name
       s
@@ -109,7 +109,7 @@ instance
     (Param a :> Param b :> Param c :> Param d :> Param e :> Param f :> Param g :> Param h)
   where
   build name params = do
-    s <- newIORef ([] :: CalledParamsList params)
+    s <- liftIO $ newIORef ([] :: CalledParamsList params)
     createMock
       name
       s
@@ -125,7 +125,7 @@ instance
     (Param a :> Param b :> Param c :> Param d :> Param e :> Param f :> Param g)
   where
   build name params = do
-    s <- newIORef ([] :: CalledParamsList params)
+    s <- liftIO $ newIORef ([] :: CalledParamsList params)
     createMock
       name
       s
@@ -141,7 +141,7 @@ instance
     (Param a :> Param b :> Param c :> Param d :> Param e :> Param f)
   where
   build name params = do
-    s <- newIORef ([] :: CalledParamsList params)
+    s <- liftIO $ newIORef ([] :: CalledParamsList params)
     createMock name s (\a2 b2 c2 d2 e2 f2 -> unsafePerformIO $ extractReturnValueWithValidate name params (p a2 :> p b2 :> p c2 :> p d2 :> p e2 :> p f2) s)
 
 instance
@@ -152,7 +152,7 @@ instance
     (Param a :> Param b :> Param c :> Param d :> Param e)
   where
   build name params = do
-    s <- newIORef ([] :: CalledParamsList params)
+    s <- liftIO $ newIORef ([] :: CalledParamsList params)
     createMock name s (\a2 b2 c2 d2 e2 -> unsafePerformIO $ extractReturnValueWithValidate name params (p a2 :> p b2 :> p c2 :> p d2 :> p e2) s)
 
 instance
@@ -163,7 +163,7 @@ instance
     (Param a :> Param b :> Param c :> Param d)
   where
   build name params = do
-    s <- newIORef ([] :: CalledParamsList params)
+    s <- liftIO $ newIORef ([] :: CalledParamsList params)
     createMock name s (\a2 b2 c2 d2 -> unsafePerformIO $ extractReturnValueWithValidate name params (p a2 :> p b2 :> p c2 :> p d2) s)
 
 instance
@@ -171,7 +171,7 @@ instance
   MockBuilder (Param a :> Param b :> Param c :> Param r) (a -> b -> c -> r) (Param a :> Param b :> Param c)
   where
   build name params = do
-    s <- newIORef ([] :: CalledParamsList params)
+    s <- liftIO $ newIORef ([] :: CalledParamsList params)
     createMock name s (\a2 b2 c2 -> unsafePerformIO $ extractReturnValueWithValidate name params (p a2 :> p b2 :> p c2) s)
 
 instance
@@ -179,7 +179,7 @@ instance
   MockBuilder (Param a :> Param b :> Param r) (a -> b -> r) (Param a :> Param b)
   where
   build name params = do
-    s <- newIORef ([] :: CalledParamsList params)
+    s <- liftIO $ newIORef ([] :: CalledParamsList params)
     createMock name s (\a2 b2 -> unsafePerformIO $ extractReturnValueWithValidate name params (p a2 :> p b2) s)
 
 instance
@@ -187,7 +187,7 @@ instance
   MockBuilder (Param a :> Param r) (a -> r) (Param a)
   where
   build name params = do
-    s <- newIORef ([] :: CalledParamsList params)
+    s <- liftIO $ newIORef ([] :: CalledParamsList params)
     createMock name s (\a2 -> unsafePerformIO $ extractReturnValueWithValidate name params (p a2) s)
 
 instance
@@ -198,7 +198,7 @@ instance
     (Param a :> Param b :> Param c :> Param d :> Param e :> Param f :> Param g :> Param h :> Param i)
   where
   build name params = do
-    s <- newIORef ([] :: CalledParamsList params)
+    s <- liftIO $ newIORef ([] :: CalledParamsList params)
     createMock name s (\a2 b2 c2 d2 e2 f2 g2 h2 i2 -> unsafePerformIO $ findReturnValueWithStore name params (p a2 :> p b2 :> p c2 :> p d2 :> p e2 :> p f2 :> p g2 :> p h2 :> p i2) s)
 
 instance
@@ -209,7 +209,7 @@ instance
     (Param a :> Param b :> Param c :> Param d :> Param e :> Param f :> Param g :> Param h)
   where
   build name params = do
-    s <- newIORef ([] :: CalledParamsList params)
+    s <- liftIO $ newIORef ([] :: CalledParamsList params)
     createMock name s (\a2 b2 c2 d2 e2 f2 g2 h2 -> unsafePerformIO $ findReturnValueWithStore name params (p a2 :> p b2 :> p c2 :> p d2 :> p e2 :> p f2 :> p g2 :> p h2) s)
 
 instance
@@ -220,7 +220,7 @@ instance
     (Param a :> Param b :> Param c :> Param d :> Param e :> Param f :> Param g)
   where
   build name params = do
-    s <- newIORef ([] :: CalledParamsList params)
+    s <- liftIO $ newIORef ([] :: CalledParamsList params)
     createMock name s (\a2 b2 c2 d2 e2 f2 g2 -> unsafePerformIO $ findReturnValueWithStore name params (p a2 :> p b2 :> p c2 :> p d2 :> p e2 :> p f2 :> p g2) s)
 
 instance
@@ -231,7 +231,7 @@ instance
     (Param a :> Param b :> Param c :> Param d :> Param e :> Param f)
   where
   build name params = do
-    s <- newIORef ([] :: CalledParamsList params)
+    s <- liftIO $ newIORef ([] :: CalledParamsList params)
     createMock name s (\a2 b2 c2 d2 e2 f2 -> unsafePerformIO $ findReturnValueWithStore name params (p a2 :> p b2 :> p c2 :> p d2 :> p e2 :> p f2) s)
 
 instance
@@ -242,7 +242,7 @@ instance
     (Param a :> Param b :> Param c :> Param d :> Param e)
   where
   build name params = do
-    s <- newIORef ([] :: CalledParamsList params)
+    s <- liftIO $ newIORef ([] :: CalledParamsList params)
     createMock name s (\a2 b2 c2 d2 e2 -> unsafePerformIO $ findReturnValueWithStore name params (p a2 :> p b2 :> p c2 :> p d2 :> p e2) s)
 
 instance
@@ -253,7 +253,7 @@ instance
     (Param a :> Param b :> Param c :> Param d)
   where
   build name params = do
-    s <- newIORef ([] :: CalledParamsList params)
+    s <- liftIO $ newIORef ([] :: CalledParamsList params)
     createMock name s (\a2 b2 c2 d2 -> unsafePerformIO $ findReturnValueWithStore name params (p a2 :> p b2 :> p c2 :> p d2) s)
 
 instance
@@ -264,7 +264,7 @@ instance
     (Param a :> Param b :> Param c)
   where
   build name params = do
-    s <- newIORef ([] :: CalledParamsList params)
+    s <- liftIO $ newIORef ([] :: CalledParamsList params)
     createMock name s (\a2 b2 c2 -> unsafePerformIO $ findReturnValueWithStore name params (p a2 :> p b2 :> p c2) s)
 
 instance
@@ -272,7 +272,7 @@ instance
   MockBuilder [Param a :> Param b :> Param r] (a -> b -> r) (Param a :> Param b)
   where
   build name params = do
-    s <- newIORef ([] :: CalledParamsList params)
+    s <- liftIO $ newIORef ([] :: CalledParamsList params)
     createMock name s (\a2 b2 -> unsafePerformIO $ findReturnValueWithStore name params (p a2 :> p b2) s)
 
 instance
@@ -280,7 +280,7 @@ instance
   MockBuilder [Param a :> Param r] (a -> r) (Param a)
   where
   build name params = do
-    s <- newIORef ([] :: CalledParamsList params)
+    s <- liftIO $ newIORef ([] :: CalledParamsList params)
     createMock name s (\a2 -> unsafePerformIO $ findReturnValueWithStore name params (p a2) s)
 
 -- ------
@@ -288,7 +288,7 @@ instance
 p :: a -> Param a
 p = param
 
-createMock :: Maybe MockName -> IORef (CalledParamsList params) -> fun -> IO (Mock fun params)
+createMock :: MonadIO m => Maybe MockName -> IORef (CalledParamsList params) -> fun -> m (Mock fun params)
 createMock name l fn = pure $ Mock name fn (Verifier l)
 
 type CalledParamsList params = [params]

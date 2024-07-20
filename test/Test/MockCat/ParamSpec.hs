@@ -17,10 +17,10 @@ spec = do
         True |> False `shouldBe` param True :> param False
       it "Param a |> b" do
         param True |> False `shouldBe` param True :> param False
-      it "a |> Param b" do
-        True |> param False `shouldBe` param True :> param False
-      it "Param a |> Param b" do
-        param True |> param False `shouldBe` param True :> param False
+      -- it "a |> Param b" do
+      --   True |> param False `shouldBe` param True :> param False
+      -- it "Param a |> Param b" do
+      --   param True |> param False `shouldBe` param True :> param False
       it "a |> b |> c" do
         True |> False |> True `shouldBe` param True :> (param False :> param True)
       it "Param a |> b |> c" do

@@ -7,6 +7,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# OPTIONS_GHC -Wno-type-defaults #-}
 {-# OPTIONS_GHC -Wno-unused-do-bind #-}
+{-# LANGUAGE TypeOperators #-}
 
 module Test.MockCatSpec (spec) where
 
@@ -29,13 +30,54 @@ import Test.MockCat
     mockFun,
     namedMock,
     with,
-    (|>),
+    (|>)
   )
 import Prelude hiding (any)
 
 spec :: Spec
 spec = do
   describe "Test of Mock" do
+    describe "combination test" do
+      it "arity = 1" do
+        f <- mockFun $ True |> False
+        f True `shouldBe` False
+
+      it "arity = 2" do
+        f <- mockFun $ True |> False |> True 
+        f True False `shouldBe` True
+
+      it "arity = 3" do
+        f <- mockFun $ True |> "False" |> True |> "False"
+        f True "False" True `shouldBe` "False"
+
+      it "arity = 4" do
+        f <- mockFun $ True |> "False" |> True |> "False" |> True
+        f True "False" True "False" `shouldBe` True
+
+      it "Param |> a" do
+        f <- mockFun $ any |> False
+        f True `shouldBe` False
+
+      it "Param |> (a |> b)" do
+        f <- mockFun $ any |> False |> True
+        f True False `shouldBe` True
+
+      it "a     |> (Param |> b)" do
+        f <- mockFun $ True |> any |> True
+        f True False `shouldBe` True
+
+      it "Param |> (Param |> a)" do
+        f <- mockFun $ any |> any |> True
+        f True False `shouldBe` True
+
+      it "a     |> (Param |> (Param |> a))" do
+        f <- mockFun $ "any" |> any |> any |> True
+        f "any" "any" "any" `shouldBe` True
+
+      it "param |> (Param |> (Param |> a))" do
+        f <- mockFun $ any |> any |> any |> True
+        f "any" "any" "any" `shouldBe` True
+
     mockTest
       Fixture
         { name = "arity = 1",

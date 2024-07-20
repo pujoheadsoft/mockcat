@@ -34,6 +34,7 @@ ghc-options:
 - -Wmissing-home-modules
 - -Wpartial-fields
 - -Wredundant-constraints
+- -fprint-potential-instances
 
 library:
   source-dirs: src
