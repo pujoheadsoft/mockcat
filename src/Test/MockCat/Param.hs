@@ -79,6 +79,8 @@ instance ConsGen (Param a) (Param b) (Param a :> Param b) where
   (|>) = (:>)
 instance {-# OVERLAPPABLE #-} ((Param b) ~ b') => ConsGen (Param a) b (Param a :> b') where
   (|>) a b = (:>) a (param b)
+instance {-# OVERLAPPABLE #-} ((Param a) ~ a') => ConsGen a (Param b) (a' :> Param b) where
+  (|>) a = (:>) (param a)
 instance {-# OVERLAPPABLE #-} (Param a ~ a', Param b ~ b') => ConsGen a b (a' :> b') where
   (|>) a b = (:>) (param a) (param b)
 
