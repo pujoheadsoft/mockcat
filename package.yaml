@@ -10,14 +10,15 @@ extra-source-files:
 - README.md
 - CHANGELOG.md
 
-# Metadata used when publishing your package
-# synopsis:            Short description of your package
-# category:            Web
+synopsis: Simple mock function library for test in Haskell.
 
-# To avoid duplicated efforts in documentation and dealing with the
-# complications of embedding Haddock markup inside cabal files, it is
-# common to point users to the README.md file.
-description:         Please see the README on GitHub at <https://github.com/githubuser/mockcat#readme>
+category: Testing
+
+description: mockcat is simple mock library for test in Haskell.
+             mockcat provides so-called stubbing and verification functions.
+             Stub functions can return values of Pure Types as well as value of Monadic Types.
+             [example] mockFun $ "expectedValue" |> "returnValue"
+             For more please see the README on GitHub at <https://github.com/pujoheadsoft/mockcat#readme>
 
 dependencies:
 - base >= 4.7 && < 5
