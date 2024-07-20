@@ -22,8 +22,8 @@ description: mockcat is simple mock library for test in Haskell.
 
 dependencies:
 - base >= 4.7 && < 5
-- text
-- template-haskell
+- text >= 2.0 && < 2.2
+- template-haskell >= 2.18 && < 2.23
 
 ghc-options:
 - -Wall
