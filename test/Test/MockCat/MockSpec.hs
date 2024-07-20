@@ -9,12 +9,12 @@
 {-# OPTIONS_GHC -Wno-unused-do-bind #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Test.MockCatSpec (spec) where
+module Test.MockCat.MockSpec (spec) where
 
 import qualified Control.Exception as E
 import Data.Function ((&))
 import Test.Hspec
-import Test.MockCat
+import Test.MockCat.Mock
   ( any,
     expectByExpr,
     fun,

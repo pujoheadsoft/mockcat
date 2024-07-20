@@ -29,6 +29,7 @@ library
   exposed-modules:
       Test.MockCat
       Test.MockCat.Cons
+      Test.MockCat.Mock
       Test.MockCat.Param
       Test.MockCat.ParamDivider
       Test.MockCat.TH
@@ -48,8 +49,8 @@ test-suite mockcat-test
   main-is: Spec.hs
   other-modules:
       Test.MockCat.ConsSpec
+      Test.MockCat.MockSpec
       Test.MockCat.ParamSpec
-      Test.MockCatSpec
       Paths_mockcat
   hs-source-dirs:
       test
