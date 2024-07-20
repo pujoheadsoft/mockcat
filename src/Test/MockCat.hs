@@ -1,3 +1,6 @@
+-- |
+-- a
+-- b
 module Test.MockCat
   ( 
     module Test.MockCat.Mock,

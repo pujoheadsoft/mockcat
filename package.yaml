@@ -14,11 +14,16 @@ synopsis: Simple mock function library for test in Haskell.
 
 category: Testing
 
-description: mockcat is simple mock library for test in Haskell.
-             mockcat provides so-called stubbing and verification functions.
-             Stub functions can return values of Pure Types as well as value of Monadic Types.
-             [example] mockFun $ "expectedValue" |> "returnValue"
-             For more please see the README on GitHub at <https://github.com/pujoheadsoft/mockcat#readme>
+description: |
+  mockcat is simple mock library for test in Haskell.
+
+  mockcat provides so-called stubbing and verification functions.
+
+  Stub functions can return values of Pure Types as well as value of Monadic Types.
+
+  [example] mockFun $ "expectedValue" |> "returnValue"
+  
+  For more please see the README on GitHub at <https://github.com/pujoheadsoft/mockcat#readme>
 
 dependencies:
 - base >= 4.7 && < 5

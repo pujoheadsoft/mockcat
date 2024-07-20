@@ -6,6 +6,15 @@
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
 {-# HLINT ignore "Use null" #-}
+
+{- | This module provides bellow functions.
+
+  - Make mocks that can be stub and verify.
+
+  - Make stub function.
+
+  - Verify applied mock function.
+-}
 module Test.MockCat.Mock
   ( mock,
     fun,
@@ -48,6 +57,24 @@ type MockName = String
 
 newtype Verifier params = Verifier (IORef (CalledParamsList params))
 
+{- | Make a mock.
+  From the mocks this function, stub functions can be generated and functions can be verified.
+
+  @
+  it "stub & verify" do
+    -- make a mock
+    m \<- mock $ "value" |\> True
+    -- stub function
+    let f = fun m
+    -- assert
+    f "value" \`shouldBe\` True
+    -- verify
+    m \`hasBeenCalledWith\` "value"
+  @
+
+  If you do not need verification and only need stub functions, you can use @'mockFun'@.
+
+-}
 mock ::
   MockBuilder params fun verifyParams =>
   MonadIO m =>
@@ -55,6 +82,14 @@ mock ::
   m (Mock fun verifyParams)
 mock params = liftIO $ build Nothing params
 
+{- | Make a named mock. If the test fails, this name is used. This may be useful if you have multiple mocks.
+
+  @
+  it "named mock" do
+    m \<- namedMock "mock" $ "value" |\> True
+    fun m "value" \`shouldBe\` True
+  @
+-}
 namedMock ::
   MockBuilder params fun verifyParams =>
   MonadIO m =>
@@ -63,9 +98,18 @@ namedMock ::
   m (Mock fun verifyParams)
 namedMock name params = liftIO $ build (Just name) params
 
+-- | Extract the stub function from the made mock.
 fun :: Mock fun v -> fun
 fun (Mock _ f _) = f
 
+{- | Make a stub function.
+
+  @
+  it "stub function" do
+    f \<- mockFun $ "value" |\> True
+    f "value" \`shouldBe\` True
+  @
+-}
 mockFun ::
   MockBuilder params fun verifyParams =>
   MonadIO m =>
@@ -73,6 +117,7 @@ mockFun ::
   m fun
 mockFun params = fun <$> mock params
 
+-- | Make a named stub function.
 namedMockFun ::
   MockBuilder params fun verifyParams =>
   MonadIO m =>
@@ -345,11 +390,6 @@ validateParams name expected actual =
     then pure ()
     else errorWithoutStackTrace $ message name expected actual
 
-{-
-  Function was not called with expected arguments.
-  expected: 1, "2", 3
-  but was : 1, "1", 1
--}
 message :: Show a => Maybe MockName -> a -> a -> String
 message name expected actual =
   intercalate
@@ -359,13 +399,6 @@ message name expected actual =
       "   but got: " <> show actual
     ]
 
-{-
-  Function was not called with expected arguments.
-  expected one of the following:
-    "a", 100
-    "b", 200
-  but was actual: "a", 200
--}
 messageForMultiMock :: Show a => Maybe MockName -> [a] -> a -> String
 messageForMultiMock name expecteds actual =
   intercalate

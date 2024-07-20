@@ -7,7 +7,15 @@ cabal-version: 1.12
 name:           mockcat
 version:        0.1.0.0
 synopsis:       Simple mock function library for test in Haskell.
-description:    mockcat is simple mock library for test in Haskell. mockcat provides so-called stubbing and verification functions. Stub functions can return values of Pure Types as well as value of Monadic Types. [example] mockFun $ "expectedValue" |> "returnValue" For more please see the README on GitHub at <https://github.com/pujoheadsoft/mockcat#readme>
+description:    mockcat is simple mock library for test in Haskell.
+                .
+                mockcat provides so-called stubbing and verification functions.
+                .
+                Stub functions can return values of Pure Types as well as value of Monadic Types.
+                .
+                [example] mockFun $ "expectedValue" |> "returnValue"
+                .
+                For more please see the README on GitHub at <https://github.com/pujoheadsoft/mockcat#readme>
 category:       Testing
 homepage:       https://github.com/pujoheadsoft/mockcat#readme
 bug-reports:    https://github.com/pujoheadsoft/mockcat/issues
@@ -49,6 +57,7 @@ test-suite mockcat-test
   main-is: Spec.hs
   other-modules:
       Test.MockCat.ConsSpec
+      Test.MockCat.ExampleSpec
       Test.MockCat.MockSpec
       Test.MockCat.ParamSpec
       Paths_mockcat
