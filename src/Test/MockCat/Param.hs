@@ -70,9 +70,12 @@ param = ExpectValue
 class ConsGen a b r | a b -> r where
   (|>) :: a -> b -> r
 
+
 instance {-# OVERLAPPING #-} (Param a ~ a', (Param b :> c) ~ bc) => ConsGen a (Param b :> c) (a' :> bc) where
   (|>) a = (:>) (param a)
 instance {-# OVERLAPPING #-} ((Param b :> c) ~ bc) => ConsGen (Param a) (Param b :> c) (Param a :> bc) where
+  (|>) = (:>)
+instance ConsGen (Param a) (Param b) (Param a :> Param b) where
   (|>) = (:>)
 instance {-# OVERLAPPABLE #-} ((Param b) ~ b') => ConsGen (Param a) b (Param a :> b') where
   (|>) a b = (:>) a (param b)
