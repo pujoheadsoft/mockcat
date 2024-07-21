@@ -29,7 +29,7 @@ import Test.MockCat.Mock
     mock,
     mockFun,
     namedMock,
-    with,
+    to,
     (|>)
   )
 import Prelude hiding (any)
@@ -87,7 +87,7 @@ spec = do
           expected = False,
           verifyMock = (`shouldApplyTo` "a"),
           verifyFailed = (`shouldApplyTo` "2"),
-          verifyCount = \m c -> m `shouldApplyTimes` c `with` "a"
+          verifyCount = \m c -> m `shouldApplyTimes` c `to` "a"
         }
 
     mockTest
@@ -99,7 +99,7 @@ spec = do
           expected = True,
           verifyMock = \m -> shouldApplyTo m $ "a" |> "b",
           verifyFailed = \m -> shouldApplyTo m $ "2" |> "b",
-          verifyCount = \m c -> m `shouldApplyTimes` c `with` ("a" |> "b")
+          verifyCount = \m c -> m `shouldApplyTimes` c `to` ("a" |> "b")
         }
 
     mockTest
@@ -111,7 +111,7 @@ spec = do
           expected = False,
           verifyMock = \m -> shouldApplyTo m $ "a" |> "b" |> "c",
           verifyFailed = \m -> shouldApplyTo m $ "a" |> "b" |> "d",
-          verifyCount = \m c -> m `shouldApplyTimes` c `with` ("a" |> "b" |> "c")
+          verifyCount = \m c -> m `shouldApplyTimes` c `to` ("a" |> "b" |> "c")
         }
 
     mockTest
@@ -123,7 +123,7 @@ spec = do
           expected = True,
           verifyMock = \m -> shouldApplyTo m $ "a" |> "b" |> "c" |> "d",
           verifyFailed = \m -> shouldApplyTo m $ "a" |> "b" |> "c" |> "x",
-          verifyCount = \m c -> m `shouldApplyTimes` c `with` ("a" |> "b" |> "c" |> "d")
+          verifyCount = \m c -> m `shouldApplyTimes` c `to` ("a" |> "b" |> "c" |> "d")
         }
 
     mockTest
@@ -135,7 +135,7 @@ spec = do
           expected = False,
           verifyMock = \m -> shouldApplyTo m $ "a" |> "b" |> "c" |> "d" |> "e",
           verifyFailed = \m -> shouldApplyTo m $ "a" |> "b" |> "c" |> "d" |> "x",
-          verifyCount = \m c -> m `shouldApplyTimes` c `with` ("a" |> "b" |> "c" |> "d" |> "e")
+          verifyCount = \m c -> m `shouldApplyTimes` c `to` ("a" |> "b" |> "c" |> "d" |> "e")
         }
 
     mockTest
@@ -147,7 +147,7 @@ spec = do
           expected = True,
           verifyMock = \m -> shouldApplyTo m $ "a" |> "b" |> "c" |> "d" |> "e" |> "f",
           verifyFailed = \m -> shouldApplyTo m $ "a" |> "b" |> "c" |> "d" |> "e" |> "x",
-          verifyCount = \m c -> m `shouldApplyTimes` c `with` ("a" |> "b" |> "c" |> "d" |> "e" |> "f")
+          verifyCount = \m c -> m `shouldApplyTimes` c `to` ("a" |> "b" |> "c" |> "d" |> "e" |> "f")
         }
 
     mockTest
@@ -159,7 +159,7 @@ spec = do
           expected = False,
           verifyMock = \m -> shouldApplyTo m $ "a" |> "b" |> "c" |> "d" |> "e" |> "f" |> "g",
           verifyFailed = \m -> shouldApplyTo m $ "a" |> "b" |> "c" |> "d" |> "e" |> "f" |> "y",
-          verifyCount = \m c -> m `shouldApplyTimes` c `with` ("a" |> "b" |> "c" |> "d" |> "e" |> "f" |> "g")
+          verifyCount = \m c -> m `shouldApplyTimes` c `to` ("a" |> "b" |> "c" |> "d" |> "e" |> "f" |> "g")
         }
 
     mockTest
@@ -171,7 +171,7 @@ spec = do
           expected = False,
           verifyMock = \m -> shouldApplyTo m $ "a" |> "b" |> "c" |> "d" |> "e" |> "f" |> "g" |> "h",
           verifyFailed = \m -> shouldApplyTo m $ "a" |> "b" |> "c" |> "d" |> "e" |> "f" |> "g" |> "x",
-          verifyCount = \m c -> m `shouldApplyTimes` c `with` ("a" |> "b" |> "c" |> "d" |> "e" |> "f" |> "g" |> "h")
+          verifyCount = \m c -> m `shouldApplyTimes` c `to` ("a" |> "b" |> "c" |> "d" |> "e" |> "f" |> "g" |> "h")
         }
 
     mockTest
@@ -183,7 +183,7 @@ spec = do
           expected = False,
           verifyMock = \m -> shouldApplyTo m $ "a" |> "b" |> "c" |> "d" |> "e" |> "f" |> "g" |> "h" |> "i",
           verifyFailed = \m -> shouldApplyTo m $ "a" |> "b" |> "c" |> "d" |> "e" |> "f" |> "g" |> "h" |> "x",
-          verifyCount = \m c -> m `shouldApplyTimes` c `with` ("a" |> "b" |> "c" |> "d" |> "e" |> "f" |> "g" |> "h" |> "i")
+          verifyCount = \m c -> m `shouldApplyTimes` c `to` ("a" |> "b" |> "c" |> "d" |> "e" |> "f" |> "g" |> "h" |> "i")
         }
 
   describe "Test of Multi Mock" do
@@ -206,8 +206,8 @@ spec = do
             m `shouldApplyTo` "2",
           verifyFailed = (`shouldApplyTo` "3"),
           verifyCount = \m c -> do
-            m `shouldApplyTimes` c `with` "1"
-            m `shouldApplyTimes` c `with` "2"
+            m `shouldApplyTimes` c `to` "1"
+            m `shouldApplyTimes` c `to` "2"
         }
 
     mockTest
@@ -231,8 +231,8 @@ spec = do
             m `shouldApplyTo` ("1" |> "2")
             m `shouldApplyTo` ("2" |> "3"),
           verifyCount = \m c -> do
-            m `shouldApplyTimes` c `with` ("1" |> "2")
-            m `shouldApplyTimes` c `with` ("2" |> "3"),
+            m `shouldApplyTimes` c `to` ("1" |> "2")
+            m `shouldApplyTimes` c `to` ("2" |> "3"),
           verifyFailed = \m -> m `shouldApplyTo` ("1" |> "x")
         }
 
@@ -257,8 +257,8 @@ spec = do
             m `shouldApplyTo` ("1" |> "2" |> "3")
             m `shouldApplyTo` ("2" |> "3" |> "4"),
           verifyCount = \m c -> do
-            m `shouldApplyTimes` c `with` ("1" |> "2" |> "3")
-            m `shouldApplyTimes` c `with` ("2" |> "3" |> "4"),
+            m `shouldApplyTimes` c `to` ("1" |> "2" |> "3")
+            m `shouldApplyTimes` c `to` ("2" |> "3" |> "4"),
           verifyFailed = \m -> m `shouldApplyTo` ("1" |> "2" |> "x")
         }
 
@@ -283,8 +283,8 @@ spec = do
             m `shouldApplyTo` ("1" |> "2" |> "3" |> "4")
             m `shouldApplyTo` ("2" |> "3" |> "4" |> "5"),
           verifyCount = \m c -> do
-            m `shouldApplyTimes` c `with` ("1" |> "2" |> "3" |> "4")
-            m `shouldApplyTimes` c `with` ("2" |> "3" |> "4" |> "5"),
+            m `shouldApplyTimes` c `to` ("1" |> "2" |> "3" |> "4")
+            m `shouldApplyTimes` c `to` ("2" |> "3" |> "4" |> "5"),
           verifyFailed = \m -> m `shouldApplyTo` ("1" |> "2" |> "3" |> "x")
         }
 
@@ -309,8 +309,8 @@ spec = do
             m `shouldApplyTo` ("1" |> "2" |> "3" |> "4" |> "5")
             m `shouldApplyTo` ("2" |> "3" |> "4" |> "5" |> "6"),
           verifyCount = \m c -> do
-            m `shouldApplyTimes` c `with` ("1" |> "2" |> "3" |> "4" |> "5")
-            m `shouldApplyTimes` c `with` ("2" |> "3" |> "4" |> "5" |> "6"),
+            m `shouldApplyTimes` c `to` ("1" |> "2" |> "3" |> "4" |> "5")
+            m `shouldApplyTimes` c `to` ("2" |> "3" |> "4" |> "5" |> "6"),
           verifyFailed = \m -> m `shouldApplyTo` ("1" |> "2" |> "3" |> "4" |> "x")
         }
 
@@ -335,8 +335,8 @@ spec = do
             m `shouldApplyTo` ("1" |> "2" |> "3" |> "4" |> "5" |> "6")
             m `shouldApplyTo` ("2" |> "3" |> "4" |> "5" |> "6" |> "7"),
           verifyCount = \m c -> do
-            m `shouldApplyTimes` c `with` ("1" |> "2" |> "3" |> "4" |> "5" |> "6")
-            m `shouldApplyTimes` c `with` ("2" |> "3" |> "4" |> "5" |> "6" |> "7"),
+            m `shouldApplyTimes` c `to` ("1" |> "2" |> "3" |> "4" |> "5" |> "6")
+            m `shouldApplyTimes` c `to` ("2" |> "3" |> "4" |> "5" |> "6" |> "7"),
           verifyFailed = \m -> m `shouldApplyTo` ("1" |> "2" |> "3" |> "4" |> "5" |> "x")
         }
 
@@ -361,8 +361,8 @@ spec = do
             m `shouldApplyTo` ("1" |> "2" |> "3" |> "4" |> "5" |> "6" |> "7")
             m `shouldApplyTo` ("2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8"),
           verifyCount = \m c -> do
-            m `shouldApplyTimes` c `with` ("1" |> "2" |> "3" |> "4" |> "5" |> "6" |> "7")
-            m `shouldApplyTimes` c `with` ("2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8"),
+            m `shouldApplyTimes` c `to` ("1" |> "2" |> "3" |> "4" |> "5" |> "6" |> "7")
+            m `shouldApplyTimes` c `to` ("2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8"),
           verifyFailed = \m -> m `shouldApplyTo` ("1" |> "2" |> "3" |> "4" |> "5" |> "6" |> "x")
         }
 
@@ -387,8 +387,8 @@ spec = do
             m `shouldApplyTo` ("1" |> "2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8")
             m `shouldApplyTo` ("2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8" |> "9"),
           verifyCount = \m c -> do
-            m `shouldApplyTimes` c `with` ("1" |> "2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8")
-            m `shouldApplyTimes` c `with` ("2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8" |> "9"),
+            m `shouldApplyTimes` c `to` ("1" |> "2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8")
+            m `shouldApplyTimes` c `to` ("2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8" |> "9"),
           verifyFailed = \m -> m `shouldApplyTo` ("1" |> "2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "x")
         }
 
@@ -413,8 +413,8 @@ spec = do
             m `shouldApplyTo` ("1" |> "2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8" |> "9")
             m `shouldApplyTo` ("2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8" |> "9" |> "10"),
           verifyCount = \m c -> do
-            m `shouldApplyTimes` c `with` ("1" |> "2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8" |> "9")
-            m `shouldApplyTimes` c `with` ("2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8" |> "9" |> "10"),
+            m `shouldApplyTimes` c `to` ("1" |> "2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8" |> "9")
+            m `shouldApplyTimes` c `to` ("2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8" |> "9" |> "10"),
           verifyFailed = \m -> m `shouldApplyTo` ("1" |> "2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8" |> "x")
         }
 
@@ -570,28 +570,28 @@ spec = do
       evaluate $ fun m "a"
       evaluate $ fun m "a"
       evaluate $ fun m "a"
-      m `shouldApplyTimesGreaterThanEqual` 3 `with` "a"
+      m `shouldApplyTimesGreaterThanEqual` 3 `to` "a"
 
     it "less than equal" do
       m <- mock $ "a" |> False
       evaluate $ fun m "a"
       evaluate $ fun m "a"
       evaluate $ fun m "a"
-      m `shouldApplyTimesLessThanEqual` 3 `with` "a"
+      m `shouldApplyTimesLessThanEqual` 3 `to` "a"
 
     it "greater than" do
       m <- mock $ "a" |> True
       evaluate $ fun m "a"
       evaluate $ fun m "a"
       evaluate $ fun m "a"
-      m `shouldApplyTimesGreaterThan` 2 `with` "a"
+      m `shouldApplyTimesGreaterThan` 2 `to` "a"
 
     it "less than" do
       m <- mock $ "a" |> False
       evaluate $ fun m "a"
       evaluate $ fun m "a"
       evaluate $ fun m "a"
-      m `shouldApplyTimesLessThan` 4 `with` "a"
+      m `shouldApplyTimesLessThan` 4 `to` "a"
 
   describe "Monad" do
     it "Return IO Monad." do
@@ -646,7 +646,7 @@ spec = do
                 "function was not applied the expected number of times.\n\
                 \  expected: 2\n\
                 \   but got: 1"
-          m `shouldApplyTimes` (2 :: Int) `with` "A" `shouldThrow` errorCall e
+          m `shouldApplyTimes` (2 :: Int) `to` "A" `shouldThrow` errorCall e
 
         it "verify sequence" do
           m <- mock $ any |> pure @IO False
@@ -739,7 +739,7 @@ spec = do
                 "function `mock function` was not applied the expected number of times.\n\
                 \  expected: 2\n\
                 \   but got: 1"
-          m `shouldApplyTimes` (2 :: Int) `with` "A" `shouldThrow` errorCall e
+          m `shouldApplyTimes` (2 :: Int) `to` "A" `shouldThrow` errorCall e
 
         it "verify sequence" do
           m <- namedMock "mock function" $ any |> pure @IO ()

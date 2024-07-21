@@ -2,7 +2,8 @@
 module Test.MockCat.ExampleSpec (spec) where
 
 import Test.Hspec
-import Test.MockCat.Mock
+import Test.MockCat
+import Prelude hiding (any)
 
 spec :: Spec
 spec = do
@@ -23,3 +24,17 @@ spec = do
   it "stub function" do
     f <- mockFun $ "value" |> True
     f "value" `shouldBe` True
+  
+  it "verify to applied times" do
+    m <- mock $ "value" |> True
+    print $ fun m "value"
+    print $ fun m "value"
+    m `shouldApplyTimes` (2 :: Int) `to` "value" 
+
+  it "verify order of apply" do
+    m <- mock $ any |> True |> ()
+    print $ fun m "a" True
+    print $ fun m "b" True
+    m `shouldApplyInOrder` ["a" |> True, "b" |> True]
+
+
