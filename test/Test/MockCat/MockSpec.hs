@@ -17,7 +17,7 @@ import Test.Hspec
 import Test.MockCat.Mock
   ( any,
     expectByExpr,
-    fun,
+    stubFn,
     shouldApplyInOrder,
     shouldApplyInPartialOrder,
     shouldApplyTimes,
@@ -26,9 +26,9 @@ import Test.MockCat.Mock
     shouldApplyTimesLessThan,
     shouldApplyTimesLessThanEqual,
     shouldApplyTo,
-    mock,
-    mockFun,
-    namedMock,
+    createMock,
+    createStubFn,
+    createNamedMock,
     to,
     (|>)
   )
@@ -39,51 +39,51 @@ spec = do
   describe "Test of Mock" do
     describe "combination test" do
       it "arity = 1" do
-        f <- mockFun $ True |> False
+        f <- createStubFn $ True |> False
         f True `shouldBe` False
 
       it "arity = 2" do
-        f <- mockFun $ True |> False |> True 
+        f <- createStubFn $ True |> False |> True 
         f True False `shouldBe` True
 
       it "arity = 3" do
-        f <- mockFun $ True |> "False" |> True |> "False"
+        f <- createStubFn $ True |> "False" |> True |> "False"
         f True "False" True `shouldBe` "False"
 
       it "arity = 4" do
-        f <- mockFun $ True |> "False" |> True |> "False" |> True
+        f <- createStubFn $ True |> "False" |> True |> "False" |> True
         f True "False" True "False" `shouldBe` True
 
       it "Param |> a" do
-        f <- mockFun $ any |> False
+        f <- createStubFn $ any |> False
         f True `shouldBe` False
 
       it "Param |> (a |> b)" do
-        f <- mockFun $ any |> False |> True
+        f <- createStubFn $ any |> False |> True
         f True False `shouldBe` True
 
       it "a     |> (Param |> b)" do
-        f <- mockFun $ True |> any |> True
+        f <- createStubFn $ True |> any |> True
         f True False `shouldBe` True
 
       it "Param |> (Param |> a)" do
-        f <- mockFun $ any |> any |> True
+        f <- createStubFn $ any |> any |> True
         f True False `shouldBe` True
 
       it "a     |> (Param |> (Param |> a))" do
-        f <- mockFun $ "any" |> any |> any |> True
+        f <- createStubFn $ "any" |> any |> any |> True
         f "any" "any" "any" `shouldBe` True
 
       it "param |> (Param |> (Param |> a))" do
-        f <- mockFun $ any |> any |> any |> True
+        f <- createStubFn $ any |> any |> any |> True
         f "any" "any" "any" `shouldBe` True
 
     mockTest
       Fixture
         { name = "arity = 1",
-          create = mock $ "a" |> False,
-          execute = (`fun` "a"),
-          executeFailed = Just (`fun` "x"),
+          create = createMock $ "a" |> False,
+          execute = (`stubFn` "a"),
+          executeFailed = Just (`stubFn` "x"),
           expected = False,
           verifyMock = (`shouldApplyTo` "a"),
           verifyFailed = (`shouldApplyTo` "2"),
@@ -93,9 +93,9 @@ spec = do
     mockTest
       Fixture
         { name = "arity = 2",
-          create = mock $ "a" |> "b" |> True,
-          execute = \m -> fun m "a" "b",
-          executeFailed = Just (\m -> fun m "a" "x"),
+          create = createMock $ "a" |> "b" |> True,
+          execute = \m -> stubFn m "a" "b",
+          executeFailed = Just (\m -> stubFn m "a" "x"),
           expected = True,
           verifyMock = \m -> shouldApplyTo m $ "a" |> "b",
           verifyFailed = \m -> shouldApplyTo m $ "2" |> "b",
@@ -105,9 +105,9 @@ spec = do
     mockTest
       Fixture
         { name = "arity = 3",
-          create = mock $ "a" |> "b" |> "c" |> False,
-          execute = \m -> fun m "a" "b" "c",
-          executeFailed = Just (\m -> fun m "a" "b" "x"),
+          create = createMock $ "a" |> "b" |> "c" |> False,
+          execute = \m -> stubFn m "a" "b" "c",
+          executeFailed = Just (\m -> stubFn m "a" "b" "x"),
           expected = False,
           verifyMock = \m -> shouldApplyTo m $ "a" |> "b" |> "c",
           verifyFailed = \m -> shouldApplyTo m $ "a" |> "b" |> "d",
@@ -117,9 +117,9 @@ spec = do
     mockTest
       Fixture
         { name = "arity = 4",
-          create = mock $ "a" |> "b" |> "c" |> "d" |> True,
-          execute = \m -> fun m "a" "b" "c" "d",
-          executeFailed = Just (\m -> fun m "a" "b" "c" "x"),
+          create = createMock $ "a" |> "b" |> "c" |> "d" |> True,
+          execute = \m -> stubFn m "a" "b" "c" "d",
+          executeFailed = Just (\m -> stubFn m "a" "b" "c" "x"),
           expected = True,
           verifyMock = \m -> shouldApplyTo m $ "a" |> "b" |> "c" |> "d",
           verifyFailed = \m -> shouldApplyTo m $ "a" |> "b" |> "c" |> "x",
@@ -129,9 +129,9 @@ spec = do
     mockTest
       Fixture
         { name = "arity = 5",
-          create = mock $ "a" |> "b" |> "c" |> "d" |> "e" |> False,
-          execute = \m -> fun m "a" "b" "c" "d" "e",
-          executeFailed = Just (\m -> fun m "a" "b" "c" "d" "x"),
+          create = createMock $ "a" |> "b" |> "c" |> "d" |> "e" |> False,
+          execute = \m -> stubFn m "a" "b" "c" "d" "e",
+          executeFailed = Just (\m -> stubFn m "a" "b" "c" "d" "x"),
           expected = False,
           verifyMock = \m -> shouldApplyTo m $ "a" |> "b" |> "c" |> "d" |> "e",
           verifyFailed = \m -> shouldApplyTo m $ "a" |> "b" |> "c" |> "d" |> "x",
@@ -141,9 +141,9 @@ spec = do
     mockTest
       Fixture
         { name = "arity = 6",
-          create = mock $ "a" |> "b" |> "c" |> "d" |> "e" |> "f" |> True,
-          execute = \m -> fun m "a" "b" "c" "d" "e" "f",
-          executeFailed = Just (\m -> fun m "a" "b" "c" "d" "e" "x"),
+          create = createMock $ "a" |> "b" |> "c" |> "d" |> "e" |> "f" |> True,
+          execute = \m -> stubFn m "a" "b" "c" "d" "e" "f",
+          executeFailed = Just (\m -> stubFn m "a" "b" "c" "d" "e" "x"),
           expected = True,
           verifyMock = \m -> shouldApplyTo m $ "a" |> "b" |> "c" |> "d" |> "e" |> "f",
           verifyFailed = \m -> shouldApplyTo m $ "a" |> "b" |> "c" |> "d" |> "e" |> "x",
@@ -153,9 +153,9 @@ spec = do
     mockTest
       Fixture
         { name = "arity = 7",
-          create = mock $ "a" |> "b" |> "c" |> "d" |> "e" |> "f" |> "g" |> False,
-          execute = \m -> fun m "a" "b" "c" "d" "e" "f" "g",
-          executeFailed = Just (\m -> fun m "a" "b" "c" "d" "e" "f" "x"),
+          create = createMock $ "a" |> "b" |> "c" |> "d" |> "e" |> "f" |> "g" |> False,
+          execute = \m -> stubFn m "a" "b" "c" "d" "e" "f" "g",
+          executeFailed = Just (\m -> stubFn m "a" "b" "c" "d" "e" "f" "x"),
           expected = False,
           verifyMock = \m -> shouldApplyTo m $ "a" |> "b" |> "c" |> "d" |> "e" |> "f" |> "g",
           verifyFailed = \m -> shouldApplyTo m $ "a" |> "b" |> "c" |> "d" |> "e" |> "f" |> "y",
@@ -165,9 +165,9 @@ spec = do
     mockTest
       Fixture
         { name = "arity = 8",
-          create = mock $ "a" |> "b" |> "c" |> "d" |> "e" |> "f" |> "g" |> "h" |> False,
-          execute = \m -> fun m "a" "b" "c" "d" "e" "f" "g" "h",
-          executeFailed = Just (\m -> fun m "a" "b" "c" "d" "e" "f" "g" "x"),
+          create = createMock $ "a" |> "b" |> "c" |> "d" |> "e" |> "f" |> "g" |> "h" |> False,
+          execute = \m -> stubFn m "a" "b" "c" "d" "e" "f" "g" "h",
+          executeFailed = Just (\m -> stubFn m "a" "b" "c" "d" "e" "f" "g" "x"),
           expected = False,
           verifyMock = \m -> shouldApplyTo m $ "a" |> "b" |> "c" |> "d" |> "e" |> "f" |> "g" |> "h",
           verifyFailed = \m -> shouldApplyTo m $ "a" |> "b" |> "c" |> "d" |> "e" |> "f" |> "g" |> "x",
@@ -177,9 +177,9 @@ spec = do
     mockTest
       Fixture
         { name = "arity = 9",
-          create = mock $ "a" |> "b" |> "c" |> "d" |> "e" |> "f" |> "g" |> "h" |> "i" |> False,
-          execute = \m -> fun m "a" "b" "c" "d" "e" "f" "g" "h" "i",
-          executeFailed = Just (\m -> fun m "a" "b" "c" "d" "e" "f" "g" "h" "x"),
+          create = createMock $ "a" |> "b" |> "c" |> "d" |> "e" |> "f" |> "g" |> "h" |> "i" |> False,
+          execute = \m -> stubFn m "a" "b" "c" "d" "e" "f" "g" "h" "i",
+          executeFailed = Just (\m -> stubFn m "a" "b" "c" "d" "e" "f" "g" "h" "x"),
           expected = False,
           verifyMock = \m -> shouldApplyTo m $ "a" |> "b" |> "c" |> "d" |> "e" |> "f" |> "g" |> "h" |> "i",
           verifyFailed = \m -> shouldApplyTo m $ "a" |> "b" |> "c" |> "d" |> "e" |> "f" |> "g" |> "h" |> "x",
@@ -191,7 +191,7 @@ spec = do
       Fixture
         { name = "arity = 1",
           create =
-            mock
+            createMock
               [ "1" |> True,
                 "2" |> False
               ],
@@ -199,8 +199,8 @@ spec = do
             [ True,
               False
             ],
-          execute = \m -> [fun m "1", fun m "2"],
-          executeFailed = Just \m -> [fun m "3"],
+          execute = \m -> [stubFn m "1", stubFn m "2"],
+          executeFailed = Just \m -> [stubFn m "3"],
           verifyMock = \m -> do
             m `shouldApplyTo` "1"
             m `shouldApplyTo` "2",
@@ -214,7 +214,7 @@ spec = do
       Fixture
         { name = "arity = 2",
           create =
-            mock
+            createMock
               [ "1" |> "2" |> True,
                 "2" |> "3" |> False
               ],
@@ -223,10 +223,10 @@ spec = do
               False
             ],
           execute = \m ->
-            [ fun m "1" "2",
-              fun m "2" "3"
+            [ stubFn m "1" "2",
+              stubFn m "2" "3"
             ],
-          executeFailed = Just \m -> [fun m "1" "x"],
+          executeFailed = Just \m -> [stubFn m "1" "x"],
           verifyMock = \m -> do
             m `shouldApplyTo` ("1" |> "2")
             m `shouldApplyTo` ("2" |> "3"),
@@ -240,7 +240,7 @@ spec = do
       Fixture
         { name = "arity = 3",
           create =
-            mock
+            createMock
               [ "1" |> "2" |> "3" |> True,
                 "2" |> "3" |> "4" |> False
               ],
@@ -249,10 +249,10 @@ spec = do
               False
             ],
           execute = \m ->
-            [ fun m "1" "2" "3",
-              fun m "2" "3" "4"
+            [ stubFn m "1" "2" "3",
+              stubFn m "2" "3" "4"
             ],
-          executeFailed = Just \m -> [fun m "1" "2" "x"],
+          executeFailed = Just \m -> [stubFn m "1" "2" "x"],
           verifyMock = \m -> do
             m `shouldApplyTo` ("1" |> "2" |> "3")
             m `shouldApplyTo` ("2" |> "3" |> "4"),
@@ -266,7 +266,7 @@ spec = do
       Fixture
         { name = "arity = 4",
           create =
-            mock
+            createMock
               [ "1" |> "2" |> "3" |> "4" |> True,
                 "2" |> "3" |> "4" |> "5" |> False
               ],
@@ -275,10 +275,10 @@ spec = do
               False
             ],
           execute = \m ->
-            [ fun m "1" "2" "3" "4",
-              fun m "2" "3" "4" "5"
+            [ stubFn m "1" "2" "3" "4",
+              stubFn m "2" "3" "4" "5"
             ],
-          executeFailed = Just \m -> [fun m "1" "2" "3" "x"],
+          executeFailed = Just \m -> [stubFn m "1" "2" "3" "x"],
           verifyMock = \m -> do
             m `shouldApplyTo` ("1" |> "2" |> "3" |> "4")
             m `shouldApplyTo` ("2" |> "3" |> "4" |> "5"),
@@ -292,7 +292,7 @@ spec = do
       Fixture
         { name = "arity = 5",
           create =
-            mock
+            createMock
               [ "1" |> "2" |> "3" |> "4" |> "5" |> True,
                 "2" |> "3" |> "4" |> "5" |> "6" |> False
               ],
@@ -301,10 +301,10 @@ spec = do
               False
             ],
           execute = \m ->
-            [ fun m "1" "2" "3" "4" "5",
-              fun m "2" "3" "4" "5" "6"
+            [ stubFn m "1" "2" "3" "4" "5",
+              stubFn m "2" "3" "4" "5" "6"
             ],
-          executeFailed = Just \m -> [fun m "1" "2" "3" "4" "x"],
+          executeFailed = Just \m -> [stubFn m "1" "2" "3" "4" "x"],
           verifyMock = \m -> do
             m `shouldApplyTo` ("1" |> "2" |> "3" |> "4" |> "5")
             m `shouldApplyTo` ("2" |> "3" |> "4" |> "5" |> "6"),
@@ -318,7 +318,7 @@ spec = do
       Fixture
         { name = "arity = 6",
           create =
-            mock
+            createMock
               [ "1" |> "2" |> "3" |> "4" |> "5" |> "6" |> True,
                 "2" |> "3" |> "4" |> "5" |> "6" |> "7" |> False
               ],
@@ -327,10 +327,10 @@ spec = do
               False
             ],
           execute = \m ->
-            [ fun m "1" "2" "3" "4" "5" "6",
-              fun m "2" "3" "4" "5" "6" "7"
+            [ stubFn m "1" "2" "3" "4" "5" "6",
+              stubFn m "2" "3" "4" "5" "6" "7"
             ],
-          executeFailed = Just \m -> [fun m "1" "2" "3" "4" "5" "x"],
+          executeFailed = Just \m -> [stubFn m "1" "2" "3" "4" "5" "x"],
           verifyMock = \m -> do
             m `shouldApplyTo` ("1" |> "2" |> "3" |> "4" |> "5" |> "6")
             m `shouldApplyTo` ("2" |> "3" |> "4" |> "5" |> "6" |> "7"),
@@ -344,7 +344,7 @@ spec = do
       Fixture
         { name = "arity = 7",
           create =
-            mock
+            createMock
               [ "1" |> "2" |> "3" |> "4" |> "5" |> "6" |> "7" |> True,
                 "2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8" |> False
               ],
@@ -353,10 +353,10 @@ spec = do
               False
             ],
           execute = \m ->
-            [ fun m "1" "2" "3" "4" "5" "6" "7",
-              fun m "2" "3" "4" "5" "6" "7" "8"
+            [ stubFn m "1" "2" "3" "4" "5" "6" "7",
+              stubFn m "2" "3" "4" "5" "6" "7" "8"
             ],
-          executeFailed = Just \m -> [fun m "1" "2" "3" "4" "5" "6" "x"],
+          executeFailed = Just \m -> [stubFn m "1" "2" "3" "4" "5" "6" "x"],
           verifyMock = \m -> do
             m `shouldApplyTo` ("1" |> "2" |> "3" |> "4" |> "5" |> "6" |> "7")
             m `shouldApplyTo` ("2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8"),
@@ -370,7 +370,7 @@ spec = do
       Fixture
         { name = "arity = 8",
           create =
-            mock
+            createMock
               [ "1" |> "2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8" |> True,
                 "2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8" |> "9" |> False
               ],
@@ -379,10 +379,10 @@ spec = do
               False
             ],
           execute = \m ->
-            [ fun m "1" "2" "3" "4" "5" "6" "7" "8",
-              fun m "2" "3" "4" "5" "6" "7" "8" "9"
+            [ stubFn m "1" "2" "3" "4" "5" "6" "7" "8",
+              stubFn m "2" "3" "4" "5" "6" "7" "8" "9"
             ],
-          executeFailed = Just \m -> [fun m "1" "2" "3" "4" "5" "6" "7" "x"],
+          executeFailed = Just \m -> [stubFn m "1" "2" "3" "4" "5" "6" "7" "x"],
           verifyMock = \m -> do
             m `shouldApplyTo` ("1" |> "2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8")
             m `shouldApplyTo` ("2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8" |> "9"),
@@ -396,7 +396,7 @@ spec = do
       Fixture
         { name = "arity = 9",
           create =
-            mock
+            createMock
               [ "1" |> "2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8" |> "9" |> True,
                 "2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8" |> "9" |> "10" |> False
               ],
@@ -405,10 +405,10 @@ spec = do
               False
             ],
           execute = \m ->
-            [ fun m "1" "2" "3" "4" "5" "6" "7" "8" "9",
-              fun m "2" "3" "4" "5" "6" "7" "8" "9" "10"
+            [ stubFn m "1" "2" "3" "4" "5" "6" "7" "8" "9",
+              stubFn m "2" "3" "4" "5" "6" "7" "8" "9" "10"
             ],
-          executeFailed = Just \m -> [fun m "1" "2" "3" "4" "5" "6" "7" "8" "x"],
+          executeFailed = Just \m -> [stubFn m "1" "2" "3" "4" "5" "6" "7" "8" "x"],
           verifyMock = \m -> do
             m `shouldApplyTo` ("1" |> "2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8" |> "9")
             m `shouldApplyTo` ("2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8" |> "9" |> "10"),
@@ -423,11 +423,11 @@ spec = do
       mockOrderTest
         VerifyOrderFixture
           { name = "arity = 1",
-            create = mock $ any |> (),
+            create = createMock $ any |> (),
             execute = \m -> do
-              evaluate $ fun m "a"
-              evaluate $ fun m "b"
-              evaluate $ fun m "c",
+              evaluate $ stubFn m "a"
+              evaluate $ stubFn m "b"
+              evaluate $ stubFn m "c",
             verifyMock = \m ->
               m
                 `shouldApplyInOrder` [ "a",
@@ -445,11 +445,11 @@ spec = do
       mockOrderTest
         VerifyOrderFixture
           { name = "arity = 9",
-            create = mock $ any |> any |> any |> any |> any |> any |> any |> any |> (),
+            create = createMock $ any |> any |> any |> any |> any |> any |> any |> any |> (),
             execute = \m -> do
-              evaluate $ fun m "1" "2" "3" "4" "5" "6" "7" "8"
-              evaluate $ fun m "2" "3" "4" "5" "6" "7" "8" "9"
-              evaluate $ fun m "3" "4" "5" "6" "7" "8" "9" "0",
+              evaluate $ stubFn m "1" "2" "3" "4" "5" "6" "7" "8"
+              evaluate $ stubFn m "2" "3" "4" "5" "6" "7" "8" "9"
+              evaluate $ stubFn m "3" "4" "5" "6" "7" "8" "9" "0",
             verifyMock = \m ->
               m
                 `shouldApplyInOrder` [ "1" |> "2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8",
@@ -467,9 +467,9 @@ spec = do
       mockOrderTest
         VerifyOrderFixture
           { name = "number of function calls doesn't match the number of params.",
-            create = mock $ any |> (),
+            create = createMock $ any |> (),
             execute = \m -> do
-              evaluate $ fun m "a"
+              evaluate $ stubFn m "a"
               pure (),
             verifyMock = \m ->
               m
@@ -486,11 +486,11 @@ spec = do
       mockOrderTest
         VerifyOrderFixture
           { name = "arity = 1",
-            create = mock $ any |> (),
+            create = createMock $ any |> (),
             execute = \m -> do
-              evaluate $ fun m "a"
-              evaluate $ fun m "b"
-              evaluate $ fun m "c"
+              evaluate $ stubFn m "a"
+              evaluate $ stubFn m "b"
+              evaluate $ stubFn m "c"
               pure (),
             verifyMock = \m ->
               m
@@ -507,11 +507,11 @@ spec = do
       mockOrderTest
         VerifyOrderFixture
           { name = "arity = 9",
-            create = mock $ any |> any |> any |> any |> any |> any |> any |> any |> any |> (),
+            create = createMock $ any |> any |> any |> any |> any |> any |> any |> any |> any |> (),
             execute = \m -> do
-              evaluate $ fun m "a" "" "" "" "" "" "" "" ""
-              evaluate $ fun m "b" "" "" "" "" "" "" "" ""
-              evaluate $ fun m "c" "" "" "" "" "" "" "" ""
+              evaluate $ stubFn m "a" "" "" "" "" "" "" "" ""
+              evaluate $ stubFn m "b" "" "" "" "" "" "" "" ""
+              evaluate $ stubFn m "c" "" "" "" "" "" "" "" ""
               pure (),
             verifyMock = \m ->
               m
@@ -528,11 +528,11 @@ spec = do
       mockOrderTest
         VerifyOrderFixture
           { name = "Uncalled value specified.",
-            create = mock $ any |> (),
+            create = createMock $ any |> (),
             execute = \m -> do
-              evaluate $ fun m "a"
-              evaluate $ fun m "b"
-              evaluate $ fun m "c"
+              evaluate $ stubFn m "a"
+              evaluate $ stubFn m "b"
+              evaluate $ stubFn m "c"
               pure (),
             verifyMock = \m ->
               m
@@ -549,9 +549,9 @@ spec = do
       mockOrderTest
         VerifyOrderFixture
           { name = "number of function calls doesn't match the number of params",
-            create = mock $ any |> (),
+            create = createMock $ any |> (),
             execute = \m -> do
-              evaluate $ fun m "a"
+              evaluate $ stubFn m "a"
               pure (),
             verifyMock = \m ->
               m
@@ -566,38 +566,38 @@ spec = do
 
   describe "The number of times applied can also be verified by specifying conditions." do
     it "greater than equal" do
-      m <- mock $ "a" |> True
-      evaluate $ fun m "a"
-      evaluate $ fun m "a"
-      evaluate $ fun m "a"
+      m <- createMock $ "a" |> True
+      evaluate $ stubFn m "a"
+      evaluate $ stubFn m "a"
+      evaluate $ stubFn m "a"
       m `shouldApplyTimesGreaterThanEqual` 3 `to` "a"
 
     it "less than equal" do
-      m <- mock $ "a" |> False
-      evaluate $ fun m "a"
-      evaluate $ fun m "a"
-      evaluate $ fun m "a"
+      m <- createMock $ "a" |> False
+      evaluate $ stubFn m "a"
+      evaluate $ stubFn m "a"
+      evaluate $ stubFn m "a"
       m `shouldApplyTimesLessThanEqual` 3 `to` "a"
 
     it "greater than" do
-      m <- mock $ "a" |> True
-      evaluate $ fun m "a"
-      evaluate $ fun m "a"
-      evaluate $ fun m "a"
+      m <- createMock $ "a" |> True
+      evaluate $ stubFn m "a"
+      evaluate $ stubFn m "a"
+      evaluate $ stubFn m "a"
       m `shouldApplyTimesGreaterThan` 2 `to` "a"
 
     it "less than" do
-      m <- mock $ "a" |> False
-      evaluate $ fun m "a"
-      evaluate $ fun m "a"
-      evaluate $ fun m "a"
+      m <- createMock $ "a" |> False
+      evaluate $ stubFn m "a"
+      evaluate $ stubFn m "a"
+      evaluate $ stubFn m "a"
       m `shouldApplyTimesLessThan` 4 `to` "a"
 
   describe "Monad" do
     it "Return IO Monad." do
-      m <- mock $ "Article Id" |> pure @IO "Article Title"
+      m <- createMock $ "Article Id" |> pure @IO "Article Title"
 
-      result <- fun m "Article Id"
+      result <- stubFn m "Article Id"
 
       result `shouldBe` "Article Title"
 
@@ -607,8 +607,8 @@ spec = do
     describe "anonymous mock" do
       describe "apply" do
         it "simple mock" do
-          m <- mock $ "a" |> pure @IO True
-          fun m "b"
+          m <- createMock $ "a" |> pure @IO True
+          stubFn m "b"
             `shouldThrow` errorCall
               "expected arguments were not applied to the function.\n\
               \  expected: \"a\"\n\
@@ -616,11 +616,11 @@ spec = do
 
         it "multi mock" do
           m <-
-            mock
+            createMock
               [ "aaa" |> (100 :: Int) |> pure @IO True,
                 "bbb" |> (200 :: Int) |> pure @IO False
               ]
-          fun m "aaa" 200
+          stubFn m "aaa" 200
             `shouldThrow` errorCall
               "expected arguments were not applied to the function.\n\
               \  expected one of the following:\n\
@@ -631,8 +631,8 @@ spec = do
 
       describe "verify" do
         it "simple mock verify" do
-          m <- mock $ any |> pure @IO True
-          evaluate $ fun m "A"
+          m <- createMock $ any |> pure @IO True
+          evaluate $ stubFn m "A"
           m `shouldApplyTo` "X"
             `shouldThrow` errorCall
               "expected arguments were not applied to the function.\n\
@@ -640,8 +640,8 @@ spec = do
               \   but got: \"A\""
 
         it "count" do
-          m <- mock $ any |> pure @IO True
-          evaluate $ fun m "A"
+          m <- createMock $ any |> pure @IO True
+          evaluate $ stubFn m "A"
           let e =
                 "function was not applied the expected number of times.\n\
                 \  expected: 2\n\
@@ -649,10 +649,10 @@ spec = do
           m `shouldApplyTimes` (2 :: Int) `to` "A" `shouldThrow` errorCall e
 
         it "verify sequence" do
-          m <- mock $ any |> pure @IO False
-          evaluate $ fun m "B"
-          evaluate $ fun m "C"
-          evaluate $ fun m "A"
+          m <- createMock $ any |> pure @IO False
+          evaluate $ stubFn m "B"
+          evaluate $ stubFn m "C"
+          evaluate $ stubFn m "A"
           let e =
                 "function was not applied with expected order.\n\
                 \  expected 1st call: \"A\"\n\
@@ -664,9 +664,9 @@ spec = do
           m `shouldApplyInOrder` ["A", "B", "C"] `shouldThrow` errorCall e
 
         it "verify sequence (count mismatch)" do
-          m <- mock $ any |> True
-          evaluate $ fun m "B"
-          evaluate $ fun m "C"
+          m <- createMock $ any |> True
+          evaluate $ stubFn m "B"
+          evaluate $ stubFn m "C"
           let e =
                 "function was not applied the expected number of times.\n\
                 \  expected: 3\n\
@@ -674,9 +674,9 @@ spec = do
           m `shouldApplyInOrder` ["A", "B", "C"] `shouldThrow` errorCall e
 
         it "verify partially sequence" do
-          m <- mock $ any |> True
-          evaluate $ fun m "B"
-          evaluate $ fun m "A"
+          m <- createMock $ any |> True
+          evaluate $ stubFn m "B"
+          evaluate $ stubFn m "A"
           let e =
                 "function was not applied with expected order.\n\
                 \  expected order:\n\
@@ -688,8 +688,8 @@ spec = do
           m `shouldApplyInPartialOrder` ["A", "C"] `shouldThrow` errorCall e
 
         it "verify partially sequence (count mismatch)" do
-          m <- mock $ any |> False
-          evaluate $ fun m "B"
+          m <- createMock $ any |> False
+          evaluate $ stubFn m "B"
           let e =
                 "function was not applied the expected number of times.\n\
                 \  expected: 2\n\
@@ -699,16 +699,16 @@ spec = do
     describe "named mock" do
       describe "aply" do
         it "simple mock" do
-          m <- namedMock "mock function" $ "a" |> pure @IO ()
+          m <- createNamedMock "mock function" $ "a" |> pure @IO ()
           let e =
                 "expected arguments were not applied to the function `mock function`.\n\
                 \  expected: \"a\"\n\
                 \   but got: \"b\""
-          fun m "b" `shouldThrow` errorCall e
+          stubFn m "b" `shouldThrow` errorCall e
 
         it "multi mock" do
           m <-
-            namedMock
+            createNamedMock
               "mock function"
               [ "aaa" |> True |> pure @IO True,
                 "bbb" |> False |> pure @IO False
@@ -720,12 +720,12 @@ spec = do
                 \    \"bbb\",False\n\
                 \  but got:\n\
                 \    \"aaa\",False"
-          fun m "aaa" False `shouldThrow` errorCall e
+          stubFn m "aaa" False `shouldThrow` errorCall e
 
       describe "verify" do
         it "simple mock verify" do
-          m <- namedMock "mock function" $ any |> pure @IO ()
-          evaluate $ fun m "A"
+          m <- createNamedMock "mock function" $ any |> pure @IO ()
+          evaluate $ stubFn m "A"
           let e =
                 "expected arguments were not applied to the function `mock function`.\n\
                 \  expected: \"X\"\n\
@@ -733,8 +733,8 @@ spec = do
           m `shouldApplyTo` "X" `shouldThrow` errorCall e
 
         it "count" do
-          m <- namedMock "mock function" $ any |> pure @IO ()
-          evaluate $ fun m "A"
+          m <- createNamedMock "mock function" $ any |> pure @IO ()
+          evaluate $ stubFn m "A"
           let e =
                 "function `mock function` was not applied the expected number of times.\n\
                 \  expected: 2\n\
@@ -742,10 +742,10 @@ spec = do
           m `shouldApplyTimes` (2 :: Int) `to` "A" `shouldThrow` errorCall e
 
         it "verify sequence" do
-          m <- namedMock "mock function" $ any |> pure @IO ()
-          evaluate $ fun m "B"
-          evaluate $ fun m "C"
-          evaluate $ fun m "A"
+          m <- createNamedMock "mock function" $ any |> pure @IO ()
+          evaluate $ stubFn m "B"
+          evaluate $ stubFn m "C"
+          evaluate $ stubFn m "A"
           let e =
                 "function `mock function` was not applied with expected order.\n\
                 \  expected 1st call: \"A\"\n\
@@ -757,19 +757,19 @@ spec = do
           m `shouldApplyInOrder` ["A", "B", "C"] `shouldThrow` errorCall e
 
         it "verify sequence (count mismatch)" do
-          m <- namedMock "mockFunc" $ any |> pure @IO ()
-          evaluate $ fun m "B"
-          evaluate $ fun m "C"
+          m <- createNamedMock "createStubFnc" $ any |> pure @IO ()
+          evaluate $ stubFn m "B"
+          evaluate $ stubFn m "C"
           let e =
-                "function `mockFunc` was not applied the expected number of times.\n\
+                "function `createStubFnc` was not applied the expected number of times.\n\
                 \  expected: 3\n\
                 \   but got: 2"
           m `shouldApplyInOrder` ["A", "B", "C"] `shouldThrow` errorCall e
 
         it "verify partially sequence" do
-          m <- namedMock "mock function" $ any |> pure @IO ()
-          evaluate $ fun m "B"
-          evaluate $ fun m "A"
+          m <- createNamedMock "mock function" $ any |> pure @IO ()
+          evaluate $ stubFn m "B"
+          evaluate $ stubFn m "A"
           let e =
                 "function `mock function` was not applied with expected order.\n\
                 \  expected order:\n\
@@ -781,17 +781,17 @@ spec = do
           m `shouldApplyInPartialOrder` ["A", "C"] `shouldThrow` errorCall e
 
         it "verify partially sequence (count mismatch)" do
-          m <- namedMock "mockFunc" $ any |> pure @IO ()
-          evaluate $ fun m "B"
+          m <- createNamedMock "createStubFnc" $ any |> pure @IO ()
+          evaluate $ stubFn m "B"
           let e =
-                "function `mockFunc` was not applied the expected number of times.\n\
+                "function `createStubFnc` was not applied the expected number of times.\n\
                 \  expected: 2\n\
                 \   but got: 1"
           m `shouldApplyInPartialOrder` ["A", "C"] `shouldThrow` errorCall e
 
   describe "use expectation" do
     it "expectByExpr" do
-      f <- mockFun $ $(expectByExpr [|\x -> x == "y" || x == "z"|]) |> True
+      f <- createStubFn $ $(expectByExpr [|\x -> x == "y" || x == "z"|]) |> True
       f "y" `shouldBe` True
 
 data Fixture mock r = Fixture

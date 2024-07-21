@@ -12,7 +12,7 @@
 
 -- | This module is parameter of mock function.
 --
--- This parameter can be used when make a mock and when verify the mock.
+-- This parameter can be used when create a mock and when verify the mock.
 module Test.MockCat.Param
   ( Param,
     value,
