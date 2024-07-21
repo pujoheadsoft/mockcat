@@ -18,15 +18,12 @@
 module Test.MockCat.Mock
   ( mock,
     fun,
-    verify,
     shouldApplyTo,
     verifyCount,
     shouldApplyTimes,
     with,
     shouldApplyInOrder,
-    verifySequence,
     shouldApplyInPartialOrder,
-    verifyPartiallySequence,
     shouldApplyTimesGreaterThanEqual,
     shouldApplyTimesLessThanEqual,
     shouldApplyTimesGreaterThan,
@@ -423,13 +420,14 @@ data VerifyMatchType a = MatchAny a | MatchAll a
 
 -- | Class for verify mock function.
 class Verify params input where
-  verify :: MonadIO m => Mock fun params -> input -> m ()
+  -- | Verifies that the function has been applied to the expected arguments.
+  shouldApplyTo :: MonadIO m => Mock fun params -> input -> m ()
 
 instance (Eq a, Show a) => Verify (Param a) a where
-  verify v a = _verify v (MatchAny (param a))
+  shouldApplyTo v a = _verify v (MatchAny (param a))
 
 instance (Eq a, Show a) => Verify a a where
-  verify v a = _verify v (MatchAny a)
+  shouldApplyTo v a = _verify v (MatchAny a)
 
 _verify :: (Eq params, Show params, MonadIO m) => Mock fun params -> VerifyMatchType params -> m ()
 _verify (Mock name _ (Verifier ref)) matchType = do
@@ -468,15 +466,8 @@ formatCalledParamsList calledParams
 _replace :: Show a => String -> a -> String
 _replace r s = unpack $ replace (pack r) (pack "") (pack (show s))
 
-shouldApplyTo ::
-  (Verify params input) =>
-  Mock fun params ->
-  input ->
-  IO ()
-shouldApplyTo = verify
-
 class VerifyCount countType params a where
-  verifyCount :: (MonadIO m, Eq params) => Mock fun params -> countType -> a -> m ()
+  shouldApplyTimes :: (MonadIO m, Eq params) => Mock fun params -> countType -> a -> m ()
 
 data CountVerifyMethod
   = Equal Int
@@ -500,19 +491,19 @@ compareCount (GreaterThanEqual e) a = a >= e
 compareCount (GreaterThan e) a = a > e
 
 instance VerifyCount CountVerifyMethod (Param a) a where
-  verifyCount v count a = _verifyCount v (param a) count
+  shouldApplyTimes v count a = verifyCount v (param a) count
 
 instance VerifyCount Int (Param a) a where
-  verifyCount v count a = _verifyCount v (param a) (Equal count)
+  shouldApplyTimes v count a = verifyCount v (param a) (Equal count)
 
 instance {-# OVERLAPPABLE #-} VerifyCount CountVerifyMethod a a where
-  verifyCount v count a = _verifyCount v a count
+  shouldApplyTimes v count a = verifyCount v a count
 
 instance {-# OVERLAPPABLE #-} VerifyCount Int a a where
-  verifyCount v count a = _verifyCount v a (Equal count)
+  shouldApplyTimes v count a = verifyCount v a (Equal count)
 
-_verifyCount :: (MonadIO m, Eq params) => Mock fun params -> params -> CountVerifyMethod -> m ()
-_verifyCount (Mock name _ (Verifier ref)) v method = do
+verifyCount :: (MonadIO m, Eq params) => Mock fun params -> params -> CountVerifyMethod -> m ()
+verifyCount (Mock name _ (Verifier ref)) v method = do
   calledParamsList <- liftIO $ readIORef ref
   let callCount = length (filter (v ==) calledParamsList)
   if compareCount method callCount
@@ -526,36 +517,26 @@ _verifyCount (Mock name _ (Verifier ref)) v method = do
             "   but got: " <> show callCount
           ]
 
-shouldApplyTimes ::
-  VerifyCount countType params a =>
-  Eq params =>
-  MonadIO m =>
-  Mock fun params ->
-  countType ->
-  a ->
-  m ()
-shouldApplyTimes = verifyCount
-
 with :: (a -> IO ()) -> a -> IO ()
 with f = f
 
 class VerifyOrder params input where
-  verifySequence :: MonadIO m => Mock fun params -> [input] -> m ()
-  verifyPartiallySequence :: MonadIO m => Mock fun params -> [input] -> m ()
+  shouldApplyInOrder :: MonadIO m => Mock fun params -> [input] -> m ()
+  shouldApplyInPartialOrder :: MonadIO m => Mock fun params -> [input] -> m ()
 
 instance (Eq a, Show a) => VerifyOrder (Param a) a where
-  verifySequence v a = _verifyOrder ExactlySequence v $ param <$> a
-  verifyPartiallySequence v a = _verifyOrder PartiallySequence v $ param <$> a
+  shouldApplyInOrder v a = verifyOrder ExactlySequence v $ param <$> a
+  shouldApplyInPartialOrder v a = verifyOrder PartiallySequence v $ param <$> a
 
 instance {-# OVERLAPPABLE #-} (Eq a, Show a) => VerifyOrder a a where
-  verifySequence = _verifyOrder ExactlySequence
-  verifyPartiallySequence = _verifyOrder PartiallySequence
+  shouldApplyInOrder = verifyOrder ExactlySequence
+  shouldApplyInPartialOrder = verifyOrder PartiallySequence
 
 data VerifyOrderMethod
   = ExactlySequence
   | PartiallySequence
 
-_verifyOrder ::
+verifyOrder ::
   Eq params =>
   Show params =>
   MonadIO m =>
@@ -563,7 +544,7 @@ _verifyOrder ::
   Mock fun params ->
   [params] ->
   m ()
-_verifyOrder method (Mock name _ (Verifier ref)) matchers = do
+verifyOrder method (Mock name _ (Verifier ref)) matchers = do
   calledParamsList <- liftIO $ readIORef ref
   let result = doVerifyOrder method name calledParamsList matchers
   result & maybe (pure ()) (\(VerifyFailed msg) -> errorWithoutStackTrace msg)
@@ -666,22 +647,6 @@ collectUnExpectedOrder calledValues expectedValues =
 
 mapWithIndex :: (Int -> a -> b) -> [a] -> [b]
 mapWithIndex f xs = [f i x | (i, x) <- zip [0 ..] xs]
-
-shouldApplyInOrder ::
-  VerifyOrder params input =>
-  MonadIO m =>
-  Mock fun params ->
-  [input] ->
-  m ()
-shouldApplyInOrder = verifySequence
-
-shouldApplyInPartialOrder ::
-  VerifyOrder params input =>
-  MonadIO m =>
-  Mock fun params ->
-  [input] ->
-  m ()
-shouldApplyInPartialOrder = verifyPartiallySequence
 
 shouldApplyTimesGreaterThanEqual ::
   VerifyCount CountVerifyMethod params a =>
