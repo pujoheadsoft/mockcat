@@ -10,6 +10,9 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
+-- | This module is parameter of mock function.
+--
+-- This parameter can be used when make a mock and when verify the mock.
 module Test.MockCat.Param
   ( Param,
     value,
@@ -85,15 +88,33 @@ instance {-# OVERLAPPABLE #-} (Param a ~ a', Param b ~ b') => ConsGen a b (a' :>
 
 infixr 9 |>
 
+-- | Make a parameter to which any value is expected to apply.ue.
 any :: Param a
 any = unsafeCoerce (ExpectCondition (const True) "any")
 
+-- | Make a conditional parameter. 
+-- 
+-- In applied a mock function, if the argument does not satisfy this condition, an error occurs.
+-- 
+-- In this case, the specified label is included in the error message.
 expect :: (a -> Bool) -> String -> Param a
 expect = ExpectCondition
 
+{- | Create a conditional parameter.
+
+  In applied a mock function, if the argument does not satisfy this condition, an error occurs.
+
+  Unlike @'expect'@, it does not require a label, but the error message is displayed as [some condition].
+-}
 expect_ :: (a -> Bool) -> Param a
 expect_ f = ExpectCondition f "[some condition]"
 
+{- | Create a conditional parameter based on @Q Exp@. 
+
+  In applied a mock function, if the argument does not satisfy this condition, an error is raised.
+
+  The conditional expression is displayed in the error message.
+-}
 expectByExpr :: Q Exp -> Q Exp
 expectByExpr qf = do
   str <- showExp qf
@@ -110,7 +131,9 @@ instance (Eq a, Show a) => NotMatcher a (Param a) where
   notEqual v = ExpectCondition (/= v) ("Not " <> showWithRemoveEscape v)
 
 class LogicalMatcher a b r | a b -> r where
+  -- | For parameter a b, create a new parameter that is expected to match a or b.
   or :: a -> b -> r
+  -- | For parameter a b, make a new parameter that is expected to match both a and b.
   and :: a -> b -> r
 
 instance {-# OVERLAPPING #-} (Eq a, Show a) => LogicalMatcher (Param a) (Param a) (Param a) where
