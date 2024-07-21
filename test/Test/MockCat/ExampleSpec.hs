@@ -1,4 +1,5 @@
 {-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE TypeApplications #-}
 module Test.MockCat.ExampleSpec (spec) where
 
 import Test.Hspec
@@ -16,6 +17,11 @@ spec = do
     f "value" `shouldBe` True
     -- verify
     m `shouldApplyTo` "value"
+
+  it "how to use" do
+    f <- mockFun $ "param1" |> "param2" |> pure @IO ()
+    actual <- f "param1" "param2"
+    actual `shouldBe` ()
   
   it "named mock" do
     m <- namedMock "mock" $ "value" |> True
