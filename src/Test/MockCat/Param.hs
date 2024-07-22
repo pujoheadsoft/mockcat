@@ -10,9 +10,9 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
--- | This module is parameter of mock function.
+-- | This module is a parameter of the mock function.
 --
--- This parameter can be used when create a mock and when verify the mock.
+-- This parameter can be used when creating and verifying the mock.
 module Test.MockCat.Param
   ( Param,
     value,
@@ -88,15 +88,16 @@ instance {-# OVERLAPPABLE #-} (Param a ~ a', Param b ~ b') => ConsGen a b (a' :>
 
 infixr 9 |>
 
--- | Make a parameter to which any value is expected to apply.ue.
+-- | Make a parameter to which any value is expected to apply.
 any :: Param a
 any = unsafeCoerce (ExpectCondition (const True) "any")
 
--- | Make a conditional parameter. 
--- 
--- In applied a mock function, if the argument does not satisfy this condition, an error occurs.
--- 
--- In this case, the specified label is included in the error message.
+{- | Create a conditional parameter.
+
+   When applying a mock function, if the argument does not satisfy this condition, an error occurs.
+
+   In this case, the specified label is included in the error message.
+-}
 expect :: (a -> Bool) -> String -> Param a
 expect = ExpectCondition
 
@@ -111,7 +112,7 @@ expect_ f = ExpectCondition f "[some condition]"
 
 {- | Create a conditional parameter based on @Q Exp@. 
 
-  In applied a mock function, if the argument does not satisfy this condition, an error is raised.
+  In applying a mock function, if the argument does not satisfy this condition, an error is raised.
 
   The conditional expression is displayed in the error message.
 -}
@@ -131,9 +132,9 @@ instance (Eq a, Show a) => NotMatcher a (Param a) where
   notEqual v = ExpectCondition (/= v) ("Not " <> showWithRemoveEscape v)
 
 class LogicalMatcher a b r | a b -> r where
-  -- | For parameter a b, create a new parameter that is expected to match a or b.
+  -- | For parameter a b, create a new parameter expected to match a or b.
   or :: a -> b -> r
-  -- | For parameter a b, make a new parameter that is expected to match both a and b.
+  -- | For parameter a b, make a new parameter expected to match both a and b.
   and :: a -> b -> r
 
 instance {-# OVERLAPPING #-} (Eq a, Show a) => LogicalMatcher (Param a) (Param a) (Param a) where

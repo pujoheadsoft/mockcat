@@ -9,7 +9,7 @@
 
 {- | This module provides bellow functions.
 
-  - Create mocks that can be stub and verify.
+  - Create mocks that can be stubbed and verified.
 
   - Create stub function.
 
@@ -54,7 +54,7 @@ type MockName = String
 newtype Verifier params = Verifier (IORef (AppliedParamsList params))
 
 {- | Create a mock.
-  From the mocks this function, stub functions can be generated and functions can be verified.
+From this mock, you can generate stub functions and verify the functions.
 
   @
   import Test.Hspec
@@ -130,7 +130,7 @@ createNamedStubFun ::
   m fun
 createNamedStubFun name params = stubFn <$> createNamedMock name params
 
--- | Class for make a mock corresponding to the parameter.
+-- | Class for creating a mock corresponding to the parameter.
 class MockBuilder params fun verifyParams | params -> fun, params -> verifyParams where
   -- build a mock
   build :: MonadIO m => Maybe MockName -> params -> m (Mock fun verifyParams)
@@ -425,7 +425,7 @@ enclose e = fmap (\v -> e <> v <> e)
 -- verify
 data VerifyMatchType a = MatchAny a | MatchAll a
 
--- | Class for verify mock function.
+-- | Class for verifying mock function.
 class Verify params input where
   -- | Verifies that the function has been applied to the expected arguments.
   shouldApplyTo :: Mock fun params -> input -> IO ()
@@ -556,10 +556,11 @@ class VerifyOrder params input where
   -- @
   shouldApplyInOrder :: Mock fun params -> [input] -> IO ()
 
-  -- | Verify functions are applied in the expected order.
-  -- 
-  -- Unlike @'shouldApplyInOrder'@, it is not necessary that all apply match exactly. 
-  -- As long as the order matches, the verification succeeds. 
+  -- | Verify that functions are applied in the expected order.
+  --
+  -- Unlike @'shouldApplyInOrder'@, not all applications need to match exactly.
+  --
+  -- As long as the order matches, the verification succeeds.
   shouldApplyInPartialOrder :: Mock fun params -> [input] -> IO ()
 
 instance (Eq a, Show a) => VerifyOrder (Param a) a where
