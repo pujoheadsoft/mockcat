@@ -10,13 +10,13 @@ spec :: Spec
 spec = do
   it "stub & verify" do
     -- create a mock
-    m <- createMock $ "value" |> True
+    mock <- createMock $ "value" |> True
     -- stub function
-    let f = stubFn m
+    let stubFunction = stubFn mock
     -- assert
-    f "value" `shouldBe` True
+    stubFunction "value" `shouldBe` True
     -- verify
-    m `shouldApplyTo` "value"
+    mock `shouldApplyTo` "value"
 
   it "how to use" do
     f <- createStubFn $ "param1" |> "param2" |> pure @IO ()

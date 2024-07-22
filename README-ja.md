@@ -16,24 +16,23 @@ import Test.MockCat
 
 spec :: Spec
 spec = do
-  it "スタブ関数の生成と検証" do
-    -- モックの生成(純粋な値 True を返す)
-    m <- createMock $ "value" |> True
+  it "使い方の例" do
+    -- モックの生成("value"に適用されたら、純粋な値Trueを返す)
+    mock <- createMock $ "value" |> True
 
     -- モックからスタブ関数を取り出す
-    let f = stubFn m
+    let stubFunction = stubFn mock
 
     -- 関数の適用結果を検証
-    f "value" `shouldBe` True
+    stubFunction "value" `shouldBe` True
 
-    -- 期待される値("value")で関数が適用されたかを検証
-    m `shouldApplyTo` "value"
+    -- 期待される値("value")に関数が適用されたかを検証
+    mock `shouldApplyTo` "value"
 
 ```
 
-
-## mock関数を使う
-`createStubFn` を使うとスタブ関数を生成することができます。
+## スタブ関数の生成
+スタブ関数の生成には `createStubFn` 関数を使います。
 ```haskell
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE TypeApplications #-}
@@ -43,9 +42,45 @@ import Test.MockCat
 spec :: Spec
 spec = do
   it "スタブ関数を生成することができる" do
+    -- 生成
     f <- createStubFn $ "param1" |> "param2" |> pure @IO ()
+
+    -- 適用
     actual <- f "param1" "param2"
+
+    -- 検証
     actual `shouldBe` ()
 ```
 `createStubFn` 関数には、関数が適用されることを期待する引数を `|>` で連結して渡します。
-`|>` の最後の値が関数の戻り値となります。
+`|>` の最後の値が関数の返り値となります。
+
+スタブ関数が期待されていない引数に適用された場合はエラーとなります。
+```console
+uncaught exception: ErrorCall
+expected arguments were not applied to the function.
+  expected: "value"
+  but got: "volue"
+```
+
+## 検証
+期待される引数にスタブ関数が適用されたか検証することができます。
+
+ `shouldApplyTo` 関数を使います。
+```haskell
+{-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE TypeApplications #-}
+import Test.Hspec
+import Test.MockCat
+
+spec :: Spec
+spec = do
+  it "stub & verify" do
+    -- create a mock
+    mock <- createMock $ "value" |> True
+    -- stub function
+    let stubFunction = stubFn mock
+    -- assert
+    stubFunction "value" `shouldBe` True
+    -- verify
+    mock `shouldApplyTo` "value"
+```
