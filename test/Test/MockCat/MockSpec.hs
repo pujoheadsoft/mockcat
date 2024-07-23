@@ -610,7 +610,7 @@ spec = do
           m <- createMock $ "a" |> pure @IO True
           stubFn m "b"
             `shouldThrow` errorCall
-              "expected arguments were not applied to the function.\n\
+              "Expected arguments were not applied to the function.\n\
               \  expected: \"a\"\n\
               \   but got: \"b\""
 
@@ -622,7 +622,7 @@ spec = do
               ]
           stubFn m "aaa" 200
             `shouldThrow` errorCall
-              "expected arguments were not applied to the function.\n\
+              "Expected arguments were not applied to the function.\n\
               \  expected one of the following:\n\
               \    \"aaa\",100\n\
               \    \"bbb\",200\n\
@@ -635,7 +635,7 @@ spec = do
           evaluate $ stubFn m "A"
           m `shouldApplyTo` "X"
             `shouldThrow` errorCall
-              "expected arguments were not applied to the function.\n\
+              "Expected arguments were not applied to the function.\n\
               \  expected: \"X\"\n\
               \   but got: \"A\""
 
@@ -643,7 +643,7 @@ spec = do
           m <- createMock $ any |> pure @IO True
           evaluate $ stubFn m "A"
           let e =
-                "function was not applied the expected number of times.\n\
+                "The expected argument was not applied the expected number of times to the function.\n\
                 \  expected: 2\n\
                 \   but got: 1"
           m `shouldApplyTimes` (2 :: Int) `to` "A" `shouldThrow` errorCall e
@@ -654,13 +654,13 @@ spec = do
           evaluate $ stubFn m "C"
           evaluate $ stubFn m "A"
           let e =
-                "function was not applied with expected order.\n\
-                \  expected 1st call: \"A\"\n\
-                \   but got 1st call: \"B\"\n\
-                \  expected 2nd call: \"B\"\n\
-                \   but got 2nd call: \"C\"\n\
-                \  expected 3rd call: \"C\"\n\
-                \   but got 3rd call: \"A\""
+                "Expected arguments were not applied to the function in the expected order.\n\
+                \  expected 1st applied: \"A\"\n\
+                \   but got 1st applied: \"B\"\n\
+                \  expected 2nd applied: \"B\"\n\
+                \   but got 2nd applied: \"C\"\n\
+                \  expected 3rd applied: \"C\"\n\
+                \   but got 3rd applied: \"A\""
           m `shouldApplyInOrder` ["A", "B", "C"] `shouldThrow` errorCall e
 
         it "verify sequence (count mismatch)" do
@@ -668,7 +668,7 @@ spec = do
           evaluate $ stubFn m "B"
           evaluate $ stubFn m "C"
           let e =
-                "function was not applied the expected number of times.\n\
+                "Expected arguments were not applied to the function in the expected order (count mismatch).\n\
                 \  expected: 3\n\
                 \   but got: 2"
           m `shouldApplyInOrder` ["A", "B", "C"] `shouldThrow` errorCall e
@@ -678,7 +678,7 @@ spec = do
           evaluate $ stubFn m "B"
           evaluate $ stubFn m "A"
           let e =
-                "function was not applied with expected order.\n\
+                "Expected arguments were not applied to the function in the expected order.\n\
                 \  expected order:\n\
                 \    \"A\"\n\
                 \    \"C\"\n\
@@ -691,7 +691,7 @@ spec = do
           m <- createMock $ any |> False
           evaluate $ stubFn m "B"
           let e =
-                "function was not applied the expected number of times.\n\
+                "Expected arguments were not applied to the function in the expected order (count mismatch).\n\
                 \  expected: 2\n\
                 \   but got: 1"
           m `shouldApplyInPartialOrder` ["A", "C"] `shouldThrow` errorCall e
@@ -701,7 +701,7 @@ spec = do
         it "simple mock" do
           m <- createNamedMock "mock function" $ "a" |> pure @IO ()
           let e =
-                "expected arguments were not applied to the function `mock function`.\n\
+                "Expected arguments were not applied to the function `mock function`.\n\
                 \  expected: \"a\"\n\
                 \   but got: \"b\""
           stubFn m "b" `shouldThrow` errorCall e
@@ -714,7 +714,7 @@ spec = do
                 "bbb" |> False |> pure @IO False
               ]
           let e =
-                "expected arguments were not applied to the function `mock function`.\n\
+                "Expected arguments were not applied to the function `mock function`.\n\
                 \  expected one of the following:\n\
                 \    \"aaa\",True\n\
                 \    \"bbb\",False\n\
@@ -727,7 +727,7 @@ spec = do
           m <- createNamedMock "mock function" $ any |> pure @IO ()
           evaluate $ stubFn m "A"
           let e =
-                "expected arguments were not applied to the function `mock function`.\n\
+                "Expected arguments were not applied to the function `mock function`.\n\
                 \  expected: \"X\"\n\
                 \   but got: \"A\""
           m `shouldApplyTo` "X" `shouldThrow` errorCall e
@@ -736,7 +736,7 @@ spec = do
           m <- createNamedMock "mock function" $ any |> pure @IO ()
           evaluate $ stubFn m "A"
           let e =
-                "function `mock function` was not applied the expected number of times.\n\
+                "The expected argument was not applied the expected number of times to the function `mock function`.\n\
                 \  expected: 2\n\
                 \   but got: 1"
           m `shouldApplyTimes` (2 :: Int) `to` "A" `shouldThrow` errorCall e
@@ -747,13 +747,13 @@ spec = do
           evaluate $ stubFn m "C"
           evaluate $ stubFn m "A"
           let e =
-                "function `mock function` was not applied with expected order.\n\
-                \  expected 1st call: \"A\"\n\
-                \   but got 1st call: \"B\"\n\
-                \  expected 2nd call: \"B\"\n\
-                \   but got 2nd call: \"C\"\n\
-                \  expected 3rd call: \"C\"\n\
-                \   but got 3rd call: \"A\""
+                "Expected arguments were not applied to the function `mock function` in the expected order.\n\
+                \  expected 1st applied: \"A\"\n\
+                \   but got 1st applied: \"B\"\n\
+                \  expected 2nd applied: \"B\"\n\
+                \   but got 2nd applied: \"C\"\n\
+                \  expected 3rd applied: \"C\"\n\
+                \   but got 3rd applied: \"A\""
           m `shouldApplyInOrder` ["A", "B", "C"] `shouldThrow` errorCall e
 
         it "verify sequence (count mismatch)" do
@@ -761,7 +761,7 @@ spec = do
           evaluate $ stubFn m "B"
           evaluate $ stubFn m "C"
           let e =
-                "function `createStubFnc` was not applied the expected number of times.\n\
+                "Expected arguments were not applied to the function `createStubFnc` in the expected order (count mismatch).\n\
                 \  expected: 3\n\
                 \   but got: 2"
           m `shouldApplyInOrder` ["A", "B", "C"] `shouldThrow` errorCall e
@@ -771,7 +771,7 @@ spec = do
           evaluate $ stubFn m "B"
           evaluate $ stubFn m "A"
           let e =
-                "function `mock function` was not applied with expected order.\n\
+                "Expected arguments were not applied to the function `mock function` in the expected order.\n\
                 \  expected order:\n\
                 \    \"A\"\n\
                 \    \"C\"\n\
@@ -784,7 +784,7 @@ spec = do
           m <- createNamedMock "createStubFnc" $ any |> pure @IO ()
           evaluate $ stubFn m "B"
           let e =
-                "function `createStubFnc` was not applied the expected number of times.\n\
+                "Expected arguments were not applied to the function `createStubFnc` in the expected order (count mismatch).\n\
                 \  expected: 2\n\
                 \   but got: 1"
           m `shouldApplyInPartialOrder` ["A", "C"] `shouldThrow` errorCall e

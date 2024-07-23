@@ -400,7 +400,7 @@ message :: Show a => Maybe MockName -> a -> a -> String
 message name expected actual =
   intercalate
     "\n"
-    [ "expected arguments were not applied to the function" <> mockNameLabel name <> ".",
+    [ "Expected arguments were not applied to the function" <> mockNameLabel name <> ".",
       "  expected: " <> show expected,
       "   but got: " <> show actual
     ]
@@ -409,7 +409,7 @@ messageForMultiMock :: Show a => Maybe MockName -> [a] -> a -> String
 messageForMultiMock name expecteds actual =
   intercalate
     "\n"
-    [ "expected arguments were not applied to the function" <> mockNameLabel name <> ".",
+    [ "Expected arguments were not applied to the function" <> mockNameLabel name <> ".",
       "  expected one of the following:",
       intercalate "\n" $ ("    " <>) . show <$> expecteds,
       "  but got:",
@@ -459,7 +459,7 @@ verifyFailedMesssage name calledParams expected =
   VerifyFailed $
     intercalate
       "\n"
-      [ "expected arguments were not applied to the function" <> mockNameLabel name <> ".",
+      [ "Expected arguments were not applied to the function" <> mockNameLabel name <> ".",
         "  expected: " <> show expected,
         "   but got: " <> formatCalledParamsList calledParams
       ]
@@ -532,7 +532,7 @@ verifyCount (Mock name _ (Verifier ref)) v method = do
       errorWithoutStackTrace $
         intercalate
           "\n"
-          [ "function" <> mockNameLabel name <> " was not applied the expected number of times.",
+          [ "The expected argument was not applied the expected number of times to the function" <> mockNameLabel name <> ".",
             "  expected: " <> show method,
             "   but got: " <> show callCount
           ]
@@ -614,7 +614,7 @@ verifyFailedPartiallySequence name calledValues expectedValues =
   VerifyFailed $
     intercalate
       "\n"
-      [ "function" <> mockNameLabel name <> " was not applied with expected order.",
+      [ "Expected arguments were not applied to the function" <> mockNameLabel name <> " in the expected order.",
         "  expected order:",
         intercalate "\n" $ ("    " <>) . show <$> expectedValues,
         "  but got:",
@@ -638,7 +638,7 @@ verifyFailedOrderParamCountMismatch name calledValues expectedValues =
   VerifyFailed $
     intercalate
       "\n"
-      [ "function" <> mockNameLabel name <> " was not applied the expected number of times.",
+      [ "Expected arguments were not applied to the function" <> mockNameLabel name <> " in the expected order (count mismatch).",
         "  expected: " <> show (length expectedValues),
         "   but got: " <> show (length calledValues)
       ]
@@ -648,7 +648,7 @@ verifyFailedSequence name fails =
   VerifyFailed $
     intercalate
       "\n"
-      ( ("function" <> mockNameLabel name <> " was not applied with expected order.") : (verifyOrderFailedMesssage <$> fails)
+      ( ("Expected arguments were not applied to the function" <> mockNameLabel name <> " in the expected order.") : (verifyOrderFailedMesssage <$> fails)
       )
 
 verifyOrderFailedMesssage :: Show a => VerifyOrderResult a -> String
@@ -656,8 +656,8 @@ verifyOrderFailedMesssage VerifyOrderResult {index, calledValue, expectedValue} 
   let callCount = showHumanReadable (index + 1)
    in intercalate
         "\n"
-        [ "  expected " <> callCount <> " call: " <> show expectedValue,
-          "   but got " <> callCount <> " call: " <> show calledValue
+        [ "  expected " <> callCount <> " applied: " <> show expectedValue,
+          "   but got " <> callCount <> " applied: " <> show calledValue
         ]
   where
     showHumanReadable :: Int -> String
