@@ -44,7 +44,7 @@ spec = do
       it "any" do
         (P.any :: Param Int) == param 10 `shouldBe` True
       it "not equal" do
-        notEqual "v" == param "x" `shouldBe` True
+        P.not "v" == param "x" `shouldBe` True
       it "a `or` b" do
         let orParam = "x" `or` "y"
         orParam == param "x" `shouldBe` True

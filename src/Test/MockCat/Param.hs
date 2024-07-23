@@ -24,7 +24,7 @@ module Test.MockCat.Param
     any,
     or,
     and,
-    notEqual,
+    not,
   )
 where
 
@@ -33,7 +33,8 @@ import Language.Haskell.TH
 import Test.MockCat.Cons ((:>) (..))
 import Test.MockCat.TH
 import Unsafe.Coerce (unsafeCoerce)
-import Prelude hiding (and, any, or)
+import Prelude hiding (and, any, or, not)
+import qualified Prelude as Plelude
 
 data Param v
   = ExpectValue v
@@ -122,14 +123,14 @@ expectByExpr qf = do
   [|ExpectCondition $qf str|]
 
 class NotMatcher a r where
-  notEqual :: a -> r
+  not :: a -> r
 
 instance (Eq a, Show a) => NotMatcher (Param a) (Param a) where
-  notEqual (ExpectValue a) = ExpectCondition (/= a) ("Not " <> showWithRemoveEscape a)
-  notEqual (ExpectCondition f l) = ExpectCondition (not . f) ("Not " <> showWithRemoveEscape l)
+  not (ExpectValue a) = ExpectCondition (/= a) ("Not " <> showWithRemoveEscape a)
+  not (ExpectCondition f l) = ExpectCondition (Plelude.not . f) ("Not " <> showWithRemoveEscape l)
 
 instance (Eq a, Show a) => NotMatcher a (Param a) where
-  notEqual v = ExpectCondition (/= v) ("Not " <> showWithRemoveEscape v)
+  not v = ExpectCondition (/= v) ("Not " <> showWithRemoveEscape v)
 
 class LogicalMatcher a b r | a b -> r where
   -- | For parameter a b, create a new parameter expected to match a or b.

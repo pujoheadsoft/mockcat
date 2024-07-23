@@ -42,5 +42,9 @@ spec = do
     print $ stubFn m "a" True
     print $ stubFn m "b" True
     m `shouldApplyInOrder` ["a" |> True, "b" |> True]
+  
+  it "any" do
+    f <- createStubFn $ any |> "return value"
+    f "something" `shouldBe` "return value"
 
 
