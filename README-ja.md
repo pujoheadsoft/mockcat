@@ -4,7 +4,7 @@ mockcatは、Haskellのテストをサポートするシンプルなモック・
 
 できることは主に2つあります。
 1. スタブ関数を作る
-2. スタブ関数が期待通り適用されたかを検証する
+2. 引数が期待通り適用されたかを検証する
 
 スタブ関数はモナディックな値だけでなく、純粋な型の値も返すことができます。
 
@@ -26,7 +26,7 @@ spec = do
     -- 関数の適用結果を検証
     stubFunction "value" `shouldBe` True
 
-    -- 期待される値("value")に関数が適用されたかを検証
+    -- 期待される値("value")が適用されたかを検証
     mock `shouldApplyTo` "value"
 
 ```
@@ -51,10 +51,10 @@ spec = do
     -- 検証
     actual `shouldBe` ()
 ```
-`createStubFn` 関数には、関数が適用されることを期待する引数を `|>` で連結して渡します。
+`createStubFn` 関数には、適用されることが期待する引数を `|>` で連結して渡します。
 `|>` の最後の値が関数の返り値となります。
 
-スタブ関数が期待されていない引数に適用された場合はエラーとなります。
+スタブ関数に対して期待されていない引数が適用された場合はエラーとなります。
 ```console
 uncaught exception: ErrorCall
 expected arguments were not applied to the function.
@@ -63,7 +63,7 @@ expected arguments were not applied to the function.
 ```
 
 ## 検証
-期待される引数にスタブ関数が適用されたか検証することができます。
+スタブ関数に対して期待される引数が適用されたか検証することができます。
 
  `shouldApplyTo` 関数を使います。
 ```haskell
