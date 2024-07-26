@@ -1,7 +1,7 @@
 on: [push]
-name: build
+name: Test
 jobs:
-  build:
+  build-and-test:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:

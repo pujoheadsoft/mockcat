@@ -1,6 +1,6 @@
 # 🐈Mocking library for Haskell🐈‍
 
-[![CI](https://github.com/pujoheadsoft/mockcat/workflows/CI/badge.svg)](https://github.com/pujoheadsoft/mockcat/actions?query=workflow%3Abuild+branch%3Amain)
+[![Test](https://github.com/pujoheadsoft/mockcat/workflows/Test/badge.svg)](https://github.com/pujoheadsoft/mockcat/actions?query=workflow%3ATest+branch%3Amain)
 
 [日本語版 README はこちら](https://github.com/pujoheadsoft/mockcat/blob/master/README-ja.md)
 
