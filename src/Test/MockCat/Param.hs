@@ -21,20 +21,15 @@ module Test.MockCat.Param
     expect,
     expect_,
     expectByExpr,
-    any,
-    or,
-    and,
-    not,
+    any
   )
 where
 
-import Data.Text hiding (any, head)
 import Language.Haskell.TH
 import Test.MockCat.Cons ((:>) (..))
 import Test.MockCat.TH
 import Unsafe.Coerce (unsafeCoerce)
-import Prelude hiding (and, any, or, not)
-import qualified Prelude as Plelude
+import Prelude hiding (any)
 
 data Param v
   = ExpectValue v
@@ -87,7 +82,7 @@ instance {-# OVERLAPPABLE #-} ((Param a) ~ a') => ConsGen a (Param b) (a' :> Par
 instance {-# OVERLAPPABLE #-} (Param a ~ a', Param b ~ b') => ConsGen a b (a' :> b') where
   (|>) a b = (:>) (param a) (param b)
 
-infixr 9 |>
+infixr 8 |>
 
 -- | Make a parameter to which any value is expected to apply.
 any :: Param a
@@ -121,50 +116,3 @@ expectByExpr :: Q Exp -> Q Exp
 expectByExpr qf = do
   str <- showExp qf
   [|ExpectCondition $qf str|]
-
-class NotMatcher a r where
-  not :: a -> r
-
-instance (Eq a, Show a) => NotMatcher (Param a) (Param a) where
-  not (ExpectValue a) = ExpectCondition (/= a) ("Not " <> showWithRemoveEscape a)
-  not (ExpectCondition f l) = ExpectCondition (Plelude.not . f) ("Not " <> showWithRemoveEscape l)
-
-instance (Eq a, Show a) => NotMatcher a (Param a) where
-  not v = ExpectCondition (/= v) ("Not " <> showWithRemoveEscape v)
-
-class LogicalMatcher a b r | a b -> r where
-  -- | For parameter a b, create a new parameter expected to match a or b.
-  or :: a -> b -> r
-  -- | For parameter a b, make a new parameter expected to match both a and b.
-  and :: a -> b -> r
-
-instance {-# OVERLAPPING #-} (Eq a, Show a) => LogicalMatcher (Param a) (Param a) (Param a) where
-  or = composeOr
-  and = composeAnd
-
-instance {-# OVERLAPPABLE #-} (Eq a, Show a) => LogicalMatcher (Param a) a (Param a) where
-  or p1 a = composeOr p1 $ ExpectCondition (== a) (showWithRemoveEscape p1 <> " || " <> showWithRemoveEscape a)
-  and p1 a = composeAnd p1 $ ExpectCondition (== a) (showWithRemoveEscape p1 <> " && " <> showWithRemoveEscape a)
-
-instance {-# OVERLAPPABLE #-} (Eq a, Show a) => LogicalMatcher a (Param a) (Param a) where
-  or a p2 = composeOr p2 $ ExpectCondition (== a) (showWithRemoveEscape a <> " || " <> showWithRemoveEscape p2)
-  and a p2 = composeAnd p2 $ ExpectCondition (== a) (showWithRemoveEscape a <> " && " <> showWithRemoveEscape p2)
-
-instance {-# OVERLAPPABLE #-} (Eq a, Show a, Param a ~ a') => LogicalMatcher a a a' where
-  or a1 a2 = ExpectCondition (\a -> a == a1 || a == a2) (showWithRemoveEscape a1 <> " || " <> showWithRemoveEscape a2)
-  and a1 a2 = ExpectCondition (\a -> a == a1 && a == a2) (showWithRemoveEscape a1 <> " && " <> showWithRemoveEscape a2)
-
-composeOr :: (Eq a, Show a) => Param a -> Param a -> Param a
-composeOr (ExpectValue a) (ExpectValue b) = ExpectCondition (\x -> a == x || b == x) ""
-composeOr (ExpectValue a) (ExpectCondition m2 l2) = ExpectCondition (\x -> x == a || m2 x) l2
-composeOr (ExpectCondition m1 l1) (ExpectValue a) = ExpectCondition (\x -> m1 x || x == a) l1
-composeOr (ExpectCondition m1 l1) (ExpectCondition m2 l2) = ExpectCondition (\a -> m1 a || m2 a) (l1 <> " || " <> l2)
-
-composeAnd :: (Eq a, Show a) => Param a -> Param a -> Param a
-composeAnd (ExpectValue a) (ExpectValue b) = ExpectCondition (\x -> a == x && b == x) ""
-composeAnd (ExpectValue a) (ExpectCondition m2 l2) = ExpectCondition (\x -> x == a && m2 a) l2
-composeAnd (ExpectCondition m1 l1) (ExpectValue b) = ExpectCondition (\x -> m1 x && x == b) l1
-composeAnd (ExpectCondition m1 l1) (ExpectCondition m2 l2) = ExpectCondition (\x -> m1 x && m2 x) (l1 <> " && " <> l2)
-
-showWithRemoveEscape :: (Show a) => a -> String
-showWithRemoveEscape s = unpack $ replace (pack "\\") (pack "") (pack (show s))

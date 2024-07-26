@@ -1,10 +1,12 @@
 {-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
+
 module Test.MockCat.ExampleSpec (spec) where
 
 import Test.Hspec
 import Test.MockCat
-import Prelude hiding (any)
+import Prelude hiding (and, any, not, or)
 
 spec :: Spec
 spec = do
@@ -22,29 +24,65 @@ spec = do
     f <- createStubFn $ "param1" |> "param2" |> pure @IO ()
     actual <- f "param1" "param2"
     actual `shouldBe` ()
-  
+
+  it "named stub" do
+    f <- createNamedStubFun "named stub" $ "x" |> "y" |> True
+    f "x" "y" `shouldBe` True
+
   it "named mock" do
     m <- createNamedMock "mock" $ "value" |> "a" |> True
     stubFn m "value" "a" `shouldBe` True
-  
+
   it "stub function" do
     f <- createStubFn $ "value" |> True
     f "value" `shouldBe` True
-  
-  it "verify to applied times" do
+
+  it "shouldApplyTimes" do
     m <- createMock $ "value" |> True
     print $ stubFn m "value"
     print $ stubFn m "value"
-    m `shouldApplyTimes` (2 :: Int) `to` "value" 
+    m `shouldApplyTimes` (2 :: Int) `to` "value"
 
-  it "verify order of apply" do
+  it "shouldApplyInOrder" do
     m <- createMock $ any |> True |> ()
     print $ stubFn m "a" True
     print $ stubFn m "b" True
-    m `shouldApplyInOrder` ["a" |> True, "b" |> True]
-  
+    m
+      `shouldApplyInOrder` [ "a" |> True,
+                             "b" |> True
+                           ]
+
+  it "shouldApplyInPartialOrder" do
+    m <- createMock $ any |> True |> ()
+    print $ stubFn m "a" True
+    print $ stubFn m "b" True
+    print $ stubFn m "c" True
+    m
+      `shouldApplyInPartialOrder` [ "a" |> True,
+                                    "c" |> True
+                                  ]
+
   it "any" do
     f <- createStubFn $ any |> "return value"
     f "something" `shouldBe` "return value"
 
+  it "expect" do
+    f <- createStubFn $ expect (> 5) "> 5" |> "return value"
+    f 6 `shouldBe` "return value"
 
+  it "expect_" do
+    f <- createStubFn $ expect_ (> 5) |> "return value"
+    f 6 `shouldBe` "return value"
+
+  it "expectByExpr" do
+    f <- createStubFn $ $(expectByExpr [|(> 5)|]) |> "return value"
+    f 6 `shouldBe` "return value"
+
+  it "multi" do
+    f <-
+      createStubFn
+        [ "a" |> "return x",
+          "b" |> "return y"
+        ]
+    f "a" `shouldBe` "return x"
+    f "b" `shouldBe` "return y"

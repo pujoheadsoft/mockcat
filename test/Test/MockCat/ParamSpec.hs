@@ -43,37 +43,6 @@ spec = do
     describe "Returns True if the expected value condition is met." do
       it "any" do
         (P.any :: Param Int) == param 10 `shouldBe` True
-      it "not equal" do
-        P.not "v" == param "x" `shouldBe` True
-      it "a `or` b" do
-        let orParam = "x" `or` "y"
-        orParam == param "x" `shouldBe` True
-        orParam == param "y" `shouldBe` True
-      it "expect_ `or` b" do
-        let orParam = expect_ (> (0 :: Int)) `or` (10 :: Int)
-        orParam == param (1 :: Int) `shouldBe` True
-        orParam == param (10 :: Int) `shouldBe` True
-      it "a `or` expect_" do
-        let orParam = (10 :: Int) `or` expect_ (> (0 :: Int))
-        orParam == param (10 :: Int) `shouldBe` True
-        orParam == param (5 :: Int) `shouldBe` True
-      it "expect_ `or` expect_" do
-        let orParam = expect_ (< (0 :: Int)) `or` expect_ (> (0 :: Int))
-        orParam == param (10 :: Int) `shouldBe` True
-        orParam == param (-1 :: Int) `shouldBe` True
-
-      it "expect_ `and` b" do
-        let andParam = expect_ (> (0 :: Int)) `and` (10 :: Int)
-        andParam == param (1 :: Int) `shouldBe` False
-        andParam == param (10 :: Int) `shouldBe` True
-      it "a `and` expect_" do
-        let andParam = (10 :: Int) `and` expect_ (> (0 :: Int))
-        andParam == param (10 :: Int) `shouldBe` True
-        andParam == param (5 :: Int) `shouldBe` False
-      it "expect_ `and` expect_" do
-        let andParam = expect_ (> (3 :: Int)) `and` expect_ (< (5 :: Int))
-        andParam == param (4 :: Int) `shouldBe` True
-        andParam == param (3 :: Int) `shouldBe` False
 
     describe "show expectation" do
       it "any" do
@@ -84,12 +53,6 @@ spec = do
 
       it "expect_" do
         show (expect_ (> 4)) `shouldBe` "[some condition]"
-
-      it "or" do
-        show (expect (> (4 :: Int)) "> 4" `or` expect (== (10 :: Int)) "== 10") `shouldBe` "> 4 || == 10"
-
-      it "and" do
-        show (expect (> (3 :: Int)) "> 3" `and` expect (< (5 :: Int)) "< 5") `shouldBe` "> 3 && < 5"
     
     describe "show expectation by Exp" do
       it "(> 3)" do
