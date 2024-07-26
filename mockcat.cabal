@@ -13,7 +13,12 @@ description:    mockcat is simple mock library for test in Haskell.
                 .
                 Stub functions can return values of Pure Types as well as value of Monadic Types.
                 .
-                [example] mockFun $ "expectedValue" |> "returnValue"
+                Example:
+                .
+                @
+                f \<- createStubFn $ "expected arg" |\> "return value"
+                print $ f "expected arg" -- "return value" 
+                @
                 .
                 For more please see the README on GitHub at <https://github.com/pujoheadsoft/mockcat#readme>
 category:       Testing
