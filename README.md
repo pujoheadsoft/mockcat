@@ -202,6 +202,30 @@ spec = do
     -- verify
     mock `shouldApplyTo` "value"
 ```
+### Note
+The recording of the application of arguments is done at the time the return value of the stub function is evaluated.  
+Therefore, verification must be done after evaluation.
+```haskell
+{-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE TypeApplications #-}
+import Test.Hspec
+import Test.MockCat
+
+spec :: Spec
+spec = do
+  it "Verification does not work" do
+    mock <- createMock $ "expect arg" |> "return value"
+    -- Apply arguments to stub functions but do not evaluate values
+    let _ = stubFn mock "expect arg"
+    mock `shouldApplyTo` "expect arg"
+```
+```console
+uncaught exception: ErrorCall
+Expected arguments were not applied to the function.
+  expected: "expect arg"
+  but got: Never been called.
+```
+
 ## Verify the Number of Times the Expected Arguments were Applied
 You can verify the number of times the expected arguments were applied using the `shouldApplyTimes` function.
 ```haskell

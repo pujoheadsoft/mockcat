@@ -200,8 +200,31 @@ spec = do
     -- verify
     mock `shouldApplyTo` "value"
 ```
+### 注
+引数が適用されたという記録は、スタブ関数の返り値が評価される時点で行われます。  
+したがって、検証は返り値の評価後に行う必要があります。
+```haskell
+{-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE TypeApplications #-}
+import Test.Hspec
+import Test.MockCat
 
-### 期待される引数が適用された回数を検証する
+spec :: Spec
+spec = do
+  it "Verification does not work" do
+    mock <- createMock $ "expect arg" |> "return value"
+    -- 引数の適用は行うが返り値は評価しない
+    let _ = stubFn mock "expect arg"
+    mock `shouldApplyTo` "expect arg"
+```
+```console
+uncaught exception: ErrorCall
+Expected arguments were not applied to the function.
+  expected: "expect arg"
+  but got: Never been called.
+```
+
+## 期待される引数が適用された回数を検証する
 期待される引数が適用された回数は `shouldApplyTimes` 関数で検証することができます。
 ```haskell
 {-# LANGUAGE BlockArguments #-}
@@ -218,7 +241,7 @@ spec = do
     m `shouldApplyTimes` (2 :: Int) `to` "value"
 ```
 
-### 期待される順序で適用されたかを検証する
+## 期待される順序で適用されたかを検証する
 期待される順序で適用されたかは `shouldApplyInOrder` 関数で検証することができます。
 ```haskell
 {-# LANGUAGE BlockArguments #-}
@@ -238,7 +261,7 @@ spec = do
                            ]
 ```
 
-### 期待される順序で適用されたかを検証する(部分一致)
+## 期待される順序で適用されたかを検証する(部分一致)
 `shouldApplyInOrder` 関数は適用の順序を厳密に検証しますが、  
 `shouldApplyInPartialOrder` 関数は適用の順序が部分的に一致しているかを検証することができます。
 ```haskell
