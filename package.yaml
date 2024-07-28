@@ -32,7 +32,6 @@ description: |
 
 dependencies:
 - base >= 4.7 && < 5
-- containers
 - text >= 2.0 && < 2.2
 - template-haskell >= 2.18 && < 2.23
 
