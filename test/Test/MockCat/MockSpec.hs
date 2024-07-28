@@ -793,6 +793,41 @@ spec = do
     it "expectByExpr" do
       f <- createStubFn $ $(expectByExpr [|\x -> x == "y" || x == "z"|]) |> True
       f "y" `shouldBe` True
+  
+  describe "repeatable" do
+    it "arity = 1" do
+      f <- createStubFn [
+          "a" |> True,
+          "b" |> False,
+          "a" |> False,
+          "b" |> True
+        ]
+      v1 <- evaluate $ f "a"
+      v2 <- evaluate $ f "a"
+      v3 <- evaluate $ f "b"
+      v4 <- evaluate $ f "b"
+      v1 `shouldBe` True
+      v2 `shouldBe` False
+      v3 `shouldBe` False
+      v4 `shouldBe` True
+
+    it "arity = 2" do
+      f <- createStubFn [
+          "a" |> "b" |> (0 :: Int),
+          "a" |> "c" |> (1 :: Int),
+          "a" |> "b" |> (2 :: Int),
+          "a" |> "c" |> (3 :: Int)
+        ]
+      v1 <- evaluate $ f "a" "b"
+      v2 <- evaluate $ f "a" "b"
+      v3 <- evaluate $ f "a" "c"
+      v4 <- evaluate $ f "a" "c"
+      v5 <- evaluate $ f "a" "b"
+      v1 `shouldBe` (0 :: Int)
+      v2 `shouldBe` (2 :: Int)
+      v3 `shouldBe` (1 :: Int)
+      v4 `shouldBe` (3 :: Int)
+      v5 `shouldBe` (2 :: Int)
 
 data Fixture mock r = Fixture
   { name :: String,
