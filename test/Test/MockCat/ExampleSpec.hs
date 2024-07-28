@@ -1,6 +1,8 @@
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE BangPatterns #-}
 
 module Test.MockCat.ExampleSpec (spec) where
 
@@ -26,7 +28,7 @@ spec = do
     actual `shouldBe` ()
 
   it "named stub" do
-    f <- createNamedStubFun "named stub" $ "x" |> "y" |> True
+    f <- createNamedStubFn "named stub" $ "x" |> "y" |> True
     f "x" "y" `shouldBe` True
 
   it "named mock" do
@@ -86,3 +88,17 @@ spec = do
         ]
     f "a" `shouldBe` "return x"
     f "b" `shouldBe` "return y"
+
+  it "multi2" do
+    f <- createNamedStubFn "multi2" [
+        "a" |> "x",
+        "a" |> "y"
+      ]
+    let
+      -- Do not allow optimization to remove duplicates.
+      x = notInlineMap f ["a", "a"]
+    x `shouldBe` ["x", "y"]
+
+{-# NOINLINE notInlineMap #-}
+notInlineMap :: Functor f => (a -> b) -> f a -> f b
+notInlineMap f v = f <$> v

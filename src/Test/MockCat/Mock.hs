@@ -19,8 +19,8 @@ module Test.MockCat.Mock
   ( createMock,
     createNamedMock,
     createStubFn,
-    createNamedStubFun,
-    stubFn,       
+    createNamedStubFn,
+    stubFn,
     shouldApplyTo,
     shouldApplyTimes,
     shouldApplyInOrder,
@@ -39,19 +39,21 @@ import Control.Monad (guard)
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Data.Function ((&))
 import Data.IORef (IORef, modifyIORef', newIORef, readIORef)
-import Data.List (elemIndex, find, intercalate)
+import Data.List (elemIndex, intercalate)
 import Data.Maybe
 import Data.Text (pack, replace, unpack)
 import GHC.IO (unsafePerformIO)
 import Test.MockCat.Cons
 import Test.MockCat.Param
 import Test.MockCat.ParamDivider
+import Test.MockCat.AssociationList (AssociationList, lookup, update, insert, empty, member)
+import Prelude hiding (lookup)
 
 data Mock fun params = Mock (Maybe MockName) fun (Verifier params)
 
 type MockName = String
 
-newtype Verifier params = Verifier (IORef (AppliedParamsList params))
+newtype Verifier params = Verifier (IORef (AppliedRecord params))
 
 {- | Create a mock.
 From this mock, you can generate stub functions and verify the functions.
@@ -121,14 +123,15 @@ createStubFn ::
   m fun
 createStubFn params = stubFn <$> createMock params
 
+
 -- | Create a named stub function.
-createNamedStubFun ::
+createNamedStubFn ::
   MockBuilder params fun verifyParams =>
   MonadIO m =>
   String ->
   params ->
   m fun
-createNamedStubFun name params = stubFn <$> createNamedMock name params
+createNamedStubFn name params = stubFn <$> createNamedMock name params
 
 -- | Class for creating a mock corresponding to the parameter.
 class MockBuilder params fun verifyParams | params -> fun, params -> verifyParams where
@@ -144,7 +147,7 @@ instance
     (Param a :> Param b :> Param c :> Param d :> Param e :> Param f :> Param g :> Param h :> Param i)
   where
   build name params = do
-    s <- liftIO $ newIORef ([] :: AppliedParamsList params)
+    s <- liftIO $ newIORef appliedRecord
     makeMock
       name
       s
@@ -160,7 +163,7 @@ instance
     (Param a :> Param b :> Param c :> Param d :> Param e :> Param f :> Param g :> Param h)
   where
   build name params = do
-    s <- liftIO $ newIORef ([] :: AppliedParamsList params)
+    s <- liftIO $ newIORef appliedRecord
     makeMock
       name
       s
@@ -176,7 +179,7 @@ instance
     (Param a :> Param b :> Param c :> Param d :> Param e :> Param f :> Param g)
   where
   build name params = do
-    s <- liftIO $ newIORef ([] :: AppliedParamsList params)
+    s <- liftIO $ newIORef appliedRecord
     makeMock
       name
       s
@@ -192,7 +195,7 @@ instance
     (Param a :> Param b :> Param c :> Param d :> Param e :> Param f)
   where
   build name params = do
-    s <- liftIO $ newIORef ([] :: AppliedParamsList params)
+    s <- liftIO $ newIORef appliedRecord
     makeMock name s (\a2 b2 c2 d2 e2 f2 -> unsafePerformIO $ extractReturnValueWithValidate name params (p a2 :> p b2 :> p c2 :> p d2 :> p e2 :> p f2) s)
 
 instance
@@ -203,7 +206,7 @@ instance
     (Param a :> Param b :> Param c :> Param d :> Param e)
   where
   build name params = do
-    s <- liftIO $ newIORef ([] :: AppliedParamsList params)
+    s <- liftIO $ newIORef appliedRecord
     makeMock name s (\a2 b2 c2 d2 e2 -> unsafePerformIO $ extractReturnValueWithValidate name params (p a2 :> p b2 :> p c2 :> p d2 :> p e2) s)
 
 instance
@@ -214,7 +217,7 @@ instance
     (Param a :> Param b :> Param c :> Param d)
   where
   build name params = do
-    s <- liftIO $ newIORef ([] :: AppliedParamsList params)
+    s <- liftIO $ newIORef appliedRecord
     makeMock name s (\a2 b2 c2 d2 -> unsafePerformIO $ extractReturnValueWithValidate name params (p a2 :> p b2 :> p c2 :> p d2) s)
 
 instance
@@ -222,7 +225,7 @@ instance
   MockBuilder (Param a :> Param b :> Param c :> Param r) (a -> b -> c -> r) (Param a :> Param b :> Param c)
   where
   build name params = do
-    s <- liftIO $ newIORef ([] :: AppliedParamsList params)
+    s <- liftIO $ newIORef appliedRecord
     makeMock name s (\a2 b2 c2 -> unsafePerformIO $ extractReturnValueWithValidate name params (p a2 :> p b2 :> p c2) s)
 
 instance
@@ -230,7 +233,7 @@ instance
   MockBuilder (Param a :> Param b :> Param r) (a -> b -> r) (Param a :> Param b)
   where
   build name params = do
-    s <- liftIO $ newIORef ([] :: AppliedParamsList params)
+    s <- liftIO $ newIORef appliedRecord
     makeMock name s (\a2 b2 -> unsafePerformIO $ extractReturnValueWithValidate name params (p a2 :> p b2) s)
 
 instance
@@ -238,7 +241,7 @@ instance
   MockBuilder (Param a :> Param r) (a -> r) (Param a)
   where
   build name params = do
-    s <- liftIO $ newIORef ([] :: AppliedParamsList params)
+    s <- liftIO $ newIORef appliedRecord
     makeMock name s (\a2 -> unsafePerformIO $ extractReturnValueWithValidate name params (p a2) s)
 
 instance
@@ -249,7 +252,7 @@ instance
     (Param a :> Param b :> Param c :> Param d :> Param e :> Param f :> Param g :> Param h :> Param i)
   where
   build name params = do
-    s <- liftIO $ newIORef ([] :: AppliedParamsList params)
+    s <- liftIO $ newIORef appliedRecord
     makeMock name s (\a2 b2 c2 d2 e2 f2 g2 h2 i2 -> unsafePerformIO $ findReturnValueWithStore name params (p a2 :> p b2 :> p c2 :> p d2 :> p e2 :> p f2 :> p g2 :> p h2 :> p i2) s)
 
 instance
@@ -260,7 +263,7 @@ instance
     (Param a :> Param b :> Param c :> Param d :> Param e :> Param f :> Param g :> Param h)
   where
   build name params = do
-    s <- liftIO $ newIORef ([] :: AppliedParamsList params)
+    s <- liftIO $ newIORef appliedRecord
     makeMock name s (\a2 b2 c2 d2 e2 f2 g2 h2 -> unsafePerformIO $ findReturnValueWithStore name params (p a2 :> p b2 :> p c2 :> p d2 :> p e2 :> p f2 :> p g2 :> p h2) s)
 
 instance
@@ -271,7 +274,7 @@ instance
     (Param a :> Param b :> Param c :> Param d :> Param e :> Param f :> Param g)
   where
   build name params = do
-    s <- liftIO $ newIORef ([] :: AppliedParamsList params)
+    s <- liftIO $ newIORef appliedRecord
     makeMock name s (\a2 b2 c2 d2 e2 f2 g2 -> unsafePerformIO $ findReturnValueWithStore name params (p a2 :> p b2 :> p c2 :> p d2 :> p e2 :> p f2 :> p g2) s)
 
 instance
@@ -282,7 +285,7 @@ instance
     (Param a :> Param b :> Param c :> Param d :> Param e :> Param f)
   where
   build name params = do
-    s <- liftIO $ newIORef ([] :: AppliedParamsList params)
+    s <- liftIO $ newIORef appliedRecord
     makeMock name s (\a2 b2 c2 d2 e2 f2 -> unsafePerformIO $ findReturnValueWithStore name params (p a2 :> p b2 :> p c2 :> p d2 :> p e2 :> p f2) s)
 
 instance
@@ -293,7 +296,7 @@ instance
     (Param a :> Param b :> Param c :> Param d :> Param e)
   where
   build name params = do
-    s <- liftIO $ newIORef ([] :: AppliedParamsList params)
+    s <- liftIO $ newIORef appliedRecord
     makeMock name s (\a2 b2 c2 d2 e2 -> unsafePerformIO $ findReturnValueWithStore name params (p a2 :> p b2 :> p c2 :> p d2 :> p e2) s)
 
 instance
@@ -304,7 +307,7 @@ instance
     (Param a :> Param b :> Param c :> Param d)
   where
   build name params = do
-    s <- liftIO $ newIORef ([] :: AppliedParamsList params)
+    s <- liftIO $ newIORef appliedRecord
     makeMock name s (\a2 b2 c2 d2 -> unsafePerformIO $ findReturnValueWithStore name params (p a2 :> p b2 :> p c2 :> p d2) s)
 
 instance
@@ -315,7 +318,7 @@ instance
     (Param a :> Param b :> Param c)
   where
   build name params = do
-    s <- liftIO $ newIORef ([] :: AppliedParamsList params)
+    s <- liftIO $ newIORef appliedRecord
     makeMock name s (\a2 b2 c2 -> unsafePerformIO $ findReturnValueWithStore name params (p a2 :> p b2 :> p c2) s)
 
 instance
@@ -323,7 +326,7 @@ instance
   MockBuilder [Param a :> Param b :> Param r] (a -> b -> r) (Param a :> Param b)
   where
   build name params = do
-    s <- liftIO $ newIORef ([] :: AppliedParamsList params)
+    s <- liftIO $ newIORef appliedRecord
     makeMock name s (\a2 b2 -> unsafePerformIO $ findReturnValueWithStore name params (p a2 :> p b2) s)
 
 instance
@@ -331,7 +334,7 @@ instance
   MockBuilder [Param a :> Param r] (a -> r) (Param a)
   where
   build name params = do
-    s <- liftIO $ newIORef ([] :: AppliedParamsList params)
+    s <- liftIO $ newIORef appliedRecord
     makeMock name s (\a2 -> unsafePerformIO $ findReturnValueWithStore name params (p a2) s)
 
 -- ------
@@ -339,10 +342,8 @@ instance
 p :: a -> Param a
 p = param
 
-makeMock :: MonadIO m => Maybe MockName -> IORef (AppliedParamsList params) -> fun -> m (Mock fun params)
+makeMock :: MonadIO m => Maybe MockName -> IORef (AppliedRecord params) -> fun -> m (Mock fun params)
 makeMock name l fn = pure $ Mock name fn (Verifier l)
-
-type AppliedParamsList params = [params]
 
 extractReturnValueWithValidate ::
   ParamDivider params args (Param r) =>
@@ -351,7 +352,7 @@ extractReturnValueWithValidate ::
   Maybe MockName ->
   params ->
   args ->
-  IORef (AppliedParamsList args) ->
+  IORef (AppliedRecord args) ->
   IO r
 extractReturnValueWithValidate name params inputParams s = do
   validateWithStoreParams name s (args params) inputParams
@@ -364,12 +365,12 @@ findReturnValueWithStore ::
   Maybe MockName ->
   AppliedParamsList params ->
   args ->
-  IORef (AppliedParamsList args) ->
+  IORef (AppliedRecord args) ->
   IO r
 findReturnValueWithStore name paramsList inputParams ref = do
-  modifyIORef' ref (++ [inputParams])
+  appendAppliedParams ref inputParams
   let expectedArgs = args <$> paramsList
-      r = findReturnValue paramsList inputParams
+  r <- findReturnValue paramsList inputParams ref
   maybe
     (errorWithoutStackTrace $ messageForMultiMock name expectedArgs inputParams)
     pure
@@ -380,15 +381,22 @@ findReturnValue ::
   ParamDivider params args (Param r) =>
   AppliedParamsList params ->
   args ->
-  Maybe r
-findReturnValue paramsList inputParams = do
-  find (\params -> args params == inputParams) paramsList
-    >>= \params -> pure $ returnValue params
+  IORef (AppliedRecord args) ->
+  IO (Maybe r)
+findReturnValue paramsList inputParams ref = do
+  let matchedParams = filter (\params -> args params == inputParams) paramsList
+  case matchedParams of
+    [] -> pure Nothing
+    _ -> do
+      count <- readAppliedCount ref inputParams
+      let index = min count (length matchedParams - 1)
+      incrementAppliedParamCount ref inputParams
+      pure $ returnValue <$> safeIndex matchedParams index
 
-validateWithStoreParams :: (Eq a, Show a) => Maybe MockName -> IORef (AppliedParamsList a) -> a -> a -> IO ()
+validateWithStoreParams :: (Eq a, Show a) => Maybe MockName -> IORef (AppliedRecord a) -> a -> a -> IO ()
 validateWithStoreParams name ref expected actual = do
   validateParams name expected actual
-  modifyIORef' ref (++ [actual])
+  appendAppliedParams ref actual
 
 validateParams :: (Eq a, Show a) => Maybe MockName -> a -> a -> IO ()
 validateParams name expected actual =
@@ -438,7 +446,7 @@ instance (Eq a, Show a) => Verify a a where
 
 verify :: (Eq params, Show params) => Mock fun params -> VerifyMatchType params -> IO ()
 verify (Mock name _ (Verifier ref)) matchType = do
-  calledParamsList <- readIORef ref
+  calledParamsList <- readAppliedParamsList ref
   let result = doVerify name calledParamsList matchType
   result & maybe (pure ()) (\(VerifyFailed msg) -> errorWithoutStackTrace msg)
 
@@ -524,7 +532,7 @@ compareCount (GreaterThan e) a = a > e
 
 verifyCount :: Eq params => Mock fun params -> params -> CountVerifyMethod -> IO ()
 verifyCount (Mock name _ (Verifier ref)) v method = do
-  calledParamsList <- readIORef ref
+  calledParamsList <- readAppliedParamsList ref
   let callCount = length (filter (v ==) calledParamsList)
   if compareCount method callCount
     then pure ()
@@ -583,17 +591,17 @@ verifyOrder ::
   [params] ->
   IO ()
 verifyOrder method (Mock name _ (Verifier ref)) matchers = do
-  calledParamsList <- readIORef ref
+  calledParamsList <- readAppliedParamsList ref
   let result = doVerifyOrder method name calledParamsList matchers
   result & maybe (pure ()) (\(VerifyFailed msg) -> errorWithoutStackTrace msg)
 
-doVerifyOrder :: 
+doVerifyOrder ::
   Eq a =>
-  Show a => 
-  VerifyOrderMethod -> 
-  Maybe MockName -> 
-  AppliedParamsList a -> 
-  [a] -> 
+  Show a =>
+  VerifyOrderMethod ->
+  Maybe MockName ->
+  AppliedParamsList a ->
+  [a] ->
   Maybe VerifyFailed
 doVerifyOrder ExactlySequence name calledValues expectedValues
   | length calledValues /= length expectedValues = do
@@ -721,3 +729,54 @@ shouldApplyTimesLessThan ::
   a ->
   IO ()
 shouldApplyTimesLessThan m i = shouldApplyTimes m (LessThan i)
+
+
+
+type AppliedParamsList params = [params]
+type AppliedParamsCounter params = AssociationList params Int
+
+data AppliedRecord params = AppliedRecord {
+  appliedParamsList :: AppliedParamsList params,
+  appliedParamsCounter :: AppliedParamsCounter params
+}
+
+appliedRecord :: AppliedRecord params
+appliedRecord = AppliedRecord {
+  appliedParamsList = mempty,
+  appliedParamsCounter = empty
+}
+
+readAppliedParamsList :: IORef (AppliedRecord params) -> IO (AppliedParamsList params)
+readAppliedParamsList ref = do
+  record <- readIORef ref
+  pure $ appliedParamsList record
+
+readAppliedCount :: Eq params => IORef (AppliedRecord params) -> params -> IO Int
+readAppliedCount ref params = do
+  record <- readIORef ref
+  let count = appliedParamsCounter record
+  pure $ fromMaybe 0 (lookup params count)
+
+appendAppliedParams :: IORef (AppliedRecord params) -> params -> IO ()
+appendAppliedParams ref inputParams = do
+  modifyIORef' ref (\AppliedRecord {appliedParamsList, appliedParamsCounter} -> AppliedRecord {
+    appliedParamsList = appliedParamsList ++ [inputParams],
+    appliedParamsCounter = appliedParamsCounter
+  })
+
+incrementAppliedParamCount ::Eq params => IORef (AppliedRecord params) -> params -> IO ()
+incrementAppliedParamCount ref inputParams = do
+  modifyIORef' ref (\AppliedRecord {appliedParamsList, appliedParamsCounter} -> AppliedRecord {
+    appliedParamsList = appliedParamsList,
+    appliedParamsCounter = incrementCount inputParams appliedParamsCounter
+  })
+
+incrementCount :: Eq k => k -> AppliedParamsCounter k -> AppliedParamsCounter k
+incrementCount key list =
+  if member key list then update (+ 1) key list
+  else insert key 1 list
+
+safeIndex :: [a] -> Int -> Maybe a
+safeIndex xs n
+  | n < 0 = Nothing
+  | otherwise = listToMaybe (drop n xs)
