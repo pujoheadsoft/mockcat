@@ -179,6 +179,31 @@ spec = do
     f "b" `shouldBe` "return y"
 ```
 
+## Stub Function That Returns Different Values for the Same Arguments
+When applying a list of x |> y pairs to the `createStubFn` function, you can create a stub function that returns different values for the same arguments by ensuring the return values differ for the same input arguments.
+```haskell
+{-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE TypeApplications #-}
+import Test.Hspec
+import Test.MockCat
+import GHC.IO (evaluate)
+
+spec :: Spec
+spec = do
+  it "Return different values for the same argument" do
+    f <- createStubFn [
+        "arg" |> "x",
+        "arg" |> "y"
+      ]
+    -- Do not allow optimization to remove duplicates.
+    v1 <- evaluate $ f "arg"
+    v2 <- evaluate $ f "arg"
+    v3 <- evaluate $ f "arg"
+    v1 `shouldBe` "x"
+    v2 `shouldBe` "y"
+    v3 `shouldBe` "y" -- After the second time, “y” is returned.
+```
+
 # Verification
 ## Verify if the Expected Arguments were Applied
 You can verify if the expected arguments were applied using the `shouldApplyTo` function.

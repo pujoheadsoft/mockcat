@@ -1,14 +1,13 @@
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE BangPatterns #-}
 
 module Test.MockCat.ExampleSpec (spec) where
 
 import Test.Hspec
 import Test.MockCat
 import Prelude hiding (and, any, not, or)
+import GHC.IO (evaluate)
 
 spec :: Spec
 spec = do
@@ -89,16 +88,15 @@ spec = do
     f "a" `shouldBe` "return x"
     f "b" `shouldBe` "return y"
 
-  it "multi2" do
-    f <- createNamedStubFn "multi2" [
-        "a" |> "x",
-        "a" |> "y"
+  it "Return different values for the same argument" do
+    f <- createStubFn [
+        "arg" |> "x",
+        "arg" |> "y"
       ]
-    let
-      -- Do not allow optimization to remove duplicates.
-      x = notInlineMap f ["a", "a"]
-    x `shouldBe` ["x", "y"]
-
-{-# NOINLINE notInlineMap #-}
-notInlineMap :: Functor f => (a -> b) -> f a -> f b
-notInlineMap f v = f <$> v
+    -- Do not allow optimization to remove duplicates.
+    v1 <- evaluate $ f "arg"
+    v2 <- evaluate $ f "arg"
+    v3 <- evaluate $ f "arg"
+    v1 `shouldBe` "x"
+    v2 `shouldBe` "y"
+    v3 `shouldBe` "y" -- After the second time, “y” is returned.

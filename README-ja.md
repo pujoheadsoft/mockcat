@@ -163,7 +163,6 @@ spec = do
 {-# LANGUAGE TypeApplications #-}
 import Test.Hspec
 import Test.MockCat
-import Prelude hiding (and)
 
 spec :: Spec
 spec = do
@@ -175,6 +174,31 @@ spec = do
         ]
     f "a" `shouldBe` "return x"
     f "b" `shouldBe` "return y"
+```
+
+## 同じ引数が適用されても異なる値を返すスタブ関数
+`createStubFn`関数に、x |> y 形式のリストを適用させるとき、引数が同じで返り値が異なるようにすると、同じ引数が適用されても異なる値を返すスタブ関数を作れます。
+```haskell
+{-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE TypeApplications #-}
+import Test.Hspec
+import Test.MockCat
+import GHC.IO (evaluate)
+
+spec :: Spec
+spec = do
+  it "Return different values for the same argument" do
+    f <- createStubFn [
+        "arg" |> "x",
+        "arg" |> "y"
+      ]
+    -- Do not allow optimization to remove duplicates.
+    v1 <- evaluate $ f "arg"
+    v2 <- evaluate $ f "arg"
+    v3 <- evaluate $ f "arg"
+    v1 `shouldBe` "x"
+    v2 `shouldBe` "y"
+    v3 `shouldBe` "y" -- After the second time, “y” is returned.
 ```
 
 # 検証
