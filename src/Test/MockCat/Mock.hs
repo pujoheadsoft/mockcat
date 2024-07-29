@@ -446,8 +446,8 @@ instance (Eq a, Show a) => Verify a a where
 
 verify :: (Eq params, Show params) => Mock fun params -> VerifyMatchType params -> IO ()
 verify (Mock name _ (Verifier ref)) matchType = do
-  calledParamsList <- readAppliedParamsList ref
-  let result = doVerify name calledParamsList matchType
+  appliedParamsList <- readAppliedParamsList ref
+  let result = doVerify name appliedParamsList matchType
   result & maybe (pure ()) (\(VerifyFailed msg) -> errorWithoutStackTrace msg)
 
 newtype VerifyFailed = VerifyFailed Message
@@ -463,20 +463,20 @@ doVerify name list (MatchAll a) = do
   pure $ verifyFailedMesssage name list a
 
 verifyFailedMesssage :: Show a => Maybe MockName -> AppliedParamsList a -> a -> VerifyFailed
-verifyFailedMesssage name calledParams expected =
+verifyFailedMesssage name appliedParams expected =
   VerifyFailed $
     intercalate
       "\n"
       [ "Expected arguments were not applied to the function" <> mockNameLabel name <> ".",
         "  expected: " <> show expected,
-        "   but got: " <> formatCalledParamsList calledParams
+        "   but got: " <> formatAppliedParamsList appliedParams
       ]
 
-formatCalledParamsList :: Show a => AppliedParamsList a -> String
-formatCalledParamsList calledParams
-  | length calledParams == 0 = "Never been called."
-  | length calledParams == 1 = init . drop 1 . show $ calledParams
-  | otherwise = show calledParams
+formatAppliedParamsList :: Show a => AppliedParamsList a -> String
+formatAppliedParamsList appliedParams
+  | length appliedParams == 0 = "It has never been applied"
+  | length appliedParams == 1 = init . drop 1 . show $ appliedParams
+  | otherwise = show appliedParams
 
 _replace :: Show a => String -> a -> String
 _replace r s = unpack $ replace (pack r) (pack "") (pack (show s))
@@ -532,9 +532,9 @@ compareCount (GreaterThan e) a = a > e
 
 verifyCount :: Eq params => Mock fun params -> params -> CountVerifyMethod -> IO ()
 verifyCount (Mock name _ (Verifier ref)) v method = do
-  calledParamsList <- readAppliedParamsList ref
-  let callCount = length (filter (v ==) calledParamsList)
-  if compareCount method callCount
+  appliedParamsList <- readAppliedParamsList ref
+  let appliedCount = length (filter (v ==) appliedParamsList)
+  if compareCount method appliedCount
     then pure ()
     else
       errorWithoutStackTrace $
@@ -542,7 +542,7 @@ verifyCount (Mock name _ (Verifier ref)) v method = do
           "\n"
           [ "The expected argument was not applied the expected number of times to the function" <> mockNameLabel name <> ".",
             "  expected: " <> show method,
-            "   but got: " <> show callCount
+            "   but got: " <> show appliedCount
           ]
 
 to :: (a -> IO ()) -> a -> IO ()
@@ -591,8 +591,8 @@ verifyOrder ::
   [params] ->
   IO ()
 verifyOrder method (Mock name _ (Verifier ref)) matchers = do
-  calledParamsList <- readAppliedParamsList ref
-  let result = doVerifyOrder method name calledParamsList matchers
+  appliedParamsList <- readAppliedParamsList ref
+  let result = doVerifyOrder method name appliedParamsList matchers
   result & maybe (pure ()) (\(VerifyFailed msg) -> errorWithoutStackTrace msg)
 
 doVerifyOrder ::
@@ -603,22 +603,22 @@ doVerifyOrder ::
   AppliedParamsList a ->
   [a] ->
   Maybe VerifyFailed
-doVerifyOrder ExactlySequence name calledValues expectedValues
-  | length calledValues /= length expectedValues = do
-      pure $ verifyFailedOrderParamCountMismatch name calledValues expectedValues
+doVerifyOrder ExactlySequence name appliedValues expectedValues
+  | length appliedValues /= length expectedValues = do
+      pure $ verifyFailedOrderParamCountMismatch name appliedValues expectedValues
   | otherwise = do
-      let unexpectedOrders = collectUnExpectedOrder calledValues expectedValues
+      let unexpectedOrders = collectUnExpectedOrder appliedValues expectedValues
       guard $ length unexpectedOrders > 0
       pure $ verifyFailedSequence name unexpectedOrders
-doVerifyOrder PartiallySequence name calledValues expectedValues
-  | length calledValues < length expectedValues = do
-      pure $ verifyFailedOrderParamCountMismatch name calledValues expectedValues
+doVerifyOrder PartiallySequence name appliedValues expectedValues
+  | length appliedValues < length expectedValues = do
+      pure $ verifyFailedOrderParamCountMismatch name appliedValues expectedValues
   | otherwise = do
-      guard $ isOrderNotMatched calledValues expectedValues
-      pure $ verifyFailedPartiallySequence name calledValues expectedValues
+      guard $ isOrderNotMatched appliedValues expectedValues
+      pure $ verifyFailedPartiallySequence name appliedValues expectedValues
 
 verifyFailedPartiallySequence :: Show a => Maybe MockName -> AppliedParamsList a -> [a] -> VerifyFailed
-verifyFailedPartiallySequence name calledValues expectedValues =
+verifyFailedPartiallySequence name appliedValues expectedValues =
   VerifyFailed $
     intercalate
       "\n"
@@ -626,11 +626,11 @@ verifyFailedPartiallySequence name calledValues expectedValues =
         "  expected order:",
         intercalate "\n" $ ("    " <>) . show <$> expectedValues,
         "  but got:",
-        intercalate "\n" $ ("    " <>) . show <$> calledValues
+        intercalate "\n" $ ("    " <>) . show <$> appliedValues
       ]
 
 isOrderNotMatched :: Eq a => AppliedParamsList a -> [a] -> Bool
-isOrderNotMatched calledValues expectedValues =
+isOrderNotMatched appliedValues expectedValues =
   isNothing $
     foldl
       ( \candidates e -> do
@@ -638,17 +638,17 @@ isOrderNotMatched calledValues expectedValues =
             index <- elemIndex e c
             Just $ drop (index + 1) c
       )
-      (Just calledValues)
+      (Just appliedValues)
       expectedValues
 
 verifyFailedOrderParamCountMismatch :: Maybe MockName -> AppliedParamsList a -> [a] -> VerifyFailed
-verifyFailedOrderParamCountMismatch name calledValues expectedValues =
+verifyFailedOrderParamCountMismatch name appliedValues expectedValues =
   VerifyFailed $
     intercalate
       "\n"
       [ "Expected arguments were not applied to the function" <> mockNameLabel name <> " in the expected order (count mismatch).",
         "  expected: " <> show (length expectedValues),
-        "   but got: " <> show (length calledValues)
+        "   but got: " <> show (length appliedValues)
       ]
 
 verifyFailedSequence :: Show a => Maybe MockName -> [VerifyOrderResult a] -> VerifyFailed
@@ -660,12 +660,12 @@ verifyFailedSequence name fails =
       )
 
 verifyOrderFailedMesssage :: Show a => VerifyOrderResult a -> String
-verifyOrderFailedMesssage VerifyOrderResult {index, calledValue, expectedValue} =
-  let callCount = showHumanReadable (index + 1)
+verifyOrderFailedMesssage VerifyOrderResult {index, appliedValue, expectedValue} =
+  let appliedCount = showHumanReadable (index + 1)
    in intercalate
         "\n"
-        [ "  expected " <> callCount <> " applied: " <> show expectedValue,
-          "   but got " <> callCount <> " applied: " <> show calledValue
+        [ "  expected " <> appliedCount <> " applied: " <> show expectedValue,
+          "   but got " <> appliedCount <> " applied: " <> show appliedValue
         ]
   where
     showHumanReadable :: Int -> String
@@ -676,18 +676,18 @@ verifyOrderFailedMesssage VerifyOrderResult {index, calledValue, expectedValue} 
 
 data VerifyOrderResult a = VerifyOrderResult
   { index :: Int,
-    calledValue :: a,
+    appliedValue :: a,
     expectedValue :: a
   }
 
 collectUnExpectedOrder :: Eq a => AppliedParamsList a -> [a] -> [VerifyOrderResult a]
-collectUnExpectedOrder calledValues expectedValues =
+collectUnExpectedOrder appliedValues expectedValues =
   catMaybes $
     mapWithIndex
       ( \i expectedValue -> do
-          let calledValue = calledValues !! i
-          guard $ expectedValue /= calledValue
-          pure VerifyOrderResult {index = i, calledValue, expectedValue}
+          let appliedValue = appliedValues !! i
+          guard $ expectedValue /= appliedValue
+          pure VerifyOrderResult {index = i, appliedValue, expectedValue}
       )
       expectedValues
 

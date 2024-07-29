@@ -639,6 +639,14 @@ spec = do
               \  expected: \"X\"\n\
               \   but got: \"A\""
 
+        it "It has never been applied." do
+          m <- createMock $ "X" |> pure @IO True
+          m `shouldApplyTo` "X"
+            `shouldThrow` errorCall
+              "Expected arguments were not applied to the function.\n\
+              \  expected: \"X\"\n\
+              \   but got: It has never been applied"
+
         it "count" do
           m <- createMock $ any |> pure @IO True
           evaluate $ stubFn m "A"
