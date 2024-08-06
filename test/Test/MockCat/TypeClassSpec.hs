@@ -10,6 +10,8 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE InstanceSigs #-}
 
 module Test.MockCat.TypeClassSpec (spec) where
 
@@ -49,21 +51,11 @@ program inputPath outputPath modifyText = do
   writeFile outputPath modifiedContent
   --post modifiedContent
 
---data MockT m a = MockT { run :: m a, definitions :: [Definition] } deriving (Generic)
+
 newtype MockT m a = MockT { st :: StateT [Definition] m a }
+  deriving (Functor, Applicative, Monad, MonadTrans, MonadIO)
 
--- newtype MockT m a where
---   MockT :: { unMockT :: ReaderT [Definition] m a } -> MockT m a
---data Hoge = Hoge { list :: [(Symbol, Exist a)] }
 data Definition = forall a sym. KnownSymbol sym => Definition { symbol :: Proxy sym, value :: a }
-
-instance (Functor m) => Functor (MockT m) where
-  fmap f = undefined
-instance (Applicative m) => Applicative (MockT m) where
-  pure = undefined
-instance (Monad m) => Monad (MockT m) where
-  MockT x >>= f = MockT (x >>= st . f)
-
 
 instance (MonadIO m, Monad m) => FileOperation (MockT m) where
   readFile path = MockT do
