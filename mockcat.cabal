@@ -54,6 +54,7 @@ library
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -fprint-potential-instances
   build-depends:
       base >=4.7 && <5
+    , mtl
     , template-haskell >=2.18 && <2.23
     , text >=2.0 && <2.2
   default-language: Haskell2010
@@ -67,6 +68,7 @@ test-suite mockcat-test
       Test.MockCat.ExampleSpec
       Test.MockCat.MockSpec
       Test.MockCat.ParamSpec
+      Test.MockCat.TypeClassSpec
       Paths_mockcat
   hs-source-dirs:
       test
@@ -75,6 +77,7 @@ test-suite mockcat-test
       base >=4.7 && <5
     , hspec
     , mockcat
+    , mtl
     , template-haskell >=2.18 && <2.23
     , text >=2.0 && <2.2
   default-language: Haskell2010
