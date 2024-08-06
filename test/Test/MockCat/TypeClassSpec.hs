@@ -7,8 +7,11 @@
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE UndecidableInstances #-}
 
-module TypeClassSpec (spec) where
+module Test.MockCat.TypeClassSpec (spec) where
 
 import Data.Text (Text, pack)
 import Test.Hspec (Spec, it, shouldBe)
@@ -20,8 +23,12 @@ import Data.Data
 import Data.List (find)
 import GHC.TypeLits (KnownSymbol, symbolVal)
 import Unsafe.Coerce (unsafeCoerce)
-import Control.Monad.Reader (ReaderT (runReaderT), ask, runReader)
-import Control.Monad.State (StateT, modify, modify', put, get, lift, state)
+import Control.Monad.Reader (ReaderT (..), ask, runReader, MonadReader)
+import Control.Monad.State (StateT (runStateT), modify, modify', put, get, lift, state)
+import Control.Monad.Trans
+import Control.Monad.Reader.Class (MonadReader(local, reader))
+import Data.Maybe (fromJust)
+import GHC.IO (unsafePerformIO)
 
 class (Monad m) => FileOperation m where
   readFile :: FilePath -> m Text
@@ -40,11 +47,13 @@ program inputPath outputPath modifyText = do
   content <- readFile inputPath
   let modifiedContent = modifyText content
   writeFile outputPath modifiedContent
-  post modifiedContent
+  --post modifiedContent
 
 --data MockT m a = MockT { run :: m a, definitions :: [Definition] } deriving (Generic)
-data MockT m a = MockT (ReaderT [Definition] m a)
+newtype MockT m a = MockT { st :: StateT [Definition] m a }
 
+-- newtype MockT m a where
+--   MockT :: { unMockT :: ReaderT [Definition] m a } -> MockT m a
 --data Hoge = Hoge { list :: [(Symbol, Exist a)] }
 data Definition = forall a sym. KnownSymbol sym => Definition { symbol :: Proxy sym, value :: a }
 
@@ -53,41 +62,44 @@ instance (Functor m) => Functor (MockT m) where
 instance (Applicative m) => Applicative (MockT m) where
   pure = undefined
 instance (Monad m) => Monad (MockT m) where
-  m >>= k = undefined
+  MockT x >>= f = MockT (x >>= st . f)
 
-{-
-スタブを呼び出さないといかんよな
-だからMockTから取り出せる必要がある。
-そして各スタブの識別ができないといかん。
-readFileならreadFileのスタブを識別できないと。
-何がくるかわからないのだから、MockTが持てる値は好きなようにかつ可変にしておかないといかんな。
-bindではそれを蓄積していかんとならない。あとからフィールドって追加できるんか？
-最初から内部的にレコードでも作るか？MockTが任意のレコードを受け取れるようになってれば解決できるよな？
-Symbolでも使って、値は存在型で隠してしまうか？
 
--}
-instance Monad m => FileOperation (MockT m) where
-  readFile path = undefined
-  writeFile path content = undefined
+instance (MonadIO m, Monad m) => FileOperation (MockT m) where
+  readFile path = MockT do
+    defs <- get
+    let
+      p :: (Param FilePath :> Param Text)
+      p = unsafeCoerce $ fromJust $ findParam (Proxy :: Proxy "readFile") defs
+    s <- createStubFn p
+    pure $ s path
+
+  writeFile path content = MockT do
+    defs <- get
+    let
+      p :: (Param FilePath :> Param Text :> Param ())
+      p = unsafeCoerce $ fromJust $ findParam (Proxy :: Proxy "writeFile") defs
+    liftIO $ print p
+    s <- createStubFn p
+    pure $ s path content
 
 instance Monad m => ApiOperation (MockT m) where
   post content = undefined
 
-runMockT :: MockT m a -> m a
-runMockT = undefined
-
--- Paramを受け取ってMockTを作らないといけない
--- MockTには何をもたせればいい？
--- 任意のパラメーターを持たせないといかんよなあ？
-_readFile :: Monad m => (Param FilePath :> Param Text) -> MockT m a
---_readFile param = MockT { run = undefined, definitions = [Definition (Proxy :: Proxy "readFile") param] }
-_readFile param = MockT undefined
+runMockT :: Monad m => MockT m a -> m a
+runMockT (MockT s) = do
+  r <- runStateT s []
+  pure (fst r)
 
 
+_readFile :: Monad m => (Param FilePath :> Param Text) -> MockT m ()
+_readFile param = MockT $ do
+  modify (++ [Definition (Proxy :: Proxy "readFile") param])
 
-_writeFile :: (Param FilePath :> Param Text :> Param ()) -> MockT m a
---_writeFile param = MockT { run = undefined, definitions = [Definition (Proxy :: Proxy "writeFile") param] }
-_writeFile param = undefined
+_writeFile :: Monad m => (Param FilePath :> Param Text :> Param ()) -> MockT m ()
+_writeFile param = MockT $ do
+  modify (++ [Definition (Proxy :: Proxy "writeFile") param])
+
 
 findParam :: KnownSymbol sym => Proxy sym -> [Definition] -> Maybe a
 findParam pa definitions = do
