@@ -15,18 +15,15 @@ module Test.MockCat.TypeClassSpec (spec) where
 
 import Data.Text (Text, pack)
 import Test.Hspec (Spec, it, shouldBe)
-import Test.MockCat (Mock, createStubFn, stubFn, (|>), shouldApplyTo, Param, (:>), createNamedMock, build, shouldApplyAnythingTo)
+import Test.MockCat (createStubFn, stubFn, (|>), Param, (:>), createNamedMock, shouldApplyAnythingTo)
 import Prelude hiding (readFile, writeFile)
 import Data.Data
 import Data.List (find)
 import GHC.TypeLits (KnownSymbol, symbolVal)
 import Unsafe.Coerce (unsafeCoerce)
-import Control.Monad.State (StateT (runStateT), modify, get)
-import Control.Monad.Trans
-import Data.Maybe (fromJust, fromMaybe)
+import Control.Monad.State (modify, get)
+import Data.Maybe (fromMaybe)
 import GHC.IO (unsafePerformIO)
-import Data.Foldable (for_)
-import Test.MockCat.ParamDivider (args)
 import Test.MockCat.Mock (MockBuilder)
 import Test.MockCat.MockT (MockT(..), runMockT, Definition(..))
 
