@@ -16,7 +16,8 @@
   - Verify applied mock function.
 -}
 module Test.MockCat.Mock
-  ( createMock,
+  ( Mock,
+    createMock,
     createNamedMock,
     createStubFn,
     createNamedStubFn,

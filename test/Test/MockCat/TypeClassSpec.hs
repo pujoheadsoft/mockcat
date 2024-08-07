@@ -12,25 +12,25 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE InstanceSigs #-}
+{-# LANGUAGE BangPatterns #-}
+{-# OPTIONS_GHC -Wno-name-shadowing #-}
 
 module Test.MockCat.TypeClassSpec (spec) where
 
 import Data.Text (Text, pack)
 import Test.Hspec (Spec, it, shouldBe)
-import Test.MockCat (createMock, createStubFn, stubFn, (|>), shouldApplyTo, Param, (:>))
+import Test.MockCat (Mock, createStubFn, stubFn, (|>), shouldApplyTo, Param, (:>), createNamedMock)
 import Prelude hiding (readFile, writeFile)
-import GHC.Generics (Generic)
-import GHC.Base (Symbol, liftM)
 import Data.Data
 import Data.List (find)
 import GHC.TypeLits (KnownSymbol, symbolVal)
 import Unsafe.Coerce (unsafeCoerce)
-import Control.Monad.Reader (ReaderT (..), ask, runReader, MonadReader)
-import Control.Monad.State (StateT (runStateT), modify, modify', put, get, lift, state)
+import Control.Monad.State (StateT (runStateT), modify, get)
 import Control.Monad.Trans
-import Control.Monad.Reader.Class (MonadReader(local, reader))
 import Data.Maybe (fromJust)
 import GHC.IO (unsafePerformIO)
+import Data.Foldable (for_)
+import Test.MockCat.ParamDivider (args)
 
 class (Monad m) => FileOperation m where
   readFile :: FilePath -> m Text
@@ -55,48 +55,69 @@ program inputPath outputPath modifyText = do
 newtype MockT m a = MockT { st :: StateT [Definition] m a }
   deriving (Functor, Applicative, Monad, MonadTrans, MonadIO)
 
-data Definition = forall a sym. KnownSymbol sym => Definition { symbol :: Proxy sym, value :: a }
+data Definition = forall f p sym. KnownSymbol sym => Definition { 
+  symbol :: Proxy sym, 
+  mock :: Mock f p,
+  verify :: Mock f p -> IO ()
+}
 
-instance (MonadIO m, Monad m) => FileOperation (MockT m) where
+instance Monad m => FileOperation (MockT m) where
   readFile path = MockT do
     defs <- get
     let
-      p :: (Param FilePath :> Param Text)
-      p = unsafeCoerce $ fromJust $ findParam (Proxy :: Proxy "readFile") defs
-    s <- createStubFn p
-    pure $ s path
+      mock :: (Mock (FilePath -> Text) (Param FilePath :> Param Text))
+      mock = fromJust $ findParam (Proxy :: Proxy "readFile") defs
+    pure $ stubFn mock path
 
   writeFile path content = MockT do
     defs <- get
     let
-      p :: (Param FilePath :> Param Text :> Param ())
-      p = unsafeCoerce $ fromJust $ findParam (Proxy :: Proxy "writeFile") defs
-    liftIO $ print p
-    s <- createStubFn p
-    pure $ s path content
+      mock :: (Mock (FilePath -> Text -> ()) (Param FilePath :> Param Text :> Param ()))
+      mock = fromJust $ findParam (Proxy :: Proxy "writeFile") defs
+    pure $ stubFn mock path content
 
 instance Monad m => ApiOperation (MockT m) where
-  post content = undefined
+  post content = MockT do
+    defs <- get
+    let 
+      mock = unsafeCoerce $ maybe (error "postはスタブになってないよ") id $ findParam (Proxy :: Proxy "post") defs
+    pure $ stubFn mock content
 
-runMockT :: Monad m => MockT m a -> m a
+runMockT :: MockT IO a -> IO a
 runMockT (MockT s) = do
   r <- runStateT s []
-  pure (fst r)
+  let
+    !a = fst r
+    defs = snd r
+  for_ defs (\(Definition _ m v) -> v m)
+  pure a
 
 
 _readFile :: Monad m => (Param FilePath :> Param Text) -> MockT m ()
-_readFile param = MockT $ do
-  modify (++ [Definition (Proxy :: Proxy "readFile") param])
+_readFile p = MockT $ do
+  modify (++ [Definition 
+    (Proxy :: Proxy "readFile")
+    (unsafePerformIO $ createNamedMock "readFile" p)
+    \m -> shouldApplyTo m (args p)])
 
 _writeFile :: Monad m => (Param FilePath :> Param Text :> Param ()) -> MockT m ()
-_writeFile param = MockT $ do
-  modify (++ [Definition (Proxy :: Proxy "writeFile") param])
+_writeFile p = MockT $ do
+  modify (++ [Definition
+    (Proxy :: Proxy "writeFile")
+    (unsafePerformIO $ createNamedMock "writeFile" p)
+    \m -> shouldApplyTo m (args p)])
 
+_post :: Monad m => (Param Text :> Param ()) -> MockT m ()
+_post p = MockT $ do
+  modify (++ [Definition
+    (Proxy :: Proxy "post")
+    (unsafePerformIO $ createNamedMock "post" p)
+    \m -> shouldApplyTo m (args p)])
 
 findParam :: KnownSymbol sym => Proxy sym -> [Definition] -> Maybe a
 findParam pa definitions = do
-  let definition = find (\(Definition symbol value) -> symbolVal symbol == symbolVal pa) definitions
-  fmap (\(Definition symbol value) -> unsafeCoerce value) definition
+  let definition = find (\(Definition s _ _) -> symbolVal s == symbolVal pa) definitions
+  fmap (\(Definition _ mock _) -> unsafeCoerce mock) definition
 
 spec :: Spec
 spec = do
@@ -106,6 +127,7 @@ spec = do
     result <- runMockT do
       _readFile $ "input.txt" |> pack "content"
       _writeFile $ "output.text" |> pack "modifiedContent" |> ()
+      --_post $ pack "modifiedContent" |> ()
       program "input.txt" "output.text" modifyContentStub
 
     result `shouldBe` ()
