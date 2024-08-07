@@ -1,17 +1,12 @@
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE OverloadedRecordDot #-}
-{-# LANGUAGE DeriveGeneric #-}
 {-# OPTIONS_GHC -Wno-unused-do-bind #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE BangPatterns #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -33,6 +28,7 @@ import GHC.IO (unsafePerformIO)
 import Data.Foldable (for_)
 import Test.MockCat.ParamDivider (args)
 import Test.MockCat.Mock (MockBuilder)
+import Test.MockCat.MockT (MockT(..), runMockT, Definition(..))
 
 class (Monad m) => FileOperation m where
   readFile :: FilePath -> m Text
@@ -52,15 +48,6 @@ program inputPath outputPath modifyText = do
   let modifiedContent = modifyText content
   writeFile outputPath modifiedContent
   post modifiedContent
-
-newtype MockT m a = MockT { st :: StateT [Definition] m a }
-  deriving (Functor, Applicative, Monad, MonadTrans, MonadIO)
-
-data Definition = forall f p sym. KnownSymbol sym => Definition {
-  symbol :: Proxy sym,
-  mock :: Mock f p,
-  verify :: Mock f p -> IO ()
-}
 
 instance Monad m => FileOperation (MockT m) where
   readFile path = MockT do
@@ -85,36 +72,24 @@ instance Monad m => ApiOperation (MockT m) where
       !result = stubFn mock content
     pure result
 
-runMockT :: MonadIO m => MockT m a -> m a
-runMockT (MockT s) = do
-  r <- runStateT s []
-  let
-    !a = fst r
-    defs = snd r
-  for_ defs (\(Definition _ m v) -> liftIO $ v m)
-  pure a
-
 _readFile :: (MockBuilder params (FilePath -> Text) (Param FilePath), Monad m) => params -> MockT m ()
-_readFile p = do
-  MockT $ do
-    modify (++ [Definition
-      (Proxy :: Proxy "readFile")
-      (unsafePerformIO $ createNamedMock "readFile" p)
-      shouldApplyAnythingTo])
+_readFile p = MockT $ do
+  modify (++ [Definition
+    (Proxy :: Proxy "readFile")
+    (unsafePerformIO $ createNamedMock "readFile" p)
+    shouldApplyAnythingTo])
 
 _writeFile :: (MockBuilder params (FilePath -> Text -> ()) (Param FilePath :> Param Text), Monad m) => params -> MockT m ()
-_writeFile p = MockT $ do
-  modify (++ [Definition
-    (Proxy :: Proxy "writeFile")
-    (unsafePerformIO $ createNamedMock "writeFile" p)
-    shouldApplyAnythingTo])
+_writeFile p = MockT $ modify (++ [Definition
+  (Proxy :: Proxy "writeFile")
+  (unsafePerformIO $ createNamedMock "writeFile" p)
+  shouldApplyAnythingTo])
 
 _post :: (MockBuilder params (Text -> ()) (Param Text), Monad m) => params -> MockT m ()
-_post p = MockT $ do
-  modify (++ [Definition
-    (Proxy :: Proxy "post")
-    (unsafePerformIO $ createNamedMock "post" p)
-    shouldApplyAnythingTo])
+_post p = MockT $ modify (++ [Definition
+  (Proxy :: Proxy "post")
+  (unsafePerformIO $ createNamedMock "post" p)
+  shouldApplyAnythingTo])
 
 findParam :: KnownSymbol sym => Proxy sym -> [Definition] -> Maybe a
 findParam pa definitions = do
@@ -122,17 +97,16 @@ findParam pa definitions = do
   fmap (\(Definition _ mock _) -> unsafeCoerce mock) definition
 
 spec :: Spec
-spec = do
-  it "Read, edit, and output files" do
-    modifyContentStub <- createStubFn $ pack "content" |> pack "modifiedContent"
+spec = it "Read, edit, and output files" do
+  modifyContentStub <- createStubFn $ pack "content" |> pack "modifiedContent"
 
-    result <- runMockT do
-      _readFile [
-        "input.txt" |> pack "content",
-        "hoge.txt" |> pack "content"
-        ]
-      _writeFile $ "output.text" |> pack "modifiedContent" |> ()
-      _post $ pack "modifiedContent" |> ()
-      program "input.txt" "output.text" modifyContentStub
+  result <- runMockT do
+    _readFile [
+      "input.txt" |> pack "content",
+      "hoge.txt" |> pack "content"
+      ]
+    _writeFile $ "output.text" |> pack "modifiedContent" |> ()
+    _post $ pack "modifiedContent" |> ()
+    program "input.txt" "output.text" modifyContentStub
 
-    result `shouldBe` ()
+  result `shouldBe` ()
