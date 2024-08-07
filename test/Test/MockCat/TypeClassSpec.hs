@@ -28,7 +28,7 @@ import GHC.TypeLits (KnownSymbol, symbolVal)
 import Unsafe.Coerce (unsafeCoerce)
 import Control.Monad.State (StateT (runStateT), modify, get)
 import Control.Monad.Trans
-import Data.Maybe (fromJust)
+import Data.Maybe (fromJust, fromMaybe)
 import GHC.IO (unsafePerformIO)
 import Data.Foldable (for_)
 import Test.MockCat.ParamDivider (args)
@@ -51,13 +51,13 @@ program inputPath outputPath modifyText = do
   content <- readFile inputPath
   let modifiedContent = modifyText content
   writeFile outputPath modifiedContent
-  post modifiedContent  
+  post modifiedContent
 
 newtype MockT m a = MockT { st :: StateT [Definition] m a }
   deriving (Functor, Applicative, Monad, MonadTrans, MonadIO)
 
-data Definition = forall f p sym. KnownSymbol sym => Definition { 
-  symbol :: Proxy sym, 
+data Definition = forall f p sym. KnownSymbol sym => Definition {
+  symbol :: Proxy sym,
   mock :: Mock f p,
   verify :: Mock f p -> IO ()
 }
@@ -66,24 +66,22 @@ instance Monad m => FileOperation (MockT m) where
   readFile path = MockT do
     defs <- get
     let
-      mock :: (Mock (FilePath -> Text) (Param FilePath :> Param Text))
-      mock = fromJust $ findParam (Proxy :: Proxy "readFile") defs
+      mock = fromMaybe (error "no answer found stub function `readFile`.") $ findParam (Proxy :: Proxy "readFile") defs
       !result = stubFn mock path
     pure result
 
   writeFile path content = MockT do
     defs <- get
     let
-      mock :: (Mock (FilePath -> Text -> ()) (Param FilePath :> Param Text :> Param ()))
-      mock = fromJust $ findParam (Proxy :: Proxy "writeFile") defs
+      mock = fromMaybe (error "no answer found stub function `writeFile`.") $ findParam (Proxy :: Proxy "writeFile") defs
       !result = stubFn mock path content
     pure result
 
 instance Monad m => ApiOperation (MockT m) where
   post content = MockT do
     defs <- get
-    let 
-      mock = unsafeCoerce $ maybe (error "postはスタブになってないよ") id $ findParam (Proxy :: Proxy "post") defs
+    let
+      mock = fromMaybe (error "no answer found stub function `post`.") $ findParam (Proxy :: Proxy "post") defs
       !result = stubFn mock content
     pure result
 
@@ -99,7 +97,7 @@ runMockT (MockT s) = do
 _readFile :: (MockBuilder params (FilePath -> Text) (Param FilePath), Monad m) => params -> MockT m ()
 _readFile p = do
   MockT $ do
-    modify (++ [Definition 
+    modify (++ [Definition
       (Proxy :: Proxy "readFile")
       (unsafePerformIO $ createNamedMock "readFile" p)
       shouldApplyAnythingTo])
