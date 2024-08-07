@@ -96,15 +96,19 @@ generateMock className = reify className >>= \case
 generateMockMethod :: String -> Dec -> Q Dec
 generateMockMethod classNameStr (SigD funName funType) = do
   names <- sequence $ typeToNames funType
-  let 
+  let r = mkName "result"
+  let result = bangP $ varP r
+  let result2 = varE r
+  let
       params = varP <$> names
       args = varE <$> names
       funNameStr = "_" <> nameBase funName
+
       funBody =  [| MockT $ do
                       defs <- get
                       let mock = fromMaybe (error $ "no answer found stub function `" ++ funNameStr ++ "`.") $ findParam (Proxy :: Proxy $(litT (strTyLit funNameStr))) defs
-                          !result = $(generateStubFnCall [| mock |] args)
-                      pure result |]
+                          $result = $(generateStubFnCall [| mock |] args)
+                      pure $result2 |]
       funClause = clause params (normalB funBody) []
 
   -- x <- mapM runQ params

@@ -37,7 +37,7 @@ program inputPath outputPath modifyText = do
   content <- readFile inputPath
   let modifiedContent = modifyText content
   writeFile outputPath modifiedContent
-  --post modifiedContent
+  post modifiedContent
 
 makeMock [''FileOperation]
 makeMock [''ApiOperation]
@@ -53,7 +53,7 @@ spec = it "Read, edit, and output files" do
       "hoge.txt" |> pack "content"
       ]
     _writeFile $ "output.text" |> pack "modifiedContent" |> ()
-    --_post $ pack "modifiedContent" |> ()
+    _post $ pack "modifiedContent" |> ()
     program "input.txt" "output.text" modifyContentStub
 
   result `shouldBe` ()
