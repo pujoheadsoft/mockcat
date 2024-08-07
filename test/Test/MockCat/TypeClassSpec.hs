@@ -14,12 +14,13 @@
 {-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE BangPatterns #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 module Test.MockCat.TypeClassSpec (spec) where
 
 import Data.Text (Text, pack)
 import Test.Hspec (Spec, it, shouldBe)
-import Test.MockCat (Mock, createStubFn, stubFn, (|>), shouldApplyTo, Param, (:>), createNamedMock, any)
+import Test.MockCat (Mock, createStubFn, stubFn, (|>), shouldApplyTo, Param, (:>), createNamedMock, build, shouldApplyAnythingTo)
 import Prelude hiding (readFile, writeFile)
 import Data.Data
 import Data.List (find)
@@ -31,6 +32,7 @@ import Data.Maybe (fromJust)
 import GHC.IO (unsafePerformIO)
 import Data.Foldable (for_)
 import Test.MockCat.ParamDivider (args)
+import Test.MockCat.Mock (MockBuilder)
 
 class (Monad m) => FileOperation m where
   readFile :: FilePath -> m Text
@@ -94,27 +96,27 @@ runMockT (MockT s) = do
   for_ defs (\(Definition _ m v) -> liftIO $ v m)
   pure a
 
+_readFile :: (MockBuilder params (FilePath -> Text) (Param FilePath), Monad m) => params -> MockT m ()
+_readFile p = do
+  MockT $ do
+    modify (++ [Definition 
+      (Proxy :: Proxy "readFile")
+      (unsafePerformIO $ createNamedMock "readFile" p)
+      shouldApplyAnythingTo])
 
-_readFile :: Monad m => (Param FilePath :> Param Text) -> MockT m ()
-_readFile p = MockT $ do
-  modify (++ [Definition 
-    (Proxy :: Proxy "readFile")
-    (unsafePerformIO $ createNamedMock "readFile" p)
-    \m -> shouldApplyTo m (args p)])
-
-_writeFile :: Monad m => (Param FilePath :> Param Text :> Param ()) -> MockT m ()
+_writeFile :: (MockBuilder params (FilePath -> Text -> ()) (Param FilePath :> Param Text), Monad m) => params -> MockT m ()
 _writeFile p = MockT $ do
   modify (++ [Definition
     (Proxy :: Proxy "writeFile")
     (unsafePerformIO $ createNamedMock "writeFile" p)
-    \m -> shouldApplyTo m (args p)])
+    shouldApplyAnythingTo])
 
-_post :: Monad m => (Param Text :> Param ()) -> MockT m ()
+_post :: (MockBuilder params (Text -> ()) (Param Text), Monad m) => params -> MockT m ()
 _post p = MockT $ do
   modify (++ [Definition
     (Proxy :: Proxy "post")
     (unsafePerformIO $ createNamedMock "post" p)
-    \m -> shouldApplyTo m (args p)])
+    shouldApplyAnythingTo])
 
 findParam :: KnownSymbol sym => Proxy sym -> [Definition] -> Maybe a
 findParam pa definitions = do
@@ -127,7 +129,10 @@ spec = do
     modifyContentStub <- createStubFn $ pack "content" |> pack "modifiedContent"
 
     result <- runMockT do
-      _readFile $ "input.txt" |> pack "content"
+      _readFile [
+        "input.txt" |> pack "content",
+        "hoge.txt" |> pack "content"
+        ]
       _writeFile $ "output.text" |> pack "modifiedContent" |> ()
       _post $ pack "modifiedContent" |> ()
       program "input.txt" "output.text" modifyContentStub

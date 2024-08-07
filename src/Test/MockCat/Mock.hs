@@ -17,6 +17,8 @@
 -}
 module Test.MockCat.Mock
   ( Mock,
+    MockBuilder,
+    build,
     createMock,
     createNamedMock,
     createStubFn,
@@ -30,13 +32,14 @@ module Test.MockCat.Mock
     shouldApplyTimesLessThanEqual,
     shouldApplyTimesGreaterThan,
     shouldApplyTimesLessThan,
+    shouldApplyAnythingTo,
     to,
     module Test.MockCat.Cons,
     module Test.MockCat.Param
   )
 where
 
-import Control.Monad (guard)
+import Control.Monad (guard, when)
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Data.Function ((&))
 import Data.IORef (IORef, modifyIORef', newIORef, readIORef)
@@ -49,6 +52,7 @@ import Test.MockCat.Param
 import Test.MockCat.ParamDivider
 import Test.MockCat.AssociationList (AssociationList, lookup, update, insert, empty, member)
 import Prelude hiding (lookup)
+import GHC.Stack (HasCallStack)
 
 data Mock fun params = Mock (Maybe MockName) fun (Verifier params)
 
@@ -437,7 +441,7 @@ data VerifyMatchType a = MatchAny a | MatchAll a
 -- | Class for verifying mock function.
 class Verify params input where
   -- | Verifies that the function has been applied to the expected arguments.
-  shouldApplyTo :: Mock fun params -> input -> IO ()
+  shouldApplyTo :: HasCallStack => Mock fun params -> input -> IO ()
 
 instance (Eq a, Show a) => Verify (Param a) a where
   shouldApplyTo v a = verify v (MatchAny (param a))
@@ -496,7 +500,7 @@ class VerifyCount countType params a where
   --   m \`shouldApplyTimes\` (2 :: Int) \`to\` "value" 
   -- @
   --
-  shouldApplyTimes :: Eq params => Mock fun params -> countType -> a -> IO ()
+  shouldApplyTimes :: HasCallStack => Eq params => Mock fun params -> countType -> a -> IO ()
 
 instance VerifyCount CountVerifyMethod (Param a) a where
   shouldApplyTimes v count a = verifyCount v (param a) count
@@ -563,14 +567,14 @@ class VerifyOrder params input where
   --   print $ stubFn m "b" True
   --   m \`shouldApplyInOrder\` ["a" |\> True, "b" |\> True]
   -- @
-  shouldApplyInOrder :: Mock fun params -> [input] -> IO ()
+  shouldApplyInOrder :: HasCallStack => Mock fun params -> [input] -> IO ()
 
   -- | Verify that functions are applied in the expected order.
   --
   -- Unlike @'shouldApplyInOrder'@, not all applications need to match exactly.
   --
   -- As long as the order matches, the verification succeeds.
-  shouldApplyInPartialOrder :: Mock fun params -> [input] -> IO ()
+  shouldApplyInPartialOrder :: HasCallStack => Mock fun params -> [input] -> IO ()
 
 instance (Eq a, Show a) => VerifyOrder (Param a) a where
   shouldApplyInOrder v a = verifyOrder ExactlySequence v $ param <$> a
@@ -781,3 +785,8 @@ safeIndex :: [a] -> Int -> Maybe a
 safeIndex xs n
   | n < 0 = Nothing
   | otherwise = listToMaybe (drop n xs)
+
+shouldApplyAnythingTo :: HasCallStack => Mock fun params -> IO ()
+shouldApplyAnythingTo (Mock name _ (Verifier ref)) = do
+  appliedParamsList <- readAppliedParamsList ref
+  when (null appliedParamsList) $ error $ "It has never been applied to function" <> mockNameLabel name
