@@ -8,6 +8,7 @@ import Prelude hiding (and, or)
 import Test.Hspec
 import Test.MockCat.Cons
 import Test.MockCat.Param as P
+import Test.MockCat.TH (expectByExpr)
 
 spec :: Spec
 spec = do

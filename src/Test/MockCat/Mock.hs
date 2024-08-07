@@ -33,9 +33,7 @@ module Test.MockCat.Mock
     shouldApplyTimesGreaterThan,
     shouldApplyTimesLessThan,
     shouldApplyAnythingTo,
-    to,
-    module Test.MockCat.Cons,
-    module Test.MockCat.Param
+    to
   )
 where
 

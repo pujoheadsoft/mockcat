@@ -70,6 +70,7 @@ test-suite mockcat-test
       Test.MockCat.MockSpec
       Test.MockCat.ParamSpec
       Test.MockCat.TypeClassSpec
+      Test.MockCat.TyprClassTHSpec
       Paths_mockcat
   hs-source-dirs:
       test

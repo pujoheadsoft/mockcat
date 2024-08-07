@@ -14,7 +14,7 @@ module Test.MockCat.MockSpec (spec) where
 import qualified Control.Exception as E
 import Data.Function ((&))
 import Test.Hspec
-import Test.MockCat.Mock
+import Test.MockCat
   ( any,
     expectByExpr,
     stubFn,
