@@ -2,11 +2,12 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Test.MockCat.TH (showExp, expectByExpr, makeMock) where
 
-import Language.Haskell.TH (Exp (..), Lit (..), Pat (..), Q, pprint, Name, Dec (..), Info (..), reify, conT, instanceD, cxt, appT, varT, mkName, DecQ, litE, stringL, normalB, clause, funD, varP, litT, strTyLit)
-import Language.Haskell.TH.PprLib (Doc, hcat, parens, text)
+import Language.Haskell.TH (Exp (..), Lit (..), Pat (..), Q, pprint, Name, Dec (..), Info (..), reify, conT, instanceD, cxt, appT, varT, mkName, DecQ, litE, stringL, normalB, clause, funD, varP, litT, strTyLit, Type (..), conP, Quote (newName), runQ)
+import Language.Haskell.TH.PprLib (Doc, hcat, parens, text, empty)
 import Language.Haskell.TH.Syntax (nameBase)
 import Test.MockCat.Param (Param(..))
 import Test.MockCat.MockT
@@ -17,6 +18,9 @@ import Unsafe.Coerce (unsafeCoerce)
 import Control.Monad.State (modify, get)
 import Data.Maybe (fromMaybe)
 import GHC.IO (unsafePerformIO)
+import Control.Monad (replicateM)
+import Language.Haskell.TH.Lib
+import Text.Printf (IsChar(toChar))
 
 showExp :: Q Exp -> Q String
 showExp qexp = show . pprintExp <$> qexp
@@ -91,21 +95,46 @@ generateMock className = reify className >>= \case
 
 generateMockMethod :: String -> Dec -> Q Dec
 generateMockMethod classNameStr (SigD funName funType) = do
-  let funNameStr = "_" <> nameBase funName
-      funBody = [| MockT $ do
+  names <- sequence $ typeToNames funType
+  let 
+      params = varP <$> names
+      args = varE <$> names
+      funNameStr = "_" <> nameBase funName
+      funBody =  [| MockT $ do
                       defs <- get
                       let mock = fromMaybe (error $ "no answer found stub function `" ++ funNameStr ++ "`.") $ findParam (Proxy :: Proxy $(litT (strTyLit funNameStr))) defs
-                          !result = stubFn mock
-                      pure result|]
-  let funClause = clause [] (normalB funBody) []
+                          !result = $(generateStubFnCall [| mock |] args)
+                      pure result |]
+      funClause = clause params (normalB funBody) []
+
+  -- x <- mapM runQ params
+  -- y <- mapM runQ args
+  -- error $ show names <> ":" <> show x <> " ==> " <> show y
+  -- x <- mapM runQ params
+  -- error $ show funType <> " ==> " <> pprint x
 
   funD funName [funClause]
 generateMockMethod classNameStr _ = error "adfasd"
 
+
+generateStubFnCall :: Q Exp -> [Q Exp] -> Q Exp
+generateStubFnCall mock args = do
+  foldl appE [| stubFn $(mock) |] args
+  where
+    patToExp (VarP name) = varE name
+    patToExp _ = error "Unsupported pattern"
+
+
+patToExp :: Quote m => m Pat -> m Exp
+patToExp pat = (\p -> case p of
+  (VarP name) -> VarE name
+  _ -> error "Unsupported pattern"
+  ) <$> pat
+
 generateMockFunction :: String -> Dec -> Q Dec
 generateMockFunction classNameStr (SigD funName funType) = do
-  let funNameStr = nameBase funName
-      mockFunName = mkName $ "_" ++ funNameStr
+  let funNameStr = "_" <> nameBase funName
+      mockFunName = mkName funNameStr
       mockBody = [| MockT $ modify (++ [Definition
                       (Proxy :: Proxy $(litT (strTyLit funNameStr)))
                       (unsafePerformIO $ createNamedMock $(litE (stringL funNameStr)) p)
@@ -118,3 +147,38 @@ findParam :: KnownSymbol sym => Proxy sym -> [Definition] -> Maybe a
 findParam pa definitions = do
   let definition = find (\(Definition s _ _) -> symbolVal s == symbolVal pa) definitions
   fmap (\(Definition _ mock _) -> unsafeCoerce mock) definition
+
+typeToPats :: Type -> [Q Pat]
+typeToPats (AppT (AppT ArrowT t1) t2) = [varP =<< newName "a"] ++ typeToPats t2
+typeToPats _ = []
+
+typeToNames :: Type -> [Q Name]
+typeToNames (AppT (AppT ArrowT t1) t2) = [newName "a"] ++ typeToNames t2
+typeToNames _ = []
+
+typeToPatList :: Type -> [Q Pat]
+typeToPatList (ArrowT `AppT` t1 `AppT` t2) = do
+  let
+    p1 = typeToPat t1
+    ps = typeToPatList t2
+  p1 : ps
+typeToPatList t = do
+  let p = typeToPat t
+  [p]
+
+typeToPat :: Type -> Q Pat
+typeToPat (ConT name) = conP name []
+typeToPat (AppT t1 t2) = do
+  let
+    p1 = typeToPat t1
+    p2 = typeToPat t2
+  conP (mkName ":") [p1, p2]
+typeToPat (TupleT 0) = tupP []
+typeToPat (TupleT n) = do
+  ps <- replicateM n (newName "x" >>= varP)
+  tupP $ pure <$> ps
+typeToPat ListT = do
+  p <- newName "xs" >>= varP
+  listP [pure p]
+typeToPat (VarT name) = varP name
+typeToPat a = error $ "Unsupported type" <> show a

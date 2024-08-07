@@ -37,10 +37,10 @@ program inputPath outputPath modifyText = do
   content <- readFile inputPath
   let modifiedContent = modifyText content
   writeFile outputPath modifiedContent
-  post modifiedContent
+  --post modifiedContent
 
 makeMock [''FileOperation]
--- makeMock [t|ApiOperation|]
+makeMock [''ApiOperation]
 
 
 spec :: Spec
