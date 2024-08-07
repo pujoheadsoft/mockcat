@@ -97,9 +97,6 @@ generateMockMethod :: String -> Dec -> Q Dec
 generateMockMethod classNameStr (SigD funName funType) = do
   names <- sequence $ typeToNames funType
   let r = mkName "result"
-  let result = bangP $ varP r
-  let result2 = varE r
-  let
       params = varP <$> names
       args = varE <$> names
       funNameStr = "_" <> nameBase funName
@@ -107,8 +104,8 @@ generateMockMethod classNameStr (SigD funName funType) = do
       funBody =  [| MockT $ do
                       defs <- get
                       let mock = fromMaybe (error $ "no answer found stub function `" ++ funNameStr ++ "`.") $ findParam (Proxy :: Proxy $(litT (strTyLit funNameStr))) defs
-                          $result = $(generateStubFnCall [| mock |] args)
-                      pure $result2 |]
+                          $(bangP $ varP r) = $(generateStubFnCall [| mock |] args)
+                      pure $(varE r) |]
       funClause = clause params (normalB funBody) []
 
   -- x <- mapM runQ params
@@ -120,20 +117,9 @@ generateMockMethod classNameStr (SigD funName funType) = do
   funD funName [funClause]
 generateMockMethod classNameStr _ = error "adfasd"
 
-
 generateStubFnCall :: Q Exp -> [Q Exp] -> Q Exp
 generateStubFnCall mock args = do
   foldl appE [| stubFn $(mock) |] args
-  where
-    patToExp (VarP name) = varE name
-    patToExp _ = error "Unsupported pattern"
-
-
-patToExp :: Quote m => m Pat -> m Exp
-patToExp pat = (\p -> case p of
-  (VarP name) -> VarE name
-  _ -> error "Unsupported pattern"
-  ) <$> pat
 
 generateMockFunction :: String -> Dec -> Q Dec
 generateMockFunction classNameStr (SigD funName funType) = do
@@ -152,37 +138,6 @@ findParam pa definitions = do
   let definition = find (\(Definition s _ _) -> symbolVal s == symbolVal pa) definitions
   fmap (\(Definition _ mock _) -> unsafeCoerce mock) definition
 
-typeToPats :: Type -> [Q Pat]
-typeToPats (AppT (AppT ArrowT t1) t2) = [varP =<< newName "a"] ++ typeToPats t2
-typeToPats _ = []
-
 typeToNames :: Type -> [Q Name]
 typeToNames (AppT (AppT ArrowT t1) t2) = [newName "a"] ++ typeToNames t2
 typeToNames _ = []
-
-typeToPatList :: Type -> [Q Pat]
-typeToPatList (ArrowT `AppT` t1 `AppT` t2) = do
-  let
-    p1 = typeToPat t1
-    ps = typeToPatList t2
-  p1 : ps
-typeToPatList t = do
-  let p = typeToPat t
-  [p]
-
-typeToPat :: Type -> Q Pat
-typeToPat (ConT name) = conP name []
-typeToPat (AppT t1 t2) = do
-  let
-    p1 = typeToPat t1
-    p2 = typeToPat t2
-  conP (mkName ":") [p1, p2]
-typeToPat (TupleT 0) = tupP []
-typeToPat (TupleT n) = do
-  ps <- replicateM n (newName "x" >>= varP)
-  tupP $ pure <$> ps
-typeToPat ListT = do
-  p <- newName "xs" >>= varP
-  listP [pure p]
-typeToPat (VarT name) = varP name
-typeToPat a = error $ "Unsupported type" <> show a
