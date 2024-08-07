@@ -19,7 +19,7 @@ module Test.MockCat.TypeClassSpec (spec) where
 
 import Data.Text (Text, pack)
 import Test.Hspec (Spec, it, shouldBe)
-import Test.MockCat (Mock, createStubFn, stubFn, (|>), shouldApplyTo, Param, (:>), createNamedMock)
+import Test.MockCat (Mock, createStubFn, stubFn, (|>), shouldApplyTo, Param, (:>), createNamedMock, any)
 import Prelude hiding (readFile, writeFile)
 import Data.Data
 import Data.List (find)
@@ -49,8 +49,7 @@ program inputPath outputPath modifyText = do
   content <- readFile inputPath
   let modifiedContent = modifyText content
   writeFile outputPath modifiedContent
-  --post modifiedContent
-
+  post modifiedContent  
 
 newtype MockT m a = MockT { st :: StateT [Definition] m a }
   deriving (Functor, Applicative, Monad, MonadTrans, MonadIO)
@@ -67,29 +66,32 @@ instance Monad m => FileOperation (MockT m) where
     let
       mock :: (Mock (FilePath -> Text) (Param FilePath :> Param Text))
       mock = fromJust $ findParam (Proxy :: Proxy "readFile") defs
-    pure $ stubFn mock path
+      !result = stubFn mock path
+    pure result
 
   writeFile path content = MockT do
     defs <- get
     let
       mock :: (Mock (FilePath -> Text -> ()) (Param FilePath :> Param Text :> Param ()))
       mock = fromJust $ findParam (Proxy :: Proxy "writeFile") defs
-    pure $ stubFn mock path content
+      !result = stubFn mock path content
+    pure result
 
 instance Monad m => ApiOperation (MockT m) where
   post content = MockT do
     defs <- get
     let 
       mock = unsafeCoerce $ maybe (error "postはスタブになってないよ") id $ findParam (Proxy :: Proxy "post") defs
-    pure $ stubFn mock content
+      !result = stubFn mock content
+    pure result
 
-runMockT :: MockT IO a -> IO a
+runMockT :: MonadIO m => MockT m a -> m a
 runMockT (MockT s) = do
   r <- runStateT s []
   let
     !a = fst r
     defs = snd r
-  for_ defs (\(Definition _ m v) -> v m)
+  for_ defs (\(Definition _ m v) -> liftIO $ v m)
   pure a
 
 
@@ -127,7 +129,7 @@ spec = do
     result <- runMockT do
       _readFile $ "input.txt" |> pack "content"
       _writeFile $ "output.text" |> pack "modifiedContent" |> ()
-      --_post $ pack "modifiedContent" |> ()
+      _post $ pack "modifiedContent" |> ()
       program "input.txt" "output.text" modifyContentStub
 
     result `shouldBe` ()
