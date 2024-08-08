@@ -39,8 +39,8 @@ program inputPath outputPath modifyText = do
   writeFile outputPath modifiedContent
   post modifiedContent
 
-makeMock [''FileOperation]
-makeMock [''ApiOperation]
+makeMock ''FileOperation
+makeMock ''ApiOperation
 
 
 spec :: Spec

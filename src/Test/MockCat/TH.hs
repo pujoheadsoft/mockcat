@@ -74,8 +74,8 @@ expectByExpr qf = do
   [|ExpectCondition $qf str|]
 
 -- Template Haskell code
-makeMock :: [Name] -> Q [Dec]
-makeMock classNames = concat <$> mapM generateMock classNames
+makeMock :: Name -> Q [Dec]
+makeMock classNames = generateMock classNames
 
 generateMock :: Name -> Q [Dec]
 generateMock className = reify className >>= \case
