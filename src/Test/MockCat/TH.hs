@@ -17,7 +17,7 @@ import Data.List (find, nub)
 import GHC.TypeLits (KnownSymbol, symbolVal)
 import Unsafe.Coerce (unsafeCoerce)
 import Control.Monad.State (modify, get)
-import Data.Maybe (fromMaybe, mapMaybe)
+import Data.Maybe (fromMaybe, mapMaybe, catMaybes)
 import GHC.IO (unsafePerformIO)
 import Control.Monad (replicateM)
 import Language.Haskell.TH.Lib
@@ -103,13 +103,15 @@ cxtInfo = undefined
 cxtInfos :: [Type] -> [CxtInfo]
 cxtInfos types = cxtInfo <$> types
 
-extractMonadVarName :: Type -> Maybe Name
+extractMonadVarName :: Type -> Q (Maybe Name)
 extractMonadVarName (AppT (ConT name) (VarT varName))
-  | name == ''Monad = Just varName
-extractMonadVarName _ = Nothing
+  | name == ''Monad = pure $ Just varName
+extractMonadVarName _ = pure Nothing
 
-findMonadVarNames :: [Type] -> [Name]
-findMonadVarNames = mapMaybe extractMonadVarName
+findMonadVarNames :: [Type] -> Q [Name]
+findMonadVarNames types = do
+  names <- mapM extractMonadVarName types
+  pure $ catMaybes names
 
 getClassNames :: Type -> Q [Name]
 getClassNames (AppT (ConT name) _) = pure [name]
@@ -117,11 +119,37 @@ getClassNames (AppT t _) = getClassNames t
 getClassNames (ForallT _ _ pred) = getClassNames pred
 getClassNames _ = pure []
 
+{-
+  Class名 var1 var2 var3 を表現するために
+  (Class名, [Var名])というTupleを用意。
+  型的には (Name, [Name])か、{ className :: Name, varNames :: [Name] }かな。
+
+  まず(Monad m) => A m だったら
+  [(Monad, [m])] となる。
+  これなら m はモナド確定
+
+  (X a m) => A a mだったら
+  (X, [a, m])となる。
+  次にXを見る
+  (Eq a, Monad z) =>  X a z だったら
+  [(Eq [a]), (Monad, [z])] となる。
+  (X, [a, m])の
+  a と (Eq [a])
+  m と (Monad, [z])
+  が対応。
+  mはモナド確定
+  
+
+
+-}
+
+_extractMonadVarNames :: Cxt -> [Name] -> Q [Name]
 _extractMonadVarNames types names = do
   -- 1階層目のMonadになってるNameを集める
-  let monadVarNames = findMonadVarNames types
+  monadVarNames <- findMonadVarNames types
   -- 1階層目のクラスを集める
   classNames <- concat <$> mapM getClassNames types
+  --fail $ show types <> "===" <> show classNames
   -- 祖先のMonadになってるNameを集める
   ancestorMonadVarNames <- concat <$> mapM (recExtractMonadVarNames names) classNames
 
@@ -142,33 +170,41 @@ generateMock t = do
   reify name >>= \case
     ClassI (ClassD _ _ [] _ _) _ -> fail $ "A type parameter is required for class " <> show name
     ClassI (ClassD ctx _ typeParameters funDeps methods) _ -> do
-      x <- extractMonadVarNames ctx
-      if length (nub x) > 1 then fail "Monad parameter must be unique."
-      else if null x then fail "Monad parameter not found."
+      monadVarNames <- extractMonadVarNames ctx
+      if length (nub monadVarNames) > 1 then fail "Monad parameter must be unique."
+      else if null monadVarNames then fail "Monad parameter not found."
       else do
         --fail $ "monad params:" <> show x
-        fail $ show ctx <> " ===" <> show typeParameters
+        --fail $ show ctx <> " ===" <> show monadVarNames
         let classNameStr = nameBase name
+
+        -- i <- (createInstanceType name (head monadVarNames) typeParameters)
+        -- fail $ show (head monadVarNames) <> ":::" <> show i
 
         instDec <- instanceD
           --(cxt [appT (conT ''Monad) (varT $ mkName "m")])
           (pure ctx)
-          (appT (conT name) (appT (conT ''MockT) (varT $ mkName "m")))
+          --(appT (conT name) (appT (conT ''MockT) (varT $ mkName "m")))
+          (createInstanceType name (head monadVarNames) typeParameters)
           (map (generateMockMethod classNameStr) methods)
-
+        
         funcDecs <- mapM (generateMockFunction classNameStr) methods
 
         pure $ instDec : funcDecs
     t -> error $ "unsupported type: " <> show t
 
-createInstanceType :: Name -> [TyVarBndr ()] -> Q Type
-createInstanceType className tvbs = do
-  let types = map tyVarBndrToType tvbs
+createInstanceType :: Name -> Name -> [TyVarBndr ()] -> Q Type
+createInstanceType className monadName tvbs = do
+  types <- mapM (tyVarBndrToType monadName) tvbs
   pure $ foldl AppT (ConT className) types
 
-tyVarBndrToType :: TyVarBndr () -> Type
-tyVarBndrToType (PlainTV name _) = VarT name
-tyVarBndrToType (KindedTV name _ kind) = SigT (VarT name) kind
+tyVarBndrToType :: Name -> TyVarBndr () -> Q Type
+tyVarBndrToType monadName (PlainTV name _)
+  | monadName == name = appT (conT ''MockT) (varT monadName)
+  | otherwise = varT name
+tyVarBndrToType monadName (KindedTV name _ kind)
+  | monadName == name = appT (conT ''MockT) (varT monadName)
+  | otherwise = varT name
 
 hasDuplicates :: Eq a => [a] -> Bool
 hasDuplicates xs = length xs /= length (nub xs)
