@@ -13,16 +13,17 @@ import Language.Haskell.TH.Syntax (nameBase)
 import Test.MockCat.Param (Param(..))
 import Test.MockCat.MockT
 import Data.Data (Proxy(..))
-import Data.List (find, nub)
+import Data.List (find, nub, elemIndex, intercalate)
 import GHC.TypeLits (KnownSymbol, symbolVal)
 import Unsafe.Coerce (unsafeCoerce)
 import Control.Monad.State (modify, get)
-import Data.Maybe (fromMaybe, mapMaybe, catMaybes)
+import Data.Maybe (fromMaybe, mapMaybe, catMaybes, isJust, isNothing)
 import GHC.IO (unsafePerformIO)
-import Control.Monad (replicateM)
+import Control.Monad (replicateM, mplus, join, guard)
 import Language.Haskell.TH.Lib
 import Text.Printf (IsChar(toChar))
 import Language.Haskell.TH (TyVarBndr)
+import Data.Text (splitOn, unpack, pack)
 
 showExp :: Q Exp -> Q String
 showExp qexp = show . pprintExp <$> qexp
@@ -77,121 +78,155 @@ expectByExpr qf = do
 
 -- Template Haskell code
 makeMock :: Q Type -> Q [Dec]
-makeMock t = generateMock t
-
-className :: Type -> Name
-className (ConT name) = name
-className d = error $ "unsupported class definition: " <> show d
-
-{-
-  1. 制約 => Clazz x y z where の パラメーター x y z を抽出。
-  2. x, y, z のうちどれがMonadのパラメーターなのかを制約から探す。
-  3. MonadかMonadのラッパーになっているやつを探し出す。
-  4. MonadのラッパーがなかったらそもそもNGとする。
-  5. A m, B n のようにモナドのラッパーごとにvarが異なるのはNGとする。
-  6. A m, B m のようにモナドのラッパーのvarが同じならOK
-     A m n, B m x のように複数varがあっても共通したvarがあればOK
-  7. 共通するvarをMockTのvarとする。
-     A m n o のように複数ある場合、A (MockT m) n o とする。
-  8. 制約はそのまま使うが、A m nのようになっている場合 A (MockT m) n のように置き換える。
--}
-data CxtInfo = CxtInfo { t :: Type,  monadName :: Maybe Name} deriving (Show)
-
-cxtInfo :: Type -> CxtInfo
-cxtInfo = undefined
-
-cxtInfos :: [Type] -> [CxtInfo]
-cxtInfos types = cxtInfo <$> types
-
-extractMonadVarName :: Type -> Q (Maybe Name)
-extractMonadVarName (AppT (ConT name) (VarT varName))
-  | name == ''Monad = pure $ Just varName
-extractMonadVarName _ = pure Nothing
-
-findMonadVarNames :: [Type] -> Q [Name]
-findMonadVarNames types = do
-  names <- mapM extractMonadVarName types
-  pure $ catMaybes names
-
-getClassNames :: Type -> Q [Name]
-getClassNames (AppT (ConT name) _) = pure [name]
-getClassNames (AppT t _) = getClassNames t
-getClassNames (ForallT _ _ pred) = getClassNames pred
-getClassNames _ = pure []
-
-{-
-  Class名 var1 var2 var3 を表現するために
-  (Class名, [Var名])というTupleを用意。
-  型的には (Name, [Name])か、{ className :: Name, varNames :: [Name] }かな。
-
-  まず(Monad m) => A m だったら
-  [(Monad, [m])] となる。
-  これなら m はモナド確定
-
-  (X a m) => A a mだったら
-  (X, [a, m])となる。
-  次にXを見る
-  (Eq a, Monad z) =>  X a z だったら
-  [(Eq [a]), (Monad, [z])] となる。
-  (X, [a, m])の
-  a と (Eq [a])
-  m と (Monad, [z])
-  が対応。
-  mはモナド確定
-  
+makeMock = generateMock
 
 
--}
+data ClassInfo = ClassInfo { cName :: Name, varNames :: [Name] }
 
-_extractMonadVarNames :: Cxt -> [Name] -> Q [Name]
-_extractMonadVarNames types names = do
-  -- 1階層目のMonadになってるNameを集める
-  monadVarNames <- findMonadVarNames types
-  -- 1階層目のクラスを集める
-  classNames <- concat <$> mapM getClassNames types
-  --fail $ show types <> "===" <> show classNames
-  -- 祖先のMonadになってるNameを集める
-  ancestorMonadVarNames <- concat <$> mapM (recExtractMonadVarNames names) classNames
+instance Show ClassInfo where
+  show (ClassInfo cName varNames) = showClassDef cName varNames
 
-  pure $ monadVarNames ++ ancestorMonadVarNames
-  where
-  recExtractMonadVarNames acc className = do
-    if className `elem` acc then pure []
-    else do
-      ClassI (ClassD types _ _ _ _) _ <- reify className
-      _extractMonadVarNames types (className : acc)
+data VarInfo = VarInfo { varName :: Name, classNames :: [Name] }
 
-extractMonadVarNames :: [Type] -> Q [Name]
-extractMonadVarNames types = _extractMonadVarNames types []
+instance Show VarInfo where
+  show (VarInfo varName classNames) = show varName <> " class is " <> unwords (showClassName <$> classNames)
+
+showClassName :: Name -> String
+showClassName n = splitLast "." $ show n
+
+showClassDef :: Name -> [Name] -> String
+showClassDef className varNames = showClassName className <> " " <> unwords (show <$> varNames)
+
+splitLast :: String -> String -> String
+splitLast delimiter = last . split delimiter
+
+split :: String -> String -> [String]
+split delimiter str = unpack <$> splitOn (pack delimiter) (pack $ str)
+
+getClassInfos :: Cxt -> Q [ClassInfo]
+getClassInfos cxt = catMaybes <$> mapM getClassInfo cxt
+
+getClassInfo :: Type -> Q (Maybe ClassInfo)
+getClassInfo (AppT (ConT className) (VarT varName)) = pure $ Just ClassInfo { cName = className, varNames = [varName] }
+getClassInfo (AppT ty (VarT varName)) = do
+  x <- getClassInfo ty
+  pure $ (\(ClassInfo name names) -> ClassInfo  { cName = name, varNames = names ++ [varName] }) <$> x
+getClassInfo _ = pure Nothing
+
+hasVarName :: Name -> ClassInfo -> Bool
+hasVarName name (ClassInfo _ varNames) = name `elem` varNames
+
+filterClassInfo :: Name -> [ClassInfo] -> [ClassInfo]
+filterClassInfo name = filter (hasVarName name)
+
+collectVarClassNames_ :: Name -> ClassInfo -> Q [Name]
+collectVarClassNames_ name (ClassInfo cName vNames) = do
+  case elemIndex name vNames of
+    Nothing -> pure []
+    Just i -> do
+      ClassI (ClassD cxt _ typeVars _ _) _ <- reify cName
+      -- type variable names
+      typeVarNames <- extractTypeVarNames typeVars
+      -- type variable name of same position
+      let typeVarName = typeVarNames !! i
+      -- parent class information
+      parentClassInfos <- getClassInfos cxt
+
+      if null parentClassInfos then pure [cName]
+      else do
+        result <- concat <$> mapM (collectVarClassNames_ typeVarName) parentClassInfos
+        pure $ cName : result
+
+-- 型変数名とクラス情報から、型変数名が属するクラスを集める
+collectVarClassNames :: Name -> [ClassInfo] -> Q [Name]
+collectVarClassNames varName classInfos = do
+  let targetClassInfos = filterClassInfo varName classInfos
+  concat <$> mapM (collectVarClassNames_ varName) targetClassInfos
+
+collectVarInfo :: [ClassInfo] -> VarInfo -> Q VarInfo
+collectVarInfo classInfos (VarInfo vName classNames) =  do
+  y <- collectVarClassNames vName classInfos
+  pure $ varInfo vName (classNames ++ y)
+
+collectVarInfos :: [ClassInfo] -> [VarInfo] -> Q [VarInfo]
+collectVarInfos classInfos = mapM (collectVarInfo classInfos)
+
+varInfo :: Name -> [Name] -> VarInfo
+varInfo n ns = VarInfo { varName = n, classNames = ns }
+
+hasMonadInVarInfo :: VarInfo -> Bool
+hasMonadInVarInfo (VarInfo _ classNames) = ''Monad `elem` classNames
+
+filterMonadicVarInfos :: [VarInfo] -> [VarInfo]
+filterMonadicVarInfos = filter hasMonadInVarInfo
+
+getMonadicVarNames :: Cxt -> [TyVarBndr ()] -> Q [Name]
+getMonadicVarNames cxt typeVars = do
+  typeVarNames <- extractTypeVarNames typeVars
+
+  -- VarInfos (class names is empty)
+  emptyClassVarInfos <- mapM (\n -> pure $ varInfo n []) typeVarNames
+
+  parentClassInfos <- getClassInfos cxt
+
+  varInfos <- collectVarInfos parentClassInfos emptyClassVarInfos
+
+  pure $ (\(VarInfo n _) -> n) <$> filterMonadicVarInfos varInfos
+
+extractTypeVarNames :: [TyVarBndr ()] -> Q [Name]
+extractTypeVarNames = mapM extractTypeVarName
+
+extractTypeVarName :: TyVarBndr () -> Q Name
+extractTypeVarName (PlainTV name _) = pure name
+extractTypeVarName (KindedTV name _ _) = pure name
 
 generateMock :: Q Type -> Q [Dec]
 generateMock t = do
-  name <- className <$> t
-  reify name >>= \case
-    ClassI (ClassD _ _ [] _ _) _ -> fail $ "A type parameter is required for class " <> show name
-    ClassI (ClassD ctx _ typeParameters funDeps methods) _ -> do
-      monadVarNames <- extractMonadVarNames ctx
+  className <- getClassName <$> t
+
+  reify className >>= \case
+    ClassI (ClassD _ _ [] _ _) _ -> fail $ "A type parameter is required for class " <> show className
+    ClassI (ClassD cxt _ typeParameters _ methods) _ -> do
+      monadVarNames <- getMonadicVarNames cxt typeParameters
       if length (nub monadVarNames) > 1 then fail "Monad parameter must be unique."
       else if null monadVarNames then fail "Monad parameter not found."
       else do
         --fail $ "monad params:" <> show x
         --fail $ show ctx <> " ===" <> show monadVarNames
-        let classNameStr = nameBase name
+        let classNameStr = nameBase className
+            monadVarName = head monadVarNames
 
         -- i <- (createInstanceType name (head monadVarNames) typeParameters)
-        -- fail $ show (head monadVarNames) <> ":::" <> show i
+        -- fail $ show ctx <> " => " <> show i
+        -- x <- (createCxt monadVarName cxt)
+        -- fail $ "\n" <> pprint cxt <> "\n" <> pprint x
+        newCtx <- createCxt monadVarName cxt
+        m <- appT (conT ''Monad) (varT monadVarName)
 
         instDec <- instanceD
           --(cxt [appT (conT ''Monad) (varT $ mkName "m")])
-          (pure ctx)
+          --(pure cxt)
+          (pure $ newCtx ++ [m])
           --(appT (conT name) (appT (conT ''MockT) (varT $ mkName "m")))
-          (createInstanceType name (head monadVarNames) typeParameters)
+          (createInstanceType className monadVarName typeParameters)
           (map (generateMockMethod classNameStr) methods)
-        
+
         funcDecs <- mapM (generateMockFunction classNameStr) methods
 
         pure $ instDec : funcDecs
     t -> error $ "unsupported type: " <> show t
+
+createCxt :: Name -> Cxt -> Q Cxt
+createCxt monadVarName = mapM (xxx monadVarName)
+
+xxx :: Name -> Type -> Q Type
+xxx monadVarName a@(AppT (ConT className) (VarT varName))
+  | monadVarName == varName = appT (conT className) (appT (conT ''MockT) (varT varName))
+  | otherwise = pure a
+xxx monadVarName (AppT ty (VarT varName)) = do
+  let x = xxx monadVarName ty
+  appT x (varT varName)
+xxx _ ty = pure ty
 
 createInstanceType :: Name -> Name -> [TyVarBndr ()] -> Q Type
 createInstanceType className monadName tvbs = do
@@ -205,9 +240,6 @@ tyVarBndrToType monadName (PlainTV name _)
 tyVarBndrToType monadName (KindedTV name _ kind)
   | monadName == name = appT (conT ''MockT) (varT monadName)
   | otherwise = varT name
-
-hasDuplicates :: Eq a => [a] -> Bool
-hasDuplicates xs = length xs /= length (nub xs)
 
 generateMockMethod :: String -> Dec -> Q Dec
 generateMockMethod classNameStr (SigD funName funType) = do
@@ -257,3 +289,7 @@ findParam pa definitions = do
 typeToNames :: Type -> [Q Name]
 typeToNames (AppT (AppT ArrowT t1) t2) = [newName "a"] ++ typeToNames t2
 typeToNames _ = []
+
+getClassName :: Type -> Name
+getClassName (ConT name) = name
+getClassName d = error $ "unsupported class definition: " <> show d

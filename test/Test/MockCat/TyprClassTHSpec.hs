@@ -25,19 +25,40 @@ import Test.MockCat
 import Control.Monad.IO.Class
 import Control.Monad.State
 import Control.Monad.RWS (MonadReader)
+import Data.Data
+import Data.Maybe
+import GHC.TypeLits
+import Data.List
+import Unsafe.Coerce
 
 class Monad m => Monad2 m where
 class (Monad2 m, Eq n) => Monad1 m n where
 class Monad1 m n => Monad0 m a n where
-class (Eq a, Monad0 m a n) => Clazz m a n where
-  xxx :: String -> m String
+-- class (Eq a, Monad0 m a n) => Clazz m a n where
+-- --class (Eq a) => Clazz a where
+--   xxx :: String -> m String
 
---class (Monad0 m, MonadIO n, Eq a) => Moge m n a where
+-- instance (Eq a, Monad0 (MockT m) a n) => Clazz (MockT m) a n where
+--   xxx = undefined
+class (MonadState String m, Eq a) => Moge m a where
+  xxx :: String -> m ()
 
--- class (Monad0 m, Eq a, MonadReader a m) => Hoge m a where
+-- instance (MonadState String (MockT m), Eq a, Monad m) => Moge (MockT m) a where
+--   xxx path = MockT do
+--     defs <- get
+--     let
+--       mock = fromMaybe (error "no answer found stub function `readFile`.") $ findParam (Proxy :: Proxy "readFile") defs
+--       !result = stubFn mock path
+--     pure result
+
+findParam :: KnownSymbol sym => Proxy sym -> [Definition] -> Maybe a
+findParam pa definitions = do
+  let definition = find (\(Definition s _ _) -> symbolVal s == symbolVal pa) definitions
+  fmap (\(Definition _ mock _) -> unsafeCoerce mock) definition
+-- class (Monad0 m a n, Eq a, MonadReader a m) => Hoge m a n where
 --   hoge :: String -> m ()
---   hage :: a -> m String
---   moge :: String -> a
+--   --hage :: a -> m String
+--   moge :: String -> m ()
 
 -- instance (MonadIO m, Eq a, MonadReader a (MockT m)) => Hoge (MockT m) a where
 --   hoge = undefined
@@ -68,7 +89,7 @@ program inputPath outputPath modifyText = do
   writeFile outputPath modifiedContent
   post modifiedContent
 
---makeMock [t|Clazz|]
+makeMock [t|Moge|]
 makeMock [t|FileOperation|]
 makeMock [t|ApiOperation|]
 
