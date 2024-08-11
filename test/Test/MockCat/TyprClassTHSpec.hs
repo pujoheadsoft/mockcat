@@ -5,7 +5,6 @@
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GADTs #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE BangPatterns #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
@@ -19,54 +18,9 @@ module Test.MockCat.TyprClassTHSpec where
 
 import Prelude hiding (readFile, writeFile)
 import Data.Text (Text, pack)
-import Test.MockCat.TH (makeMock)
 import Test.Hspec
 import Test.MockCat
-import Control.Monad.IO.Class
 import Control.Monad.State
-import Control.Monad.RWS (MonadReader)
-import Data.Data
-import Data.Maybe
-import GHC.TypeLits
-import Data.List
-import Unsafe.Coerce
-
-class Monad m => Monad2 m where
-class (Monad2 m, Eq n) => Monad1 m n where
-class Monad1 m n => Monad0 m a n where
--- class (Eq a, Monad0 m a n) => Clazz m a n where
--- --class (Eq a) => Clazz a where
---   xxx :: String -> m String
-
--- instance (Eq a, Monad0 (MockT m) a n) => Clazz (MockT m) a n where
---   xxx = undefined
-class Monad m => MonadX a b m where
-class Monad m => MonadY a m b where
-class Monad m => MonadZ a b m c where
-class (MonadState String m, Eq a) => Moge m a where
-  xxx :: String -> m ()
-
--- instance (MonadState String (MockT m), Eq a, Monad m) => Moge (MockT m) a where
---   xxx path = MockT do
---     defs <- get
---     let
---       mock = fromMaybe (error "no answer found stub function `readFile`.") $ findParam (Proxy :: Proxy "readFile") defs
---       !result = stubFn mock path
---     pure result
-
-findParam :: KnownSymbol sym => Proxy sym -> [Definition] -> Maybe a
-findParam pa definitions = do
-  let definition = find (\(Definition s _ _) -> symbolVal s == symbolVal pa) definitions
-  fmap (\(Definition _ mock _) -> unsafeCoerce mock) definition
--- class (Monad0 m a n, Eq a, MonadReader a m) => Hoge m a n where
---   hoge :: String -> m ()
---   --hage :: a -> m String
---   moge :: String -> m ()
-
--- instance (MonadIO m, Eq a, MonadReader a (MockT m)) => Hoge (MockT m) a where
---   hoge = undefined
---   hage = undefined
---   moge = undefined
 
 class (Monad m) => FileOperation m where
   readFile :: FilePath -> m Text
@@ -74,11 +28,6 @@ class (Monad m) => FileOperation m where
 
 class (Monad m) => ApiOperation m where
   post :: Text -> m ()
-
--- program2 :: Hoge m String => String -> m ()
--- program2 s = do 
---   h <- hage s
---   hoge h
 
 program ::
   (FileOperation m, ApiOperation m) =>
@@ -92,10 +41,8 @@ program inputPath outputPath modifyText = do
   writeFile outputPath modifiedContent
   post modifiedContent
 
---makeMock [t|Moge|]
 makeMock [t|FileOperation|]
 makeMock [t|ApiOperation|]
-
 
 spec :: Spec
 spec = it "Read, edit, and output files" do
@@ -111,3 +58,41 @@ spec = it "Read, edit, and output files" do
     program "input.txt" "output.text" modifyContentStub
 
   result `shouldBe` ()
+
+class (MonadIO m, MonadState String n) => MonadX m n where
+  xxx :: String -> m ()
+
+class (Eq s, Show s, MonadState s m) => MonadStateSub s m where
+  fn_state :: String -> m ()
+
+class (MonadState String m) => MonadStateSub2 s m where
+  fn_state2 :: String -> m ()
+
+class Monad m => MonadVar2_1 m a where
+class MonadVar2_1 m a => MonadVar2_1Sub m a where
+  fn2_1Sub :: String -> m ()
+
+class Monad m => MonadVar2_2 a m where
+class MonadVar2_2 a m => MonadVar2_2Sub a m where
+  fn2_2Sub :: String -> m ()
+
+class Monad m => MonadVar3_1 m a b where
+class MonadVar3_1 m a b => MonadVar3_1Sub m a b where
+  fn3_1Sub :: String -> m ()
+
+class Monad m => MonadVar3_2 a m b where
+class MonadVar3_2 a m b => MonadVar3_2Sub a m b where
+  fn3_2Sub :: String -> m ()
+
+class Monad m => MonadVar3_3 a b m where
+class MonadVar3_3 a b m => MonadVar3_3Sub a b m where
+  fn3_3Sub :: String -> m ()
+
+--makeMock [t|MonadX|]
+makeMock [t|MonadStateSub|]
+makeMock [t|MonadStateSub2|]
+makeMock [t|MonadVar2_1Sub|]
+makeMock [t|MonadVar2_2Sub|]
+makeMock [t|MonadVar3_1Sub|]
+makeMock [t|MonadVar3_2Sub|]
+makeMock [t|MonadVar3_3Sub|]
