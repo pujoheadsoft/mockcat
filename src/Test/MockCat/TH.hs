@@ -3,9 +3,10 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 
-module Test.MockCat.TH (showExp, expectByExpr, makeMock) where
+module Test.MockCat.TH (showExp, expectByExpr, makeMock, makeMockWithOptions, MockOptions(..), options) where
 
 import Language.Haskell.TH (Exp (..), Lit (..), Pat (..), Q, pprint, Name, Dec (..), Info (..), reify, mkName, Type (..), Quote (newName), Cxt, TyVarBndr (..), Pred)
 import Language.Haskell.TH.PprLib (Doc, hcat, parens, text)
@@ -75,8 +76,19 @@ expectByExpr qf = do
   str <- showExp qf
   [|ExpectCondition $qf str|]
 
+data MockOptions = MockOptions { prefix :: String, suffix :: String }
+
+options :: MockOptions
+options = MockOptions { prefix = "_", suffix = "" }
+
+makeMockWithOptions :: Q Type -> MockOptions -> Q [Dec]
+makeMockWithOptions = doMakeMock
+
 makeMock :: Q Type -> Q [Dec]
-makeMock t = do
+makeMock = flip doMakeMock options
+
+doMakeMock :: Q Type -> MockOptions -> Q [Dec]
+doMakeMock t options = do
   className <- getClassName <$> t
 
   reify className >>= \case
@@ -96,7 +108,7 @@ makeMock t = do
           (createInstanceType className monadVarName typeParameters)
           (map createInstanceFnDec decs)
 
-        mockFnDecs <- concat <$> mapM (createMockFnDec monadVarName) decs
+        mockFnDecs <- concat <$> mapM (createMockFnDec monadVarName options) decs
 
         pure $ instanceDec : mockFnDecs
     t -> error $ "unsupported type: " <> show t
@@ -223,9 +235,9 @@ generateStubFn :: Q Exp -> [Q Exp] -> Q Exp
 generateStubFn mock args = do
   foldl appE [| stubFn $(mock) |] args
 
-createMockFnDec :: Name -> Dec -> Q [Dec]
-createMockFnDec monadVarName (SigD funName ty) = do
-  let funNameStr = "_" <> nameBase funName
+createMockFnDec :: Name -> MockOptions -> Dec -> Q [Dec]
+createMockFnDec monadVarName options (SigD funName ty) = do
+  let funNameStr = createFnName funName options
       mockFunName = mkName funNameStr
       mockBody = [| MockT $ modify (++ [Definition
                       (Proxy :: Proxy $(litT (strTyLit funNameStr)))
@@ -237,7 +249,11 @@ createMockFnDec monadVarName (SigD funName ty) = do
   newFunSig <- sigD mockFunName [t| forall p m. (MockBuilder p ($(pure funType)) ($(pure verifyParams)), Monad m) => p -> MockT m ()|]
   newFun <- funD mockFunName [clause [varP $ mkName "p"] (normalB mockBody) []]
   pure $ newFunSig : [newFun]
-createMockFnDec _ dec = fail $ "unsupport dec: " <> pprint dec
+createMockFnDec _ _ dec = fail $ "unsupport dec: " <> pprint dec
+
+createFnName :: Name -> MockOptions -> String
+createFnName funName options = do
+  options.prefix <> (nameBase funName) <> options.suffix
 
 createMockBuilderFnType :: Name -> Type -> Type
 createMockBuilderFnType monadVarName a@(AppT (VarT var) ty)

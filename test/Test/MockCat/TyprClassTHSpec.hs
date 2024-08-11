@@ -13,8 +13,9 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE InstanceSigs #-}
+{-# OPTIONS_GHC -Wno-unused-top-binds #-}
 
-module Test.MockCat.TyprClassTHSpec where
+module Test.MockCat.TyprClassTHSpec (spec) where
 
 import Prelude hiding (readFile, writeFile)
 import Data.Text (Text, pack)
@@ -41,7 +42,7 @@ program inputPath outputPath modifyText = do
   writeFile outputPath modifiedContent
   post modifiedContent
 
-makeMock [t|FileOperation|]
+makeMockWithOptions [t|FileOperation|] options { prefix = "_" }
 makeMock [t|ApiOperation|]
 
 spec :: Spec
@@ -88,7 +89,6 @@ class Monad m => MonadVar3_3 a b m where
 class MonadVar3_3 a b m => MonadVar3_3Sub a b m where
   fn3_3Sub :: String -> m ()
 
---makeMock [t|MonadX|]
 makeMock [t|MonadStateSub|]
 makeMock [t|MonadStateSub2|]
 makeMock [t|MonadVar2_1Sub|]
