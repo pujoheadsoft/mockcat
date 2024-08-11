@@ -40,6 +40,9 @@ class Monad1 m n => Monad0 m a n where
 
 -- instance (Eq a, Monad0 (MockT m) a n) => Clazz (MockT m) a n where
 --   xxx = undefined
+class Monad m => MonadX a b m where
+class Monad m => MonadY a m b where
+class Monad m => MonadZ a b m c where
 class (MonadState String m, Eq a) => Moge m a where
   xxx :: String -> m ()
 
@@ -89,7 +92,7 @@ program inputPath outputPath modifyText = do
   writeFile outputPath modifiedContent
   post modifiedContent
 
-makeMock [t|Moge|]
+--makeMock [t|Moge|]
 makeMock [t|FileOperation|]
 makeMock [t|ApiOperation|]
 

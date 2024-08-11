@@ -91,6 +91,12 @@ data VarInfo = VarInfo { varName :: Name, classNames :: [Name] }
 instance Show VarInfo where
   show (VarInfo varName classNames) = show varName <> " class is " <> unwords (showClassName <$> classNames)
 
+classInfo :: Name -> [Name] -> ClassInfo
+classInfo cName varNames = ClassInfo { cName = cName, varNames = varNames }
+
+varInfo :: Name -> [Name] -> VarInfo
+varInfo n ns = VarInfo { varName = n, classNames = ns }
+
 showClassName :: Name -> String
 showClassName n = splitLast "." $ show n
 
@@ -103,15 +109,52 @@ splitLast delimiter = last . split delimiter
 split :: String -> String -> [String]
 split delimiter str = unpack <$> splitOn (pack delimiter) (pack $ str)
 
-getClassInfos :: Cxt -> Q [ClassInfo]
-getClassInfos cxt = catMaybes <$> mapM getClassInfo cxt
+-- getClassInfos :: Cxt -> [ClassInfo]
+-- getClassInfos = concatMap getClassInfo
 
-getClassInfo :: Type -> Q (Maybe ClassInfo)
-getClassInfo (AppT (ConT className) (VarT varName)) = pure $ Just ClassInfo { cName = className, varNames = [varName] }
-getClassInfo (AppT ty (VarT varName)) = do
-  x <- getClassInfo ty
-  pure $ (\(ClassInfo name names) -> ClassInfo  { cName = name, varNames = names ++ [varName] }) <$> x
-getClassInfo _ = pure Nothing
+-- | Cxt から [ClassInfo] への変換を行う関数
+getClassInfos :: Cxt -> Q [ClassInfo]
+getClassInfos = mapM extractClassInfo
+
+-- | 型クラスの制約から ClassInfo を取り出す関数
+extractClassInfo :: Pred -> Q ClassInfo
+extractClassInfo ty = do
+  let (name, vars) = decomposeAppT ty
+  return $ ClassInfo name vars
+
+-- | ネストされたAppTから型クラス名と型変数のリストを抽出する
+decomposeAppT :: Type -> (Name, [Name])
+decomposeAppT (AppT f t) = 
+  let (name, vars) = decomposeAppT f
+  in (name, vars ++ extractTypeVars t)
+decomposeAppT (ConT name) = (name, [])
+decomposeAppT _ = error "Unsupported constraint"
+
+-- | 型からすべての型変数を取り出す補助関数
+extractTypeVars :: Type -> [Name]
+extractTypeVars (AppT l r) = extractTypeVars l ++ extractTypeVars r
+extractTypeVars (VarT name) = [name]
+extractTypeVars _ = []
+
+-- getClassInfo :: Type -> Q (Maybe ClassInfo)
+-- getClassInfo (AppT (AppT (ConT c) (ConT _)) (VarT varName)) = pure $ Just $ classInfo c [varName]
+-- getClassInfo (AppT (ConT className) (VarT varName)) = pure $ Just $ classInfo className [varName]
+-- getClassInfo (AppT ty (VarT varName)) = do
+--   x <- getClassInfo ty
+--   pure $ (\(ClassInfo name names) -> classInfo name (names ++ [varName])) <$> x
+-- getClassInfo _ = pure Nothing
+
+-- getClassInfo :: Type -> [ClassInfo]
+-- getClassInfo (AppT ty (VarT varName)) = do
+--   (\c -> [classInfo c [varName]]) <$> extractClassName ty
+-- getClassInfo (AppT ty _) = getClassInfo ty
+-- getClassInfo _ = []
+
+-- extractClassName :: Type -> Maybe Name
+-- extractClassName (ConT name) = Just name
+-- extractClassName (AppT (ConT name) _) = Just name
+-- extractClassName (AppT t1 _) = extractClassName t1
+-- extractClassName _ = Nothing
 
 hasVarName :: Name -> ClassInfo -> Bool
 hasVarName name (ClassInfo _ varNames) = name `elem` varNames
@@ -132,6 +175,8 @@ collectVarClassNames_ name (ClassInfo cName vNames) = do
       -- parent class information
       parentClassInfos <- getClassInfos cxt
 
+      --fail $ show parentClassInfos <> "\n" <> show typeVarNames  <> "\n" <> show name  <> "\n" <> show vNames
+
       if null parentClassInfos then pure [cName]
       else do
         result <- concat <$> mapM (collectVarClassNames_ typeVarName) parentClassInfos
@@ -151,9 +196,6 @@ collectVarInfo classInfos (VarInfo vName classNames) =  do
 collectVarInfos :: [ClassInfo] -> [VarInfo] -> Q [VarInfo]
 collectVarInfos classInfos = mapM (collectVarInfo classInfos)
 
-varInfo :: Name -> [Name] -> VarInfo
-varInfo n ns = VarInfo { varName = n, classNames = ns }
-
 hasMonadInVarInfo :: VarInfo -> Bool
 hasMonadInVarInfo (VarInfo _ classNames) = ''Monad `elem` classNames
 
@@ -170,6 +212,8 @@ getMonadicVarNames cxt typeVars = do
   parentClassInfos <- getClassInfos cxt
 
   varInfos <- collectVarInfos parentClassInfos emptyClassVarInfos
+
+  --fail $ show cxt <> "\n" <> show parentClassInfos <> "\n" <> show varInfos
 
   pure $ (\(VarInfo n _) -> n) <$> filterMonadicVarInfos varInfos
 
