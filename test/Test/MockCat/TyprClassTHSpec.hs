@@ -23,8 +23,8 @@ import Test.MockCat
 import Control.Monad.State
 
 class (Monad m) => FileOperation m where
-  readFile :: FilePath -> m Text
   writeFile :: FilePath -> Text -> m ()
+  readFile :: FilePath -> m Text
 
 class (Monad m) => ApiOperation m where
   post :: Text -> m ()

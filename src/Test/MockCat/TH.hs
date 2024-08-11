@@ -11,6 +11,7 @@ import Language.Haskell.TH (Exp (..), Lit (..), Pat (..), Q, pprint, Name, Dec (
 import Language.Haskell.TH.PprLib (Doc, hcat, parens, text)
 import Language.Haskell.TH.Syntax (nameBase)
 import Test.MockCat.Param (Param(..))
+import Test.MockCat.Cons ((:>))
 import Test.MockCat.MockT
 import Data.Data (Proxy(..))
 import Data.List (find, nub, elemIndex)
@@ -21,6 +22,7 @@ import Data.Maybe (fromMaybe)
 import GHC.IO (unsafePerformIO)
 import Language.Haskell.TH.Lib
 import Data.Text (splitOn, unpack, pack)
+import Test.MockCat.Mock (MockBuilder)
 
 showExp :: Q Exp -> Q String
 showExp qexp = show . pprintExp <$> qexp
@@ -94,7 +96,7 @@ makeMock t = do
           (createInstanceType className monadVarName typeParameters)
           (map createInstanceFnDec decs)
 
-        mockFnDecs <- mapM createMockFnDec decs
+        mockFnDecs <- concat <$> mapM (createMockFnDec monadVarName) decs
 
         pure $ instanceDec : mockFnDecs
     t -> error $ "unsupported type: " <> show t
@@ -215,23 +217,40 @@ createInstanceFnDec (SigD funName funType) = do
                       pure $(varE r) |]
       funClause = clause params (normalB funBody) []
   funD funName [funClause]
-createInstanceFnDec _ = error "adfasd"
+createInstanceFnDec dec = fail $ "unsuported dec: " <> pprint dec
 
 generateStubFn :: Q Exp -> [Q Exp] -> Q Exp
 generateStubFn mock args = do
   foldl appE [| stubFn $(mock) |] args
 
-createMockFnDec :: Dec -> Q Dec
-createMockFnDec (SigD funName _) = do
+createMockFnDec :: Name -> Dec -> Q [Dec]
+createMockFnDec monadVarName (SigD funName ty) = do
   let funNameStr = "_" <> nameBase funName
       mockFunName = mkName funNameStr
       mockBody = [| MockT $ modify (++ [Definition
                       (Proxy :: Proxy $(litT (strTyLit funNameStr)))
                       (unsafePerformIO $ createNamedMock $(litE (stringL funNameStr)) p)
                       shouldApplyAnythingTo]) |]
+      funType = createMockBuilderFnType monadVarName ty
+      verifyParams = createMockBuilderVerifyParams ty
 
-  funD mockFunName [clause [varP $ mkName "p"] (normalB mockBody) []]
-createMockFnDec _ = error ""
+  newFunSig <- sigD mockFunName [t| forall p m. (MockBuilder p ($(pure funType)) ($(pure verifyParams)), Monad m) => p -> MockT m ()|]
+  newFun <- funD mockFunName [clause [varP $ mkName "p"] (normalB mockBody) []]
+  pure $ newFunSig : [newFun]
+createMockFnDec _ dec = fail $ "unsupport dec: " <> pprint dec
+
+createMockBuilderFnType :: Name -> Type -> Type
+createMockBuilderFnType monadVarName a@(AppT (VarT var) ty)
+  | monadVarName == var = ty
+  | otherwise = a
+createMockBuilderFnType monadVarName (AppT ty ty2) = AppT ty (createMockBuilderFnType monadVarName ty2)
+createMockBuilderFnType _ ty = ty
+
+createMockBuilderVerifyParams :: Type -> Type
+createMockBuilderVerifyParams (AppT (AppT ArrowT ty) (AppT (VarT _) _)) = AppT (ConT ''Param) ty
+createMockBuilderVerifyParams (AppT (AppT ArrowT ty) ty2) =
+  AppT (AppT (ConT ''(:>)) (AppT (ConT ''Param) ty) ) (createMockBuilderVerifyParams ty2)
+createMockBuilderVerifyParams a = a
 
 findParam :: KnownSymbol sym => Proxy sym -> [Definition] -> Maybe a
 findParam pa definitions = do
