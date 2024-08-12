@@ -15,6 +15,10 @@
 {-# LANGUAGE InstanceSigs #-}
 {-# OPTIONS_GHC -Wno-unused-top-binds #-}
 
+{-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE ImpredicativeTypes #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
+
 module Test.MockCat.TyprClassTHSpec (spec) where
 
 import Prelude hiding (readFile, writeFile)
@@ -45,26 +49,11 @@ program inputPath outputPath modifyText = do
 makeMockWithOptions [t|FileOperation|] options { prefix = "_" }
 makeMock [t|ApiOperation|]
 
-spec :: Spec
-spec = it "Read, edit, and output files" do
-  modifyContentStub <- createStubFn $ pack "content" |> pack "modifiedContent"
-
-  result <- runMockT do
-    _readFile [
-      "input.txt" |> pack "content",
-      "hoge.txt" |> pack "content"
-      ]
-    _writeFile $ "output.text" |> pack "modifiedContent" |> ()
-    _post $ pack "modifiedContent" |> ()
-    program "input.txt" "output.text" modifyContentStub
-
-  result `shouldBe` ()
-
 class (MonadIO m, MonadState String n) => MonadX m n where
   xxx :: String -> m ()
 
 class (Eq s, Show s, MonadState s m) => MonadStateSub s m where
-  fn_state :: String -> m ()
+  fn_state :: Maybe s -> m s
 
 class (MonadState String m) => MonadStateSub2 s m where
   fn_state2 :: String -> m ()
@@ -89,6 +78,7 @@ class Monad m => MonadVar3_3 a b m where
 class MonadVar3_3 a b m => MonadVar3_3Sub a b m where
   fn3_3Sub :: String -> m ()
 
+makeMock [t|MonadState String|]
 makeMock [t|MonadStateSub|]
 makeMock [t|MonadStateSub2|]
 makeMock [t|MonadVar2_1Sub|]
@@ -96,3 +86,30 @@ makeMock [t|MonadVar2_2Sub|]
 makeMock [t|MonadVar3_1Sub|]
 makeMock [t|MonadVar3_2Sub|]
 makeMock [t|MonadVar3_3Sub|]
+
+exe :: MonadStateSub String m => String -> m String
+exe s = do
+  r <- fn_state (pure "X")
+  pure $ s <> r
+
+spec :: Spec
+spec = do
+  it "Read, edit, and output files" do
+    modifyContentStub <- createStubFn $ pack "content" |> pack "modifiedContent"
+
+    result <- runMockT do
+      _readFile [
+        "input.txt" |> pack "content",
+        "hoge.txt" |> pack "content"
+        ]
+      _writeFile $ "output.text" |> pack "modifiedContent" |> ()
+      _post $ pack "modifiedContent" |> ()
+      program "input.txt" "output.text" modifyContentStub
+
+    result `shouldBe` ()
+
+  it "state mock" do
+    r <- runMockT do
+      _fn_state $ Just "X" |> "Y"
+      exe "foo"
+    r `shouldBe` "fooY"
