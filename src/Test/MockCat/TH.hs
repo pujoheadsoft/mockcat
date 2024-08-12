@@ -106,18 +106,18 @@ doMakeMock t options = do
         let monadVarName = head monadVarNames
 
         let classParamNames = filter (className /=) (getClassNames ty)
-            x = drop (length classParamNames) typeParameters
-        --fail $ "\n" <> show ty <> "\n" <> show classParamNames <> "\n" <> show x
+            typeVars = drop (length classParamNames) typeParameters
+            xx = zipWith (\t i -> VarAppliedType t (safeIndex classParamNames i)) (getTypeVarNames typeParameters) [0..]
 
         newCxt <- createCxt monadVarName cxt
         m <- appT (conT ''Monad) (varT monadVarName)
 
         instanceDec <- instanceD
           (pure $ newCxt ++ [m])
-          (createInstanceType ty monadVarName x)
+          (createInstanceType ty monadVarName typeVars)
           (map createInstanceFnDec decs)
 
-        mockFnDecs <- concat <$> mapM (createMockFnDec monadVarName options) decs
+        mockFnDecs <- concat <$> mapM (createMockFnDec monadVarName xx options) decs
 
         pure $ instanceDec : mockFnDecs
     t -> error $ "unsupported type: " <> show t
@@ -244,8 +244,8 @@ generateStubFn :: Q Exp -> [Q Exp] -> Q Exp
 generateStubFn mock args = do
   foldl appE [| stubFn $(mock) |] args
 
-createMockFnDec :: Name -> MockOptions -> Dec -> Q [Dec]
-createMockFnDec monadVarName options (SigD funName ty) = do
+createMockFnDec :: Name -> [VarAppliedType] -> MockOptions -> Dec -> Q [Dec]
+createMockFnDec monadVarName varAppliedTypes options (SigD funName ty) = do
   let funNameStr = createFnName funName options
       mockFunName = mkName funNameStr
       mockBody = [| MockT $ modify (++ [Definition
@@ -255,13 +255,21 @@ createMockFnDec monadVarName options (SigD funName ty) = do
       funType = createMockBuilderFnType monadVarName ty
       verifyParams = createMockBuilderVerifyParams ty
       params = mkName "p"
-
+  
+  --fail $ show varAppliedTypes <> "\n" <> show funType <> "\n" <> show verifyParams
+  
   newFunSig <- sigD mockFunName [t|
     (MockBuilder $(varT params) ($(pure funType)) ($(pure verifyParams)), Monad $(varT monadVarName))
      => $(varT params) -> MockT $(varT monadVarName) ()|]
   newFun <- funD mockFunName [clause [varP $ mkName "p"] (normalB mockBody) []]
   pure $ newFunSig : [newFun]
-createMockFnDec _ _ dec = fail $ "unsupport dec: " <> pprint dec
+createMockFnDec _ _ _ dec = fail $ "unsupport dec: " <> pprint dec
+
+-- hasClass :: Name -> [VarAppliedType] -> Bool
+-- hasClass varName = any (\(VarAppliedType v c) -> (v == varName) && isJust c)
+
+-- findClass :: Name -> [VarAppliedType] -> Name
+-- findClass varName types = (\(VarAppliedType v _) -> v) (fromJust (find (\(VarAppliedType v _) -> (v == varName)) types))
 
 createFnName :: Name -> MockOptions -> String
 createFnName funName options = do
@@ -313,6 +321,9 @@ data VarInfo = VarInfo { varName :: Name, classNames :: [Name] }
 instance Show VarInfo where
   show (VarInfo varName classNames) = show varName <> " class is " <> unwords (showClassName <$> classNames)
 
+data VarAppliedType = VarAppliedType { name :: Name, appliedClassName :: Maybe Name }
+  deriving (Show)
+
 showClassName :: Name -> String
 showClassName n = splitLast "." $ show n
 
@@ -324,3 +335,10 @@ splitLast delimiter = last . split delimiter
 
 split :: String -> String -> [String]
 split delimiter str = unpack <$> splitOn (pack delimiter) (pack str)
+
+safeIndex :: [a] -> Int -> Maybe a
+safeIndex [] _ = Nothing
+safeIndex (x:xs) 0 = Just x
+safeIndex (_:xs) n
+  | n < 0     = Nothing
+  | otherwise = safeIndex xs (n - 1)

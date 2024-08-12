@@ -26,6 +26,7 @@ import Data.Text (Text, pack)
 import Test.Hspec
 import Test.MockCat
 import Control.Monad.State
+import Control.Monad.Reader (MonadReader)
 
 class (Monad m) => FileOperation m where
   writeFile :: FilePath -> Text -> m ()
@@ -35,7 +36,7 @@ class (Monad m) => ApiOperation m where
   post :: Text -> m ()
 
 program ::
-  (FileOperation m, ApiOperation m) =>
+  (MonadReader String m, FileOperation m, ApiOperation m) =>
   FilePath ->
   FilePath ->
   (Text -> Text) ->
@@ -45,9 +46,6 @@ program inputPath outputPath modifyText = do
   let modifiedContent = modifyText content
   writeFile outputPath modifiedContent
   post modifiedContent
-
-makeMockWithOptions [t|FileOperation|] options { prefix = "_" }
-makeMock [t|ApiOperation|]
 
 class (MonadIO m, MonadState String n) => MonadX m n where
   xxx :: String -> m ()
@@ -78,6 +76,7 @@ class Monad m => MonadVar3_3 a b m where
 class MonadVar3_3 a b m => MonadVar3_3Sub a b m where
   fn3_3Sub :: String -> m ()
 
+makeMock [t|MonadReader String|]
 makeMock [t|MonadState String|]
 makeMock [t|MonadStateSub|]
 makeMock [t|MonadStateSub2|]
@@ -86,6 +85,8 @@ makeMock [t|MonadVar2_2Sub|]
 makeMock [t|MonadVar3_1Sub|]
 makeMock [t|MonadVar3_2Sub|]
 makeMock [t|MonadVar3_3Sub|]
+makeMockWithOptions [t|FileOperation|] options { prefix = "_" }
+makeMock [t|ApiOperation|]
 
 exe :: MonadStateSub String m => String -> m String
 exe s = do
