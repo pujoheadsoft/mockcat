@@ -262,15 +262,15 @@ createMockFnDec monadVarName varAppliedTypes options (SigD funName ty) = do
      => $(varT params) -> MockT $(varT monadVarName) ()|]
   newFun <- funD mockFunName [clause [varP $ mkName "p"] (normalB mockBody) []]
 
-  fail $ intercalate "\n" [
-      "",
-      "元の関数のType: " <> show ty,
-      "クラスに適用されたType: " <> show varAppliedTypes,
-      "↑を考慮した関数のType" <> show updatedType,
-      "Mock fun: " <> pprint funType,
-      "Mock verifyParams: " <> pprint verifyParams,
-      "関数のシグニチャ: " <> pprint newFunSig
-    ]
+  -- fail $ intercalate "\n" [
+  --     "",
+  --     "元の関数のType: " <> show ty,
+  --     "クラスに適用されたType: " <> show varAppliedTypes,
+  --     "↑を考慮した関数のType" <> show updatedType,
+  --     "Mock fun: " <> pprint funType,
+  --     "Mock verifyParams: " <> pprint verifyParams,
+  --     "関数のシグニチャ: " <> pprint newFunSig
+  --   ]
 
   pure $ newFunSig : [newFun]
 createMockFnDec _ _ _ dec = fail $ "unsupport dec: " <> pprint dec
