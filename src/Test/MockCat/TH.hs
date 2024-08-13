@@ -22,12 +22,12 @@ import Data.List (find, nub, elemIndex, intercalate)
 import GHC.TypeLits (KnownSymbol, symbolVal)
 import Unsafe.Coerce (unsafeCoerce)
 import Control.Monad.State (modify, get)
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, isJust)
 import GHC.IO (unsafePerformIO)
 import Language.Haskell.TH.Lib
 import Data.Text (splitOn, unpack, pack)
 import Test.MockCat.Mock (MockBuilder)
-import Control.Monad (filterM)
+import Control.Monad (filterM, guard)
 
 showExp :: Q Exp -> Q String
 showExp qexp = show . pprintExp <$> qexp
@@ -252,24 +252,45 @@ createMockFnDec monadVarName varAppliedTypes options (SigD funName ty) = do
                       (Proxy :: Proxy $(litT (strTyLit funNameStr)))
                       (unsafePerformIO $ createNamedMock $(litE (stringL funNameStr)) p)
                       shouldApplyAnythingTo]) |]
-      funType = createMockBuilderFnType monadVarName ty
-      verifyParams = createMockBuilderVerifyParams ty
+      updatedType = updateType ty varAppliedTypes
+      funType = createMockBuilderFnType monadVarName updatedType
+      verifyParams = createMockBuilderVerifyParams updatedType
       params = mkName "p"
-  
-  --fail $ show varAppliedTypes <> "\n" <> show funType <> "\n" <> show verifyParams
-  
+
   newFunSig <- sigD mockFunName [t|
     (MockBuilder $(varT params) ($(pure funType)) ($(pure verifyParams)), Monad $(varT monadVarName))
      => $(varT params) -> MockT $(varT monadVarName) ()|]
   newFun <- funD mockFunName [clause [varP $ mkName "p"] (normalB mockBody) []]
+
+  fail $ intercalate "\n" [
+      "",
+      "元の関数のType: " <> show ty,
+      "クラスに適用されたType: " <> show varAppliedTypes,
+      "↑を考慮した関数のType" <> show updatedType,
+      "Mock fun: " <> pprint funType,
+      "Mock verifyParams: " <> pprint verifyParams,
+      "関数のシグニチャ: " <> pprint newFunSig
+    ]
+
   pure $ newFunSig : [newFun]
 createMockFnDec _ _ _ dec = fail $ "unsupport dec: " <> pprint dec
 
--- hasClass :: Name -> [VarAppliedType] -> Bool
--- hasClass varName = any (\(VarAppliedType v c) -> (v == varName) && isJust c)
+updateType :: Type -> [VarAppliedType] -> Type
+updateType (AppT (VarT v1) (VarT v2)) varAppliedTypes = do
+  let 
+    x = maybe (VarT v1) ConT (findClass v1 varAppliedTypes)
+    y = maybe (VarT v2) ConT (findClass v2 varAppliedTypes)
+  AppT x y
+updateType ty _ = ty
 
--- findClass :: Name -> [VarAppliedType] -> Name
--- findClass varName types = (\(VarAppliedType v _) -> v) (fromJust (find (\(VarAppliedType v _) -> (v == varName)) types))
+hasClass :: Name -> [VarAppliedType] -> Bool
+hasClass varName = any (\(VarAppliedType v c) -> (v == varName) && isJust c)
+
+findClass :: Name -> [VarAppliedType] -> Maybe Name
+findClass varName types = do
+  guard $ hasClass varName types
+  (VarAppliedType _ c) <- find (\(VarAppliedType v _) -> v == varName) types
+  c
 
 createFnName :: Name -> MockOptions -> String
 createFnName funName options = do
@@ -287,6 +308,7 @@ createMockBuilderVerifyParams :: Type -> Type
 createMockBuilderVerifyParams (AppT (AppT ArrowT ty) (AppT (VarT _) _)) = AppT (ConT ''Param) ty
 createMockBuilderVerifyParams (AppT (AppT ArrowT ty) ty2) =
   AppT (AppT (ConT ''(:>)) (AppT (ConT ''Param) ty) ) (createMockBuilderVerifyParams ty2)
+createMockBuilderVerifyParams (AppT (VarT v) (ConT c)) = (AppT (ConT ''Param) (ConT c))
 createMockBuilderVerifyParams (ForallT _ _ ty) = createMockBuilderVerifyParams ty
 createMockBuilderVerifyParams a = a
 

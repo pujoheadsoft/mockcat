@@ -99,6 +99,7 @@ spec = do
     modifyContentStub <- createStubFn $ pack "content" |> pack "modifiedContent"
 
     result <- runMockT do
+      --_ask $ param ""
       _readFile [
         "input.txt" |> pack "content",
         "hoge.txt" |> pack "content"
@@ -110,6 +111,9 @@ spec = do
     result `shouldBe` ()
 
   it "state mock" do
+    a <- createMock $ param "xx"
+    print (stubFn a)
+    shouldApplyAnythingTo a
     r <- runMockT do
       _fn_state $ Just "X" |> "Y"
       exe "foo"

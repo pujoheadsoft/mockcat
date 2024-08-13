@@ -248,6 +248,16 @@ instance
     makeMock name s (\a2 -> unsafePerformIO $ extractReturnValueWithValidate name params (p a2) s)
 
 instance
+  MockBuilder (Param r) r ()
+  where
+  build name params = do
+    s <- liftIO $ newIORef appliedRecord
+    r <- do
+      liftIO $ appendAppliedParams s ()
+      pure $ value params
+    makeMock name s r
+
+instance
   (Show a, Eq a, Show b, Eq b, Show c, Eq c, Show d, Eq d, Show e, Eq e, Show f, Eq f, Show g, Eq g, Show h, Eq h, Show i, Eq i) =>
   MockBuilder
     [Param a :> Param b :> Param c :> Param d :> Param e :> Param f :> Param g :> Param h :> Param i :> Param r]
