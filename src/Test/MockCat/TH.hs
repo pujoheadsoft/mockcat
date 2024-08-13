@@ -266,14 +266,20 @@ createMockFnDec monadVarName varAppliedTypes options (SigD funName ty) = do
   --     "",
   --     "元の関数のType: " <> show ty,
   --     "クラスに適用されたType: " <> show varAppliedTypes,
-  --     "↑を考慮した関数のType" <> show updatedType,
-  --     "Mock fun: " <> pprint funType,
+  --     "↑を考慮した関数のType: " <> show updatedType,
+  --     "Mock fun: " <> show funType,
   --     "Mock verifyParams: " <> pprint verifyParams,
   --     "関数のシグニチャ: " <> pprint newFunSig
   --   ]
 
   pure $ newFunSig : [newFun]
 createMockFnDec _ _ _ dec = fail $ "unsupport dec: " <> pprint dec
+
+isConst :: Type -> Bool
+isConst (AppT (VarT _) (VarT _)) = True
+isConst (VarT _) = True
+isConst (ConT _) = True
+isConst _ = False
 
 updateType :: Type -> [VarAppliedType] -> Type
 updateType (AppT (VarT v1) (VarT v2)) varAppliedTypes = do
