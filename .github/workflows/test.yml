@@ -12,7 +12,7 @@ jobs:
     name: Haskell GHC ${{ matrix.ghc }} test
     steps:
       - name: Setup Haskell
-        uses: haskell-actions/setup@v2
+        uses: haskell-actions/setup@v2.7.5
         with:
           ghc-version: ${{ matrix.ghc }}
           cabal-version: ${{ matrix.cabal }}
