@@ -31,6 +31,7 @@ import Test.MockCat
     createStubFn,
     createNamedMock,
     to,
+    param,
     (|>)
   )
 import Prelude hiding (any)
@@ -863,6 +864,16 @@ spec = do
       v3 `shouldBe` (1 :: Int)
       v4 `shouldBe` (3 :: Int)
       v5 `shouldBe` (2 :: Int)
+
+  describe "constant" do
+    it "createStubFn" do
+      f <- createStubFn $ param "foo"
+      f `shouldBe` "foo"
+    
+    it "verify" do
+      m <- createMock $ param "foo"
+      evaluate (stubFn m)
+      shouldApplyAnythingTo m
 
 data Fixture mock r = Fixture
   { name :: String,
