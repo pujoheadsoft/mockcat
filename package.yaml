@@ -59,7 +59,6 @@ tests:
     - -threaded
     - -rtsopts
     - -with-rtsopts=-N
-    - -ddump-splices
 
     dependencies:
     - mockcat

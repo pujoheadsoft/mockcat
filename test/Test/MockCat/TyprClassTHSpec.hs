@@ -35,21 +35,22 @@ class (Monad m) => FileOperation m where
 class (Monad m) => ApiOperation m where
   post :: Text -> m ()
 
-program ::
-  (MonadReader String m, FileOperation m, ApiOperation m) =>
+operationProgram ::
+  (FileOperation m, ApiOperation m) =>
   FilePath ->
   FilePath ->
   (Text -> Text) ->
   m ()
-program inputPath outputPath modifyText = do
-  env <- ask
+operationProgram inputPath outputPath modifyText = do
   content <- readFile inputPath
-  let modifiedContent = modifyText $ content <> pack ("+" <> env)
+  let modifiedContent = modifyText content
   writeFile outputPath modifiedContent
   post modifiedContent
 
-class (MonadIO m, MonadState String n) => MonadX m n where
-  xxx :: String -> m ()
+monadReaderProgram :: MonadReader Bool m => m String
+monadReaderProgram = do
+  v <- ask
+  pure $ "Environment:" <> show v
 
 class (Eq s, Show s, MonadState s m) => MonadStateSub s m where
   fn_state :: Maybe s -> m s
@@ -77,7 +78,7 @@ class Monad m => MonadVar3_3 a b m where
 class MonadVar3_3 a b m => MonadVar3_3Sub a b m where
   fn3_3Sub :: String -> m ()
 
-makeMock [t|MonadReader String|]
+makeMock [t|MonadReader Bool|]
 makeMock [t|MonadState String|]
 makeMock [t|MonadStateSub|]
 makeMock [t|MonadStateSub2|]
@@ -89,34 +90,57 @@ makeMock [t|MonadVar3_3Sub|]
 makeMockWithOptions [t|FileOperation|] options { prefix = "_" }
 makeMock [t|ApiOperation|]
 
-exe :: MonadStateSub String m => String -> m String
-exe s = do
+class Monad m => ParamThreeMonad a b m | m -> a, m -> b where
+  fnParam3_1 :: a -> b -> m String
+  fnParam3_2 :: m a
+  fnParam3_3 :: m b
+
+makeMock [t|ParamThreeMonad String Bool|]
+
+monadStateSubExec :: MonadStateSub String m => String -> m String
+monadStateSubExec s = do
   r <- fn_state (pure "X")
   pure $ s <> r
+
+threeParamMonadExec :: ParamThreeMonad String Bool m => m String
+threeParamMonadExec = do
+  v1 <- fnParam3_1 "foo" True
+  v2 <- fnParam3_2
+  v3 <- fnParam3_3
+  pure $ v1 <> v2 <> show v3
 
 spec :: Spec
 spec = do
   it "Read, edit, and output files" do
-    modifyContentStub <- createStubFn $ pack "content+env" |> pack "modifiedContent"
+    modifyContentStub <- createStubFn $ pack "content" |> pack "modifiedContent"
 
     result <- runMockT do
-      _ask $ param "env"
       _readFile [
         "input.txt" |> pack "content",
         "hoge.txt" |> pack "content"
         ]
       _writeFile $ "output.text" |> pack "modifiedContent" |> ()
       _post $ pack "modifiedContent" |> ()
-      program "input.txt" "output.text" modifyContentStub
+      operationProgram "input.txt" "output.text" modifyContentStub
 
     result `shouldBe` ()
+  
+  it "MonadReader mock" do
+    r <- runMockT do
+      _ask $ param True
+      monadReaderProgram
+    r `shouldBe` "Environment:True"
 
-  it "state mock" do
-    a <- createMock $ param "xx"
-    print (stubFn a)
-    shouldApplyAnythingTo a
-
+  it "MonadState subclass mock" do
     r <- runMockT do
       _fn_state $ Just "X" |> "Y"
-      exe "foo"
+      monadStateSubExec "foo"
     r `shouldBe` "fooY"
+
+  it "3 param Moand mock" do
+    r <- runMockT do
+      _fnParam3_1 $ "foo" |> True |> "Result1"
+      _fnParam3_2 $ param "Result2"
+      _fnParam3_3 $ param False
+      threeParamMonadExec
+    r `shouldBe` "Result1Result2False"
