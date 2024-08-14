@@ -11,9 +11,6 @@ jobs:
 
     name: Haskell GHC ${{ matrix.ghc }} test
     steps:
-      - uses: actions/checkout@v4
-      - name: Check Disk Space
-        run: df -h
       - name: Setup Haskell
         uses: haskell-actions/setup@v2
         with:
