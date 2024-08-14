@@ -9,7 +9,7 @@ jobs:
         cabal: ['3.10.3.0', '3.12.1.0']
         os: [ubuntu-latest, macOS-latest, windows-latest]
 
-    name: Haskell GHC ${{ matrix.ghc }} sample
+    name: Haskell GHC ${{ matrix.ghc }} test
     steps:
       - uses: actions/checkout@v4
       - name: Check Disk Space
