@@ -26,7 +26,7 @@ import Data.Text (Text, pack)
 import Test.Hspec
 import Test.MockCat
 import Control.Monad.State
-import Control.Monad.Reader (MonadReader)
+import Control.Monad.Reader (MonadReader, ask)
 
 class (Monad m) => FileOperation m where
   writeFile :: FilePath -> Text -> m ()
@@ -42,8 +42,9 @@ program ::
   (Text -> Text) ->
   m ()
 program inputPath outputPath modifyText = do
+  env <- ask
   content <- readFile inputPath
-  let modifiedContent = modifyText content
+  let modifiedContent = modifyText $ content <> pack ("+" <> env)
   writeFile outputPath modifiedContent
   post modifiedContent
 
@@ -96,10 +97,10 @@ exe s = do
 spec :: Spec
 spec = do
   it "Read, edit, and output files" do
-    modifyContentStub <- createStubFn $ pack "content" |> pack "modifiedContent"
+    modifyContentStub <- createStubFn $ pack "content+env" |> pack "modifiedContent"
 
     result <- runMockT do
-      --_ask $ param ""
+      _ask $ param "env"
       _readFile [
         "input.txt" |> pack "content",
         "hoge.txt" |> pack "content"
@@ -114,6 +115,7 @@ spec = do
     a <- createMock $ param "xx"
     print (stubFn a)
     shouldApplyAnythingTo a
+
     r <- runMockT do
       _fn_state $ Just "X" |> "Y"
       exe "foo"

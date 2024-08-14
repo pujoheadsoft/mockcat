@@ -2,7 +2,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -11,14 +10,14 @@
 
 module Test.MockCat.TH (showExp, expectByExpr, makeMock, makeMockWithOptions, MockOptions(..), options) where
 
-import Language.Haskell.TH (Exp (..), Lit (..), Pat (..), Q, pprint, Name, Dec (..), Info (..), reify, mkName, Type (..), Quote (newName), Cxt, TyVarBndr (..), Pred, Specificity)
+import Language.Haskell.TH (Exp (..), Lit (..), Pat (..), Q, pprint, Name, Dec (..), Info (..), reify, mkName, Type (..), Quote (newName), Cxt, TyVarBndr (..), Pred)
 import Language.Haskell.TH.PprLib (Doc, hcat, parens, text)
 import Language.Haskell.TH.Syntax (nameBase)
 import Test.MockCat.Param (Param(..))
 import Test.MockCat.Cons ((:>))
 import Test.MockCat.MockT
 import Data.Data (Proxy(..))
-import Data.List (find, nub, elemIndex, intercalate)
+import Data.List (find, nub, elemIndex)
 import GHC.TypeLits (KnownSymbol, symbolVal)
 import Unsafe.Coerce (unsafeCoerce)
 import Control.Monad.State (modify, get)
@@ -27,7 +26,8 @@ import GHC.IO (unsafePerformIO)
 import Language.Haskell.TH.Lib
 import Data.Text (splitOn, unpack, pack)
 import Test.MockCat.Mock (MockBuilder)
-import Control.Monad (filterM, guard)
+import Control.Monad (guard)
+import Data.Function ((&))
 
 showExp :: Q Exp -> Q String
 showExp qexp = show . pprintExp <$> qexp
@@ -233,7 +233,9 @@ createInstanceFnDec (SigD funName funType) = do
 
       funBody =  [| MockT $ do
                       defs <- get
-                      let mock = fromMaybe (error $ "no answer found stub function `" ++ funNameStr ++ "`.") $ findParam (Proxy :: Proxy $(litT (strTyLit funNameStr))) defs
+                      let mock = defs
+                                 & findParam (Proxy :: Proxy $(litT (strTyLit funNameStr)))
+                                 & fromMaybe (error $ "no answer found stub function `" ++ funNameStr ++ "`.")
                           $(bangP $ varP r) = $(generateStubFn [| mock |] args)
                       pure $(varE r) |]
       funClause = clause params (normalB funBody) []
@@ -248,29 +250,22 @@ createMockFnDec :: Name -> [VarAppliedType] -> MockOptions -> Dec -> Q [Dec]
 createMockFnDec monadVarName varAppliedTypes options (SigD funName ty) = do
   let funNameStr = createFnName funName options
       mockFunName = mkName funNameStr
-      mockBody = [| MockT $ modify (++ [Definition
-                      (Proxy :: Proxy $(litT (strTyLit funNameStr)))
-                      (unsafePerformIO $ createNamedMock $(litE (stringL funNameStr)) p)
-                      shouldApplyAnythingTo]) |]
       updatedType = updateType ty varAppliedTypes
       funType = createMockBuilderFnType monadVarName updatedType
-      verifyParams = createMockBuilderVerifyParams updatedType
+      verifyParams =
+        if isConst ty then ConT ''()
+        else createMockBuilderVerifyParams updatedType
       params = mkName "p"
 
   newFunSig <- sigD mockFunName [t|
     (MockBuilder $(varT params) ($(pure funType)) ($(pure verifyParams)), Monad $(varT monadVarName))
      => $(varT params) -> MockT $(varT monadVarName) ()|]
-  newFun <- funD mockFunName [clause [varP $ mkName "p"] (normalB mockBody) []]
 
-  -- fail $ intercalate "\n" [
-  --     "",
-  --     "元の関数のType: " <> show ty,
-  --     "クラスに適用されたType: " <> show varAppliedTypes,
-  --     "↑を考慮した関数のType: " <> show updatedType,
-  --     "Mock fun: " <> show funType,
-  --     "Mock verifyParams: " <> pprint verifyParams,
-  --     "関数のシグニチャ: " <> pprint newFunSig
-  --   ]
+  let mockBody = [| MockT $ modify (++ [Definition
+                  (Proxy :: Proxy $(litT (strTyLit funNameStr)))
+                  (unsafePerformIO $ createNamedMock $(litE (stringL funNameStr)) p)
+                  shouldApplyAnythingTo]) |]
+  newFun <- funD mockFunName [clause [varP $ mkName "p"] (normalB mockBody) []]
 
   pure $ newFunSig : [newFun]
 createMockFnDec _ _ _ dec = fail $ "unsupport dec: " <> pprint dec
@@ -283,7 +278,7 @@ isConst _ = False
 
 updateType :: Type -> [VarAppliedType] -> Type
 updateType (AppT (VarT v1) (VarT v2)) varAppliedTypes = do
-  let 
+  let
     x = maybe (VarT v1) ConT (findClass v1 varAppliedTypes)
     y = maybe (VarT v2) ConT (findClass v2 varAppliedTypes)
   AppT x y
@@ -314,7 +309,7 @@ createMockBuilderVerifyParams :: Type -> Type
 createMockBuilderVerifyParams (AppT (AppT ArrowT ty) (AppT (VarT _) _)) = AppT (ConT ''Param) ty
 createMockBuilderVerifyParams (AppT (AppT ArrowT ty) ty2) =
   AppT (AppT (ConT ''(:>)) (AppT (ConT ''Param) ty) ) (createMockBuilderVerifyParams ty2)
-createMockBuilderVerifyParams (AppT (VarT v) (ConT c)) = (AppT (ConT ''Param) (ConT c))
+createMockBuilderVerifyParams (AppT (VarT _) (ConT c)) = AppT (ConT ''Param) (ConT c)
 createMockBuilderVerifyParams (ForallT _ _ ty) = createMockBuilderVerifyParams ty
 createMockBuilderVerifyParams a = a
 
@@ -366,7 +361,7 @@ split delimiter str = unpack <$> splitOn (pack delimiter) (pack str)
 
 safeIndex :: [a] -> Int -> Maybe a
 safeIndex [] _ = Nothing
-safeIndex (x:xs) 0 = Just x
+safeIndex (x:_) 0 = Just x
 safeIndex (_:xs) n
   | n < 0     = Nothing
   | otherwise = safeIndex xs (n - 1)
