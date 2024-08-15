@@ -1,6 +1,7 @@
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
+{-# OPTIONS_GHC -Wno-name-shadowing #-}
 
 module Test.MockCat.ExampleSpec (spec) where
 
@@ -68,15 +69,15 @@ spec = do
     f "something" `shouldBe` "return value"
 
   it "expect" do
-    f <- createStubFn $ expect (> 5) "> 5" |> "return value"
+    f <- createStubFn $ expect (> (5 :: Int)) "> 5" |> "return value"
     f 6 `shouldBe` "return value"
 
   it "expect_" do
-    f <- createStubFn $ expect_ (> 5) |> "return value"
+    f <- createStubFn $ expect_ (> (5 :: Int)) |> "return value"
     f 6 `shouldBe` "return value"
 
   it "expectByExpr" do
-    f <- createStubFn $ $(expectByExpr [|(> 5)|]) |> "return value"
+    f <- createStubFn $ $(expectByExpr [|(> (5 :: Int))|]) |> "return value"
     f 6 `shouldBe` "return value"
 
   it "multi" do

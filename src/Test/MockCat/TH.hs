@@ -7,6 +7,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE KindSignatures #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
+{-# OPTIONS_GHC -Wno-unused-local-binds #-}
 
 module Test.MockCat.TH (showExp, expectByExpr, makeMock, makeMockWithOptions, MockOptions(..), options) where
 
@@ -100,40 +101,40 @@ doMakeMock t options = do
     ClassI (ClassD _ _ [] _ _) _ -> fail $ "A type parameter is required for class " <> show className
     ClassI (ClassD cxt _ typeParameters _ decs) _ -> do
       monadVarNames <- getMonadVarNames cxt typeParameters
-      if length (nub monadVarNames) > 1 then fail "Monad parameter must be unique."
-      else if null monadVarNames then fail "Monad parameter not found."
-      else do
-        let monadVarName = head monadVarNames
+      case nub monadVarNames of
+        [] -> fail "Monad parameter not found."
+        (monadVarName : rest) ->
+          if length rest > 1 then fail "Monad parameter must be unique."
+          else do
+            let classParamNames = filter (className /=) (getClassNames ty)
+                typeVars = drop (length classParamNames) typeParameters
+                xx = zipWith (\t i -> VarAppliedType t (safeIndex classParamNames i)) (getTypeVarNames typeParameters) [0..]
 
-        let classParamNames = filter (className /=) (getClassNames ty)
-            typeVars = drop (length classParamNames) typeParameters
-            xx = zipWith (\t i -> VarAppliedType t (safeIndex classParamNames i)) (getTypeVarNames typeParameters) [0..]
+            newCxt <- createCxt monadVarName cxt
+            m <- appT (conT ''Monad) (varT monadVarName)
 
-        newCxt <- createCxt monadVarName cxt
-        m <- appT (conT ''Monad) (varT monadVarName)
+            instanceDec <- instanceD
+              (pure $ newCxt ++ [m])
+              (createInstanceType ty monadVarName typeVars)
+              (map createInstanceFnDec decs)
 
-        instanceDec <- instanceD
-          (pure $ newCxt ++ [m])
-          (createInstanceType ty monadVarName typeVars)
-          (map createInstanceFnDec decs)
+            mockFnDecs <- concat <$> mapM (createMockFnDec monadVarName xx options) decs
 
-        mockFnDecs <- concat <$> mapM (createMockFnDec monadVarName xx options) decs
-
-        pure $ instanceDec : mockFnDecs
+            pure $ instanceDec : mockFnDecs
     t -> error $ "unsupported type: " <> show t
 
-getMonadVarNames :: Cxt -> [TyVarBndr ()] -> Q [Name]
+getMonadVarNames :: Cxt -> [TyVarBndr a] -> Q [Name]
 getMonadVarNames cxt typeVars = do
   let typeVarNames = getTypeVarNames typeVars
 
   -- VarInfos (class names is empty)
-  let emptyClassVarInfos = map (`VarInfo` []) typeVarNames
+  let emptyClassVarInfos = map (`VarName2ClassNames` []) typeVarNames
 
   let parentClassInfos = toClassInfos cxt
 
   varInfos <- collectVarInfos parentClassInfos emptyClassVarInfos
 
-  pure $ (\(VarInfo n _) -> n) <$> filterMonadicVarInfos varInfos
+  pure $ (\(VarName2ClassNames n _) -> n) <$> filterMonadicVarInfos varInfos
 
 getTypeVarNames :: [TyVarBndr a] -> [Name]
 getTypeVarNames = map getTypeVarName
@@ -142,14 +143,14 @@ getTypeVarName :: TyVarBndr a -> Name
 getTypeVarName (PlainTV name _) = name
 getTypeVarName (KindedTV name _ _) = name
 
-toClassInfos :: Cxt -> [ClassInfo]
+toClassInfos :: Cxt -> [ClassName2VarNames]
 toClassInfos = map $ \ct ->  toClassInfo ct
 
-toClassInfo :: Pred -> ClassInfo
+toClassInfo :: Pred -> ClassName2VarNames
 toClassInfo (AppT t1 t2) = do
-  let (ClassInfo name vars) = toClassInfo t1
-  ClassInfo name (vars ++ getTypeNames t2)
-toClassInfo (ConT name) = ClassInfo name []
+  let (ClassName2VarNames name vars) = toClassInfo t1
+  ClassName2VarNames name (vars ++ getTypeNames t2)
+toClassInfo (ConT name) = ClassName2VarNames name []
 toClassInfo _ = error "Unsupported Type structure"
 
 getTypeNames :: Pred -> [Name]
@@ -157,21 +158,21 @@ getTypeNames (VarT name) = [name]
 getTypeNames (ConT name) = [name]
 getTypeNames _ = []
 
-collectVarInfos :: [ClassInfo] -> [VarInfo] -> Q [VarInfo]
+collectVarInfos :: [ClassName2VarNames] -> [VarName2ClassNames] -> Q [VarName2ClassNames]
 collectVarInfos classInfos = mapM (collectVarInfo classInfos)
 
-collectVarInfo :: [ClassInfo] -> VarInfo -> Q VarInfo
-collectVarInfo classInfos (VarInfo vName classNames) =  do
+collectVarInfo :: [ClassName2VarNames] -> VarName2ClassNames -> Q VarName2ClassNames
+collectVarInfo classInfos (VarName2ClassNames vName classNames) =  do
   varClassNames <- collectVarClassNames vName classInfos
-  pure $ VarInfo vName (classNames ++ varClassNames)
+  pure $ VarName2ClassNames vName (classNames ++ varClassNames)
 
-collectVarClassNames :: Name -> [ClassInfo] -> Q [Name]
+collectVarClassNames :: Name -> [ClassName2VarNames] -> Q [Name]
 collectVarClassNames varName classInfos = do
   let targetClassInfos = filterClassInfo varName classInfos
   concat <$> mapM (collectVarClassNames_ varName) targetClassInfos
 
-collectVarClassNames_ :: Name -> ClassInfo -> Q [Name]
-collectVarClassNames_ name (ClassInfo cName vNames) = do
+collectVarClassNames_ :: Name -> ClassName2VarNames -> Q [Name]
+collectVarClassNames_ name (ClassName2VarNames cName vNames) = do
   case elemIndex name vNames of
     Nothing -> pure []
     Just i -> do
@@ -188,17 +189,17 @@ collectVarClassNames_ name (ClassInfo cName vNames) = do
         result <- concat <$> mapM (collectVarClassNames_ typeVarName) parentClassInfos
         pure $ cName : result
 
-filterClassInfo :: Name -> [ClassInfo] -> [ClassInfo]
+filterClassInfo :: Name -> [ClassName2VarNames] -> [ClassName2VarNames]
 filterClassInfo name = filter (hasVarName name)
   where
-  hasVarName :: Name -> ClassInfo -> Bool
-  hasVarName name (ClassInfo _ varNames) = name `elem` varNames
+  hasVarName :: Name -> ClassName2VarNames -> Bool
+  hasVarName name (ClassName2VarNames _ varNames) = name `elem` varNames
 
-filterMonadicVarInfos :: [VarInfo] -> [VarInfo]
+filterMonadicVarInfos :: [VarName2ClassNames] -> [VarName2ClassNames]
 filterMonadicVarInfos = filter hasMonadInVarInfo
 
-hasMonadInVarInfo :: VarInfo -> Bool
-hasMonadInVarInfo (VarInfo _ classNames) = ''Monad `elem` classNames
+hasMonadInVarInfo :: VarName2ClassNames -> Bool
+hasMonadInVarInfo (VarName2ClassNames _ classNames) = ''Monad `elem` classNames
 
 createCxt :: Name -> Cxt -> Q Cxt
 createCxt monadVarName = mapM (createPred monadVarName)
@@ -210,12 +211,12 @@ createPred monadVarName (AppT ty a@(VarT varName))
 createPred monadVarName (AppT ty1 ty2) = appT (createPred monadVarName ty1) (createPred monadVarName ty2)
 createPred _ ty = pure ty
 
-createInstanceType :: Type -> Name -> [TyVarBndr ()] -> Q Type
+createInstanceType :: Type -> Name -> [TyVarBndr a] -> Q Type
 createInstanceType className monadName tvbs = do
   types <- mapM (tyVarBndrToType monadName) tvbs
   pure $ foldl AppT className types
 
-tyVarBndrToType :: Name -> TyVarBndr () -> Q Type
+tyVarBndrToType :: Name -> TyVarBndr a -> Q Type
 tyVarBndrToType monadName (PlainTV name _)
   | monadName == name = appT (conT ''MockT) (varT monadName)
   | otherwise = varT name
@@ -334,15 +335,15 @@ getClassNames (AppT ty (ConT name)) = getClassNames ty ++ [name]
 getClassNames (AppT ty1 ty2) = getClassNames ty1 ++ getClassNames ty2
 getClassNames _ = []
 
-data ClassInfo = ClassInfo { cName :: Name, varNames :: [Name] }
+data ClassName2VarNames = ClassName2VarNames Name [Name]
 
-instance Show ClassInfo where
-  show (ClassInfo cName varNames) = showClassDef cName varNames
+instance Show ClassName2VarNames where
+  show (ClassName2VarNames cName varNames) = showClassDef cName varNames
 
-data VarInfo = VarInfo { varName :: Name, classNames :: [Name] }
+data VarName2ClassNames = VarName2ClassNames Name [Name]
 
-instance Show VarInfo where
-  show (VarInfo varName classNames) = show varName <> " class is " <> unwords (showClassName <$> classNames)
+instance Show VarName2ClassNames where
+  show (VarName2ClassNames varName classNames) = show varName <> " class is " <> unwords (showClassName <$> classNames)
 
 data VarAppliedType = VarAppliedType { name :: Name, appliedClassName :: Maybe Name }
   deriving (Show)
