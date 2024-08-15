@@ -5,7 +5,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        ghc: ['9.2.8', '9.4.8']
+        ghc: ['9.2.8', '9.4.8', '9.6.6']
         cabal: ['3.10.3.0']
         os: [ubuntu-latest]
 
