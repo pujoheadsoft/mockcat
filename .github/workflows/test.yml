@@ -1,13 +1,25 @@
 on: [push]
-name: build
+name: Test
 jobs:
-  runhaskell:
-    name: build
-    runs-on: ubuntu-latest # or macOS-latest, or windows-latest
+  build-and-test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        ghc: ['9.2.8']
+        cabal: ['3.10.3.0']
+        os: [ubuntu-latest]
+
+    name: Haskell GHC ${{ matrix.ghc }} sample
     steps:
       - uses: actions/checkout@v4
-      - uses: haskell-actions/setup@v2
+      - name: Setup Haskell
+        uses: haskell-actions/setup@v2
         with:
-          ghc-version: '9.2.8' # Resolves to the latest point release of GHC 8.8
-          cabal-version: '3.12.1.0' # Exact version of Cabal
-      - run: cabal v2-build
+          ghc-version: ${{ matrix.ghc }}
+          cabal-version: ${{ matrix.cabal }}
+      - name: Build
+        run: |
+          cabal v2-update
+          cabal v2-build
+      - name: Test
+        run: cabal v2-test
