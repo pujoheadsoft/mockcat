@@ -5,11 +5,11 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        ghc: ['9.2.8']
+        ghc: ['9.2.8', '9.4.8']
         cabal: ['3.10.3.0']
         os: [ubuntu-latest]
 
-    name: Haskell GHC ${{ matrix.ghc }} sample
+    name: Haskell GHC ${{ matrix.ghc }} Test
     steps:
       - uses: actions/checkout@v4
       - name: Setup Haskell
