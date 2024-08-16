@@ -19,6 +19,7 @@ data Definition = forall f p sym. KnownSymbol sym => Definition {
 }
 
 {- | run MockT.
+
   @
   import Test.Hspec
   import Test.MockCat
@@ -41,12 +42,13 @@ data Definition = forall f p sym. KnownSymbol sym => Definition {
 
   it "test runMockT" do
     result \<- runMockT do
-      _readFile $ "input.txt" |\> pack "Content"
-      _writeFile $ "output.text" |\> pack "Content" |\> ()
+      _readFile $ "input.txt" |\> pack "content"
+      _writeFile $ "output.text" |\> pack "content" |\> ()
       operationProgram "input.txt" "output.text"
 
-    result \`shouldBe\` ()
+    result `shouldBe` ()
   @
+
 -}
 runMockT :: MonadIO m => MockT m a -> m a
 runMockT (MockT s) = do
