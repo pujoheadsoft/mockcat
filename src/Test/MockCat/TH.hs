@@ -231,21 +231,25 @@ createInstanceFnDec (SigD funName funType) = do
       params = varP <$> names
       args = varE <$> names
       funNameStr = "_" <> nameBase funName
+      genFn = if null names then $([|generateConstantStubFn|]) else $([|generateStubFn args|])
 
       funBody =  [| MockT $ do
                       defs <- get
                       let mock = defs
                                  & findParam (Proxy :: Proxy $(litT (strTyLit funNameStr)))
                                  & fromMaybe (error $ "no answer found stub function `" ++ funNameStr ++ "`.")
-                          $(bangP $ varP r) = $(generateStubFn [| mock |] args)
+                          $(bangP $ varP r) = $(genFn [| mock |])
                       pure $(varE r) |]
       funClause = clause params (normalB funBody) []
   funD funName [funClause]
 createInstanceFnDec dec = fail $ "unsuported dec: " <> pprint dec
 
-generateStubFn :: Q Exp -> [Q Exp] -> Q Exp
-generateStubFn mock args = do
+generateStubFn :: [Q Exp] -> Q Exp -> Q Exp
+generateStubFn args mock = do
   foldl appE [| stubFn $(mock) |] args
+
+generateConstantStubFn :: Q Exp -> Q Exp
+generateConstantStubFn mock = [| stubFn $(mock) |] 
 
 createMockFnDec :: Name -> [VarAppliedType] -> MockOptions -> Dec -> Q [Dec]
 createMockFnDec monadVarName varAppliedTypes options (SigD funName ty) = do
@@ -254,28 +258,34 @@ createMockFnDec monadVarName varAppliedTypes options (SigD funName ty) = do
       updatedType = updateType ty varAppliedTypes
       funType = createMockBuilderFnType monadVarName updatedType
       verifyParams =
-        if isConst ty then ConT ''()
+        if isConstant ty then ConT ''()
         else createMockBuilderVerifyParams updatedType
       params = mkName "p"
 
-  newFunSig <- sigD mockFunName [t|
-    (MockBuilder $(varT params) ($(pure funType)) ($(pure verifyParams)), Monad $(varT monadVarName))
-     => $(varT params) -> MockT $(varT monadVarName) ()|]
+  newFunSig <- if isConstant ty
+    then
+      sigD mockFunName [t|Monad $(varT monadVarName) => $(varT params) -> MockT $(varT monadVarName) ()|]
+    else
+      sigD mockFunName [t|
+        (MockBuilder $(varT params) ($(pure funType)) ($(pure verifyParams)), Monad $(varT monadVarName))
+        => $(varT params) -> MockT $(varT monadVarName) ()|]
+  
+  createMockFn <- if isConstant ty then [|createNamedConstantMock|] else [|createNamedMock|]
 
   let mockBody = [| MockT $ modify (++ [Definition
                   (Proxy :: Proxy $(litT (strTyLit funNameStr)))
-                  (unsafePerformIO $ createNamedMock $(litE (stringL funNameStr)) p)
+                  (unsafePerformIO $ $(pure createMockFn) $(litE (stringL funNameStr)) p)
                   shouldApplyAnythingTo]) |]
   newFun <- funD mockFunName [clause [varP $ mkName "p"] (normalB mockBody) []]
 
   pure $ newFunSig : [newFun]
 createMockFnDec _ _ _ dec = fail $ "unsupport dec: " <> pprint dec
 
-isConst :: Type -> Bool
-isConst (AppT (VarT _) (VarT _)) = True
-isConst (VarT _) = True
-isConst (ConT _) = True
-isConst _ = False
+isConstant :: Type -> Bool
+isConstant (AppT (VarT _) (VarT _)) = True
+isConstant (VarT _) = True
+isConstant (ConT _) = True
+isConstant _ = False
 
 updateType :: Type -> [VarAppliedType] -> Type
 updateType (AppT (VarT v1) (VarT v2)) varAppliedTypes = do

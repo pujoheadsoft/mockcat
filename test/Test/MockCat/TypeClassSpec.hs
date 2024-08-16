@@ -10,12 +10,13 @@
 {-# LANGUAGE BangPatterns #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 module Test.MockCat.TypeClassSpec (spec) where
 
 import Data.Text (Text, pack)
 import Test.Hspec (Spec, it, shouldBe)
-import Test.MockCat (createStubFn, stubFn, (|>), Param, (:>), createNamedMock, shouldApplyAnythingTo)
+import Test.MockCat (createStubFn, stubFn, (|>), Param, (:>), createNamedMock, shouldApplyAnythingTo, createNamedConstantMock)
 import Prelude hiding (readFile, writeFile)
 import Data.Data
 import Data.List (find)
@@ -26,6 +27,8 @@ import Data.Maybe (fromMaybe)
 import GHC.IO (unsafePerformIO)
 import Test.MockCat.Mock (MockBuilder)
 import Test.MockCat.MockT (MockT(..), runMockT, Definition(..))
+import Control.Monad.Reader (MonadReader)
+import Control.Monad.Reader.Class (ask, MonadReader (local))
 
 class (Monad m) => FileOperation m where
   readFile :: FilePath -> m Text
@@ -35,16 +38,17 @@ class (Monad m) => ApiOperation m where
   post :: Text -> m ()
 
 program ::
-  (FileOperation m, ApiOperation m) =>
+  (MonadReader String m, FileOperation m, ApiOperation m) =>
   FilePath ->
   FilePath ->
   (Text -> Text) ->
   m ()
 program inputPath outputPath modifyText = do
+  e <- ask
   content <- readFile inputPath
   let modifiedContent = modifyText content
   writeFile outputPath modifiedContent
-  post modifiedContent
+  post $ modifiedContent <> pack ("+" <> e)
 
 instance Monad m => FileOperation (MockT m) where
   readFile path = MockT do
@@ -68,6 +72,22 @@ instance Monad m => ApiOperation (MockT m) where
       mock = fromMaybe (error "no answer found stub function `post`.") $ findParam (Proxy :: Proxy "post") defs
       !result = stubFn mock content
     pure result
+
+instance Monad m => MonadReader String (MockT m) where
+  ask = MockT do
+    defs <- get
+    let
+      mock = fromMaybe (error "no answer found stub function `ask`.") $ findParam (Proxy :: Proxy "ask") defs
+      !result = stubFn mock
+    pure result
+  local = undefined
+
+_ask :: Monad m => params -> MockT m ()
+_ask p = MockT $ do
+  modify (++ [Definition
+    (Proxy :: Proxy "ask")
+    (unsafePerformIO $ createNamedConstantMock "ask" p)
+    shouldApplyAnythingTo])
 
 _readFile :: (MockBuilder params (FilePath -> Text) (Param FilePath), Monad m) => params -> MockT m ()
 _readFile p = MockT $ do
@@ -98,12 +118,13 @@ spec = it "Read, edit, and output files" do
   modifyContentStub <- createStubFn $ pack "content" |> pack "modifiedContent"
 
   result <- runMockT do
+    _ask "environment"
     _readFile [
       "input.txt" |> pack "content",
       "hoge.txt" |> pack "content"
       ]
     _writeFile $ "output.text" |> pack "modifiedContent" |> ()
-    _post $ pack "modifiedContent" |> ()
+    _post $ pack "modifiedContent+environment" |> ()
     program "input.txt" "output.text" modifyContentStub
 
   result `shouldBe` ()

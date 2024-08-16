@@ -127,7 +127,7 @@ spec = do
   
   it "MonadReader mock" do
     r <- runMockT do
-      _ask $ param True
+      _ask True
       monadReaderProgram
     r `shouldBe` "Environment:True"
 
@@ -140,7 +140,7 @@ spec = do
   it "3 param Moand mock" do
     r <- runMockT do
       _fnParam3_1 $ "foo" |> True |> "Result1"
-      _fnParam3_2 $ param "Result2"
-      _fnParam3_3 $ param False
+      _fnParam3_2 "Result2"
+      _fnParam3_3 False
       threeParamMonadExec
     r `shouldBe` "Result1Result2False"
