@@ -21,6 +21,8 @@ module Test.MockCat.Mock
     build,
     createMock,
     createNamedMock,
+    createConstantMock,
+    createNamedConstantMock,
     createStubFn,
     createNamedStubFn,
     stubFn,
@@ -86,6 +88,9 @@ createMock ::
   m (Mock fun verifyParams)
 createMock params = liftIO $ build Nothing params
 
+createConstantMock :: MonadIO m => a -> m (Mock a ())
+createConstantMock a = liftIO $ build Nothing $ param a
+
 {- | Create a named mock. If the test fails, this name is used. This may be useful if you have multiple mocks.
 
   @
@@ -104,6 +109,9 @@ createNamedMock ::
   params ->
   m (Mock fun verifyParams)
 createNamedMock name params = liftIO $ build (Just name) params
+
+createNamedConstantMock :: MonadIO m => MockName -> fun -> m (Mock fun ())
+createNamedConstantMock name a = liftIO $ build (Just name) (param a)
 
 -- | Extract the stub function from the mock.
 stubFn :: Mock fun v -> fun
@@ -125,7 +133,6 @@ createStubFn ::
   params ->
   m fun
 createStubFn params = stubFn <$> createMock params
-
 
 -- | Create a named stub function.
 createNamedStubFn ::
@@ -252,9 +259,11 @@ instance
   where
   build name params = do
     s <- liftIO $ newIORef appliedRecord
+    let v = value params
     r <- do
+      --error "fooooo"
       liftIO $ appendAppliedParams s ()
-      pure $ value params
+      pure v
     makeMock name s r
 
 instance

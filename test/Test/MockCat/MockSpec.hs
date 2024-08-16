@@ -32,7 +32,9 @@ import Test.MockCat
     createNamedMock,
     to,
     param,
-    (|>)
+    (|>), 
+    createConstantMock,
+    createNamedConstantMock
   )
 import Prelude hiding (any)
 
@@ -45,7 +47,7 @@ spec = do
         f True `shouldBe` False
 
       it "arity = 2" do
-        f <- createStubFn $ True |> False |> True 
+        f <- createStubFn $ True |> False |> True
         f True False `shouldBe` True
 
       it "arity = 3" do
@@ -723,7 +725,7 @@ spec = do
                 \  expected: 2\n\
                 \   but got: 1"
           m `shouldApplyInPartialOrder` ["A", "C"] `shouldThrow` errorCall e
-        
+
         it "verify applied anything" do
           m <- createMock $ "X" |> True
           shouldApplyAnythingTo m `shouldThrow` errorCall "It has never been applied to function"
@@ -829,7 +831,7 @@ spec = do
     it "expectByExpr" do
       f <- createStubFn $ $(expectByExpr [|\x -> x == "y" || x == "z"|]) |> True
       f "y" `shouldBe` True
-  
+
   describe "repeatable" do
     it "arity = 1" do
       f <- createStubFn [
@@ -866,10 +868,18 @@ spec = do
       v5 `shouldBe` (2 :: Int)
 
   describe "constant" do
+    it "createConstMock" do
+      m <- createConstantMock "foo"
+      shouldApplyAnythingTo m
+
+    it "createNamedConstMock" do
+      m <- createNamedConstantMock "const" "foo"
+      shouldApplyAnythingTo m
+
     it "createStubFn" do
       f <- createStubFn $ param "foo"
       f `shouldBe` "foo"
-    
+
     it "verify" do
       m <- createMock $ param "foo"
       evaluate (stubFn m)
@@ -943,7 +953,7 @@ mockTest f = describe f.name do
     m <- f.create
     evaluate $ f.apply m
     f.verifyApplyCount m 3 `shouldThrow` anyErrorCall
-  
+
   it "verify any" do
     m <- f.create
     evaluate $ f.apply m
