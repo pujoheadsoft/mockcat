@@ -11,7 +11,24 @@
 
 module Test.MockCat.TH (showExp, expectByExpr, makeMock, makeMockWithOptions, MockOptions(..), options) where
 
-import Language.Haskell.TH (Exp (..), Lit (..), Pat (..), Q, pprint, Name, Dec (..), Info (..), reify, mkName, Type (..), Quote (newName), Cxt, TyVarBndr (..), Pred)
+import Language.Haskell.TH
+    ( Exp(..),
+      Lit(..),
+      Pat(..),
+      Q,
+      pprint,
+      Name,
+      Dec(..),
+      Info(..),
+      reify,
+      mkName,
+      Type(..),
+      Quote(newName),
+      Cxt,
+      TyVarBndr(..),
+      Pred,
+      isExtEnabled,
+      Extension(..) )
 import Language.Haskell.TH.PprLib (Doc, hcat, parens, text)
 import Language.Haskell.TH.Syntax (nameBase)
 import Test.MockCat.Param (Param(..))
@@ -27,7 +44,7 @@ import GHC.IO (unsafePerformIO)
 import Language.Haskell.TH.Lib
 import Data.Text (splitOn, unpack, pack)
 import Test.MockCat.Mock (MockBuilder)
-import Control.Monad (guard)
+import Control.Monad (guard, unless)
 import Data.Function ((&))
 
 showExp :: Q Exp -> Q String
@@ -94,6 +111,10 @@ makeMock = flip doMakeMock options
 
 doMakeMock :: Q Type -> MockOptions -> Q [Dec]
 doMakeMock t options = do
+  verifyExtension DataKinds
+  verifyExtension FlexibleInstances
+  verifyExtension FlexibleContexts
+
   ty <- t
   className <- getClassName <$> t
 
@@ -108,17 +129,19 @@ doMakeMock t options = do
           else do
             let classParamNames = filter (className /=) (getClassNames ty)
                 typeVars = drop (length classParamNames) typeParameters
-                xx = zipWith (\t i -> VarAppliedType t (safeIndex classParamNames i)) (getTypeVarNames typeParameters) [0..]
+                varAppliedTypes = zipWith (\t i -> VarAppliedType t (safeIndex classParamNames i)) (getTypeVarNames typeParameters) [0..]
 
             newCxt <- createCxt monadVarName cxt
             m <- appT (conT ''Monad) (varT monadVarName)
 
+            let hasMonad = any (\(ClassName2VarNames c _) -> c == ''Monad) $ toClassInfos newCxt
+
             instanceDec <- instanceD
-              (pure $ newCxt ++ [m])
+              (pure $ newCxt ++ ([m | not hasMonad]))
               (createInstanceType ty monadVarName typeVars)
               (map createInstanceFnDec decs)
 
-            mockFnDecs <- concat <$> mapM (createMockFnDec monadVarName xx options) decs
+            mockFnDecs <- concat <$> mapM (createMockFnDec monadVarName varAppliedTypes options) decs
 
             pure $ instanceDec : mockFnDecs
     t -> error $ "unsupported type: " <> show t
@@ -205,6 +228,10 @@ createCxt :: Name -> Cxt -> Q Cxt
 createCxt monadVarName = mapM (createPred monadVarName)
 
 createPred :: Name -> Pred -> Q Pred
+createPred monadVarName a@(AppT t@(ConT ty) b@(VarT varName))
+  | monadVarName == varName && ty == ''Monad = pure a
+  | monadVarName == varName && ty /= ''Monad = appT (pure t) (appT (conT ''MockT) (varT varName))
+  | otherwise = appT (createPred monadVarName t) (pure b)
 createPred monadVarName (AppT ty a@(VarT varName))
   | monadVarName == varName = appT (pure ty) (appT (conT ''MockT) (varT varName))
   | otherwise = appT (createPred monadVarName ty) (pure a)
@@ -249,7 +276,7 @@ generateStubFn args mock = do
   foldl appE [| stubFn $(mock) |] args
 
 generateConstantStubFn :: Q Exp -> Q Exp
-generateConstantStubFn mock = [| stubFn $(mock) |] 
+generateConstantStubFn mock = [| stubFn $(mock) |]
 
 createMockFnDec :: Name -> [VarAppliedType] -> MockOptions -> Dec -> Q [Dec]
 createMockFnDec monadVarName varAppliedTypes options (SigD funName ty) = do
@@ -269,7 +296,7 @@ createMockFnDec monadVarName varAppliedTypes options (SigD funName ty) = do
       sigD mockFunName [t|
         (MockBuilder $(varT params) ($(pure funType)) ($(pure verifyParams)), Monad $(varT monadVarName))
         => $(varT params) -> MockT $(varT monadVarName) ()|]
-  
+
   createMockFn <- if isConstant ty then [|createNamedConstantMock|] else [|createNamedMock|]
 
   let mockBody = [| MockT $ modify (++ [Definition
@@ -376,3 +403,6 @@ safeIndex (x:_) 0 = Just x
 safeIndex (_:xs) n
   | n < 0     = Nothing
   | otherwise = safeIndex xs (n - 1)
+
+verifyExtension :: Extension -> Q ()
+verifyExtension e = isExtEnabled e >>= flip unless (fail $ "Language extensions `" ++ show e ++ "` is required.")

@@ -1,13 +1,13 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.36.0.
+-- This file has been generated from package.yaml by hpack version 0.37.0.
 --
 -- see: https://github.com/sol/hpack
 
 name:           mockcat
-version:        0.2.1.0
-synopsis:       Simple mock function library for test in Haskell.
-description:    mockcat is simple mock library for test in Haskell.
+version:        0.3.0.0
+synopsis:       Mock library for test in Haskell.
+description:    mockcat is mock library for test in Haskell.
                 .
                 mockcat provides so-called stubbing and verification functions.
                 .
@@ -55,7 +55,7 @@ library
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -fprint-potential-instances
   build-depends:
       base >=4.7 && <5
-    , mtl
+    , mtl >=2.3.1 && <2.4
     , template-haskell >=2.18 && <2.23
     , text >=2.0 && <2.2
   default-language: Haskell2010
@@ -79,7 +79,7 @@ test-suite mockcat-test
       base >=4.7 && <5
     , hspec
     , mockcat
-    , mtl
+    , mtl >=2.3.1 && <2.4
     , template-haskell >=2.18 && <2.23
     , text >=2.0 && <2.2
   default-language: Haskell2010

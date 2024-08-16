@@ -1,23 +1,14 @@
-{-# LANGUAGE BlockArguments #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# OPTIONS_GHC -Wno-unused-do-bind #-}
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE ExistentialQuantification #-}
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE BangPatterns #-}
-{-# OPTIONS_GHC -Wno-name-shadowing #-}
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
-{-# LANGUAGE InstanceSigs #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
 {-# OPTIONS_GHC -Wno-unused-top-binds #-}
-
-{-# LANGUAGE KindSignatures #-}
-{-# LANGUAGE ImpredicativeTypes #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
+{-# OPTIONS_GHC -Wno-simplifiable-class-constraints #-}
 
 module Test.MockCat.TyprClassTHSpec (spec) where
 

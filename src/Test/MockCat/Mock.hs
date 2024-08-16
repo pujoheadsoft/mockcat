@@ -88,6 +88,19 @@ createMock ::
   m (Mock fun verifyParams)
 createMock params = liftIO $ build Nothing params
 
+{- | Create a constant mock.
+From this mock, you can generate constant functions and verify the functions.
+
+  @
+  import Test.Hspec
+  import Test.MockCat
+  ...
+  it "stub & verify" do
+    m \<- createConstantMock "foo"
+    stubFn m \`shouldBe\` "foo"
+    shouldApplyAnythingTo m
+  @
+-}
 createConstantMock :: MonadIO m => a -> m (Mock a ())
 createConstantMock a = liftIO $ build Nothing $ param a
 
@@ -110,6 +123,7 @@ createNamedMock ::
   m (Mock fun verifyParams)
 createNamedMock name params = liftIO $ build (Just name) params
 
+-- | Create a named constant mock.
 createNamedConstantMock :: MonadIO m => MockName -> fun -> m (Mock fun ())
 createNamedConstantMock name a = liftIO $ build (Just name) (param a)
 
@@ -750,8 +764,6 @@ shouldApplyTimesLessThan ::
   IO ()
 shouldApplyTimesLessThan m i = shouldApplyTimes m (LessThan i)
 
-
-
 type AppliedParamsList params = [params]
 type AppliedParamsCounter params = AssociationList params Int
 
@@ -801,6 +813,7 @@ safeIndex xs n
   | n < 0 = Nothing
   | otherwise = listToMaybe (drop n xs)
 
+-- | Verify that it was applied anyway.
 shouldApplyAnythingTo :: HasCallStack => Mock fun params -> IO ()
 shouldApplyAnythingTo (Mock name _ (Verifier ref)) = do
   appliedParamsList <- readAppliedParamsList ref

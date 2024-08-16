@@ -18,6 +18,36 @@ data Definition = forall f p sym. KnownSymbol sym => Definition {
   verify :: Mock f p -> IO ()
 }
 
+{- | run MockT.
+  @
+  import Test.Hspec
+  import Test.MockCat
+  ...
+
+  class (Monad m) => FileOperation m where
+    writeFile :: FilePath -\> Text -\> m ()
+    readFile :: FilePath -\> m Text
+
+  operationProgram ::
+    FileOperation m =\>
+    FilePath -\>
+    FilePath -\>
+    m ()
+  operationProgram inputPath outputPath = do
+    content \<- readFile inputPath
+    writeFile outputPath content
+
+  makeMock [t|FileOperation|]
+
+  it "test runMockT" do
+    result \<- runMockT do
+      _readFile $ "input.txt" |\> pack "Content"
+      _writeFile $ "output.text" |\> pack "Content" |\> ()
+      operationProgram "input.txt" "output.text"
+
+    result \`shouldBe\` ()
+  @
+-}
 runMockT :: MonadIO m => MockT m a -> m a
 runMockT (MockT s) = do
   r <- runStateT s []

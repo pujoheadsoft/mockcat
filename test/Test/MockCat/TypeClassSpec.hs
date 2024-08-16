@@ -1,16 +1,12 @@
 {-# LANGUAGE BlockArguments #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# OPTIONS_GHC -Wno-unused-do-bind #-}
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE ExistentialQuantification #-}
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE BangPatterns #-}
-{-# OPTIONS_GHC -Wno-name-shadowing #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
+{-# OPTIONS_GHC -Wno-name-shadowing #-}
 
 module Test.MockCat.TypeClassSpec (spec) where
 
@@ -50,7 +46,7 @@ program inputPath outputPath modifyText = do
   writeFile outputPath modifiedContent
   post $ modifiedContent <> pack ("+" <> e)
 
-instance Monad m => FileOperation (MockT m) where
+instance (Monad m) => FileOperation (MockT m) where
   readFile path = MockT do
     defs <- get
     let

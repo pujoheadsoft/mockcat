@@ -2,16 +2,43 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
 
 module Test.MockCat.ExampleSpec (spec) where
 
 import Test.Hspec
 import Test.MockCat
-import Prelude hiding (and, any, not, or)
+import Prelude hiding (writeFile, readFile, and, any, not, or)
 import GHC.IO (evaluate)
+import Data.Text hiding (any)
+
+class (Monad m) => FileOperation m where
+  writeFile :: FilePath -> Text -> m ()
+  readFile :: FilePath -> m Text
+
+makeMock [t|FileOperation|]
+
+operationProgram ::
+  FileOperation m =>
+  FilePath ->
+  FilePath ->
+  m ()
+operationProgram inputPath outputPath = do
+  content <- readFile inputPath
+  writeFile outputPath content
 
 spec :: Spec
 spec = do
+  it "" do
+    result <- runMockT do
+      _readFile $ "input.txt" |> pack "Content"
+      _writeFile $ "output.text" |> pack "Content" |> ()
+      operationProgram "input.txt" "output.text"
+
+    result `shouldBe` ()
+
   it "stub & verify" do
     -- create a mock
     mock <- createMock $ "value" |> True

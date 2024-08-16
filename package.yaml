@@ -1,5 +1,5 @@
 name:                mockcat
-version:             0.2.1.0
+version:             0.3.0.0
 github:              pujoheadsoft/mockcat
 license:             "MIT"
 author:              "funnycat <pujoheadsoft@gmail.com>"
@@ -10,12 +10,12 @@ extra-source-files:
 - README.md
 - CHANGELOG.md
 
-synopsis: Simple mock function library for test in Haskell.
+synopsis: Mock library for test in Haskell.
 
 category: Testing
 
 description: |
-  mockcat is simple mock library for test in Haskell.
+  mockcat is mock library for test in Haskell.
 
   mockcat provides so-called stubbing and verification functions.
 
@@ -34,7 +34,7 @@ dependencies:
 - base >= 4.7 && < 5
 - text >= 2.0 && < 2.2
 - template-haskell >= 2.18 && < 2.23
-- mtl
+- mtl >= 2.3.1 && < 2.4
 
 ghc-options:
 - -Wall

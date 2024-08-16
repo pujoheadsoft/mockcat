@@ -31,11 +31,9 @@ import Test.MockCat
     createStubFn,
     createNamedMock,
     to,
-    param,
     (|>), 
     createConstantMock,
-    createNamedConstantMock,
-    build
+    createNamedConstantMock
   )
 import Prelude hiding (any)
 
