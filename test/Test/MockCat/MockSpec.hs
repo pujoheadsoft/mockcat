@@ -34,7 +34,8 @@ import Test.MockCat
     param,
     (|>), 
     createConstantMock,
-    createNamedConstantMock
+    createNamedConstantMock,
+    build
   )
 import Prelude hiding (any)
 
@@ -868,22 +869,23 @@ spec = do
       v5 `shouldBe` (2 :: Int)
 
   describe "constant" do
-    it "createConstMock" do
+    it "createConstantMock" do
       m <- createConstantMock "foo"
+      stubFn m `shouldBe` "foo"
       shouldApplyAnythingTo m
 
-    it "createNamedConstMock" do
+    it "createNamedConstantMock" do
       m <- createNamedConstantMock "const" "foo"
+      stubFn m `shouldBe` "foo"
       shouldApplyAnythingTo m
 
-    it "createStubFn" do
-      f <- createStubFn $ param "foo"
-      f `shouldBe` "foo"
+    it "createConstantMock (error message)" do
+      m <- createConstantMock "foo"
+      shouldApplyAnythingTo m `shouldThrow` errorCall "It has never been applied to function"
 
-    it "verify" do
-      m <- createMock $ param "foo"
-      evaluate (stubFn m)
-      shouldApplyAnythingTo m
+    it "createNamedConstantMock (error message)" do
+      m <- createNamedConstantMock "constant" "foo"
+      shouldApplyAnythingTo m `shouldThrow` errorCall "It has never been applied to function `constant`"
 
 data Fixture mock r = Fixture
   { name :: String,

@@ -260,11 +260,9 @@ instance
   build name params = do
     s <- liftIO $ newIORef appliedRecord
     let v = value params
-    r <- do
-      --error "fooooo"
+    makeMock name s $ unsafePerformIO (do
       liftIO $ appendAppliedParams s ()
-      pure v
-    makeMock name s r
+      pure v)
 
 instance
   (Show a, Eq a, Show b, Eq b, Show c, Eq c, Show d, Eq d, Show e, Eq e, Show f, Eq f, Show g, Eq g, Show h, Eq h, Show i, Eq i) =>
