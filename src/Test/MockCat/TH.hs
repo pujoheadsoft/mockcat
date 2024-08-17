@@ -181,46 +181,48 @@ doMakeMock t options = do
   className <- getClassName <$> t
 
   reify className >>= \case
-    ClassI (ClassD _ _ [] _ _) _ -> fail $ "A type parameter is required for class " <> show className
-    ClassI (ClassD cxt _ typeParameters _ decs) _ -> do
-      xxxx ty className cxt typeParameters decs options
+    ClassI (ClassD _ _ [] _ _) _ ->
+      fail $ "A type parameter is required for class " <> show className
+
+    ClassI (ClassD cxt _ typeVars _ decs) _ -> do
+      monadVarNames <- getMonadVarNames cxt typeVars
+      case nub monadVarNames of
+        [] -> fail "Monad parameter not found."
+        (monadVarName : rest)
+          | length rest > 1 -> fail "Monad parameter must be unique."
+          | otherwise -> makeMockDecs ty className monadVarName cxt typeVars decs options
+
     t -> error $ "unsupported type: " <> show t
 
 
-xxxx :: Type -> Name -> Cxt -> [TyVarBndr a] -> [Dec] -> MockOptions -> Q [Dec]
-xxxx ty className cxt typeParameters decs options = do
-  monadVarNames <- getMonadVarNames cxt typeParameters
-  case nub monadVarNames of
-    [] -> fail "Monad parameter not found."
-    (monadVarName : rest) ->
-      if length rest > 1 then fail "Monad parameter must be unique."
-      else do
-        let classParamNames = filter (className /=) (getClassNames ty)
-            typeVars = drop (length classParamNames) typeParameters
-            varAppliedTypes = zipWith (\t i -> VarAppliedType t (safeIndex classParamNames i)) (getTypeVarNames typeParameters) [0..]
+makeMockDecs :: Type -> Name -> Name -> Cxt -> [TyVarBndr a] -> [Dec] -> MockOptions -> Q [Dec]
+makeMockDecs ty className monadVarName cxt typeVars decs options = do
+  let classParamNames = filter (className /=) (getClassNames ty)
+      newTypeVars = drop (length classParamNames) typeVars
+      varAppliedTypes = zipWith (\t i -> VarAppliedType t (safeIndex classParamNames i)) (getTypeVarNames typeVars) [0..]
 
-        newCxt <- createCxt monadVarName cxt
-        m <- appT (conT ''Monad) (varT monadVarName)
+  newCxt <- createCxt monadVarName cxt
+  m <- appT (conT ''Monad) (varT monadVarName)
 
-        let hasMonad = any (\(ClassName2VarNames c _) -> c == ''Monad) $ toClassInfos newCxt
+  let hasMonad = any (\(ClassName2VarNames c _) -> c == ''Monad) $ toClassInfos newCxt
 
-        instanceDec <- instanceD
-          (pure $ newCxt ++ ([m | not hasMonad]))
-          (createInstanceType ty monadVarName typeVars)
-          (map (createInstanceFnDec options) decs)
+  instanceDec <- instanceD
+    (pure $ newCxt ++ ([m | not hasMonad]))
+    (createInstanceType ty monadVarName newTypeVars)
+    (map (createInstanceFnDec options) decs)
 
-        mockFnDecs <- concat <$> mapM (createMockFnDec monadVarName varAppliedTypes options) decs
+  mockFnDecs <- concat <$> mapM (createMockFnDec monadVarName varAppliedTypes options) decs
 
-        pure $ instanceDec : mockFnDecs
+  pure $ instanceDec : mockFnDecs
 
 getMonadVarNames :: Cxt -> [TyVarBndr a] -> Q [Name]
 getMonadVarNames cxt typeVars = do
-  let typeVarNames = getTypeVarNames typeVars
+  let
+    parentClassInfos = toClassInfos cxt
 
-  -- VarInfos (class names is empty)
-  let emptyClassVarInfos = map (`VarName2ClassNames` []) typeVarNames
-
-  let parentClassInfos = toClassInfos cxt
+    typeVarNames = getTypeVarNames typeVars
+    -- VarInfos (class names is empty)
+    emptyClassVarInfos = map (`VarName2ClassNames` []) typeVarNames
 
   varInfos <- collectVarInfos parentClassInfos emptyClassVarInfos
 
@@ -234,7 +236,7 @@ getTypeVarName (PlainTV name _) = name
 getTypeVarName (KindedTV name _ _) = name
 
 toClassInfos :: Cxt -> [ClassName2VarNames]
-toClassInfos = map $ \ct ->  toClassInfo ct
+toClassInfos = map toClassInfo
 
 toClassInfo :: Pred -> ClassName2VarNames
 toClassInfo (AppT t1 t2) = do
@@ -267,17 +269,19 @@ collectVarClassNames_ name (ClassName2VarNames cName vNames) = do
     Nothing -> pure []
     Just i -> do
       ClassI (ClassD cxt _ typeVars _ _) _ <- reify cName
-      -- type variable names
-      let typeVarNames = getTypeVarNames typeVars
-      -- type variable name of same position
-      let typeVarName = typeVarNames !! i
-      -- parent class information
-      let parentClassInfos = toClassInfos cxt
+      let
+        -- type variable names
+        typeVarNames = getTypeVarNames typeVars
+        -- type variable name of same position
+        typeVarName = typeVarNames !! i
+        -- parent class information
+        parentClassInfos = toClassInfos cxt
 
-      if null parentClassInfos then pure [cName]
-      else do
-        result <- concat <$> mapM (collectVarClassNames_ typeVarName) parentClassInfos
-        pure $ cName : result
+      case parentClassInfos of
+        [] -> pure [cName]
+        _ -> do
+          result <- concat <$> mapM (collectVarClassNames_ typeVarName) parentClassInfos
+          pure $ cName : result
 
 filterClassInfo :: Name -> [ClassName2VarNames] -> [ClassName2VarNames]
 filterClassInfo name = filter (hasVarName name)
@@ -319,28 +323,29 @@ tyVarBndrToType monadName (KindedTV name _ _)
   | otherwise = varT name
 
 createInstanceFnDec :: MockOptions -> Dec -> Q Dec
-createInstanceFnDec options (SigD funName funType) = do
+createInstanceFnDec options (SigD fnName funType) = do
   names <- sequence $ typeToNames funType
   let r = mkName "result"
       params = varP <$> names
       args = varE <$> names
-      funNameStr = createFnName funName options
-      genFn = if null names then $([|generateConstantStubFn|]) else $([|generateStubFn args|])
+      fnNameStr = createFnName fnName options
+      genStubFn = case names of
+        [] -> $([|generateConstantStubFn|])
+        _  -> $([|generateStubFn args|])
 
-      funBody =  [| MockT $ do
-                      defs <- get
-                      let mock = defs
-                                 & findParam (Proxy :: Proxy $(litT (strTyLit funNameStr)))
-                                 & fromMaybe (error $ "no answer found stub function `" ++ funNameStr ++ "`.")
-                          $(bangP $ varP r) = $(genFn [| mock |])
-                      pure $(varE r) |]
-      funClause = clause params (normalB funBody) []
-  funD funName [funClause]
+      fnBody = [| MockT $ do
+                    defs <- get
+                    let mock = defs
+                               & findParam (Proxy :: Proxy $(litT (strTyLit fnNameStr)))
+                               & fromMaybe (error $ "no answer found stub function `" ++ fnNameStr ++ "`.")
+                        $(bangP $ varP r) = $(genStubFn [| mock |])
+                    pure $(varE r) |]
+      fnClause = clause params (normalB fnBody) []
+  funD fnName [fnClause]
 createInstanceFnDec _ dec = fail $ "unsuported dec: " <> pprint dec
 
 generateStubFn :: [Q Exp] -> Q Exp -> Q Exp
-generateStubFn args mock = do
-  foldl appE [| stubFn $(mock) |] args
+generateStubFn args mock = foldl appE [| stubFn $(mock) |] args
 
 generateConstantStubFn :: Q Exp -> Q Exp
 generateConstantStubFn mock = [| stubFn $(mock) |]
@@ -349,31 +354,47 @@ createMockFnDec :: Name -> [VarAppliedType] -> MockOptions -> Dec -> Q [Dec]
 createMockFnDec monadVarName varAppliedTypes options (SigD funName ty) = do
   let funNameStr = createFnName funName options
       mockFunName = mkName funNameStr
-      updatedType = updateType ty varAppliedTypes
-      funType = createMockBuilderFnType monadVarName updatedType
-      verifyParams =
-        if isConstant ty then ConT ''()
-        else createMockBuilderVerifyParams updatedType
       params = mkName "p"
 
-  newFunSig <- if isConstant ty
-    then
-      sigD mockFunName [t|Monad $(varT monadVarName) => $(varT params) -> MockT $(varT monadVarName) ()|]
-    else
-      sigD mockFunName [t|
-        (MockBuilder $(varT params) ($(pure funType)) ($(pure verifyParams)), Monad $(varT monadVarName))
-        => $(varT params) -> MockT $(varT monadVarName) ()|]
+  if isConstant ty then
+    doCreateConstantMockFnDec funNameStr mockFunName params monadVarName
+  else do
+    let
+      updatedType = updateType ty varAppliedTypes
+      funType = createMockBuilderFnType monadVarName updatedType
+    doCreateMockFnDec funNameStr mockFunName params funType monadVarName updatedType
 
-  createMockFn <- if isConstant ty then [|createNamedConstantMock|] else [|createNamedMock|]
+createMockFnDec _ _ _ dec = fail $ "unsupport dec: " <> pprint dec
 
-  let mockBody = [| MockT $ modify (++ [Definition
-                  (Proxy :: Proxy $(litT (strTyLit funNameStr)))
-                  (unsafePerformIO $ $(pure createMockFn) $(litE (stringL funNameStr)) p)
-                  shouldApplyAnythingTo]) |]
-  newFun <- funD mockFunName [clause [varP $ mkName "p"] (normalB mockBody) []]
+doCreateMockFnDec :: Quote m => String -> Name -> Name -> Type -> Name -> Type -> m [Dec]
+doCreateMockFnDec funNameStr mockFunName params funType monadVarName updatedType = do
+  newFunSig <- do
+    let verifyParams = createMockBuilderVerifyParams updatedType
+    sigD mockFunName [t|
+      (MockBuilder $(varT params) ($(pure funType)) ($(pure verifyParams)), Monad $(varT monadVarName))
+      => $(varT params) -> MockT $(varT monadVarName) ()|]
+
+  createMockFn <- [|createNamedMock|]
+
+  mockBody <- createMockBody funNameStr createMockFn
+  newFun <- funD mockFunName [clause [varP $ mkName "p"] (normalB (pure mockBody)) []]
 
   pure $ newFunSig : [newFun]
-createMockFnDec _ _ _ dec = fail $ "unsupport dec: " <> pprint dec
+
+doCreateConstantMockFnDec :: Quote m => String -> Name -> Name -> Name -> m [Dec]
+doCreateConstantMockFnDec funNameStr mockFunName params monadVarName = do
+  newFunSig <- sigD mockFunName [t|Monad $(varT monadVarName) => $(varT params) -> MockT $(varT monadVarName) ()|]
+  createMockFn <- [|createNamedConstantMock|]
+  mockBody <- createMockBody funNameStr createMockFn
+  newFun <- funD mockFunName [clause [varP $ mkName "p"] (normalB (pure mockBody)) []]
+  pure $ newFunSig : [newFun]
+
+createMockBody :: Quote m => String -> Exp -> m Exp
+createMockBody funNameStr createMockFn =
+  [| MockT $ modify (++ [Definition
+                    (Proxy :: Proxy $(litT (strTyLit funNameStr)))
+                    (unsafePerformIO $ $(pure createMockFn) $(litE (stringL funNameStr)) p)
+                    shouldApplyAnythingTo]) |]
 
 isConstant :: Type -> Bool
 isConstant (AppT (VarT _) (VarT _)) = True
