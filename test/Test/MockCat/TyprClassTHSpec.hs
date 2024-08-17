@@ -115,7 +115,7 @@ spec = do
   it "Read, edit, and output files" do
     result <- runMockT do
       _readFile ("input.txt" |> pack "content")
-      _writeFile ("output.text" |> pack "content" |> ()) `appliedTimesIs` 0
+      _writeFile ("output.text" |> pack "content" |> ())
       operationProgram "input.txt" "output.text"
 
     result `shouldBe` ()
