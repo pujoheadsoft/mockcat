@@ -98,14 +98,76 @@ expectByExpr qf = do
   str <- showExp qf
   [|ExpectCondition $qf str|]
 
+{- | Options for generating mocks. 
+
+  - prefix: Stub function prefix
+  - suffix: stub function suffix
+-}
 data MockOptions = MockOptions { prefix :: String, suffix :: String }
 
+{- | Default Options.
+
+  Stub function names are prefixed with “_”.
+-}
 options :: MockOptions
 options = MockOptions { prefix = "_", suffix = "" }
 
+{- | Create a mock of the typeclasses that returns a monad according to the `MockOptions`. 
+
+  Given a monad type class, generate the following.
+
+  - MockT instance of the given typeclass
+  - A stub function corresponding to a function of the original class type.
+The name of stub function is the name of the original function with a “_” appended.
+
+  @
+  class (Monad m) => FileOperation m where
+    writeFile :: FilePath -\> Text -\> m ()
+    readFile :: FilePath -\> m Text
+
+  makeMockWithOptions [t|FileOperation|] options { prefix = "stub_" }
+
+  it "test runMockT" do
+    result \<- runMockT do
+      stub_readFile $ "input.txt" |\> pack "content"
+      stub_writeFile $ "output.text" |\> pack "content" |\> ()
+      somethingProgram
+
+    result `shouldBe` ()
+  @
+
+-}
 makeMockWithOptions :: Q Type -> MockOptions -> Q [Dec]
 makeMockWithOptions = doMakeMock
 
+{- | Create a mock of a typeclasses that returns a monad. 
+
+  Given a monad type class, generate the following.
+
+  - MockT instance of the given typeclass
+  - A stub function corresponding to a function of the original class type.
+The name of stub function is the name of the original function with a “_” appended.
+
+  The prefix can be changed.
+  In that case, use `makeMockWithOptions`.
+
+  @
+  class (Monad m) => FileOperation m where
+    writeFile :: FilePath -\> Text -\> m ()
+    readFile :: FilePath -\> m Text
+
+  makeMock [t|FileOperation|]
+
+  it "test runMockT" do
+    result \<- runMockT do
+      _readFile $ "input.txt" |\> pack "content"
+      _writeFile $ "output.text" |\> pack "content" |\> ()
+      somethingProgram
+
+    result `shouldBe` ()
+  @
+
+-}
 makeMock :: Q Type -> Q [Dec]
 makeMock = flip doMakeMock options
 
