@@ -12,25 +12,23 @@ module Test.MockCat.TypeClassSpec (spec) where
 
 import Data.Text (Text, pack)
 import Test.Hspec (Spec, it, shouldBe)
-import Test.MockCat (createStubFn, stubFn, (|>), Param, (:>), createNamedMock, shouldApplyAnythingTo, createNamedConstantMock)
+import Test.MockCat
 import Prelude hiding (readFile, writeFile)
 import Data.Data
 import Data.List (find)
 import GHC.TypeLits (KnownSymbol, symbolVal)
 import Unsafe.Coerce (unsafeCoerce)
-import Control.Monad.State (modify, get)
 import Data.Maybe (fromMaybe)
 import GHC.IO (unsafePerformIO)
-import Test.MockCat.Mock (MockBuilder)
-import Test.MockCat.MockT (MockT(..), runMockT, Definition(..))
 import Control.Monad.Reader (MonadReader)
 import Control.Monad.Reader.Class (ask, MonadReader (local))
+import Control.Monad.State
 
-class (Monad m) => FileOperation m where
+class Monad m => FileOperation m where
   readFile :: FilePath -> m Text
   writeFile :: FilePath -> Text -> m ()
 
-class (Monad m) => ApiOperation m where
+class Monad m => ApiOperation m where
   post :: Text -> m ()
 
 program ::
@@ -115,10 +113,7 @@ spec = it "Read, edit, and output files" do
 
   result <- runMockT do
     _ask "environment"
-    _readFile [
-      "input.txt" |> pack "content",
-      "hoge.txt" |> pack "content"
-      ]
+    _readFile ("input.txt" |> pack "content")
     _writeFile $ "output.text" |> pack "modifiedContent" |> ()
     _post $ pack "modifiedContent+environment" |> ()
     program "input.txt" "output.text" modifyContentStub

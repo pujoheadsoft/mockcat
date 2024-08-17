@@ -1,11 +1,60 @@
 # 🐈Mocking library for Haskell🐈‍
 [![Test](https://github.com/pujoheadsoft/mockcat/workflows/Test/badge.svg)](https://github.com/pujoheadsoft/mockcat/actions?query=workflow%3ATest+branch%3Amain)
 
-mockcatは、Haskellのテストをサポートするシンプルなモック・ライブラリです。
+mockcatは、Haskellのテストをサポートするモック・ライブラリです。
 
-できることは主に2つあります。
+モックはモナドを返す型クラスを元に生成することができます。
+また、純粋な関数のモックを作ることもできます。
+
+モックができることは主に2つあります。
 1. スタブ関数を作る
-2. 引数が期待通り適用されたかを検証する
+2. スタブ関数が期待通り適用されたかを検証する
+
+型クラスのモックの作成はこのようになります。
+```haskell
+class Monad m => FileOperation m where
+  readFile :: FilePath -> m Text
+  writeFile :: FilePath -> Text -> m ()
+
+operationProgram ::
+  FileOperation m =>
+  FilePath ->
+  FilePath ->
+  m ()
+operationProgram inputPath outputPath = do
+  content <- readFile inputPath
+  writeFile outputPath content
+
+makeMock [t|FileOperation|]
+
+spec :: Spec
+spec = do
+  it "Read, and output files" do
+    result <- runMockT do
+      _readFile ("input.txt" |> pack "content")
+      _writeFile ("output.text" |> pack "content" |> ())
+      operationProgram "input.txt" "output.text"
+
+    result `shouldBe` ()
+```
+
+# 型クラスのモック
+型クラスのモックは次のように`makeMock`関数で生成することができます。  
+`makeMock [t|FileOperation|]`
+
+生成されるのは、指定した型クラスの`MockT`インスタンスと、型クラスに定義されている関数を元としたスタブ関数です。  
+スタブ関数は元の関数の接頭辞に`_`が付与された関数として生成されます。
+
+スタブ関数には、関数が適用されることを期待する引数を `|>` で連結して渡します。  
+`|>` の最後の値が関数の返り値となります。
+
+次のように`appliedTimesIs`関数を使うことで、適用されるべき回数を指定できます。  
+```haskell
+_writeFile ("output.text" |> pack "content" |> ()) `appliedTimesIs` 0
+```
+
+モックは`runMockT`で実行します。
+
 
 スタブ関数はモナディックな値だけでなく、純粋な型の値も返すことができます。
 
@@ -53,10 +102,10 @@ spec = do
     -- 検証
     actual `shouldBe` ()
 ```
-`createStubFn` 関数には、適用されることが期待する引数を `|>` で連結して渡します。
+`createStubFn` 関数には、関数が適用されることを期待する引数を `|>` で連結して渡します。
 `|>` の最後の値が関数の返り値となります。
 
-スタブ関数に対して期待されていない引数が適用された場合はエラーとなります。
+スタブ関数が期待されていない引数に適用された場合はエラーとなります。
 ```console
 uncaught exception: ErrorCall
 Expected arguments were not applied to the function.
@@ -77,7 +126,7 @@ spec = do
     f <- createNamedStubFun "named stub" $ "x" |> "y" |> True
     f "x" "z" `shouldBe` True
 ```
-期待した引数が適用されなかった場合に出力されるエラーメッセージには、この名前が含まれるようになります。
+期待した引数に適用されなかった場合に出力されるエラーメッセージには、この名前が含まれるようになります。
 ```console
 uncaught exception: ErrorCall
 Expected arguments were not applied to the function `named stub`.
@@ -157,7 +206,7 @@ spec = do
 ```
 
 ## 適用される引数ごとに異なる値を返すスタブ関数
-`createStubFn`関数に、x |> y 形式のリストを適用させると、適用される引数ごとに異なる値を返すスタブ関数を作れます。
+`createStubFn`関数を、x |> y 形式のリストに適用させると、適用する引数ごとに異なる値を返すスタブ関数を作れます。
 ```haskell
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE TypeApplications #-}
@@ -176,8 +225,8 @@ spec = do
     f "b" `shouldBe` "return y"
 ```
 
-## 同じ引数が適用されても異なる値を返すスタブ関数
-`createStubFn`関数に、x |> y 形式のリストを適用させるとき、引数が同じで返り値が異なるようにすると、同じ引数が適用されても異なる値を返すスタブ関数を作れます。
+## 同じ引数に適用されても異なる値を返すスタブ関数
+`createStubFn`関数を、x |> y 形式のリストに適用させるとき、引数が同じで返り値が異なるようにすると、同じ引数に適用しても異なる値を返すスタブ関数を作れます。
 ```haskell
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE TypeApplications #-}
@@ -202,8 +251,8 @@ spec = do
 ```
 
 # 検証
-## 期待される引数が適用されたか検証する
-期待される引数が適用されたかは `shouldApplyTo` 関数で検証することができます。  
+## 期待される引数に適用されたか検証する
+期待される引数に適用されたかは `shouldApplyTo` 関数で検証することができます。  
 検証を行う場合は、`createStubFn` 関数ではなく `createMock` 関数でモックを作る必要があります。
 この場合スタブ関数は `stubFn` 関数でモックから取り出して使います。
 ```haskell
@@ -225,7 +274,7 @@ spec = do
     mock `shouldApplyTo` "value"
 ```
 ### 注
-引数が適用されたという記録は、スタブ関数の返り値が評価される時点で行われます。  
+適用されたという記録は、スタブ関数の返り値が評価される時点で行われます。  
 したがって、検証は返り値の評価後に行う必要があります。
 ```haskell
 {-# LANGUAGE BlockArguments #-}
@@ -248,7 +297,7 @@ Expected arguments were not applied to the function.
   but got: Never been called.
 ```
 
-## 期待される引数が適用された回数を検証する
+## 期待される引数に適用された回数を検証する
 期待される引数が適用された回数は `shouldApplyTimes` 関数で検証することができます。
 ```haskell
 {-# LANGUAGE BlockArguments #-}

@@ -35,6 +35,7 @@ module Test.MockCat.Mock
     shouldApplyTimesGreaterThan,
     shouldApplyTimesLessThan,
     shouldApplyAnythingTo,
+    shouldApplyAnythingTimes,
     to
   )
 where
@@ -442,7 +443,7 @@ message :: Show a => Maybe MockName -> a -> a -> String
 message name expected actual =
   intercalate
     "\n"
-    [ "Expected arguments were not applied to the function" <> mockNameLabel name <> ".",
+    [ "function" <> mockNameLabel name <> " was not applied to the expected arguments.",
       "  expected: " <> show expected,
       "   but got: " <> show actual
     ]
@@ -451,7 +452,7 @@ messageForMultiMock :: Show a => Maybe MockName -> [a] -> a -> String
 messageForMultiMock name expecteds actual =
   intercalate
     "\n"
-    [ "Expected arguments were not applied to the function" <> mockNameLabel name <> ".",
+    [ "function" <> mockNameLabel name <> " was not applied to the expected arguments.",
       "  expected one of the following:",
       intercalate "\n" $ ("    " <>) . show <$> expecteds,
       "  but got:",
@@ -501,7 +502,7 @@ verifyFailedMesssage name appliedParams expected =
   VerifyFailed $
     intercalate
       "\n"
-      [ "Expected arguments were not applied to the function" <> mockNameLabel name <> ".",
+      [ "function" <> mockNameLabel name <> " was not applied to the expected arguments.",
         "  expected: " <> show expected,
         "   but got: " <> formatAppliedParamsList appliedParams
       ]
@@ -574,7 +575,7 @@ verifyCount (Mock name _ (Verifier ref)) v method = do
       errorWithoutStackTrace $
         intercalate
           "\n"
-          [ "The expected argument was not applied the expected number of times to the function" <> mockNameLabel name <> ".",
+          [ "function" <> mockNameLabel name <> " was not applied the expected number of times to the expected arguments.",
             "  expected: " <> show method,
             "   but got: " <> show appliedCount
           ]
@@ -656,7 +657,7 @@ verifyFailedPartiallySequence name appliedValues expectedValues =
   VerifyFailed $
     intercalate
       "\n"
-      [ "Expected arguments were not applied to the function" <> mockNameLabel name <> " in the expected order.",
+      [ "function" <> mockNameLabel name <> " was not applied to the expected arguments in the expected order.",
         "  expected order:",
         intercalate "\n" $ ("    " <>) . show <$> expectedValues,
         "  but got:",
@@ -680,7 +681,7 @@ verifyFailedOrderParamCountMismatch name appliedValues expectedValues =
   VerifyFailed $
     intercalate
       "\n"
-      [ "Expected arguments were not applied to the function" <> mockNameLabel name <> " in the expected order (count mismatch).",
+      [ "function" <> mockNameLabel name <> " was not applied to the expected arguments in the expected order (count mismatch).",
         "  expected: " <> show (length expectedValues),
         "   but got: " <> show (length appliedValues)
       ]
@@ -690,7 +691,7 @@ verifyFailedSequence name fails =
   VerifyFailed $
     intercalate
       "\n"
-      ( ("Expected arguments were not applied to the function" <> mockNameLabel name <> " in the expected order.") : (verifyOrderFailedMesssage <$> fails)
+      ( ("function" <> mockNameLabel name <> " was not applied to the expected arguments in the expected order.") : (verifyOrderFailedMesssage <$> fails)
       )
 
 verifyOrderFailedMesssage :: Show a => VerifyOrderResult a -> String
@@ -817,4 +818,17 @@ safeIndex xs n
 shouldApplyAnythingTo :: HasCallStack => Mock fun params -> IO ()
 shouldApplyAnythingTo (Mock name _ (Verifier ref)) = do
   appliedParamsList <- readAppliedParamsList ref
-  when (null appliedParamsList) $ error $ "It has never been applied to function" <> mockNameLabel name
+  when (null appliedParamsList) $ error $ "It has never been applied function" <> mockNameLabel name
+
+shouldApplyAnythingTimes :: Mock fun params -> Int -> IO ()
+shouldApplyAnythingTimes (Mock name _ (Verifier ref)) count = do
+  appliedParamsList <- readAppliedParamsList ref
+  let appliedCount = length appliedParamsList
+  when (count /= appliedCount) $ 
+        errorWithoutStackTrace $
+        intercalate
+          "\n"
+          [ "function" <> mockNameLabel name <> " was not applied the expected number of times.",
+            "  expected: " <> show count,
+            "   but got: " <> show appliedCount
+          ]

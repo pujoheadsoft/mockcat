@@ -18,21 +18,31 @@ import Test.Hspec
 import Test.MockCat
 import Control.Monad.State
 import Control.Monad.Reader (MonadReader, ask)
+import Control.Monad (when)
 
-class (Monad m) => FileOperation m where
+class Monad m => FileOperation m where
   writeFile :: FilePath -> Text -> m ()
   readFile :: FilePath -> m Text
 
-class (Monad m) => ApiOperation m where
+class Monad m => ApiOperation m where
   post :: Text -> m ()
 
 operationProgram ::
+  FileOperation m =>
+  FilePath ->
+  FilePath ->
+  m ()
+operationProgram inputPath outputPath = do
+  content <- readFile inputPath
+  writeFile outputPath content
+
+operationProgram2 ::
   (FileOperation m, ApiOperation m) =>
   FilePath ->
   FilePath ->
   (Text -> Text) ->
   m ()
-operationProgram inputPath outputPath modifyText = do
+operationProgram2 inputPath outputPath modifyText = do
   content <- readFile inputPath
   let modifiedContent = modifyText content
   writeFile outputPath modifiedContent
@@ -78,8 +88,8 @@ makeMock [t|MonadVar2_2Sub|]
 makeMock [t|MonadVar3_1Sub|]
 makeMock [t|MonadVar3_2Sub|]
 makeMock [t|MonadVar3_3Sub|]
-makeMockWithOptions [t|FileOperation|] options { prefix = "stub_", suffix = "_fn" }
-makeMock [t|ApiOperation|]
+makeMock [t|FileOperation|]
+makeMockWithOptions [t|ApiOperation|] options { prefix = "stub_", suffix = "_fn" }
 
 class Monad m => ParamThreeMonad a b m | m -> a, m -> b where
   fnParam3_1 :: a -> b -> m String
@@ -103,16 +113,21 @@ threeParamMonadExec = do
 spec :: Spec
 spec = do
   it "Read, edit, and output files" do
+    result <- runMockT do
+      _readFile ("input.txt" |> pack "content")
+      _writeFile ("output.text" |> pack "content" |> ()) `appliedTimesIs` 0
+      operationProgram "input.txt" "output.text"
+
+    result `shouldBe` ()
+
+  it "Read, edit, and output files2" do
     modifyContentStub <- createStubFn $ pack "content" |> pack "modifiedContent"
 
     result <- runMockT do
-      stub_readFile_fn [
-        "input.txt" |> pack "content",
-        "hoge.txt" |> pack "content"
-        ]
-      stub_writeFile_fn $ "output.text" |> pack "modifiedContent" |> ()
-      _post $ pack "modifiedContent" |> ()
-      operationProgram "input.txt" "output.text" modifyContentStub
+      _readFile $ "input.txt" |> pack "content"
+      _writeFile ("output.text" |> pack "modifiedContent" |> ()) 
+      stub_post_fn (pack "modifiedContent" |> ())
+      operationProgram2 "input.txt" "output.text" modifyContentStub
 
     result `shouldBe` ()
   

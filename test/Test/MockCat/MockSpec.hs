@@ -631,7 +631,7 @@ spec = do
           m <- createMock $ "a" |> pure @IO True
           stubFn m "b"
             `shouldThrow` errorCall
-              "Expected arguments were not applied to the function.\n\
+              "function was not applied to the expected arguments.\n\
               \  expected: \"a\"\n\
               \   but got: \"b\""
 
@@ -643,7 +643,7 @@ spec = do
               ]
           stubFn m "aaa" 200
             `shouldThrow` errorCall
-              "Expected arguments were not applied to the function.\n\
+              "function was not applied to the expected arguments.\n\
               \  expected one of the following:\n\
               \    \"aaa\",100\n\
               \    \"bbb\",200\n\
@@ -656,7 +656,7 @@ spec = do
           evaluate $ stubFn m "A"
           m `shouldApplyTo` "X"
             `shouldThrow` errorCall
-              "Expected arguments were not applied to the function.\n\
+              "function was not applied to the expected arguments.\n\
               \  expected: \"X\"\n\
               \   but got: \"A\""
 
@@ -664,7 +664,7 @@ spec = do
           m <- createMock $ "X" |> pure @IO True
           m `shouldApplyTo` "X"
             `shouldThrow` errorCall
-              "Expected arguments were not applied to the function.\n\
+              "function was not applied to the expected arguments.\n\
               \  expected: \"X\"\n\
               \   but got: It has never been applied"
 
@@ -672,7 +672,7 @@ spec = do
           m <- createMock $ any |> pure @IO True
           evaluate $ stubFn m "A"
           let e =
-                "The expected argument was not applied the expected number of times to the function.\n\
+                "function was not applied the expected number of times to the expected arguments.\n\
                 \  expected: 2\n\
                 \   but got: 1"
           m `shouldApplyTimes` (2 :: Int) `to` "A" `shouldThrow` errorCall e
@@ -683,7 +683,7 @@ spec = do
           evaluate $ stubFn m "C"
           evaluate $ stubFn m "A"
           let e =
-                "Expected arguments were not applied to the function in the expected order.\n\
+                "function was not applied to the expected arguments in the expected order.\n\
                 \  expected 1st applied: \"A\"\n\
                 \   but got 1st applied: \"B\"\n\
                 \  expected 2nd applied: \"B\"\n\
@@ -697,7 +697,7 @@ spec = do
           evaluate $ stubFn m "B"
           evaluate $ stubFn m "C"
           let e =
-                "Expected arguments were not applied to the function in the expected order (count mismatch).\n\
+                "function was not applied to the expected arguments in the expected order (count mismatch).\n\
                 \  expected: 3\n\
                 \   but got: 2"
           m `shouldApplyInOrder` ["A", "B", "C"] `shouldThrow` errorCall e
@@ -707,7 +707,7 @@ spec = do
           evaluate $ stubFn m "B"
           evaluate $ stubFn m "A"
           let e =
-                "Expected arguments were not applied to the function in the expected order.\n\
+                "function was not applied to the expected arguments in the expected order.\n\
                 \  expected order:\n\
                 \    \"A\"\n\
                 \    \"C\"\n\
@@ -720,21 +720,21 @@ spec = do
           m <- createMock $ any |> False
           evaluate $ stubFn m "B"
           let e =
-                "Expected arguments were not applied to the function in the expected order (count mismatch).\n\
+                "function was not applied to the expected arguments in the expected order (count mismatch).\n\
                 \  expected: 2\n\
                 \   but got: 1"
           m `shouldApplyInPartialOrder` ["A", "C"] `shouldThrow` errorCall e
 
         it "verify applied anything" do
           m <- createMock $ "X" |> True
-          shouldApplyAnythingTo m `shouldThrow` errorCall "It has never been applied to function"
+          shouldApplyAnythingTo m `shouldThrow` errorCall "It has never been applied function"
 
     describe "named mock" do
       describe "aply" do
         it "simple mock" do
           m <- createNamedMock "mock function" $ "a" |> pure @IO ()
           let e =
-                "Expected arguments were not applied to the function `mock function`.\n\
+                "function `mock function` was not applied to the expected arguments.\n\
                 \  expected: \"a\"\n\
                 \   but got: \"b\""
           stubFn m "b" `shouldThrow` errorCall e
@@ -747,7 +747,7 @@ spec = do
                 "bbb" |> False |> pure @IO False
               ]
           let e =
-                "Expected arguments were not applied to the function `mock function`.\n\
+                "function `mock function` was not applied to the expected arguments.\n\
                 \  expected one of the following:\n\
                 \    \"aaa\",True\n\
                 \    \"bbb\",False\n\
@@ -760,7 +760,7 @@ spec = do
           m <- createNamedMock "mock function" $ any |> pure @IO ()
           evaluate $ stubFn m "A"
           let e =
-                "Expected arguments were not applied to the function `mock function`.\n\
+                "function `mock function` was not applied to the expected arguments.\n\
                 \  expected: \"X\"\n\
                 \   but got: \"A\""
           m `shouldApplyTo` "X" `shouldThrow` errorCall e
@@ -769,7 +769,7 @@ spec = do
           m <- createNamedMock "mock function" $ any |> pure @IO ()
           evaluate $ stubFn m "A"
           let e =
-                "The expected argument was not applied the expected number of times to the function `mock function`.\n\
+                "function `mock function` was not applied the expected number of times to the expected arguments.\n\
                 \  expected: 2\n\
                 \   but got: 1"
           m `shouldApplyTimes` (2 :: Int) `to` "A" `shouldThrow` errorCall e
@@ -780,7 +780,7 @@ spec = do
           evaluate $ stubFn m "C"
           evaluate $ stubFn m "A"
           let e =
-                "Expected arguments were not applied to the function `mock function` in the expected order.\n\
+                "function `mock function` was not applied to the expected arguments in the expected order.\n\
                 \  expected 1st applied: \"A\"\n\
                 \   but got 1st applied: \"B\"\n\
                 \  expected 2nd applied: \"B\"\n\
@@ -794,7 +794,7 @@ spec = do
           evaluate $ stubFn m "B"
           evaluate $ stubFn m "C"
           let e =
-                "Expected arguments were not applied to the function `createStubFnc` in the expected order (count mismatch).\n\
+                "function `createStubFnc` was not applied to the expected arguments in the expected order (count mismatch).\n\
                 \  expected: 3\n\
                 \   but got: 2"
           m `shouldApplyInOrder` ["A", "B", "C"] `shouldThrow` errorCall e
@@ -804,7 +804,7 @@ spec = do
           evaluate $ stubFn m "B"
           evaluate $ stubFn m "A"
           let e =
-                "Expected arguments were not applied to the function `mock function` in the expected order.\n\
+                "function `mock function` was not applied to the expected arguments in the expected order.\n\
                 \  expected order:\n\
                 \    \"A\"\n\
                 \    \"C\"\n\
@@ -817,14 +817,14 @@ spec = do
           m <- createNamedMock "createStubFnc" $ any |> pure @IO ()
           evaluate $ stubFn m "B"
           let e =
-                "Expected arguments were not applied to the function `createStubFnc` in the expected order (count mismatch).\n\
+                "function `createStubFnc` was not applied to the expected arguments in the expected order (count mismatch).\n\
                 \  expected: 2\n\
                 \   but got: 1"
           m `shouldApplyInPartialOrder` ["A", "C"] `shouldThrow` errorCall e
 
         it "verify applied anything" do
           m <- createNamedMock "mock" $ "X" |> True
-          shouldApplyAnythingTo m `shouldThrow` errorCall "It has never been applied to function `mock`"
+          shouldApplyAnythingTo m `shouldThrow` errorCall "It has never been applied function `mock`"
 
   describe "use expectation" do
     it "expectByExpr" do
@@ -879,11 +879,11 @@ spec = do
 
     it "createConstantMock (error message)" do
       m <- createConstantMock "foo"
-      shouldApplyAnythingTo m `shouldThrow` errorCall "It has never been applied to function"
+      shouldApplyAnythingTo m `shouldThrow` errorCall "It has never been applied function"
 
     it "createNamedConstantMock (error message)" do
       m <- createNamedConstantMock "constant" "foo"
-      shouldApplyAnythingTo m `shouldThrow` errorCall "It has never been applied to function `constant`"
+      shouldApplyAnythingTo m `shouldThrow` errorCall "It has never been applied function `constant`"
 
 data Fixture mock r = Fixture
   { name :: String,
