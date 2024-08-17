@@ -78,7 +78,7 @@ makeMock [t|MonadVar2_2Sub|]
 makeMock [t|MonadVar3_1Sub|]
 makeMock [t|MonadVar3_2Sub|]
 makeMock [t|MonadVar3_3Sub|]
-makeMockWithOptions [t|FileOperation|] options { prefix = "stub_" }
+makeMockWithOptions [t|FileOperation|] options { prefix = "stub_", suffix = "_fn" }
 makeMock [t|ApiOperation|]
 
 class Monad m => ParamThreeMonad a b m | m -> a, m -> b where
@@ -106,11 +106,11 @@ spec = do
     modifyContentStub <- createStubFn $ pack "content" |> pack "modifiedContent"
 
     result <- runMockT do
-      stub_readFile [
+      stub_readFile_fn [
         "input.txt" |> pack "content",
         "hoge.txt" |> pack "content"
         ]
-      stub_writeFile $ "output.text" |> pack "modifiedContent" |> ()
+      stub_writeFile_fn $ "output.text" |> pack "modifiedContent" |> ()
       _post $ pack "modifiedContent" |> ()
       operationProgram "input.txt" "output.text" modifyContentStub
 

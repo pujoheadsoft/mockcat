@@ -183,30 +183,35 @@ doMakeMock t options = do
   reify className >>= \case
     ClassI (ClassD _ _ [] _ _) _ -> fail $ "A type parameter is required for class " <> show className
     ClassI (ClassD cxt _ typeParameters _ decs) _ -> do
-      monadVarNames <- getMonadVarNames cxt typeParameters
-      case nub monadVarNames of
-        [] -> fail "Monad parameter not found."
-        (monadVarName : rest) ->
-          if length rest > 1 then fail "Monad parameter must be unique."
-          else do
-            let classParamNames = filter (className /=) (getClassNames ty)
-                typeVars = drop (length classParamNames) typeParameters
-                varAppliedTypes = zipWith (\t i -> VarAppliedType t (safeIndex classParamNames i)) (getTypeVarNames typeParameters) [0..]
-
-            newCxt <- createCxt monadVarName cxt
-            m <- appT (conT ''Monad) (varT monadVarName)
-
-            let hasMonad = any (\(ClassName2VarNames c _) -> c == ''Monad) $ toClassInfos newCxt
-
-            instanceDec <- instanceD
-              (pure $ newCxt ++ ([m | not hasMonad]))
-              (createInstanceType ty monadVarName typeVars)
-              (map createInstanceFnDec decs)
-
-            mockFnDecs <- concat <$> mapM (createMockFnDec monadVarName varAppliedTypes options) decs
-
-            pure $ instanceDec : mockFnDecs
+      xxxx ty className cxt typeParameters decs options
     t -> error $ "unsupported type: " <> show t
+
+
+xxxx :: Type -> Name -> Cxt -> [TyVarBndr a] -> [Dec] -> MockOptions -> Q [Dec]
+xxxx ty className cxt typeParameters decs options = do
+  monadVarNames <- getMonadVarNames cxt typeParameters
+  case nub monadVarNames of
+    [] -> fail "Monad parameter not found."
+    (monadVarName : rest) ->
+      if length rest > 1 then fail "Monad parameter must be unique."
+      else do
+        let classParamNames = filter (className /=) (getClassNames ty)
+            typeVars = drop (length classParamNames) typeParameters
+            varAppliedTypes = zipWith (\t i -> VarAppliedType t (safeIndex classParamNames i)) (getTypeVarNames typeParameters) [0..]
+
+        newCxt <- createCxt monadVarName cxt
+        m <- appT (conT ''Monad) (varT monadVarName)
+
+        let hasMonad = any (\(ClassName2VarNames c _) -> c == ''Monad) $ toClassInfos newCxt
+
+        instanceDec <- instanceD
+          (pure $ newCxt ++ ([m | not hasMonad]))
+          (createInstanceType ty monadVarName typeVars)
+          (map (createInstanceFnDec options) decs)
+
+        mockFnDecs <- concat <$> mapM (createMockFnDec monadVarName varAppliedTypes options) decs
+
+        pure $ instanceDec : mockFnDecs
 
 getMonadVarNames :: Cxt -> [TyVarBndr a] -> Q [Name]
 getMonadVarNames cxt typeVars = do
@@ -313,13 +318,13 @@ tyVarBndrToType monadName (KindedTV name _ _)
   | monadName == name = appT (conT ''MockT) (varT monadName)
   | otherwise = varT name
 
-createInstanceFnDec :: Dec -> Q Dec
-createInstanceFnDec (SigD funName funType) = do
+createInstanceFnDec :: MockOptions -> Dec -> Q Dec
+createInstanceFnDec options (SigD funName funType) = do
   names <- sequence $ typeToNames funType
   let r = mkName "result"
       params = varP <$> names
       args = varE <$> names
-      funNameStr = "_" <> nameBase funName
+      funNameStr = createFnName funName options
       genFn = if null names then $([|generateConstantStubFn|]) else $([|generateStubFn args|])
 
       funBody =  [| MockT $ do
@@ -331,7 +336,7 @@ createInstanceFnDec (SigD funName funType) = do
                       pure $(varE r) |]
       funClause = clause params (normalB funBody) []
   funD funName [funClause]
-createInstanceFnDec dec = fail $ "unsuported dec: " <> pprint dec
+createInstanceFnDec _ dec = fail $ "unsuported dec: " <> pprint dec
 
 generateStubFn :: [Q Exp] -> Q Exp -> Q Exp
 generateStubFn args mock = do
