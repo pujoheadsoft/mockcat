@@ -9,7 +9,7 @@ version:        0.3.0.0
 synopsis:       Mock library for test in Haskell.
 description:    mockcat is a mock library for testing Haskell.
                 .
-                mockcat provides monadic type class generation and stub and verification functions.
+                mockcat provides monad type class generation and stub and verification functions.
                 .
                 Stub functions can return values of pure types as well as values of monad types.
                 .
