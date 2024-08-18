@@ -394,7 +394,7 @@ createMockBody funNameStr createMockFn =
   [| MockT $ modify (++ [Definition
                     (Proxy :: Proxy $(litT (strTyLit funNameStr)))
                     (unsafePerformIO $ $(pure createMockFn) $(litE (stringL funNameStr)) p)
-                    shouldApplyAnythingTo]) |]
+                    shouldApplyToAnything]) |]
 
 isConstant :: Type -> Bool
 isConstant (AppT (VarT _) (VarT _)) = True

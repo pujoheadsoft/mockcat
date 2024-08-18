@@ -81,26 +81,26 @@ _ask p = MockT $ do
   modify (++ [Definition
     (Proxy :: Proxy "ask")
     (unsafePerformIO $ createNamedConstantMock "ask" p)
-    shouldApplyAnythingTo])
+    shouldApplyToAnything])
 
 _readFile :: (MockBuilder params (FilePath -> Text) (Param FilePath), Monad m) => params -> MockT m ()
 _readFile p = MockT $ do
   modify (++ [Definition
     (Proxy :: Proxy "readFile")
     (unsafePerformIO $ createNamedMock "readFile" p)
-    shouldApplyAnythingTo])
+    shouldApplyToAnything])
 
 _writeFile :: (MockBuilder params (FilePath -> Text -> ()) (Param FilePath :> Param Text), Monad m) => params -> MockT m ()
 _writeFile p = MockT $ modify (++ [Definition
   (Proxy :: Proxy "writeFile")
   (unsafePerformIO $ createNamedMock "writeFile" p)
-  shouldApplyAnythingTo])
+  shouldApplyToAnything])
 
 _post :: (MockBuilder params (Text -> ()) (Param Text), Monad m) => params -> MockT m ()
 _post p = MockT $ modify (++ [Definition
   (Proxy :: Proxy "post")
   (unsafePerformIO $ createNamedMock "post" p)
-  shouldApplyAnythingTo])
+  shouldApplyToAnything])
 
 findParam :: KnownSymbol sym => Proxy sym -> [Definition] -> Maybe a
 findParam pa definitions = do

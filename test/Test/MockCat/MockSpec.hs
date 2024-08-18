@@ -26,7 +26,7 @@ import Test.MockCat
     shouldApplyTimesLessThan,
     shouldApplyTimesLessThanEqual,
     shouldApplyTo,
-    shouldApplyAnythingTo,
+    shouldApplyToAnything,
     createMock,
     createStubFn,
     createNamedMock,
@@ -89,7 +89,7 @@ spec = do
           applyFailed = Just (`stubFn` "x"),
           expected = False,
           verifyApply = (`shouldApplyTo` "a"),
-          verifyApplyAny = shouldApplyAnythingTo,
+          verifyApplyAny = shouldApplyToAnything,
           verifyApplyFailed = (`shouldApplyTo` "2"),
           verifyApplyCount = \m c -> m `shouldApplyTimes` c `to` "a"
         }
@@ -102,7 +102,7 @@ spec = do
           applyFailed = Just (\m -> stubFn m "a" "x"),
           expected = True,
           verifyApply = \m -> shouldApplyTo m $ "a" |> "b",
-          verifyApplyAny = shouldApplyAnythingTo,
+          verifyApplyAny = shouldApplyToAnything,
           verifyApplyFailed = \m -> shouldApplyTo m $ "2" |> "b",
           verifyApplyCount = \m c -> m `shouldApplyTimes` c `to` ("a" |> "b")
         }
@@ -115,7 +115,7 @@ spec = do
           applyFailed = Just (\m -> stubFn m "a" "b" "x"),
           expected = False,
           verifyApply = \m -> shouldApplyTo m $ "a" |> "b" |> "c",
-          verifyApplyAny = shouldApplyAnythingTo,
+          verifyApplyAny = shouldApplyToAnything,
           verifyApplyFailed = \m -> shouldApplyTo m $ "a" |> "b" |> "d",
           verifyApplyCount = \m c -> m `shouldApplyTimes` c `to` ("a" |> "b" |> "c")
         }
@@ -128,7 +128,7 @@ spec = do
           applyFailed = Just (\m -> stubFn m "a" "b" "c" "x"),
           expected = True,
           verifyApply = \m -> shouldApplyTo m $ "a" |> "b" |> "c" |> "d",
-          verifyApplyAny = shouldApplyAnythingTo,
+          verifyApplyAny = shouldApplyToAnything,
           verifyApplyFailed = \m -> shouldApplyTo m $ "a" |> "b" |> "c" |> "x",
           verifyApplyCount = \m c -> m `shouldApplyTimes` c `to` ("a" |> "b" |> "c" |> "d")
         }
@@ -141,7 +141,7 @@ spec = do
           applyFailed = Just (\m -> stubFn m "a" "b" "c" "d" "x"),
           expected = False,
           verifyApply = \m -> shouldApplyTo m $ "a" |> "b" |> "c" |> "d" |> "e",
-          verifyApplyAny = shouldApplyAnythingTo,
+          verifyApplyAny = shouldApplyToAnything,
           verifyApplyFailed = \m -> shouldApplyTo m $ "a" |> "b" |> "c" |> "d" |> "x",
           verifyApplyCount = \m c -> m `shouldApplyTimes` c `to` ("a" |> "b" |> "c" |> "d" |> "e")
         }
@@ -154,7 +154,7 @@ spec = do
           applyFailed = Just (\m -> stubFn m "a" "b" "c" "d" "e" "x"),
           expected = True,
           verifyApply = \m -> shouldApplyTo m $ "a" |> "b" |> "c" |> "d" |> "e" |> "f",
-          verifyApplyAny = shouldApplyAnythingTo,
+          verifyApplyAny = shouldApplyToAnything,
           verifyApplyFailed = \m -> shouldApplyTo m $ "a" |> "b" |> "c" |> "d" |> "e" |> "x",
           verifyApplyCount = \m c -> m `shouldApplyTimes` c `to` ("a" |> "b" |> "c" |> "d" |> "e" |> "f")
         }
@@ -167,7 +167,7 @@ spec = do
           applyFailed = Just (\m -> stubFn m "a" "b" "c" "d" "e" "f" "x"),
           expected = False,
           verifyApply = \m -> shouldApplyTo m $ "a" |> "b" |> "c" |> "d" |> "e" |> "f" |> "g",
-          verifyApplyAny = shouldApplyAnythingTo,
+          verifyApplyAny = shouldApplyToAnything,
           verifyApplyFailed = \m -> shouldApplyTo m $ "a" |> "b" |> "c" |> "d" |> "e" |> "f" |> "y",
           verifyApplyCount = \m c -> m `shouldApplyTimes` c `to` ("a" |> "b" |> "c" |> "d" |> "e" |> "f" |> "g")
         }
@@ -180,7 +180,7 @@ spec = do
           applyFailed = Just (\m -> stubFn m "a" "b" "c" "d" "e" "f" "g" "x"),
           expected = False,
           verifyApply = \m -> shouldApplyTo m $ "a" |> "b" |> "c" |> "d" |> "e" |> "f" |> "g" |> "h",
-          verifyApplyAny = shouldApplyAnythingTo,
+          verifyApplyAny = shouldApplyToAnything,
           verifyApplyFailed = \m -> shouldApplyTo m $ "a" |> "b" |> "c" |> "d" |> "e" |> "f" |> "g" |> "x",
           verifyApplyCount = \m c -> m `shouldApplyTimes` c `to` ("a" |> "b" |> "c" |> "d" |> "e" |> "f" |> "g" |> "h")
         }
@@ -193,7 +193,7 @@ spec = do
           applyFailed = Just (\m -> stubFn m "a" "b" "c" "d" "e" "f" "g" "h" "x"),
           expected = False,
           verifyApply = \m -> shouldApplyTo m $ "a" |> "b" |> "c" |> "d" |> "e" |> "f" |> "g" |> "h" |> "i",
-          verifyApplyAny = shouldApplyAnythingTo,
+          verifyApplyAny = shouldApplyToAnything,
           verifyApplyFailed = \m -> shouldApplyTo m $ "a" |> "b" |> "c" |> "d" |> "e" |> "f" |> "g" |> "h" |> "x",
           verifyApplyCount = \m c -> m `shouldApplyTimes` c `to` ("a" |> "b" |> "c" |> "d" |> "e" |> "f" |> "g" |> "h" |> "i")
         }
@@ -216,7 +216,7 @@ spec = do
           verifyApply = \m -> do
             m `shouldApplyTo` "1"
             m `shouldApplyTo` "2",
-          verifyApplyAny = shouldApplyAnythingTo,
+          verifyApplyAny = shouldApplyToAnything,
           verifyApplyFailed = (`shouldApplyTo` "3"),
           verifyApplyCount = \m c -> do
             m `shouldApplyTimes` c `to` "1"
@@ -243,7 +243,7 @@ spec = do
           verifyApply = \m -> do
             m `shouldApplyTo` ("1" |> "2")
             m `shouldApplyTo` ("2" |> "3"),
-          verifyApplyAny = shouldApplyAnythingTo,
+          verifyApplyAny = shouldApplyToAnything,
           verifyApplyCount = \m c -> do
             m `shouldApplyTimes` c `to` ("1" |> "2")
             m `shouldApplyTimes` c `to` ("2" |> "3"),
@@ -270,7 +270,7 @@ spec = do
           verifyApply = \m -> do
             m `shouldApplyTo` ("1" |> "2" |> "3")
             m `shouldApplyTo` ("2" |> "3" |> "4"),
-          verifyApplyAny = shouldApplyAnythingTo,
+          verifyApplyAny = shouldApplyToAnything,
           verifyApplyCount = \m c -> do
             m `shouldApplyTimes` c `to` ("1" |> "2" |> "3")
             m `shouldApplyTimes` c `to` ("2" |> "3" |> "4"),
@@ -297,7 +297,7 @@ spec = do
           verifyApply = \m -> do
             m `shouldApplyTo` ("1" |> "2" |> "3" |> "4")
             m `shouldApplyTo` ("2" |> "3" |> "4" |> "5"),
-          verifyApplyAny = shouldApplyAnythingTo,
+          verifyApplyAny = shouldApplyToAnything,
           verifyApplyCount = \m c -> do
             m `shouldApplyTimes` c `to` ("1" |> "2" |> "3" |> "4")
             m `shouldApplyTimes` c `to` ("2" |> "3" |> "4" |> "5"),
@@ -324,7 +324,7 @@ spec = do
           verifyApply = \m -> do
             m `shouldApplyTo` ("1" |> "2" |> "3" |> "4" |> "5")
             m `shouldApplyTo` ("2" |> "3" |> "4" |> "5" |> "6"),
-          verifyApplyAny = shouldApplyAnythingTo,
+          verifyApplyAny = shouldApplyToAnything,
           verifyApplyCount = \m c -> do
             m `shouldApplyTimes` c `to` ("1" |> "2" |> "3" |> "4" |> "5")
             m `shouldApplyTimes` c `to` ("2" |> "3" |> "4" |> "5" |> "6"),
@@ -351,7 +351,7 @@ spec = do
           verifyApply = \m -> do
             m `shouldApplyTo` ("1" |> "2" |> "3" |> "4" |> "5" |> "6")
             m `shouldApplyTo` ("2" |> "3" |> "4" |> "5" |> "6" |> "7"),
-          verifyApplyAny = shouldApplyAnythingTo,
+          verifyApplyAny = shouldApplyToAnything,
           verifyApplyCount = \m c -> do
             m `shouldApplyTimes` c `to` ("1" |> "2" |> "3" |> "4" |> "5" |> "6")
             m `shouldApplyTimes` c `to` ("2" |> "3" |> "4" |> "5" |> "6" |> "7"),
@@ -378,7 +378,7 @@ spec = do
           verifyApply = \m -> do
             m `shouldApplyTo` ("1" |> "2" |> "3" |> "4" |> "5" |> "6" |> "7")
             m `shouldApplyTo` ("2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8"),
-          verifyApplyAny = shouldApplyAnythingTo,
+          verifyApplyAny = shouldApplyToAnything,
           verifyApplyCount = \m c -> do
             m `shouldApplyTimes` c `to` ("1" |> "2" |> "3" |> "4" |> "5" |> "6" |> "7")
             m `shouldApplyTimes` c `to` ("2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8"),
@@ -405,7 +405,7 @@ spec = do
           verifyApply = \m -> do
             m `shouldApplyTo` ("1" |> "2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8")
             m `shouldApplyTo` ("2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8" |> "9"),
-          verifyApplyAny = shouldApplyAnythingTo,
+          verifyApplyAny = shouldApplyToAnything,
           verifyApplyCount = \m c -> do
             m `shouldApplyTimes` c `to` ("1" |> "2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8")
             m `shouldApplyTimes` c `to` ("2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8" |> "9"),
@@ -432,7 +432,7 @@ spec = do
           verifyApply = \m -> do
             m `shouldApplyTo` ("1" |> "2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8" |> "9")
             m `shouldApplyTo` ("2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8" |> "9" |> "10"),
-          verifyApplyAny = shouldApplyAnythingTo,
+          verifyApplyAny = shouldApplyToAnything,
           verifyApplyCount = \m c -> do
             m `shouldApplyTimes` c `to` ("1" |> "2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8" |> "9")
             m `shouldApplyTimes` c `to` ("2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8" |> "9" |> "10"),
@@ -727,7 +727,7 @@ spec = do
 
         it "verify applied anything" do
           m <- createMock $ "X" |> True
-          shouldApplyAnythingTo m `shouldThrow` errorCall "It has never been applied function"
+          shouldApplyToAnything m `shouldThrow` errorCall "It has never been applied function"
 
     describe "named mock" do
       describe "aply" do
@@ -824,7 +824,7 @@ spec = do
 
         it "verify applied anything" do
           m <- createNamedMock "mock" $ "X" |> True
-          shouldApplyAnythingTo m `shouldThrow` errorCall "It has never been applied function `mock`"
+          shouldApplyToAnything m `shouldThrow` errorCall "It has never been applied function `mock`"
 
   describe "use expectation" do
     it "expectByExpr" do
@@ -870,20 +870,20 @@ spec = do
     it "createConstantMock" do
       m <- createConstantMock "foo"
       stubFn m `shouldBe` "foo"
-      shouldApplyAnythingTo m
+      shouldApplyToAnything m
 
     it "createNamedConstantMock" do
       m <- createNamedConstantMock "const" "foo"
       stubFn m `shouldBe` "foo"
-      shouldApplyAnythingTo m
+      shouldApplyToAnything m
 
     it "createConstantMock (error message)" do
       m <- createConstantMock "foo"
-      shouldApplyAnythingTo m `shouldThrow` errorCall "It has never been applied function"
+      shouldApplyToAnything m `shouldThrow` errorCall "It has never been applied function"
 
     it "createNamedConstantMock (error message)" do
       m <- createNamedConstantMock "constant" "foo"
-      shouldApplyAnythingTo m `shouldThrow` errorCall "It has never been applied function `constant`"
+      shouldApplyToAnything m `shouldThrow` errorCall "It has never been applied function `constant`"
 
 data Fixture mock r = Fixture
   { name :: String,

@@ -34,8 +34,8 @@ module Test.MockCat.Mock
     shouldApplyTimesLessThanEqual,
     shouldApplyTimesGreaterThan,
     shouldApplyTimesLessThan,
-    shouldApplyAnythingTo,
-    shouldApplyAnythingTimes,
+    shouldApplyToAnything,
+    shouldApplyTimesToAnything,
     to
   )
 where
@@ -99,7 +99,7 @@ From this mock, you can generate constant functions and verify the functions.
   it "stub & verify" do
     m \<- createConstantMock "foo"
     stubFn m \`shouldBe\` "foo"
-    shouldApplyAnythingTo m
+    shouldApplyToAnything m
   @
 -}
 createConstantMock :: MonadIO m => a -> m (Mock a ())
@@ -729,6 +729,7 @@ collectUnExpectedOrder appliedValues expectedValues =
 mapWithIndex :: (Int -> a -> b) -> [a] -> [b]
 mapWithIndex f xs = [f i x | (i, x) <- zip [0 ..] xs]
 
+-- | Verify that the function has been applied to the expected arguments at least the expected number of times.
 shouldApplyTimesGreaterThanEqual ::
   VerifyCount CountVerifyMethod params a =>
   Eq params =>
@@ -738,6 +739,7 @@ shouldApplyTimesGreaterThanEqual ::
   IO ()
 shouldApplyTimesGreaterThanEqual m i = shouldApplyTimes m (GreaterThanEqual i)
 
+-- | Verify that the function is applied to the expected arguments less than or equal to the expected number of times.
 shouldApplyTimesLessThanEqual ::
   VerifyCount CountVerifyMethod params a =>
   Eq params =>
@@ -747,6 +749,7 @@ shouldApplyTimesLessThanEqual ::
   IO ()
 shouldApplyTimesLessThanEqual m i = shouldApplyTimes m (LessThanEqual i)
 
+-- | Verify that the function has been applied to the expected arguments a greater number of times than expected.
 shouldApplyTimesGreaterThan ::
   VerifyCount CountVerifyMethod params a =>
   Eq params =>
@@ -756,6 +759,7 @@ shouldApplyTimesGreaterThan ::
   IO ()
 shouldApplyTimesGreaterThan m i = shouldApplyTimes m (GreaterThan i)
 
+-- | Verify that the function has been applied to the expected arguments less than the expected number of times.
 shouldApplyTimesLessThan ::
   VerifyCount CountVerifyMethod params a =>
   Eq params =>
@@ -814,14 +818,15 @@ safeIndex xs n
   | n < 0 = Nothing
   | otherwise = listToMaybe (drop n xs)
 
--- | Verify that it was applied anyway.
-shouldApplyAnythingTo :: HasCallStack => Mock fun params -> IO ()
-shouldApplyAnythingTo (Mock name _ (Verifier ref)) = do
+-- | Verify that it was apply to anything.
+shouldApplyToAnything :: HasCallStack => Mock fun params -> IO ()
+shouldApplyToAnything (Mock name _ (Verifier ref)) = do
   appliedParamsList <- readAppliedParamsList ref
   when (null appliedParamsList) $ error $ "It has never been applied function" <> mockNameLabel name
 
-shouldApplyAnythingTimes :: Mock fun params -> Int -> IO ()
-shouldApplyAnythingTimes (Mock name _ (Verifier ref)) count = do
+-- | Verify that it was apply to anything (times).
+shouldApplyTimesToAnything :: Mock fun params -> Int -> IO ()
+shouldApplyTimesToAnything (Mock name _ (Verifier ref)) count = do
   appliedParamsList <- readAppliedParamsList ref
   let appliedCount = length appliedParamsList
   when (count /= appliedCount) $ 

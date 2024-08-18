@@ -7,17 +7,64 @@ cabal-version: 1.12
 name:           mockcat
 version:        0.3.0.0
 synopsis:       Mock library for test in Haskell.
-description:    mockcat is mock library for test in Haskell.
+description:    mockcat is a mock library for testing Haskell.
                 .
-                mockcat provides so-called stubbing and verification functions.
+                mockcat provides monadic type class generation and stub and verification functions.
                 .
-                Stub functions can return values of Pure Types as well as value of Monadic Types.
+                Stub functions can return values of pure types as well as values of monad types.
                 .
-                Example:
-                .
+                Example 1: Mock of Monad type class
                 @
-                f \<- createStubFn $ "expected arg" |\> "return value"
-                print $ f "expected arg" -- "return value" 
+                -- Monad type class definition
+                class Monad m =\> FileOperation m where
+                  readFile :: FilePath -\> m Text
+                  writeFile :: FilePath -\> Text -> m ()
+                .
+                -- program
+                operationProgram ::
+                  FileOperation m =\>
+                  FilePath -\>
+                  FilePath -\>
+                  m ()
+                operationProgram inputPath outputPath = do
+                  content \<- readFile inputPath
+                  writeFile outputPath content
+                .
+                -- make mock of type class FileOperation
+                makeMock [t|FileOperation|]
+                .
+                spec :: Spec
+                spec = do
+                  it "Read, and output files" do
+                    -- run MockT
+                    result \<- runMockT do
+                      -- stub function of function `readFile`
+                      _readFile $ "input.txt" |\> pack "content"
+                .
+                      -- stub function of function `writeFile`
+                      _writeFile $ "output.txt" |\> pack "content" |\> ()
+                .
+                      operationProgram "input.txt" "output.txt"
+                .
+                    result \`shouldBe\` ()
+                @
+                .
+                Example 2: Mock of function
+                @
+                spec :: Spec
+                spec = do
+                  it “usage example” do
+                    -- create a mock (applying "value" returns the pure value True)
+                    mock \<- createMock $ "value" |\> True
+                .
+                    -- extract a stub function from a mock
+                    let stubFunction = stubFn mock
+                .
+                    -- verify the result of applying the function
+                    stubFunction "value" \`shouldBe\` True
+                .
+                    -- verify that the expected value ("value") has been applied
+                    mock \`shouldApplyTo\` "value"
                 @
                 .
                 For more please see the README on GitHub at <https://github.com/pujoheadsoft/mockcat#readme>
@@ -70,7 +117,7 @@ test-suite mockcat-test
       Test.MockCat.MockSpec
       Test.MockCat.ParamSpec
       Test.MockCat.TypeClassSpec
-      Test.MockCat.TyprClassTHSpec
+      Test.MockCat.TypeClassTHSpec
       Paths_mockcat
   hs-source-dirs:
       test

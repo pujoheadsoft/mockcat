@@ -5,7 +5,7 @@ import Test.MockCat.ParamSpec as Param
 import Test.MockCat.AssociationListSpec as AssociationList
 import Test.MockCat.ExampleSpec as Example
 import Test.MockCat.TypeClassSpec as TypeClass
-import Test.MockCat.TyprClassTHSpec as TypeClassTH
+import Test.MockCat.TypeClassTHSpec as TypeClassTH
 
 main :: IO ()
 main = do

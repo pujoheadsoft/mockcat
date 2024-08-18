@@ -1,16 +1,35 @@
 # 🐈Mocking library for Haskell🐈‍
 [![Test](https://github.com/pujoheadsoft/mockcat/workflows/Test/badge.svg)](https://github.com/pujoheadsoft/mockcat/actions?query=workflow%3ATest+branch%3Amain)
 
-mockcatは、Haskellのテストをサポートするモック・ライブラリです。
-
-モックはモナドを返す型クラスを元に生成することができます。
-また、純粋な関数のモックを作ることもできます。
+# 概要
+mockcatはシンプルで柔軟なモックライブラリです。
 
 モックができることは主に2つあります。
 1. スタブ関数を作る
 2. スタブ関数が期待通り適用されたかを検証する
 
-型クラスのモックの作成はこのようになります。
+モックは2種類作ることができます。
+1. モナド型クラスのモック
+2. 関数のモック
+
+**1**のモナド型クラスとは、次のような型クラスを指しています。
+```haskell
+class Monad m => FileOperation m where
+  readFile :: FilePath -> m Text
+  writeFile :: FilePath -> Text -> m ()
+```
+
+**2**の関数は次のような普通の関数です。
+(`IO ()`みたいにモナドに包まれた型もモックにできるし、定数関数もモックにできます)
+```haskell
+calc :: Int -> Int
+echo :: String -> IO ()
+constantValue :: String
+```
+
+# モナド型クラスのモック
+## 使用例
+例えば次のようなモナド型クラス`FileOperation`と、`FileOperation`を使う`operationProgram`という関数が定義されているとします。
 ```haskell
 class Monad m => FileOperation m where
   readFile :: FilePath -> m Text
@@ -24,40 +43,162 @@ operationProgram ::
 operationProgram inputPath outputPath = do
   content <- readFile inputPath
   writeFile outputPath content
+```
 
-makeMock [t|FileOperation|]
+次のように`makeMock`関数を使うことで、型クラス`FileOperation`のモックを生成することができます。  
+`makeMock [t|FileOperation|]`
 
+生成されるのものは次の2つです。
+1. 型クラス`FileOperation`の`MockT`インスタンス
+2. 型クラス`FileOperation`に定義されている関数を元としたスタブ関数  
+  スタブ関数は元の関数の接頭辞に`_`が付与された関数として生成されます。  
+  この場合`_readFile`と`_writeFile`が生成されます。
+
+モックは次のように使うことができます。
+```haskell
 spec :: Spec
 spec = do
   it "Read, and output files" do
     result <- runMockT do
       _readFile ("input.txt" |> pack "content")
-      _writeFile ("output.text" |> pack "content" |> ())
-      operationProgram "input.txt" "output.text"
+      _writeFile ("output.txt" |> pack "content" |> ())
+      operationProgram "input.txt" "output.txt"
 
     result `shouldBe` ()
 ```
-
-# 型クラスのモック
-型クラスのモックは次のように`makeMock`関数で生成することができます。  
-`makeMock [t|FileOperation|]`
-
-生成されるのは、指定した型クラスの`MockT`インスタンスと、型クラスに定義されている関数を元としたスタブ関数です。  
-スタブ関数は元の関数の接頭辞に`_`が付与された関数として生成されます。
-
-スタブ関数には、関数が適用されることを期待する引数を `|>` で連結して渡します。  
+スタブ関数には、関数の適用が期待される引数を `|>` で連結して渡します。  
 `|>` の最後の値が関数の返り値となります。
-
-次のように`appliedTimesIs`関数を使うことで、適用されるべき回数を指定できます。  
-```haskell
-_writeFile ("output.text" |> pack "content" |> ()) `appliedTimesIs` 0
-```
 
 モックは`runMockT`で実行します。
 
+## 検証
+実行の後、スタブ関数が期待通りに適用されたか検証が行われます。  
+例えば、上記の例のスタブ関数`_writeFile`の適用が期待される引数を`"content"`から`"edited content"`に書き換えてみます。
+```haskell
+result <- runMockT do
+  _readFile ("input.txt" |> pack "content")
+  _writeFile ("output.txt" |> pack "edited content" |> ())
+  operationProgram "input.txt" "output.txt"
+```
+テストを実行すると、テストは失敗し、次のエラーメッセージが表示されます。
+```console
+uncaught exception: ErrorCall
+function `_writeFile` was not applied to the expected arguments.
+  expected: "output.txt","edited content"
+  but got: "output.txt","content"
+```
 
-スタブ関数はモナディックな値だけでなく、純粋な型の値も返すことができます。
+また次のようにテスト対象で使用している関数に対応するスタブ関数を使用しなかったとします。
+```haskell
+result <- runMockT do
+  _readFile ("input.txt" |> pack "content")
+  -- _writeFile ("output.txt" |> pack "content" |> ())
+  operationProgram "input.txt" "output.txt"
+```
+この場合もテストを実行すると、テストは失敗し、次のエラーメッセージが表示されます。
+```console
+no answer found stub function `_writeFile`.
+```
 
+## 適用回数を検証
+例えば、次のように特定の文字列を含んでいる場合は`writeFile`を適用させない場合のテストを書きたいとします。
+```haskell
+operationProgram inputPath outputPath = do
+  content <- readFile inputPath
+  unless (pack "ngWord" `isInfixOf` content) $
+    writeFile outputPath content
+```
+
+これは次のように`applyTimesIs`関数を使うことで実現できます。
+```haskell
+import Test.MockCat as M
+...
+it "Read, and output files (contain ng word)" do
+  result <- runMockT do
+    _readFile ("input.txt" |> pack "contains ngWord")
+    _writeFile ("output.txt" |> M.any |> ()) `applyTimesIs` 0
+    operationProgram "input.txt" "output.txt"
+
+  result `shouldBe` ()
+```
+`0`を指定することで適用されなかったことを検証できます。
+
+あるいは`neverApply`関数を使うことで同じことが実現できます。
+```haskell
+result <- runMockT do
+  _readFile ("input.txt" |> pack "contains ngWord")
+  neverApply $ _writeFile ("output.txt" |> M.any |> ())
+  operationProgram "input.txt" "output.txt"
+```
+
+`M.any`は任意の値にマッチするパラメーターです。
+この例では`M.any`を使って、あらゆる値に対して`writeFile`関数が適用されないことを検証しています。
+
+後述しますが、mockcatは`M.any`以外にも様々なパラメーターを用意しています。
+
+## 定数関数のモック
+mockcatは定数関数もモックにできます。
+`MonadReader`をモックにし、`ask`のスタブ関数を使ってみます。
+```haskell
+data Environment = Environment { inputPath :: String, outputPath :: String }
+
+operationProgram ::
+  MonadReader Environment m =>
+  FileOperation m =>
+  m ()
+operationProgram = do
+  (Environment inputPath outputPath) <- ask
+  content <- readFile inputPath
+  writeFile outputPath content
+
+makeMock [t|MonadReader Environment|]
+
+spec :: Spec
+spec = do
+  it "Read, and output files (with MonadReader)" do
+    r <- runMockT do
+      _ask (Environment "input.txt" "output.txt")
+      _readFile ("input.txt" |> pack "content")
+      _writeFile ("output.txt" |> pack "content" |> ())
+      operationProgram
+    r `shouldBe` ()
+```
+ここで、`ask`を使わないようにしてみます。
+```haskell
+operationProgram = do
+  content <- readFile "input.txt"
+  writeFile "output.txt" content
+```
+するとテスト実行に失敗し、スタブ関数が適用されなかったことが表示されます。
+```haskell
+It has never been applied function `_ask`
+```
+
+## スタブ関数の名前を変える
+生成されるスタブ関数の接頭辞と接尾辞はオプションで変更することができます。  
+例えば次のように指定すると、`stub_readFile_fn`と`stub_writeFile_fn`関数が生成されます。
+```haskell
+makeMockWithOptions [t|FileOperation|] options { prefix = "stub_", suffix = "_fn" }
+```
+オプションが指定されない場合はデフォルトで`_`になります。
+
+## makeMockが生成するコード
+使用する上で意識する必要はありませんが、`makeMock`関数は次のようなコードを生成します。
+```haskell
+-- MockTインスタンス
+instance (Monad m) => FileOperation (MockT m) where
+  readFile :: Monad m => FilePath -> MockT m Text
+  writeFile :: Monad m => FilePath -> Text -> MockT m ()
+
+_readFile :: (MockBuilder params (FilePath -> Text) (Param FilePath), Monad m) => params -> MockT m ()
+_writeFile :: (MockBuilder params (FilePath -> Text -> ()) (Param FilePath :> Param Text), Monad m) => params -> MockT m ()
+```
+
+# 関数のモック
+mockcatはモナド型クラスのモックだけでなく、通常の関数のモックを作ることもできます。  
+モナド型のモックとは異なり、元になる関数は不要です。
+
+## 使用例
 ```haskell
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE TypeApplications #-}
@@ -81,9 +222,9 @@ spec = do
 
 ```
 
-# スタブ関数
-## 単純なスタブ関数
-スタブ関数の生成には `createStubFn` 関数を使います。
+## スタブ関数
+スタブ関数を直接作るには `createStubFn` 関数を使います。  
+検証が不要な場合は、こちらを使うとよいでしょう。
 ```haskell
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE TypeApplications #-}
@@ -134,9 +275,27 @@ Expected arguments were not applied to the function `named stub`.
   but got: "x","z"
 ```
 
+## 定数スタブ関数
+定数を返すようなスタブ関数を作るには`createConstantMock`もしくは`createNamedConstantMock`関数を使います。  
+
+```haskell
+spec :: Spec
+spec = do
+  it "createConstantMock" do
+    m <- createConstantMock "foo"
+    stubFn m `shouldBe` "foo"
+    shouldApplyToAnything m
+
+  it "createNamedConstantMock" do
+    m <- createNamedConstantMock "const" "foo"
+    stubFn m `shouldBe` "foo"
+    shouldApplyToAnything m
+```
+
 ## 柔軟なスタブ関数
 `createStubFn` 関数に具体的な値ではなく、条件式を与えることで、柔軟なスタブ関数を生成できます。  
-これを使うと、任意の値や、特定のパターンに合致する文字列などに対して期待値を返すことができます。
+これを使うと、任意の値や、特定のパターンに合致する文字列などに対して期待値を返すことができます。  
+これはモナド型のモックを生成した際のスタブ関数も同様です。
 ### any
 `any` は任意の値にマッチします。
 ```haskell
@@ -313,6 +472,12 @@ spec = do
     print $ stubFn m "value"
     m `shouldApplyTimes` (2 :: Int) `to` "value"
 ```
+
+## 何かしらに適用されたかを検証する
+関数が何かしらに適用されたかは、`shouldApplyToAnything`関数で検証することができます。
+
+## 何かしらに適用された回数を検証する
+関数が何かしらに適用されたかの回数は、`shouldApplyTimesToAnything`関数で検証することができます。
 
 ## 期待される順序で適用されたかを検証する
 期待される順序で適用されたかは `shouldApplyInOrder` 関数で検証することができます。

@@ -9,16 +9,17 @@
 {-# OPTIONS_GHC -Wno-unused-top-binds #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-# OPTIONS_GHC -Wno-simplifiable-class-constraints #-}
+{-# OPTIONS_GHC -Wno-name-shadowing #-}
 
-module Test.MockCat.TyprClassTHSpec (spec) where
+module Test.MockCat.TypeClassTHSpec (spec) where
 
 import Prelude hiding (readFile, writeFile)
-import Data.Text (Text, pack)
+import Data.Text (Text, pack, isInfixOf)
 import Test.Hspec
-import Test.MockCat
+import Test.MockCat as M
 import Control.Monad.State
 import Control.Monad.Reader (MonadReader, ask)
-import Control.Monad (when)
+import Control.Monad (unless)
 
 class Monad m => FileOperation m where
   writeFile :: FilePath -> Text -> m ()
@@ -34,7 +35,8 @@ operationProgram ::
   m ()
 operationProgram inputPath outputPath = do
   content <- readFile inputPath
-  writeFile outputPath content
+  unless (pack "ngWord" `isInfixOf` content) $
+    writeFile outputPath content
 
 operationProgram2 ::
   (FileOperation m, ApiOperation m) =>
@@ -48,10 +50,16 @@ operationProgram2 inputPath outputPath modifyText = do
   writeFile outputPath modifiedContent
   post modifiedContent
 
-monadReaderProgram :: MonadReader Bool m => m String
-monadReaderProgram = do
-  v <- ask
-  pure $ "Environment:" <> show v
+data Environment = Environment { inputPath :: String, outputPath :: String }
+
+operationProgram3 ::
+  MonadReader Environment m =>
+  FileOperation m =>
+  m ()
+operationProgram3 = do
+  (Environment inputPath outputPath) <- ask
+  content <- readFile inputPath
+  writeFile outputPath content
 
 class (Eq s, Show s, MonadState s m) => MonadStateSub s m where
   fn_state :: Maybe s -> m s
@@ -79,7 +87,8 @@ class Monad m => MonadVar3_3 a b m where
 class MonadVar3_3 a b m => MonadVar3_3Sub a b m where
   fn3_3Sub :: String -> m ()
 
-makeMock [t|MonadReader Bool|]
+--makeMock [t|MonadReader Bool|]
+makeMock [t|MonadReader Environment|]
 makeMock [t|MonadState String|]
 makeMock [t|MonadStateSub|]
 makeMock [t|MonadStateSub2|]
@@ -112,13 +121,38 @@ threeParamMonadExec = do
 
 spec :: Spec
 spec = do
-  it "Read, edit, and output files" do
+  it "Read, and output files" do
     result <- runMockT do
       _readFile ("input.txt" |> pack "content")
-      _writeFile ("output.text" |> pack "content" |> ())
-      operationProgram "input.txt" "output.text"
+      _writeFile ("output.txt" |> pack "content" |> ())
+      operationProgram "input.txt" "output.txt"
 
     result `shouldBe` ()
+
+  it "Read, and output files (contain ng word)" do
+    result <- runMockT do
+      _readFile ("input.txt" |> pack "contains ngWord")
+      _writeFile ("output.txt" |> M.any |> ()) `applyTimesIs` 0
+      operationProgram "input.txt" "output.txt"
+
+    result `shouldBe` ()
+
+  it "Read, and output files (contain ng word)2" do
+    result <- runMockT do
+      _readFile ("input.txt" |> pack "contains ngWord")
+      neverApply $ _writeFile ("output.txt" |> M.any |> ())
+      operationProgram "input.txt" "output.txt"
+
+    result `shouldBe` ()
+
+  it "Read, and output files (with MonadReader)" do
+    r <- runMockT do
+      _ask (Environment "input.txt" "output.txt")
+      _readFile ("input.txt" |> pack "content")
+      _writeFile ("output.txt" |> pack "content" |> ())
+      operationProgram3
+    r `shouldBe` ()
+
 
   it "Read, edit, and output files2" do
     modifyContentStub <- createStubFn $ pack "content" |> pack "modifiedContent"
@@ -131,12 +165,6 @@ spec = do
 
     result `shouldBe` ()
   
-  it "MonadReader mock" do
-    r <- runMockT do
-      _ask True
-      monadReaderProgram
-    r `shouldBe` "Environment:True"
-
   it "MonadState subclass mock" do
     r <- runMockT do
       _fn_state $ Just "X" |> "Y"
