@@ -14,20 +14,17 @@
 --
 -- This parameter can be used when creating and verifying the mock.
 module Test.MockCat.Param
-  ( Param,
+  ( Param(..),
     value,
     param,
     (|>),
     expect,
     expect_,
-    expectByExpr,
     any
   )
 where
 
-import Language.Haskell.TH
 import Test.MockCat.Cons ((:>) (..))
-import Test.MockCat.TH
 import Unsafe.Coerce (unsafeCoerce)
 import Prelude hiding (any)
 
@@ -105,14 +102,3 @@ expect = ExpectCondition
 -}
 expect_ :: (a -> Bool) -> Param a
 expect_ f = ExpectCondition f "[some condition]"
-
-{- | Create a conditional parameter based on @Q Exp@. 
-
-  In applying a mock function, if the argument does not satisfy this condition, an error is raised.
-
-  The conditional expression is displayed in the error message.
--}
-expectByExpr :: Q Exp -> Q Exp
-expectByExpr qf = do
-  str <- showExp qf
-  [|ExpectCondition $qf str|]

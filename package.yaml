@@ -1,5 +1,5 @@
 name:                mockcat
-version:             0.2.1.0
+version:             0.3.0.0
 github:              pujoheadsoft/mockcat
 license:             "MIT"
 author:              "funnycat <pujoheadsoft@gmail.com>"
@@ -10,23 +10,16 @@ extra-source-files:
 - README.md
 - CHANGELOG.md
 
-synopsis: Simple mock function library for test in Haskell.
+synopsis: Mock library for test in Haskell.
 
 category: Testing
 
 description: |
-  mockcat is simple mock library for test in Haskell.
+  mockcat is a mock library for testing Haskell.
 
-  mockcat provides so-called stubbing and verification functions.
+  mockcat provides monad type class generation and stub and verification functions.
 
-  Stub functions can return values of Pure Types as well as value of Monadic Types.
-
-  Example:
-
-  @
-  f \<- createStubFn $ "expected arg" |\> "return value"
-  print $ f "expected arg" -- "return value" 
-  @
+  Stub functions can return values of pure types as well as values of monad types.
   
   For more please see the README on GitHub at <https://github.com/pujoheadsoft/mockcat#readme>
 
@@ -34,6 +27,7 @@ dependencies:
 - base >= 4.7 && < 5
 - text >= 2.0 && < 2.2
 - template-haskell >= 2.18 && < 2.23
+- mtl >= 2.3.1 && < 2.4
 
 ghc-options:
 - -Wall
@@ -58,6 +52,7 @@ tests:
     - -threaded
     - -rtsopts
     - -with-rtsopts=-N
+
     dependencies:
     - mockcat
     - hspec

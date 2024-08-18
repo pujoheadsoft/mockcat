@@ -16,8 +16,13 @@
   - Verify applied mock function.
 -}
 module Test.MockCat.Mock
-  ( createMock,
+  ( Mock,
+    MockBuilder,
+    build,
+    createMock,
     createNamedMock,
+    createConstantMock,
+    createNamedConstantMock,
     createStubFn,
     createNamedStubFn,
     stubFn,
@@ -29,13 +34,13 @@ module Test.MockCat.Mock
     shouldApplyTimesLessThanEqual,
     shouldApplyTimesGreaterThan,
     shouldApplyTimesLessThan,
-    to,
-    module Test.MockCat.Cons,
-    module Test.MockCat.Param
+    shouldApplyToAnything,
+    shouldApplyTimesToAnything,
+    to
   )
 where
 
-import Control.Monad (guard)
+import Control.Monad (guard, when)
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Data.Function ((&))
 import Data.IORef (IORef, modifyIORef', newIORef, readIORef)
@@ -48,6 +53,7 @@ import Test.MockCat.Param
 import Test.MockCat.ParamDivider
 import Test.MockCat.AssociationList (AssociationList, lookup, update, insert, empty, member)
 import Prelude hiding (lookup)
+import GHC.Stack (HasCallStack)
 
 data Mock fun params = Mock (Maybe MockName) fun (Verifier params)
 
@@ -83,6 +89,22 @@ createMock ::
   m (Mock fun verifyParams)
 createMock params = liftIO $ build Nothing params
 
+{- | Create a constant mock.
+From this mock, you can generate constant functions and verify the functions.
+
+  @
+  import Test.Hspec
+  import Test.MockCat
+  ...
+  it "stub & verify" do
+    m \<- createConstantMock "foo"
+    stubFn m \`shouldBe\` "foo"
+    shouldApplyToAnything m
+  @
+-}
+createConstantMock :: MonadIO m => a -> m (Mock a ())
+createConstantMock a = liftIO $ build Nothing $ param a
+
 {- | Create a named mock. If the test fails, this name is used. This may be useful if you have multiple mocks.
 
   @
@@ -101,6 +123,10 @@ createNamedMock ::
   params ->
   m (Mock fun verifyParams)
 createNamedMock name params = liftIO $ build (Just name) params
+
+-- | Create a named constant mock.
+createNamedConstantMock :: MonadIO m => MockName -> fun -> m (Mock fun ())
+createNamedConstantMock name a = liftIO $ build (Just name) (param a)
 
 -- | Extract the stub function from the mock.
 stubFn :: Mock fun v -> fun
@@ -122,7 +148,6 @@ createStubFn ::
   params ->
   m fun
 createStubFn params = stubFn <$> createMock params
-
 
 -- | Create a named stub function.
 createNamedStubFn ::
@@ -243,6 +268,16 @@ instance
   build name params = do
     s <- liftIO $ newIORef appliedRecord
     makeMock name s (\a2 -> unsafePerformIO $ extractReturnValueWithValidate name params (p a2) s)
+
+instance
+  MockBuilder (Param r) r ()
+  where
+  build name params = do
+    s <- liftIO $ newIORef appliedRecord
+    let v = value params
+    makeMock name s $ unsafePerformIO (do
+      liftIO $ appendAppliedParams s ()
+      pure v)
 
 instance
   (Show a, Eq a, Show b, Eq b, Show c, Eq c, Show d, Eq d, Show e, Eq e, Show f, Eq f, Show g, Eq g, Show h, Eq h, Show i, Eq i) =>
@@ -408,7 +443,7 @@ message :: Show a => Maybe MockName -> a -> a -> String
 message name expected actual =
   intercalate
     "\n"
-    [ "Expected arguments were not applied to the function" <> mockNameLabel name <> ".",
+    [ "function" <> mockNameLabel name <> " was not applied to the expected arguments.",
       "  expected: " <> show expected,
       "   but got: " <> show actual
     ]
@@ -417,7 +452,7 @@ messageForMultiMock :: Show a => Maybe MockName -> [a] -> a -> String
 messageForMultiMock name expecteds actual =
   intercalate
     "\n"
-    [ "Expected arguments were not applied to the function" <> mockNameLabel name <> ".",
+    [ "function" <> mockNameLabel name <> " was not applied to the expected arguments.",
       "  expected one of the following:",
       intercalate "\n" $ ("    " <>) . show <$> expecteds,
       "  but got:",
@@ -436,7 +471,7 @@ data VerifyMatchType a = MatchAny a | MatchAll a
 -- | Class for verifying mock function.
 class Verify params input where
   -- | Verifies that the function has been applied to the expected arguments.
-  shouldApplyTo :: Mock fun params -> input -> IO ()
+  shouldApplyTo :: HasCallStack => Mock fun params -> input -> IO ()
 
 instance (Eq a, Show a) => Verify (Param a) a where
   shouldApplyTo v a = verify v (MatchAny (param a))
@@ -467,7 +502,7 @@ verifyFailedMesssage name appliedParams expected =
   VerifyFailed $
     intercalate
       "\n"
-      [ "Expected arguments were not applied to the function" <> mockNameLabel name <> ".",
+      [ "function" <> mockNameLabel name <> " was not applied to the expected arguments.",
         "  expected: " <> show expected,
         "   but got: " <> formatAppliedParamsList appliedParams
       ]
@@ -495,7 +530,7 @@ class VerifyCount countType params a where
   --   m \`shouldApplyTimes\` (2 :: Int) \`to\` "value" 
   -- @
   --
-  shouldApplyTimes :: Eq params => Mock fun params -> countType -> a -> IO ()
+  shouldApplyTimes :: HasCallStack => Eq params => Mock fun params -> countType -> a -> IO ()
 
 instance VerifyCount CountVerifyMethod (Param a) a where
   shouldApplyTimes v count a = verifyCount v (param a) count
@@ -540,7 +575,7 @@ verifyCount (Mock name _ (Verifier ref)) v method = do
       errorWithoutStackTrace $
         intercalate
           "\n"
-          [ "The expected argument was not applied the expected number of times to the function" <> mockNameLabel name <> ".",
+          [ "function" <> mockNameLabel name <> " was not applied the expected number of times to the expected arguments.",
             "  expected: " <> show method,
             "   but got: " <> show appliedCount
           ]
@@ -562,14 +597,14 @@ class VerifyOrder params input where
   --   print $ stubFn m "b" True
   --   m \`shouldApplyInOrder\` ["a" |\> True, "b" |\> True]
   -- @
-  shouldApplyInOrder :: Mock fun params -> [input] -> IO ()
+  shouldApplyInOrder :: HasCallStack => Mock fun params -> [input] -> IO ()
 
   -- | Verify that functions are applied in the expected order.
   --
   -- Unlike @'shouldApplyInOrder'@, not all applications need to match exactly.
   --
   -- As long as the order matches, the verification succeeds.
-  shouldApplyInPartialOrder :: Mock fun params -> [input] -> IO ()
+  shouldApplyInPartialOrder :: HasCallStack => Mock fun params -> [input] -> IO ()
 
 instance (Eq a, Show a) => VerifyOrder (Param a) a where
   shouldApplyInOrder v a = verifyOrder ExactlySequence v $ param <$> a
@@ -622,7 +657,7 @@ verifyFailedPartiallySequence name appliedValues expectedValues =
   VerifyFailed $
     intercalate
       "\n"
-      [ "Expected arguments were not applied to the function" <> mockNameLabel name <> " in the expected order.",
+      [ "function" <> mockNameLabel name <> " was not applied to the expected arguments in the expected order.",
         "  expected order:",
         intercalate "\n" $ ("    " <>) . show <$> expectedValues,
         "  but got:",
@@ -646,7 +681,7 @@ verifyFailedOrderParamCountMismatch name appliedValues expectedValues =
   VerifyFailed $
     intercalate
       "\n"
-      [ "Expected arguments were not applied to the function" <> mockNameLabel name <> " in the expected order (count mismatch).",
+      [ "function" <> mockNameLabel name <> " was not applied to the expected arguments in the expected order (count mismatch).",
         "  expected: " <> show (length expectedValues),
         "   but got: " <> show (length appliedValues)
       ]
@@ -656,7 +691,7 @@ verifyFailedSequence name fails =
   VerifyFailed $
     intercalate
       "\n"
-      ( ("Expected arguments were not applied to the function" <> mockNameLabel name <> " in the expected order.") : (verifyOrderFailedMesssage <$> fails)
+      ( ("function" <> mockNameLabel name <> " was not applied to the expected arguments in the expected order.") : (verifyOrderFailedMesssage <$> fails)
       )
 
 verifyOrderFailedMesssage :: Show a => VerifyOrderResult a -> String
@@ -694,6 +729,7 @@ collectUnExpectedOrder appliedValues expectedValues =
 mapWithIndex :: (Int -> a -> b) -> [a] -> [b]
 mapWithIndex f xs = [f i x | (i, x) <- zip [0 ..] xs]
 
+-- | Verify that the function has been applied to the expected arguments at least the expected number of times.
 shouldApplyTimesGreaterThanEqual ::
   VerifyCount CountVerifyMethod params a =>
   Eq params =>
@@ -703,6 +739,7 @@ shouldApplyTimesGreaterThanEqual ::
   IO ()
 shouldApplyTimesGreaterThanEqual m i = shouldApplyTimes m (GreaterThanEqual i)
 
+-- | Verify that the function is applied to the expected arguments less than or equal to the expected number of times.
 shouldApplyTimesLessThanEqual ::
   VerifyCount CountVerifyMethod params a =>
   Eq params =>
@@ -712,6 +749,7 @@ shouldApplyTimesLessThanEqual ::
   IO ()
 shouldApplyTimesLessThanEqual m i = shouldApplyTimes m (LessThanEqual i)
 
+-- | Verify that the function has been applied to the expected arguments a greater number of times than expected.
 shouldApplyTimesGreaterThan ::
   VerifyCount CountVerifyMethod params a =>
   Eq params =>
@@ -721,6 +759,7 @@ shouldApplyTimesGreaterThan ::
   IO ()
 shouldApplyTimesGreaterThan m i = shouldApplyTimes m (GreaterThan i)
 
+-- | Verify that the function has been applied to the expected arguments less than the expected number of times.
 shouldApplyTimesLessThan ::
   VerifyCount CountVerifyMethod params a =>
   Eq params =>
@@ -729,8 +768,6 @@ shouldApplyTimesLessThan ::
   a ->
   IO ()
 shouldApplyTimesLessThan m i = shouldApplyTimes m (LessThan i)
-
-
 
 type AppliedParamsList params = [params]
 type AppliedParamsCounter params = AssociationList params Int
@@ -780,3 +817,23 @@ safeIndex :: [a] -> Int -> Maybe a
 safeIndex xs n
   | n < 0 = Nothing
   | otherwise = listToMaybe (drop n xs)
+
+-- | Verify that it was apply to anything.
+shouldApplyToAnything :: HasCallStack => Mock fun params -> IO ()
+shouldApplyToAnything (Mock name _ (Verifier ref)) = do
+  appliedParamsList <- readAppliedParamsList ref
+  when (null appliedParamsList) $ error $ "It has never been applied function" <> mockNameLabel name
+
+-- | Verify that it was apply to anything (times).
+shouldApplyTimesToAnything :: Mock fun params -> Int -> IO ()
+shouldApplyTimesToAnything (Mock name _ (Verifier ref)) count = do
+  appliedParamsList <- readAppliedParamsList ref
+  let appliedCount = length appliedParamsList
+  when (count /= appliedCount) $ 
+        errorWithoutStackTrace $
+        intercalate
+          "\n"
+          [ "function" <> mockNameLabel name <> " was not applied the expected number of times.",
+            "  expected: " <> show count,
+            "   but got: " <> show appliedCount
+          ]
