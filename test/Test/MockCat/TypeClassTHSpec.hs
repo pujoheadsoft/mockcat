@@ -13,10 +13,10 @@
 
 module Test.MockCat.TypeClassTHSpec (spec) where
 
-import Prelude hiding (readFile, writeFile)
+import Prelude hiding (readFile, writeFile, any)
 import Data.Text (Text, pack, isInfixOf)
 import Test.Hspec
-import Test.MockCat as M
+import Test.MockCat (makeMock, makeMockWithOptions, createStubFn, options, MockOptions(..), runMockT, (|>), any, applyTimesIs, neverApply)
 import Control.Monad.State
 import Control.Monad.Reader (MonadReader, ask)
 import Control.Monad (unless)
@@ -132,7 +132,7 @@ spec = do
   it "Read, and output files (contain ng word)" do
     result <- runMockT do
       _readFile ("input.txt" |> pack "contains ngWord")
-      _writeFile ("output.txt" |> M.any |> ()) `applyTimesIs` 0
+      _writeFile ("output.txt" |> any |> ()) `applyTimesIs` 0
       operationProgram "input.txt" "output.txt"
 
     result `shouldBe` ()
@@ -140,7 +140,7 @@ spec = do
   it "Read, and output files (contain ng word)2" do
     result <- runMockT do
       _readFile ("input.txt" |> pack "contains ngWord")
-      neverApply $ _writeFile ("output.txt" |> M.any |> ())
+      neverApply $ _writeFile ("output.txt" |> any |> ())
       operationProgram "input.txt" "output.txt"
 
     result `shouldBe` ()

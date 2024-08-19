@@ -31,9 +31,10 @@ import Language.Haskell.TH
       Extension(..) )
 import Language.Haskell.TH.PprLib (Doc, hcat, parens, text)
 import Language.Haskell.TH.Syntax (nameBase)
-import Test.MockCat.Param (Param(..))
-import Test.MockCat.Cons ((:>))
+import Test.MockCat.Param
+import Test.MockCat.Cons
 import Test.MockCat.MockT
+import Test.MockCat.Mock
 import Data.Data (Proxy(..))
 import Data.List (find, nub, elemIndex)
 import GHC.TypeLits (KnownSymbol, symbolVal)
@@ -43,9 +44,9 @@ import Data.Maybe (fromMaybe, isJust)
 import GHC.IO (unsafePerformIO)
 import Language.Haskell.TH.Lib
 import Data.Text (splitOn, unpack, pack)
-import Test.MockCat.Mock (MockBuilder)
 import Control.Monad (guard, unless)
 import Data.Function ((&))
+import Prelude as P
 
 showExp :: Q Exp -> Q String
 showExp qexp = show . pprintExp <$> qexp
@@ -204,7 +205,7 @@ makeMockDecs ty className monadVarName cxt typeVars decs options = do
   newCxt <- createCxt monadVarName cxt
   m <- appT (conT ''Monad) (varT monadVarName)
 
-  let hasMonad = any (\(ClassName2VarNames c _) -> c == ''Monad) $ toClassInfos newCxt
+  let hasMonad = P.any (\(ClassName2VarNames c _) -> c == ''Monad) $ toClassInfos newCxt
 
   instanceDec <- instanceD
     (pure $ newCxt ++ ([m | not hasMonad]))
@@ -411,7 +412,7 @@ updateType (AppT (VarT v1) (VarT v2)) varAppliedTypes = do
 updateType ty _ = ty
 
 hasClass :: Name -> [VarAppliedType] -> Bool
-hasClass varName = any (\(VarAppliedType v c) -> (v == varName) && isJust c)
+hasClass varName = P.any (\(VarAppliedType v c) -> (v == varName) && isJust c)
 
 findClass :: Name -> [VarAppliedType] -> Maybe Name
 findClass varName types = do
