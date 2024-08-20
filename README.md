@@ -38,7 +38,7 @@ class Monad m => FileOperation m where
   readFile :: FilePath -> m Text
   writeFile :: FilePath -> Text -> m ()
 
-operationProgram :: FileOperation m => FileOperation m
+operationProgram ::
   FileOperation m =>
   FilePath ->
   FilePath ->
