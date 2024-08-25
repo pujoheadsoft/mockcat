@@ -28,6 +28,7 @@ dependencies:
 - text >= 2.0 && < 2.2
 - template-haskell >= 2.18 && < 2.23
 - mtl >= 2.3.1 && < 2.4
+- transformers
 
 ghc-options:
 - -Wall

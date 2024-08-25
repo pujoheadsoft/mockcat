@@ -6,6 +6,7 @@ import Test.MockCat.AssociationListSpec as AssociationList
 import Test.MockCat.ExampleSpec as Example
 import Test.MockCat.TypeClassSpec as TypeClass
 import Test.MockCat.TypeClassTHSpec as TypeClassTH
+import Test.MockCat.PartialMockSpec as PartialMock
 
 main :: IO ()
 main = do
@@ -17,3 +18,4 @@ main = do
     Example.spec
     TypeClass.spec
     TypeClassTH.spec
+    PartialMock.spec
