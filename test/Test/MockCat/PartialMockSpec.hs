@@ -20,7 +20,7 @@ import GHC.TypeLits (KnownSymbol, symbolVal)
 import Unsafe.Coerce (unsafeCoerce)
 import Data.Maybe (fromMaybe)
 import GHC.IO (unsafePerformIO)
-import Control.Monad.Reader (MonadReader, runReaderT, ask, local)
+import Control.Monad.Reader (ask)
 import Control.Monad.State
 import Control.Monad.Trans.Maybe (MaybeT (..))
 import Control.Monad.Trans.Reader hiding (ask)
@@ -29,12 +29,12 @@ class Monad m => FileOperation m where
   readFile :: FilePath -> m Text
   writeFile :: FilePath -> Text -> m ()
 
-program2 ::
+program ::
   FileOperation m =>
   FilePath ->
   FilePath ->
   m ()
-program2 inputPath outputPath = do
+program inputPath outputPath = do
   content <- readFile inputPath
   writeFile outputPath content
 
@@ -55,6 +55,7 @@ instance Monad m => FileOperation (ReaderT String m) where
 instance (Monad m, FileOperation m) => FileOperation (MockT m) where
   readFile path = lift $ readFile path
 
+  --writeFile path content = lift $ writeFile path content
   writeFile path content = MockT do
     defs <- get
     let
@@ -82,25 +83,25 @@ findParam pa definitions = do
 
 spec :: Spec
 spec = do
-  it "2" do
+  it "MaybeT" do
     result <- runMaybeT do
       runMockT do
         _writeFile $ "output.text" |> pack "MaybeT content" |> ()
-        program2 "input.txt" "output.text"
+        program "input.txt" "output.text"
 
     result `shouldBe` Just ()
 
-  it "3" do
+  it "IO" do
     result <- runMockT do
       _writeFile $ "output.text" |> pack "IO content" |> ()
-      program2 "input.txt" "output.text"
+      program "input.txt" "output.text"
 
     result `shouldBe` ()
 
-  it "4" do
+  it "ReaderT" do
     result <- flip runReaderT "foo" do
       runMockT do
         _writeFile $ "output.text" |> pack "ReaderT content foo" |> ()
-        program2 "input.txt" "output.text"
+        program "input.txt" "output.text"
 
     result `shouldBe` ()
