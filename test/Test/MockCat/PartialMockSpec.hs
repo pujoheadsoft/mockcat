@@ -20,31 +20,27 @@ import Data.Data
 import Data.List (find)
 import GHC.TypeLits (KnownSymbol, symbolVal)
 import Unsafe.Coerce (unsafeCoerce)
-import Data.Maybe (fromMaybe)
 import GHC.IO (unsafePerformIO)
 import Control.Monad.State
 import Control.Monad.Trans.Maybe (MaybeT (..))
 import Control.Monad.Trans.Reader hiding (ask)
 
 instance (Monad m, FileOperation m) => FileOperation (MockT m) where
-  --readFile path = lift $ readFile path
   readFile path = MockT do
     defs <- get
-    let
-      mock = findParam (Proxy :: Proxy "readFile") defs
-    case mock of
-      Just m -> do
-        let !result = stubFn m path
+    case findParam (Proxy :: Proxy "readFile") defs of
+      Just mock -> do
+        let !result = stubFn mock path
         pure result
       Nothing -> lift $ readFile path
 
-  --writeFile path content = lift $ writeFile path content
   writeFile path content = MockT do
     defs <- get
-    let
-      mock = fromMaybe (error "no answer found stub function `writeFile`.") $ findParam (Proxy :: Proxy "writeFile") defs
-      !result = stubFn mock path content
-    pure result
+    case findParam (Proxy :: Proxy "writeFile") defs of
+      Just mock -> do
+        let !result = stubFn mock path content
+        pure result
+      Nothing -> lift $ writeFile path content
 
 _readFile :: (MockBuilder params (FilePath -> Text) (Param FilePath), Monad m) => params -> MockT m ()
 _readFile p = MockT $ do
