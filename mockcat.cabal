@@ -60,7 +60,9 @@ test-suite mockcat-test
   other-modules:
       Test.MockCat.AssociationListSpec
       Test.MockCat.ConsSpec
+      Test.MockCat.Definition
       Test.MockCat.ExampleSpec
+      Test.MockCat.Impl
       Test.MockCat.MockSpec
       Test.MockCat.ParamSpec
       Test.MockCat.PartialMockSpec

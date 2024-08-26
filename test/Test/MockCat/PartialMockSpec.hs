@@ -13,6 +13,8 @@ module Test.MockCat.PartialMockSpec where
 import Data.Text (Text, pack)
 import Test.Hspec (Spec, it, shouldBe)
 import Test.MockCat
+import Test.MockCat.Definition
+import Test.MockCat.Impl ()
 import Prelude hiding (readFile, writeFile)
 import Data.Data
 import Data.List (find)
@@ -20,40 +22,21 @@ import GHC.TypeLits (KnownSymbol, symbolVal)
 import Unsafe.Coerce (unsafeCoerce)
 import Data.Maybe (fromMaybe)
 import GHC.IO (unsafePerformIO)
-import Control.Monad.Reader (ask)
 import Control.Monad.State
 import Control.Monad.Trans.Maybe (MaybeT (..))
 import Control.Monad.Trans.Reader hiding (ask)
 
-class Monad m => FileOperation m where
-  readFile :: FilePath -> m Text
-  writeFile :: FilePath -> Text -> m ()
-
-program ::
-  FileOperation m =>
-  FilePath ->
-  FilePath ->
-  m ()
-program inputPath outputPath = do
-  content <- readFile inputPath
-  writeFile outputPath content
-
-instance FileOperation IO where
-  readFile _ = pure $ pack "IO content"
-  writeFile _ _ = pure ()
-
-instance Monad m => FileOperation (MaybeT m) where
-  readFile _ = pure $ pack "MaybeT content"
-  writeFile _ _ = undefined
-
-instance Monad m => FileOperation (ReaderT String m) where
-  readFile _ = do
-    e <- ask
-    pure $ pack "ReaderT content " <> pack e
-  writeFile _ _ = undefined
-
 instance (Monad m, FileOperation m) => FileOperation (MockT m) where
-  readFile path = lift $ readFile path
+  --readFile path = lift $ readFile path
+  readFile path = MockT do
+    defs <- get
+    let
+      mock = findParam (Proxy :: Proxy "readFile") defs
+    case mock of
+      Just m -> do
+        let !result = stubFn m path
+        pure result
+      Nothing -> lift $ readFile path
 
   --writeFile path content = lift $ writeFile path content
   writeFile path content = MockT do
