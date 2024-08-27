@@ -208,24 +208,16 @@ makeMockDecs ty mockType className monadVarName cxt typeVars decs options = do
       newTypeVars = drop (length classParamNames) typeVars
       varAppliedTypes = zipWith (\t i -> VarAppliedType t (safeIndex classParamNames i)) (getTypeVarNames typeVars) [0..]
 
-  newCxt <- createCxt monadVarName cxt
-  m <- appT (conT ''Monad) (varT monadVarName)
-  x <- appT (conT className) (varT monadVarName)
-
-  let hasMonad = P.any (\(ClassName2VarNames c _) -> c == ''Monad) $ toClassInfos newCxt
-
-  let newCxt_ = case mockType of
-        Total -> newCxt ++ ([m | not hasMonad])
-        Partial -> newCxt ++ ([m | not hasMonad]) ++ [x]
-
   instanceDec <- instanceD
-    (pure newCxt_)
+    (createCxt cxt mockType className monadVarName)
     (createInstanceType ty monadVarName newTypeVars)
     (map (createInstanceFnDec mockType options) decs)
 
   mockFnDecs <- concat <$> mapM (createMockFnDec monadVarName varAppliedTypes options) decs
 
   pure $ instanceDec : mockFnDecs
+
+
 
 getMonadVarNames :: Cxt -> [TyVarBndr a] -> Q [Name]
 getMonadVarNames cxt typeVars = do
@@ -307,8 +299,18 @@ filterMonadicVarInfos = filter hasMonadInVarInfo
 hasMonadInVarInfo :: VarName2ClassNames -> Bool
 hasMonadInVarInfo (VarName2ClassNames _ classNames) = ''Monad `elem` classNames
 
-createCxt :: Name -> Cxt -> Q Cxt
-createCxt monadVarName = mapM (createPred monadVarName)
+createCxt :: [Pred] -> MockType -> Name -> Name -> Q [Pred]
+createCxt cxt mockType className monadVarName = do
+  newCxt <- mapM (createPred monadVarName) cxt
+
+  m <- appT (conT ''Monad) (varT monadVarName)
+  x <- appT (conT className) (varT monadVarName)
+
+  let hasMonad = P.any (\(ClassName2VarNames c _) -> c == ''Monad) $ toClassInfos newCxt
+
+  pure $ case mockType of
+    Total -> newCxt ++ ([m | not hasMonad])
+    Partial -> newCxt ++ ([m | not hasMonad]) ++ [x]
 
 createPred :: Name -> Pred -> Q Pred
 createPred monadVarName a@(AppT t@(ConT ty) b@(VarT varName))
