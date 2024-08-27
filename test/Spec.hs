@@ -7,6 +7,7 @@ import Test.MockCat.ExampleSpec as Example
 import Test.MockCat.TypeClassSpec as TypeClass
 import Test.MockCat.TypeClassTHSpec as TypeClassTH
 import Test.MockCat.PartialMockSpec as PartialMock
+import Test.MockCat.PartialMockTHSpec as PartialMockTH
 
 main :: IO ()
 main = do
@@ -19,3 +20,4 @@ main = do
     TypeClass.spec
     TypeClassTH.spec
     PartialMock.spec
+    PartialMockTH.spec

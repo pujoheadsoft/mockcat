@@ -11,7 +11,7 @@
 module Test.MockCat.PartialMockSpec where
 
 import Data.Text (Text, pack)
-import Test.Hspec (Spec, it, shouldBe)
+import Test.Hspec (Spec, it, shouldBe, describe)
 import Test.MockCat
 import Test.MockCat.Definition
 import Test.MockCat.Impl ()
@@ -62,25 +62,26 @@ findParam pa definitions = do
 
 spec :: Spec
 spec = do
-  it "MaybeT" do
-    result <- runMaybeT do
-      runMockT do
-        _writeFile $ "output.text" |> pack "MaybeT content" |> ()
+  describe "Partial Mock Test" do
+    it "MaybeT" do
+      result <- runMaybeT do
+        runMockT do
+          _writeFile $ "output.text" |> pack "MaybeT content" |> ()
+          program "input.txt" "output.text"
+
+      result `shouldBe` Just ()
+
+    it "IO" do
+      result <- runMockT do
+        _writeFile $ "output.text" |> pack "IO content" |> ()
         program "input.txt" "output.text"
 
-    result `shouldBe` Just ()
+      result `shouldBe` ()
 
-  it "IO" do
-    result <- runMockT do
-      _writeFile $ "output.text" |> pack "IO content" |> ()
-      program "input.txt" "output.text"
+    it "ReaderT" do
+      result <- flip runReaderT "foo" do
+        runMockT do
+          _writeFile $ "output.text" |> pack "ReaderT content foo" |> ()
+          program "input.txt" "output.text"
 
-    result `shouldBe` ()
-
-  it "ReaderT" do
-    result <- flip runReaderT "foo" do
-      runMockT do
-        _writeFile $ "output.text" |> pack "ReaderT content foo" |> ()
-        program "input.txt" "output.text"
-
-    result `shouldBe` ()
+      result `shouldBe` ()

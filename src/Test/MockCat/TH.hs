@@ -9,7 +9,7 @@
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 {-# OPTIONS_GHC -Wno-unused-local-binds #-}
 
-module Test.MockCat.TH (showExp, expectByExpr, makeMock, makeMockWithOptions, MockOptions(..), options) where
+module Test.MockCat.TH (showExp, expectByExpr, makeMock, makeMockWithOptions, MockOptions(..), options, makePartialMock) where
 
 import Language.Haskell.TH
     ( Exp(..),
@@ -40,6 +40,7 @@ import Data.List (find, nub, elemIndex)
 import GHC.TypeLits (KnownSymbol, symbolVal)
 import Unsafe.Coerce (unsafeCoerce)
 import Control.Monad.State (modify, get)
+import Control.Monad.Trans.Class (lift)
 import Data.Maybe (fromMaybe, isJust)
 import GHC.IO (unsafePerformIO)
 import Language.Haskell.TH.Lib
@@ -99,6 +100,8 @@ expectByExpr qf = do
   str <- showExp qf
   [|ExpectCondition $qf str|]
 
+data MockType = Total | Partial deriving (Eq)
+
 {- | Options for generating mocks. 
 
   - prefix: Stub function prefix
@@ -139,7 +142,7 @@ The name of stub function is the name of the original function with a “_” ap
 
 -}
 makeMockWithOptions :: Q Type -> MockOptions -> Q [Dec]
-makeMockWithOptions = doMakeMock
+makeMockWithOptions = flip doMakeMock Total
 
 {- | Create a mock of a typeclasses that returns a monad. 
 
@@ -170,10 +173,13 @@ The name of stub function is the name of the original function with a “_” ap
 
 -}
 makeMock :: Q Type -> Q [Dec]
-makeMock = flip doMakeMock options
+makeMock t = doMakeMock t Total options
 
-doMakeMock :: Q Type -> MockOptions -> Q [Dec]
-doMakeMock t options = do
+makePartialMock :: Q Type -> Q [Dec]
+makePartialMock t = doMakeMock t Partial options
+
+doMakeMock :: Q Type -> MockType -> MockOptions -> Q [Dec]
+doMakeMock t mockType options = do
   verifyExtension DataKinds
   verifyExtension FlexibleInstances
   verifyExtension FlexibleContexts
@@ -191,26 +197,31 @@ doMakeMock t options = do
         [] -> fail "Monad parameter not found."
         (monadVarName : rest)
           | length rest > 1 -> fail "Monad parameter must be unique."
-          | otherwise -> makeMockDecs ty className monadVarName cxt typeVars decs options
+          | otherwise -> makeMockDecs ty mockType className monadVarName cxt typeVars decs options
 
     t -> error $ "unsupported type: " <> show t
 
 
-makeMockDecs :: Type -> Name -> Name -> Cxt -> [TyVarBndr a] -> [Dec] -> MockOptions -> Q [Dec]
-makeMockDecs ty className monadVarName cxt typeVars decs options = do
+makeMockDecs :: Type -> MockType -> Name -> Name -> Cxt -> [TyVarBndr a] -> [Dec] -> MockOptions -> Q [Dec]
+makeMockDecs ty mockType className monadVarName cxt typeVars decs options = do
   let classParamNames = filter (className /=) (getClassNames ty)
       newTypeVars = drop (length classParamNames) typeVars
       varAppliedTypes = zipWith (\t i -> VarAppliedType t (safeIndex classParamNames i)) (getTypeVarNames typeVars) [0..]
 
   newCxt <- createCxt monadVarName cxt
   m <- appT (conT ''Monad) (varT monadVarName)
+  x <- appT (conT className) (varT monadVarName)
 
   let hasMonad = P.any (\(ClassName2VarNames c _) -> c == ''Monad) $ toClassInfos newCxt
 
+  let newCxt_ = case mockType of
+        Total -> newCxt ++ ([m | not hasMonad])
+        Partial -> newCxt ++ ([m | not hasMonad]) ++ [x]
+
   instanceDec <- instanceD
-    (pure $ newCxt ++ ([m | not hasMonad]))
+    (pure newCxt_)
     (createInstanceType ty monadVarName newTypeVars)
-    (map (createInstanceFnDec options) decs)
+    (map (createInstanceFnDec mockType options) decs)
 
   mockFnDecs <- concat <$> mapM (createMockFnDec monadVarName varAppliedTypes options) decs
 
@@ -323,30 +334,48 @@ tyVarBndrToType monadName (KindedTV name _ _)
   | monadName == name = appT (conT ''MockT) (varT monadName)
   | otherwise = varT name
 
-createInstanceFnDec :: MockOptions -> Dec -> Q Dec
-createInstanceFnDec options (SigD fnName funType) = do
+createInstanceFnDec :: MockType -> MockOptions -> Dec -> Q Dec
+createInstanceFnDec mockType options (SigD fnName funType) = do
   names <- sequence $ typeToNames funType
   let r = mkName "result"
       params = varP <$> names
       args = varE <$> names
       fnNameStr = createFnName fnName options
-      genStubFn = case names of
-        [] -> $([|generateConstantStubFn|])
-        _  -> $([|generateStubFn args|])
 
-      fnBody = [| MockT $ do
-                    defs <- get
-                    let mock = defs
-                               & findParam (Proxy :: Proxy $(litT (strTyLit fnNameStr)))
-                               & fromMaybe (error $ "no answer found stub function `" ++ fnNameStr ++ "`.")
-                        $(bangP $ varP r) = $(genStubFn [| mock |])
-                    pure $(varE r) |]
+      fnBody = case mockType of
+        Total -> generateInstanceMockFnBody fnNameStr args r
+        Partial -> generateInstanceRealFnBody fnName fnNameStr args r
+
       fnClause = clause params (normalB fnBody) []
   funD fnName [fnClause]
-createInstanceFnDec _ dec = fail $ "unsuported dec: " <> pprint dec
+createInstanceFnDec _ _ dec = fail $ "unsuported dec: " <> pprint dec
+
+generateInstanceMockFnBody :: String -> [Q Exp] -> Name -> Q Exp
+generateInstanceMockFnBody fnNameStr args r =
+  [| MockT $ do
+      defs <- get
+      let mock = defs
+                  & findParam (Proxy :: Proxy $(litT (strTyLit fnNameStr)))
+                  & fromMaybe (error $ "no answer found stub function `" ++ fnNameStr ++ "`.")
+          $(bangP $ varP r) = $(generateStubFn args [| mock |])
+      pure $(varE r) |]
+
+generateInstanceRealFnBody :: Name -> String -> [Q Exp] -> Name -> Q Exp
+generateInstanceRealFnBody fnName fnNameStr args r =
+  [| MockT $ do
+      defs <- get
+      case findParam (Proxy :: Proxy $(litT (strTyLit fnNameStr))) defs of
+        Just mock -> do
+          let $(bangP $ varP r) = $(generateStubFn args [| mock |])
+          pure $(varE r)
+        Nothing -> lift $ $(foldl appE (varE fnName) args) |]
 
 generateStubFn :: [Q Exp] -> Q Exp -> Q Exp
-generateStubFn args mock = foldl appE [| stubFn $(mock) |] args
+generateStubFn [] = $([|generateConstantStubFn|])
+generateStubFn args = $([|generateNotConstantsStubFn args|])
+
+generateNotConstantsStubFn :: [Q Exp] -> Q Exp -> Q Exp
+generateNotConstantsStubFn args mock = foldl appE [| stubFn $(mock) |] args
 
 generateConstantStubFn :: Q Exp -> Q Exp
 generateConstantStubFn mock = [| stubFn $(mock) |]

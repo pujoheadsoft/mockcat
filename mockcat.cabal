@@ -66,6 +66,7 @@ test-suite mockcat-test
       Test.MockCat.MockSpec
       Test.MockCat.ParamSpec
       Test.MockCat.PartialMockSpec
+      Test.MockCat.PartialMockTHSpec
       Test.MockCat.TypeClassSpec
       Test.MockCat.TypeClassTHSpec
       Paths_mockcat
