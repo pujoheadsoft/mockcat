@@ -36,7 +36,7 @@ import Test.MockCat.Cons
 import Test.MockCat.MockT
 import Test.MockCat.Mock
 import Data.Data (Proxy(..))
-import Data.List (find, nub, elemIndex, intercalate)
+import Data.List (find, nub, elemIndex)
 import GHC.TypeLits (KnownSymbol, symbolVal)
 import Unsafe.Coerce (unsafeCoerce)
 import Control.Monad.State (modify, get)
@@ -437,6 +437,7 @@ createMockBody funNameStr createMockFn =
 
 isConstant :: Type -> Bool
 isConstant (AppT (VarT _) (VarT _)) = True
+isConstant (AppT (VarT _) (AppT ListT (VarT _))) = True
 isConstant (VarT _) = True
 isConstant (ConT _) = True
 isConstant _ = False

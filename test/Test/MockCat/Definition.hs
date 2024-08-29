@@ -1,3 +1,4 @@
+{-# LANGUAGE FunctionalDependencies #-}
 module Test.MockCat.Definition where
 
 import Data.Text
@@ -15,3 +16,12 @@ program ::
 program inputPath outputPath = do
   content <- readFile inputPath
   writeFile outputPath content
+
+class Monad m => Finder a b m | a -> b, b -> a where
+  findIds :: m [a]
+  findById :: a -> m b
+
+findValue :: Finder a b m => m [b]
+findValue = do
+  ids <- findIds
+  mapM findById ids

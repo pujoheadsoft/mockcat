@@ -3,7 +3,6 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
@@ -12,7 +11,7 @@
 {-# LANGUAGE InstanceSigs #-}
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
-module Test.MockCat.PartialMockSpec where
+module Test.MockCat.PartialMockSpec (spec) where
 
 import Data.Text (Text, pack)
 import Test.Hspec (Spec, it, shouldBe, describe)
@@ -63,23 +62,6 @@ findParam :: KnownSymbol sym => Proxy sym -> [Definition] -> Maybe a
 findParam pa definitions = do
   let definition = find (\(Definition s _ _) -> symbolVal s == symbolVal pa) definitions
   fmap (\(Definition _ mock _) -> unsafeCoerce mock) definition
-
-class Monad m => Finder a b m | a -> b, b -> a where
-  findIds :: m [a]
-  findById :: a -> m b
-
-findValue :: Finder a b m => m [b]
-findValue = do
-  ids <- findIds
-  mapM findById ids
-
-instance Finder Int String IO where
-  findIds = pure [1, 2, 3]
-  findById id = pure $ "{id: " <> show id <> "}"
-
-instance Finder String Bool IO where
-  findIds = pure ["1", "2", "3"]
-  findById id = pure $ id == "2"
 
 instance (Monad m, Finder a b m) => Finder a b (MockT m) where
   findIds :: (Monad m, Finder a b m) => MockT m [a]
@@ -138,6 +120,6 @@ spec = do
 
       it "partial 1" do
         values <- runMockT  do
-          _findIds [1, 2]
+          _findIds [1 :: Int, 2]
           findValue
         values `shouldBe` ["{id: 1}", "{id: 2}"]

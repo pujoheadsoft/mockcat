@@ -1,5 +1,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# OPTIONS_GHC -Wno-name-shadowing #-}
 module Test.MockCat.Impl where
 
 import Test.MockCat.Definition
@@ -22,3 +24,6 @@ instance Monad m => FileOperation (ReaderT String m) where
     pure $ pack "ReaderT content " <> pack e
   writeFile _ _ = undefined
 
+instance Finder Int String IO where
+  findIds = pure [1, 2, 3]
+  findById id = pure $ "{id: " <> show id <> "}"
