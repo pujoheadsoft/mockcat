@@ -36,7 +36,7 @@ import Test.MockCat.Cons
 import Test.MockCat.MockT
 import Test.MockCat.Mock
 import Data.Data (Proxy(..))
-import Data.List (find, nub, elemIndex)
+import Data.List (find, nub, elemIndex, intercalate)
 import GHC.TypeLits (KnownSymbol, symbolVal)
 import Unsafe.Coerce (unsafeCoerce)
 import Control.Monad.State (modify, get)
@@ -209,15 +209,13 @@ makeMockDecs ty mockType className monadVarName cxt typeVars decs options = do
       varAppliedTypes = zipWith (\t i -> VarAppliedType t (safeIndex classParamNames i)) (getTypeVarNames typeVars) [0..]
 
   instanceDec <- instanceD
-    (createCxt cxt mockType className monadVarName)
+    (createCxt cxt mockType className monadVarName newTypeVars varAppliedTypes)
     (createInstanceType ty monadVarName newTypeVars)
     (map (createInstanceFnDec mockType options) decs)
 
   mockFnDecs <- concat <$> mapM (createMockFnDec monadVarName varAppliedTypes options) decs
 
   pure $ instanceDec : mockFnDecs
-
-
 
 getMonadVarNames :: Cxt -> [TyVarBndr a] -> Q [Name]
 getMonadVarNames cxt typeVars = do
@@ -299,18 +297,27 @@ filterMonadicVarInfos = filter hasMonadInVarInfo
 hasMonadInVarInfo :: VarName2ClassNames -> Bool
 hasMonadInVarInfo (VarName2ClassNames _ classNames) = ''Monad `elem` classNames
 
-createCxt :: [Pred] -> MockType -> Name -> Name -> Q [Pred]
-createCxt cxt mockType className monadVarName = do
+createCxt :: [Pred] -> MockType -> Name -> Name -> [TyVarBndr a] -> [VarAppliedType] -> Q [Pred]
+createCxt cxt mockType className monadVarName tyVars varAppliedTypes = do
   newCxt <- mapM (createPred monadVarName) cxt
 
-  m <- appT (conT ''Monad) (varT monadVarName)
-  x <- appT (conT className) (varT monadVarName)
+  monadAppT <- appT (conT ''Monad) (varT monadVarName)
 
   let hasMonad = P.any (\(ClassName2VarNames c _) -> c == ''Monad) $ toClassInfos newCxt
 
   pure $ case mockType of
-    Total -> newCxt ++ ([m | not hasMonad])
-    Partial -> newCxt ++ ([m | not hasMonad]) ++ [x]
+    Total -> newCxt ++ ([monadAppT | not hasMonad])
+    Partial -> do
+      let
+        classAppT = constructClassAppT className $ toVarTs tyVars
+        varAppliedClassAppT = updateType classAppT varAppliedTypes
+      newCxt ++ ([monadAppT | not hasMonad]) ++ [varAppliedClassAppT]
+
+toVarTs :: [TyVarBndr a] -> [Type]
+toVarTs tyVars = VarT <$> getTypeVarNames tyVars
+
+constructClassAppT :: Name -> [Type] -> Type
+constructClassAppT className = foldl AppT (ConT className)
 
 createPred :: Name -> Pred -> Q Pred
 createPred monadVarName a@(AppT t@(ConT ty) b@(VarT varName))
