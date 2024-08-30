@@ -22,6 +22,7 @@ module Test.MockCat.Mock
     createMock,
     createNamedMock,
     createConstantMock,
+    createConstantMultiMock,
     createNamedConstantMock,
     createStubFn,
     createNamedStubFn,
@@ -104,6 +105,9 @@ From this mock, you can generate constant functions and verify the functions.
 -}
 createConstantMock :: MonadIO m => a -> m (Mock a ())
 createConstantMock a = liftIO $ build Nothing $ param a
+
+createConstantMultiMock :: MonadIO m => [a] -> m (Mock a ())
+createConstantMultiMock l = liftIO $ build Nothing $ param <$> l
 
 {- | Create a named mock. If the test fails, this name is used. This may be useful if you have multiple mocks.
 
@@ -363,6 +367,28 @@ instance
   build name params = do
     s <- liftIO $ newIORef appliedRecord
     makeMock name s (\a2 b2 -> unsafePerformIO $ findReturnValueWithStore name params (p a2 :> p b2) s)
+
+{-
+instance
+  MockBuilder (Param r) r ()
+  where
+  build name params = do
+    s <- liftIO $ newIORef appliedRecord
+    let v = value params
+    makeMock name s $ unsafePerformIO (do
+      liftIO $ appendAppliedParams s ()
+      pure v)
+-}
+instance MockBuilder [Param r] r () where
+  build name params = do
+    s <- liftIO $ newIORef appliedRecord
+    makeMock name s $ unsafePerformIO (do
+      count <- readAppliedCount s ()
+      let index = min count (length params - 1)
+      liftIO $ appendAppliedParams s ()
+      let r = value <$> safeIndex params index
+      maybe (fail "xxx") pure r
+      )
 
 instance
   (Show a, Eq a) =>

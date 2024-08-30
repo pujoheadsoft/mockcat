@@ -72,3 +72,20 @@ spec = do
             ]
           findValue
         values `shouldBe` ["id1", "id2", "id3"]
+
+    it "constatnt call" do
+      m <- createConstantMock "a"
+      let fn = stubFn m
+      print fn
+      print fn
+      print fn
+      --m `shouldApplyTimesToAnything` 3
+      "" `shouldBe` ""
+
+    it "constatnt multi call" do
+      m <- createConstantMultiMock ["a", "b", "c"]
+      let fn = stubFn m
+      print fn
+      print fn
+      print fn
+      "" `shouldBe` ""

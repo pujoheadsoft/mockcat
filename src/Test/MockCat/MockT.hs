@@ -6,6 +6,7 @@
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 module Test.MockCat.MockT (MockT(..), Definition(..), runMockT, applyTimesIs, neverApply) where
 import Control.Monad.State
+    ( StateT(..), MonadIO(..), MonadTrans(..), modify, execStateT )
 import GHC.TypeLits (KnownSymbol)
 import Data.Data (Proxy)
 import Test.MockCat.Mock (Mock, shouldApplyTimesToAnything)
