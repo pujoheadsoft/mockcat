@@ -51,7 +51,7 @@ library
     , mtl >=2.3.1 && <2.4
     , template-haskell >=2.18 && <2.23
     , text >=2.0 && <2.2
-    , transformers
+    , transformers >=0.5.6 && <0.7
   default-language: Haskell2010
 
 test-suite mockcat-test
@@ -80,5 +80,5 @@ test-suite mockcat-test
     , mtl >=2.3.1 && <2.4
     , template-haskell >=2.18 && <2.23
     , text >=2.0 && <2.2
-    , transformers
+    , transformers >=0.5.6 && <0.7
   default-language: Haskell2010

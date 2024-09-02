@@ -2,7 +2,7 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
-module Test.MockCat.Impl where
+module Test.MockCat.Impl (FileOperation, Finder) where
 
 import Test.MockCat.Definition
 import Data.Text

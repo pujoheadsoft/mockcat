@@ -1,5 +1,5 @@
 {-# LANGUAGE FunctionalDependencies #-}
-module Test.MockCat.Definition where
+module Test.MockCat.Definition (FileOperation(..), Finder(..), program, findValue) where
 
 import Data.Text
 import Prelude hiding (readFile, writeFile)
