@@ -498,6 +498,7 @@ createMockBody funNameStr createMockFn =
 
 isConstant :: Type -> Bool
 isConstant (AppT (VarT _) (VarT _)) = True
+isConstant (AppT (VarT _) (ConT _)) = True
 isConstant (AppT (VarT _) (AppT ListT (VarT _))) = True
 isConstant (VarT _) = True
 isConstant (ConT _) = True

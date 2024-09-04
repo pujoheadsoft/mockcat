@@ -23,11 +23,36 @@ import Prelude hiding (readFile, writeFile)
 import Control.Monad.Trans.Maybe (MaybeT (..))
 import Control.Monad.Reader (ReaderT(..))
 
+
+
+data UserInput = UserInput String deriving (Show, Eq)
+
+class Monad m => UserInputGetter m where
+  getInput :: m String
+  toUserInput :: String -> m (Maybe UserInput)
+
+instance UserInputGetter IO where
+  getInput = getLine
+  toUserInput "" = pure Nothing
+  toUserInput a = (pure . Just . UserInput) a
+
+getUserInput :: UserInputGetter m => m (Maybe UserInput)
+getUserInput = do
+  input <- getInput
+  toUserInput input
+
+makePartialMock [t|UserInputGetter|]
 makePartialMock [t|Finder|]
 makePartialMock [t|FileOperation|]
 
 spec :: Spec
 spec = do
+  it "" do
+    a <- runMockT do
+      _getInput "value"
+      getUserInput
+    a `shouldBe` Just (UserInput "value")
+
   describe "Partial Mock Test (TH)" do
     it "MaybeT" do
       result <- runMaybeT do

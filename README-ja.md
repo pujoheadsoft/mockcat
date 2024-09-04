@@ -175,7 +175,7 @@ It has never been applied function `_ask`
 ```
 
 ## 部分的なモック
-`makePartialMock`関数を使うと、型クラスに定義された関数の一部だけをモックにすることが可能です。
+`makePartialMock`関数を使うと、型クラスに定義された関数の一部だけをモックにできます。
 
 例えば次のような型クラスと関数があったとします。`findValue`がテスト対象の関数です。
 ```haskell
