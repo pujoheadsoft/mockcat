@@ -23,8 +23,6 @@ import Prelude hiding (readFile, writeFile)
 import Control.Monad.Trans.Maybe (MaybeT (..))
 import Control.Monad.Reader (ReaderT(..))
 
-
-
 data UserInput = UserInput String deriving (Show, Eq)
 
 class Monad m => UserInputGetter m where
@@ -38,8 +36,8 @@ instance UserInputGetter IO where
 
 getUserInput :: UserInputGetter m => m (Maybe UserInput)
 getUserInput = do
-  input <- getInput
-  toUserInput input
+  i <- getInput
+  toUserInput i
 
 makePartialMock [t|UserInputGetter|]
 makePartialMock [t|Finder|]
@@ -49,7 +47,7 @@ spec :: Spec
 spec = do
   it "" do
     a <- runMockT do
-      _getInput "value"
+      _getInput (Just (Just "value"))
       getUserInput
     a `shouldBe` Just (UserInput "value")
 

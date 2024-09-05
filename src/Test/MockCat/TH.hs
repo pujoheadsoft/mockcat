@@ -446,13 +446,14 @@ createMockFnDec monadVarName varAppliedTypes options (SigD funName ty) = do
       mockFunName = mkName funNameStr
       params = mkName "p"
 
-  if isConstant ty
-    then
-      doCreateConstantMockFnDec funNameStr mockFunName params monadVarName
-    else do
+  if isFunctionType ty
+    then do
       let updatedType = updateType ty varAppliedTypes
           funType = createMockBuilderFnType monadVarName updatedType
       doCreateMockFnDec funNameStr mockFunName params funType monadVarName updatedType
+    else
+      doCreateConstantMockFnDec funNameStr mockFunName params monadVarName
+
 createMockFnDec _ _ _ dec = fail $ "unsupport dec: " <> pprint dec
 
 doCreateMockFnDec :: (Quote m) => String -> Name -> Name -> Type -> Name -> Type -> m [Dec]
@@ -496,13 +497,11 @@ createMockBody funNameStr createMockFn =
         )
     |]
 
-isConstant :: Type -> Bool
-isConstant (AppT (VarT _) (VarT _)) = True
-isConstant (AppT (VarT _) (ConT _)) = True
-isConstant (AppT (VarT _) (AppT ListT (VarT _))) = True
-isConstant (VarT _) = True
-isConstant (ConT _) = True
-isConstant _ = False
+isFunctionType :: Type -> Bool
+isFunctionType (AppT (AppT ArrowT _) _) = True
+isFunctionType (AppT t1 t2) = isFunctionType t1 || isFunctionType t2
+isFunctionType (TupleT _) = False
+isFunctionType _ = False
 
 updateType :: Type -> [VarAppliedType] -> Type
 updateType (AppT (VarT v1) (VarT v2)) varAppliedTypes = do
