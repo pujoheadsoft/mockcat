@@ -445,14 +445,13 @@ createMockFnDec monadVarName varAppliedTypes options (SigD funName ty) = do
   let funNameStr = createFnName funName options
       mockFunName = mkName funNameStr
       params = mkName "p"
+      updatedType = updateType ty varAppliedTypes
+      funType = createMockBuilderFnType monadVarName updatedType
 
-  if isFunctionType ty
-    then do
-      let updatedType = updateType ty varAppliedTypes
-          funType = createMockBuilderFnType monadVarName updatedType
-      doCreateMockFnDec funNameStr mockFunName params funType monadVarName updatedType
-    else
-      doCreateConstantMockFnDec funNameStr mockFunName params monadVarName
+  if isFunctionType ty then
+    doCreateMockFnDec funNameStr mockFunName params funType monadVarName updatedType
+  else
+    doCreateConstantMockFnDec funNameStr mockFunName funType monadVarName
 
 createMockFnDec _ _ _ dec = fail $ "unsupport dec: " <> pprint dec
 
@@ -475,9 +474,9 @@ doCreateMockFnDec funNameStr mockFunName params funType monadVarName updatedType
 
   pure $ newFunSig : [newFun]
 
-doCreateConstantMockFnDec :: (Quote m) => String -> Name -> Name -> Name -> m [Dec]
-doCreateConstantMockFnDec funNameStr mockFunName params monadVarName = do
-  newFunSig <- sigD mockFunName [t|(Monad $(varT monadVarName)) => $(varT params) -> MockT $(varT monadVarName) ()|]
+doCreateConstantMockFnDec :: (Quote m) => String -> Name -> Type -> Name -> m [Dec]
+doCreateConstantMockFnDec funNameStr mockFunName ty monadVarName = do
+  newFunSig <- sigD mockFunName [t|(Monad $(varT monadVarName)) => $(pure ty) -> MockT $(varT monadVarName) ()|]
   createMockFn <- [|createNamedConstantMock|]
   mockBody <- createMockBody funNameStr createMockFn
   newFun <- funD mockFunName [clause [varP $ mkName "p"] (normalB (pure mockBody)) []]
@@ -501,6 +500,7 @@ isFunctionType :: Type -> Bool
 isFunctionType (AppT (AppT ArrowT _) _) = True
 isFunctionType (AppT t1 t2) = isFunctionType t1 || isFunctionType t2
 isFunctionType (TupleT _) = False
+isFunctionType (ForallT _ _ t) = isFunctionType t
 isFunctionType _ = False
 
 updateType :: Type -> [VarAppliedType] -> Type

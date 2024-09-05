@@ -47,7 +47,7 @@ spec :: Spec
 spec = do
   it "" do
     a <- runMockT do
-      _getInput (Just (Just "value"))
+      _getInput "value"
       getUserInput
     a `shouldBe` Just (UserInput "value")
 
