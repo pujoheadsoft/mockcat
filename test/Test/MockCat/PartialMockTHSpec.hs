@@ -29,15 +29,15 @@ class Monad m => UserInputGetter m where
   getInput :: m String
   toUserInput :: String -> m (Maybe UserInput)
 
-instance UserInputGetter IO where
-  getInput = getLine
-  toUserInput "" = pure Nothing
-  toUserInput a = (pure . Just . UserInput) a
-
 getUserInput :: UserInputGetter m => m (Maybe UserInput)
 getUserInput = do
   i <- getInput
   toUserInput i
+
+instance UserInputGetter IO where
+  getInput = getLine
+  toUserInput "" = pure Nothing
+  toUserInput a = (pure . Just . UserInput) a
 
 makePartialMock [t|UserInputGetter|]
 makePartialMock [t|Finder|]
@@ -45,11 +45,17 @@ makePartialMock [t|FileOperation|]
 
 spec :: Spec
 spec = do
-  it "" do
+  it "Get user input (has input)" do
     a <- runMockT do
       _getInput "value"
       getUserInput
     a `shouldBe` Just (UserInput "value")
+
+  it "Get user input (no input)" do
+    a <- runMockT do
+      _getInput ""
+      getUserInput
+    a `shouldBe` Nothing
 
   describe "Partial Mock Test (TH)" do
     it "MaybeT" do

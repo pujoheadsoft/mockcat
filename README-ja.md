@@ -177,49 +177,44 @@ It has never been applied function `_ask`
 ## 部分的なモック
 `makePartialMock`関数を使うと、型クラスに定義された関数の一部だけをモックにできます。
 
-例えば次のような型クラスと関数があったとします。`findValue`がテスト対象の関数です。
+例えば次のような型クラスと関数があったとします。  
+`getUserInput`がテスト対象の関数です。
 ```haskell
-class Monad m => Finder a b m | a -> b, b -> a where
-  findIds :: m [a]
-  findById :: a -> m b
+data UserInput = UserInput String deriving (Show, Eq)
 
-findValue :: Finder a b m => m [b]
-findValue = do
-  ids <- findIds
-  mapM findById ids
+class Monad m => UserInputGetter m where
+  getInput :: m String
+  toUserInput :: String -> m (Maybe UserInput)
+
+getUserInput :: UserInputGetter m => m (Maybe UserInput)
+getUserInput = do
+  i <- getInput
+  toUserInput i
 ```
-今回の例では、一部本物の関数を使いたいので、次のように`IO`インスタンスを定義します。
+この例では、一部本物の関数を使いたいので、次のように`IO`インスタンスを定義します。
 ```haskell
-instance Finder Int String IO where
-  findIds = pure [1, 2, 3]
-  findById id = pure $ "{id: " <> show id <> "}"
+instance UserInputGetter IO where
+  getInput = getLine
+  toUserInput "" = pure Nothing
+  toUserInput a = (pure . Just . UserInput) a
 ```
 テストは次のようになります。
 ```haskell
-makePartialMock [t|Finder|]
+makePartialMock [t|UserInputGetter|]
 
 spec :: Spec
 spec = do
-  describe "Partial mock test" do
-    it "only real function" do
-      values <- runMockT findValue
-      values `shouldBe` ["{id: 1}", "{id: 2}", "{id: 3}"]
+  it "Get user input (has input)" do
+    a <- runMockT do
+      _getInput "value"
+      getUserInput
+    a `shouldBe` Just (UserInput "value")
 
-    it "partial mock (findIds)" do
-      values <- runMockT  do
-        _findIds [1 :: Int, 2]
-        findValue
-      values `shouldBe` ["{id: 1}", "{id: 2}"]
-
-    it "partial mock (findById)" do
-      values <- runMockT  do
-        _findById [
-          (1 :: Int) |> "id1",
-          (2 :: Int) |> "id2",
-          (3 :: Int) |> "id3"
-          ]
-        findValue
-      values `shouldBe` ["id1", "id2", "id3"]
+  it "Get user input (no input)" do
+    a <- runMockT do
+      _getInput ""
+      getUserInput
+    a `shouldBe` Nothing
 ```
 
 ## スタブ関数の名前を変える
