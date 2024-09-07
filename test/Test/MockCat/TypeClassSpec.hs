@@ -146,8 +146,55 @@ _echo p = MockT $ modify (++ [Definition
   (unsafePerformIO $ createNamedMock "_echo" p)
   shouldApplyToAnything])
 
+
+class Monad m => Teletype m where
+  readTTY :: m String
+  writeTTY :: String -> m ()
+
+echo2 :: Teletype m => m ()
+echo2 = do
+  i <- readTTY
+  case i of
+    "" -> pure ()
+    _  -> writeTTY i >> echo2
+
+instance (Monad m) => Teletype (MockT m) where
+  readTTY = MockT do
+    defs <- get
+    let
+      mock = fromMaybe (error "no answer found stub function `_readTTY`.") $ findParam (Proxy :: Proxy "_readTTY") defs
+      !result = stubFn mock
+    lift result
+
+  writeTTY a = MockT do
+    defs <- get
+    let
+      mock = fromMaybe (error "no answer found stub function `_writeTTY`.") $ findParam (Proxy :: Proxy "_writeTTY") defs
+      !result = stubFn mock a
+    lift result
+
+_readTTY :: (MockBuilder params (m String) (), Monad m) => params -> MockT m ()
+_readTTY p = MockT $ do
+  modify (++ [Definition
+    (Proxy :: Proxy "_readTTY")
+    (unsafePerformIO $ createNamedMock "_readTTY" p)
+    shouldApplyToAnything])
+
+_writeTTY :: (MockBuilder params (String -> m ()) (Param String), Monad m) => params -> MockT m ()
+_writeTTY p = MockT $ modify (++ [Definition
+  (Proxy :: Proxy "_writeTTY")
+  (unsafePerformIO $ createNamedMock "_writeTTY" p)
+  shouldApplyToAnything])
+
 spec :: Spec
 spec = do
+  it "echo" do
+    result <- runMockT do
+      _readTTY [pure @IO "a", pure @IO ""]
+      _writeTTY $ "a" |> pure @IO ()
+      echo2
+    result `shouldBe` ()
+
   it "Read, edit, and output files" do
     modifyContentStub <- createStubFn $ pack "content" |> pack "modifiedContent"
 
