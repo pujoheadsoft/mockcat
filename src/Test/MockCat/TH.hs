@@ -116,13 +116,13 @@ data MockType = Total | Partial deriving (Eq)
 --
 --  - prefix: Stub function prefix
 --  - suffix: stub function suffix
-data MockOptions = MockOptions {prefix :: String, suffix :: String}
+data MockOptions = MockOptions {prefix :: String, suffix :: String, auto :: Bool}
 
 -- | Default Options.
 --
 --  Stub function names are prefixed with “_”.
 options :: MockOptions
-options = MockOptions {prefix = "_", suffix = ""}
+options = MockOptions {prefix = "_", suffix = "", auto = True}
 
 -- | Create a mock of the typeclasses that returns a monad according to the `MockOptions`.
 --
@@ -398,7 +398,12 @@ createInstanceFnDec mockType options (SigD fnName funType) = do
       fnNameStr = createFnName fnName options
 
       fnBody = case mockType of
-        Total -> generateInstanceMockFnBody fnNameStr args r
+        Total -> if options.auto
+          then generateInstanceMockFnBody fnNameStr args r
+          else do
+            x <- generateInstanceMockFnBody2 fnNameStr args r
+            --fail $ pprint x
+            pure x
         Partial -> generateInstanceRealFnBody fnName fnNameStr args r
 
       fnClause = clause params (normalB fnBody) []
@@ -416,6 +421,19 @@ generateInstanceMockFnBody fnNameStr args r =
               & fromMaybe (error $ "no answer found stub function `" ++ fnNameStr ++ "`.")
           $(bangP $ varP r) = $(generateStubFn args [|mock|])
       pure $(varE r)
+    |]
+
+generateInstanceMockFnBody2 :: String -> [Q Exp] -> Name -> Q Exp
+generateInstanceMockFnBody2 fnNameStr args r =
+  [|
+    MockT $ do
+      defs <- get
+      let mock =
+            defs
+              & findParam (Proxy :: Proxy $(litT (strTyLit fnNameStr)))
+              & fromMaybe (error $ "no answer found stub function `" ++ fnNameStr ++ "`.")
+          $(bangP $ varP r) = $(generateStubFn args [|mock|])
+      $(varE r)
     |]
 
 generateInstanceRealFnBody :: Name -> String -> [Q Exp] -> Name -> Q Exp
@@ -446,7 +464,9 @@ createMockFnDec monadVarName varAppliedTypes options (SigD funName ty) = do
       mockFunName = mkName funNameStr
       params = mkName "p"
       updatedType = updateType ty varAppliedTypes
-      funType = createMockBuilderFnType monadVarName updatedType
+      funType = if options.auto 
+        then createMockBuilderFnType monadVarName updatedType
+        else updatedType
 
   if isFunctionType ty then
     doCreateMockFnDec funNameStr mockFunName params funType monadVarName updatedType

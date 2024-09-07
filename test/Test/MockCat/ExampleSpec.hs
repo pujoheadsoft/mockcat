@@ -13,6 +13,7 @@ import Test.MockCat
 import Prelude hiding (writeFile, readFile, and, any, not, or)
 import GHC.IO (evaluate)
 import Data.Text hiding (any)
+import Control.Monad.IO.Class (MonadIO (liftIO))
 
 class (Monad m) => FileOperation m where
   writeFile :: FilePath -> Text -> m ()
@@ -29,8 +30,27 @@ operationProgram inputPath outputPath = do
   content <- readFile inputPath
   writeFile outputPath content
 
+class Monad m => TestClass m where
+  echo :: String -> m ()
+  getBy :: String -> m Int
+
+echoProgram :: MonadIO m => TestClass m => String -> m ()
+echoProgram s = do
+  v <- getBy s
+  liftIO $ print v
+  echo $ show v
+
+makeMockWithOptions [t|TestClass|] options { auto = False }
+
 spec :: Spec
 spec = do
+  -- it "echo" do
+  --   example do
+  --     runMockT do
+  --       _getBy $ "s" |> pure @IO 10
+  --       _echo $ "b" |> pure @IO ()
+  --       echoProgram "s"
+
   it "" do
     result <- runMockT do
       _readFile $ "input.txt" |> pack "Content"
