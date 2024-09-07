@@ -10,6 +10,7 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-# OPTIONS_GHC -Wno-simplifiable-class-constraints #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
+{-# LANGUAGE TypeApplications #-}
 
 module Test.MockCat.TypeClassTHSpec (spec) where
 
@@ -119,6 +120,17 @@ threeParamMonadExec = do
   v3 <- fnParam3_3
   pure $ v1 <> v2 <> show v3
 
+class Monad m => ExplicitlyReturnMonadicValuesTest m where
+  echo :: String -> m ()
+  getBy :: String -> m Int
+  
+echoProgram :: ExplicitlyReturnMonadicValuesTest m => String -> m ()
+echoProgram s = do
+  v <- getBy s
+  echo $ show v
+
+makeMockWithOptions [t|ExplicitlyReturnMonadicValuesTest|] options { auto = False }
+
 spec :: Spec
 spec = do
   it "Read, and output files" do
@@ -178,3 +190,11 @@ spec = do
       _fnParam3_3 False
       threeParamMonadExec
     r `shouldBe` "Result1Result2False"
+
+  it "Return monadic value test" do
+    result <- runMockT do
+      _getBy $ "s" |> pure @IO (10 :: Int)
+      _echo $ "10" |> pure @IO ()
+      echoProgram "s"
+
+    result `shouldBe` ()

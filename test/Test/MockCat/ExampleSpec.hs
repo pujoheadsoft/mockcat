@@ -13,7 +13,6 @@ import Test.MockCat
 import Prelude hiding (writeFile, readFile, and, any, not, or)
 import GHC.IO (evaluate)
 import Data.Text hiding (any)
-import Control.Monad.IO.Class (MonadIO (liftIO))
 
 class (Monad m) => FileOperation m where
   writeFile :: FilePath -> Text -> m ()
@@ -30,33 +29,9 @@ operationProgram inputPath outputPath = do
   content <- readFile inputPath
   writeFile outputPath content
 
-class Monad m => TestClass m where
-  echo :: String -> m ()
-  getBy :: String -> m Int
-
-instance TestClass IO where
-  echo = undefined
-  getBy = undefined
-  
-echoProgram :: MonadIO m => TestClass m => String -> m ()
-echoProgram s = do
-  v <- getBy s
-  liftIO $ print v
-  echo $ show v
-
-makePartialMockWithOptions [t|TestClass|] options { auto = False }
-
 spec :: Spec
 spec = do
-  it "return monadic value test" do
-    result <- runMockT do
-      _getBy $ "s" |> pure @IO (10 :: Int)
-      _echo $ "10" |> pure @IO ()
-      echoProgram "s"
-
-    result `shouldBe` ()
-
-  it "" do
+  it "read & write" do
     result <- runMockT do
       _readFile $ "input.txt" |> pack "Content"
       _writeFile $ "output.text" |> pack "Content" |> ()
