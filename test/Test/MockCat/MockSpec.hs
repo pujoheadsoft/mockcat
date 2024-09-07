@@ -33,7 +33,8 @@ import Test.MockCat
     to,
     (|>), 
     createConstantMock,
-    createNamedConstantMock
+    createNamedConstantMock,
+    shouldApplyTimesToAnything
   )
 import Prelude hiding (any)
 
@@ -884,6 +885,24 @@ spec = do
     it "createNamedConstantMock (error message)" do
       m <- createNamedConstantMock "constant" "foo"
       shouldApplyToAnything m `shouldThrow` errorCall "It has never been applied function `constant`"
+
+    it "verify constant IO mock" do
+      m <- createMock $ pure @IO "foo"
+      stubFn m `shouldReturn` "foo"
+      stubFn m `shouldReturn` "foo"
+      stubFn m `shouldReturn` "foo"
+      m `shouldApplyTimesToAnything` 3
+
+    it "verify constant multi IO mock" do
+      m <- createMock [
+        pure @IO "foo",
+        pure @IO "bar",
+        pure @IO "baz"
+        ]
+      stubFn m `shouldReturn` "foo"
+      stubFn m `shouldReturn` "bar"
+      stubFn m `shouldReturn` "baz"
+      m `shouldApplyTimesToAnything` 3
 
 data Fixture mock r = Fixture
   { name :: String,

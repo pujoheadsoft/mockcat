@@ -280,6 +280,15 @@ instance
       pure v)
 
 instance
+  MockBuilder (IO r) (IO r) ()
+  where
+  build name a = do
+    s <- liftIO $ newIORef appliedRecord
+    makeMock name s (do
+      liftIO $ appendAppliedParams s ()
+      a)
+
+instance
   (Show a, Eq a, Show b, Eq b, Show c, Eq c, Show d, Eq d, Show e, Eq e, Show f, Eq f, Show g, Eq g, Show h, Eq h, Show i, Eq i) =>
   MockBuilder
     [Param a :> Param b :> Param c :> Param d :> Param e :> Param f :> Param g :> Param h :> Param i :> Param r]
@@ -372,6 +381,18 @@ instance
     s <- liftIO $ newIORef appliedRecord
     makeMock name s (\a2 -> unsafePerformIO $ findReturnValueWithStore name params (p a2) s)
 
+instance
+  MockBuilder [IO a] (IO a) ()
+  where
+  build name params = do
+    s <- liftIO $ newIORef appliedRecord
+    makeMock name s (do
+      count <- readAppliedCount s ()
+      let index = min count (length params - 1)
+          r = safeIndex params index
+      appendAppliedParams s ()
+      incrementAppliedParamCount s ()
+      fromJust r)
 -- ------
 
 p :: a -> Param a
