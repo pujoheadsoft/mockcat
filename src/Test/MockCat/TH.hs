@@ -398,20 +398,18 @@ createInstanceFnDec mockType options (SigD fnName funType) = do
       fnNameStr = createFnName fnName options
 
       fnBody = case mockType of
-        Total -> if options.auto
-          then generateInstanceMockFnBody fnNameStr args r
-          else do
-            x <- generateInstanceMockFnBody2 fnNameStr args r
-            --fail $ pprint x
-            pure x
-        Partial -> generateInstanceRealFnBody fnName fnNameStr args r
+        Total -> generateInstanceMockFnBody fnNameStr args r options
+        Partial -> generateInstanceRealFnBody fnName fnNameStr args r options
 
       fnClause = clause params (normalB fnBody) []
   funD fnName [fnClause]
 createInstanceFnDec _ _ dec = fail $ "unsuported dec: " <> pprint dec
 
-generateInstanceMockFnBody :: String -> [Q Exp] -> Name -> Q Exp
-generateInstanceMockFnBody fnNameStr args r =
+generateInstanceMockFnBody :: String -> [Q Exp] -> Name -> MockOptions -> Q Exp
+generateInstanceMockFnBody fnNameStr args r options = do
+  returnExp <- if options.auto
+    then [| pure $(varE r) |]
+    else [| lift $(varE r) |]
   [|
     MockT $ do
       defs <- get
@@ -420,31 +418,21 @@ generateInstanceMockFnBody fnNameStr args r =
               & findParam (Proxy :: Proxy $(litT (strTyLit fnNameStr)))
               & fromMaybe (error $ "no answer found stub function `" ++ fnNameStr ++ "`.")
           $(bangP $ varP r) = $(generateStubFn args [|mock|])
-      pure $(varE r)
+      $(pure returnExp)
     |]
 
-generateInstanceMockFnBody2 :: String -> [Q Exp] -> Name -> Q Exp
-generateInstanceMockFnBody2 fnNameStr args r =
-  [|
-    MockT $ do
-      defs <- get
-      let mock =
-            defs
-              & findParam (Proxy :: Proxy $(litT (strTyLit fnNameStr)))
-              & fromMaybe (error $ "no answer found stub function `" ++ fnNameStr ++ "`.")
-          $(bangP $ varP r) = $(generateStubFn args [|mock|])
-      $(varE r)
-    |]
-
-generateInstanceRealFnBody :: Name -> String -> [Q Exp] -> Name -> Q Exp
-generateInstanceRealFnBody fnName fnNameStr args r =
+generateInstanceRealFnBody :: Name -> String -> [Q Exp] -> Name -> MockOptions -> Q Exp
+generateInstanceRealFnBody fnName fnNameStr args r options = do
+  returnExp <- if options.auto
+    then [| pure $(varE r) |]
+    else [| lift $(varE r) |]
   [|
     MockT $ do
       defs <- get
       case findParam (Proxy :: Proxy $(litT (strTyLit fnNameStr))) defs of
         Just mock -> do
           let $(bangP $ varP r) = $(generateStubFn args [|mock|])
-          pure $(varE r)
+          $(pure returnExp)
         Nothing -> lift $ $(foldl appE (varE fnName) args)
     |]
 

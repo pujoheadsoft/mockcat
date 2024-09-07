@@ -34,22 +34,27 @@ class Monad m => TestClass m where
   echo :: String -> m ()
   getBy :: String -> m Int
 
+instance TestClass IO where
+  echo = undefined
+  getBy = undefined
+  
 echoProgram :: MonadIO m => TestClass m => String -> m ()
 echoProgram s = do
   v <- getBy s
   liftIO $ print v
   echo $ show v
 
-makeMockWithOptions [t|TestClass|] options { auto = False }
+makePartialMockWithOptions [t|TestClass|] options { auto = False }
 
 spec :: Spec
 spec = do
-  -- it "echo" do
-  --   example do
-  --     runMockT do
-  --       _getBy $ "s" |> pure @IO 10
-  --       _echo $ "b" |> pure @IO ()
-  --       echoProgram "s"
+  it "return monadic value test" do
+    result <- runMockT do
+      _getBy $ "s" |> pure @IO (10 :: Int)
+      _echo $ "10" |> pure @IO ()
+      echoProgram "s"
+
+    result `shouldBe` ()
 
   it "" do
     result <- runMockT do
