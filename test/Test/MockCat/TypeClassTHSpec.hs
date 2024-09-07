@@ -129,7 +129,7 @@ echoProgram s = do
   v <- getBy s
   echo $ show v
 
-makeMockWithOptions [t|ExplicitlyReturnMonadicValuesTest|] options { auto = False }
+makeMockWithOptions [t|ExplicitlyReturnMonadicValuesTest|] options { implicitMonadicReturn = False }
 
 spec :: Spec
 spec = do

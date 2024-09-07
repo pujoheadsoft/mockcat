@@ -116,13 +116,13 @@ data MockType = Total | Partial deriving (Eq)
 --
 --  - prefix: Stub function prefix
 --  - suffix: stub function suffix
-data MockOptions = MockOptions {prefix :: String, suffix :: String, auto :: Bool}
+data MockOptions = MockOptions {prefix :: String, suffix :: String, implicitMonadicReturn :: Bool}
 
 -- | Default Options.
 --
 --  Stub function names are prefixed with “_”.
 options :: MockOptions
-options = MockOptions {prefix = "_", suffix = "", auto = True}
+options = MockOptions {prefix = "_", suffix = "", implicitMonadicReturn = True}
 
 -- | Create a mock of the typeclasses that returns a monad according to the `MockOptions`.
 --
@@ -407,7 +407,7 @@ createInstanceFnDec _ _ dec = fail $ "unsuported dec: " <> pprint dec
 
 generateInstanceMockFnBody :: String -> [Q Exp] -> Name -> MockOptions -> Q Exp
 generateInstanceMockFnBody fnNameStr args r options = do
-  returnExp <- if options.auto
+  returnExp <- if options.implicitMonadicReturn
     then [| pure $(varE r) |]
     else [| lift $(varE r) |]
   [|
@@ -423,7 +423,7 @@ generateInstanceMockFnBody fnNameStr args r options = do
 
 generateInstanceRealFnBody :: Name -> String -> [Q Exp] -> Name -> MockOptions -> Q Exp
 generateInstanceRealFnBody fnName fnNameStr args r options = do
-  returnExp <- if options.auto
+  returnExp <- if options.implicitMonadicReturn
     then [| pure $(varE r) |]
     else [| lift $(varE r) |]
   [|
@@ -452,7 +452,7 @@ createMockFnDec monadVarName varAppliedTypes options (SigD funName ty) = do
       mockFunName = mkName funNameStr
       params = mkName "p"
       updatedType = updateType ty varAppliedTypes
-      funType = if options.auto 
+      funType = if options.implicitMonadicReturn 
         then createMockBuilderFnType monadVarName updatedType
         else updatedType
 

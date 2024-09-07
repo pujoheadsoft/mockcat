@@ -55,7 +55,7 @@ echoProgram s = do
 makePartialMock [t|UserInputGetter|]
 makePartialMock [t|Finder|]
 makePartialMock [t|FileOperation|]
-makePartialMockWithOptions [t|ExplicitlyReturnMonadicValuesPartialTest|] options { auto = False }
+makePartialMockWithOptions [t|ExplicitlyReturnMonadicValuesPartialTest|] options { implicitMonadicReturn = False }
 
 spec :: Spec
 spec = do
