@@ -1,51 +1,63 @@
-{-# LANGUAGE BlockArguments #-}
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 {-# OPTIONS_GHC -Wno-unused-local-binds #-}
 
-module Test.MockCat.TH (showExp, expectByExpr, makeMock, makeMockWithOptions, MockOptions(..), options) where
+module Test.MockCat.TH
+  ( showExp,
+    expectByExpr,
+    makeMock,
+    makeMockWithOptions,
+    MockOptions (..),
+    options,
+    makePartialMock,
+    makePartialMockWithOptions,
+  )
+where
 
+import Control.Monad (guard, unless)
+import Control.Monad.State (get, modify)
+import Control.Monad.Trans.Class (lift)
+import Data.Data (Proxy (..))
+import Data.Function ((&))
+import Data.List (elemIndex, find, nub)
+import Data.Maybe (fromMaybe, isJust)
+import Data.Text (pack, splitOn, unpack)
+import GHC.IO (unsafePerformIO)
+import GHC.TypeLits (KnownSymbol, symbolVal)
 import Language.Haskell.TH
-    ( Exp(..),
-      Lit(..),
-      Pat(..),
-      Q,
-      pprint,
-      Name,
-      Dec(..),
-      Info(..),
-      reify,
-      mkName,
-      Type(..),
-      Quote(newName),
-      Cxt,
-      TyVarBndr(..),
-      Pred,
-      isExtEnabled,
-      Extension(..) )
+  ( Cxt,
+    Dec (..),
+    Exp (..),
+    Extension (..),
+    Info (..),
+    Lit (..),
+    Name,
+    Pat (..),
+    Pred,
+    Q,
+    Quote (newName),
+    TyVarBndr (..),
+    Type (..),
+    isExtEnabled,
+    mkName,
+    pprint,
+    reify,
+  )
+import Language.Haskell.TH.Lib
 import Language.Haskell.TH.PprLib (Doc, hcat, parens, text)
 import Language.Haskell.TH.Syntax (nameBase)
-import Test.MockCat.Param
 import Test.MockCat.Cons
-import Test.MockCat.MockT
 import Test.MockCat.Mock
-import Data.Data (Proxy(..))
-import Data.List (find, nub, elemIndex)
-import GHC.TypeLits (KnownSymbol, symbolVal)
+import Test.MockCat.MockT
+import Test.MockCat.Param
 import Unsafe.Coerce (unsafeCoerce)
-import Control.Monad.State (modify, get)
-import Data.Maybe (fromMaybe, isJust)
-import GHC.IO (unsafePerformIO)
-import Language.Haskell.TH.Lib
-import Data.Text (splitOn, unpack, pack)
-import Control.Monad (guard, unless)
-import Data.Function ((&))
 import Prelude as P
 
 showExp :: Q Exp -> Q String
@@ -88,92 +100,137 @@ pprintLit (StringL s) = text (show s)
 pprintLit (CharL c) = text (show c)
 pprintLit l = text (pprint l)
 
-{- | Create a conditional parameter based on @Q Exp@. 
-
-  In applying a mock function, if the argument does not satisfy this condition, an error is raised.
-
-  The conditional expression is displayed in the error message.
--}
+-- | Create a conditional parameter based on @Q Exp@.
+--
+--  In applying a mock function, if the argument does not satisfy this condition, an error is raised.
+--
+--  The conditional expression is displayed in the error message.
 expectByExpr :: Q Exp -> Q Exp
 expectByExpr qf = do
   str <- showExp qf
   [|ExpectCondition $qf str|]
 
-{- | Options for generating mocks. 
+data MockType = Total | Partial deriving (Eq)
 
-  - prefix: Stub function prefix
-  - suffix: stub function suffix
--}
-data MockOptions = MockOptions { prefix :: String, suffix :: String }
+-- | Options for generating mocks.
+--
+--  - prefix: Stub function prefix
+--  - suffix: stub function suffix
+data MockOptions = MockOptions {prefix :: String, suffix :: String}
 
-{- | Default Options.
-
-  Stub function names are prefixed with “_”.
--}
+-- | Default Options.
+--
+--  Stub function names are prefixed with “_”.
 options :: MockOptions
-options = MockOptions { prefix = "_", suffix = "" }
+options = MockOptions {prefix = "_", suffix = ""}
 
-{- | Create a mock of the typeclasses that returns a monad according to the `MockOptions`. 
-
-  Given a monad type class, generate the following.
-
-  - MockT instance of the given typeclass
-  - A stub function corresponding to a function of the original class type.
-The name of stub function is the name of the original function with a “_” appended.
-
-  @
-  class (Monad m) => FileOperation m where
-    writeFile :: FilePath -\> Text -\> m ()
-    readFile :: FilePath -\> m Text
-
-  makeMockWithOptions [t|FileOperation|] options { prefix = "stub_" }
-
-  it "test runMockT" do
-    result \<- runMockT do
-      stub_readFile $ "input.txt" |\> pack "content"
-      stub_writeFile $ "output.text" |\> pack "content" |\> ()
-      somethingProgram
-
-    result `shouldBe` ()
-  @
-
--}
+-- | Create a mock of the typeclasses that returns a monad according to the `MockOptions`.
+--
+--  Given a monad type class, generate the following.
+--
+--  - MockT instance of the given typeclass
+--  - A stub function corresponding to a function of the original class type.
+-- The name of stub function is the name of the original function with a “_” appended.
+--
+--  @
+--  class (Monad m) => FileOperation m where
+--    writeFile :: FilePath -\> Text -\> m ()
+--    readFile :: FilePath -\> m Text
+--
+--  makeMockWithOptions [t|FileOperation|] options { prefix = "stub_" }
+--
+--  it "test runMockT" do
+--    result \<- runMockT do
+--      stub_readFile $ "input.txt" |\> pack "content"
+--      stub_writeFile $ "output.text" |\> pack "content" |\> ()
+--      somethingProgram
+--
+--    result `shouldBe` ()
+--  @
 makeMockWithOptions :: Q Type -> MockOptions -> Q [Dec]
-makeMockWithOptions = doMakeMock
+makeMockWithOptions = flip doMakeMock Total
 
-{- | Create a mock of a typeclasses that returns a monad. 
-
-  Given a monad type class, generate the following.
-
-  - MockT instance of the given typeclass
-  - A stub function corresponding to a function of the original class type.
-The name of stub function is the name of the original function with a “_” appended.
-
-  The prefix can be changed.
-  In that case, use `makeMockWithOptions`.
-
-  @
-  class (Monad m) => FileOperation m where
-    writeFile :: FilePath -\> Text -\> m ()
-    readFile :: FilePath -\> m Text
-
-  makeMock [t|FileOperation|]
-
-  it "test runMockT" do
-    result \<- runMockT do
-      _readFile $ "input.txt" |\> pack "content"
-      _writeFile $ "output.text" |\> pack "content" |\> ()
-      somethingProgram
-
-    result `shouldBe` ()
-  @
-
--}
+-- | Create a mock of a typeclasses that returns a monad.
+--
+--  Given a monad type class, generate the following.
+--
+--  - MockT instance of the given typeclass
+--  - A stub function corresponding to a function of the original class type.
+-- The name of stub function is the name of the original function with a “_” appended.
+--
+--  The prefix can be changed.
+--  In that case, use `makeMockWithOptions`.
+--
+--  @
+--  class (Monad m) => FileOperation m where
+--    writeFile :: FilePath -\> Text -\> m ()
+--    readFile :: FilePath -\> m Text
+--
+--  makeMock [t|FileOperation|]
+--
+--  spec :: Spec
+--  spec = do
+--    it "test runMockT" do
+--      result \<- runMockT do
+--        _readFile $ "input.txt" |\> pack "content"
+--        _writeFile $ "output.text" |\> pack "content" |\> ()
+--        somethingProgram
+--
+--      result `shouldBe` ()
+--  @
 makeMock :: Q Type -> Q [Dec]
-makeMock = flip doMakeMock options
+makeMock t = doMakeMock t Total options
 
-doMakeMock :: Q Type -> MockOptions -> Q [Dec]
-doMakeMock t options = do
+-- | Create a partial mock of a typeclasses that returns a monad.
+--
+--  Given a monad type class, generate the following.
+--
+--  - MockT instance of the given typeclass
+--  - A stub function corresponding to a function of the original class type.
+-- The name of stub function is the name of the original function with a “_” appended.
+--
+--  For functions that are not stubbed in the test, the real function is used as appropriate for the context.
+--
+--  The prefix can be changed.
+--  In that case, use `makePartialMockWithOptions`.
+--
+--  @
+--  class Monad m => Finder a b m | a -> b, b -> a where
+--    findIds :: m [a]
+--    findById :: a -> m b
+--
+--  instance Finder Int String IO where
+--    findIds = pure [1, 2, 3]
+--    findById id = pure $ "{id: " <> show id <> "}"
+--
+--  findValue :: Finder a b m => m [b]
+--  findValue = do
+--    ids <- findIds
+--    mapM findById ids
+--
+--  makePartialMock [t|Finder|]
+--
+--  spec :: Spec
+--  spec = do
+--    it "Use all real functions." do
+--      values <- runMockT findValue
+--      values `shouldBe` ["{id: 1}", "{id: 2}", "{id: 3}"]
+--
+--    it "Only findIds should be stubbed." do
+--      values <- runMockT do
+--        _findIds [1 :: Int, 2]
+--        findValue
+--      values `shouldBe` ["{id: 1}", "{id: 2}"]
+--  @
+makePartialMock :: Q Type -> Q [Dec]
+makePartialMock t = doMakeMock t Partial options
+
+-- | `makePartialMock` with options
+makePartialMockWithOptions :: Q Type -> MockOptions -> Q [Dec]
+makePartialMockWithOptions = flip doMakeMock Partial
+
+doMakeMock :: Q Type -> MockType -> MockOptions -> Q [Dec]
+doMakeMock t mockType options = do
   verifyExtension DataKinds
   verifyExtension FlexibleInstances
   verifyExtension FlexibleContexts
@@ -184,33 +241,26 @@ doMakeMock t options = do
   reify className >>= \case
     ClassI (ClassD _ _ [] _ _) _ ->
       fail $ "A type parameter is required for class " <> show className
-
     ClassI (ClassD cxt _ typeVars _ decs) _ -> do
       monadVarNames <- getMonadVarNames cxt typeVars
       case nub monadVarNames of
         [] -> fail "Monad parameter not found."
         (monadVarName : rest)
           | length rest > 1 -> fail "Monad parameter must be unique."
-          | otherwise -> makeMockDecs ty className monadVarName cxt typeVars decs options
-
+          | otherwise -> makeMockDecs ty mockType className monadVarName cxt typeVars decs options
     t -> error $ "unsupported type: " <> show t
 
-
-makeMockDecs :: Type -> Name -> Name -> Cxt -> [TyVarBndr a] -> [Dec] -> MockOptions -> Q [Dec]
-makeMockDecs ty className monadVarName cxt typeVars decs options = do
+makeMockDecs :: Type -> MockType -> Name -> Name -> Cxt -> [TyVarBndr a] -> [Dec] -> MockOptions -> Q [Dec]
+makeMockDecs ty mockType className monadVarName cxt typeVars decs options = do
   let classParamNames = filter (className /=) (getClassNames ty)
       newTypeVars = drop (length classParamNames) typeVars
-      varAppliedTypes = zipWith (\t i -> VarAppliedType t (safeIndex classParamNames i)) (getTypeVarNames typeVars) [0..]
+      varAppliedTypes = zipWith (\t i -> VarAppliedType t (safeIndex classParamNames i)) (getTypeVarNames typeVars) [0 ..]
 
-  newCxt <- createCxt monadVarName cxt
-  m <- appT (conT ''Monad) (varT monadVarName)
-
-  let hasMonad = P.any (\(ClassName2VarNames c _) -> c == ''Monad) $ toClassInfos newCxt
-
-  instanceDec <- instanceD
-    (pure $ newCxt ++ ([m | not hasMonad]))
-    (createInstanceType ty monadVarName newTypeVars)
-    (map (createInstanceFnDec options) decs)
+  instanceDec <-
+    instanceD
+      (createCxt cxt mockType className monadVarName newTypeVars varAppliedTypes)
+      (createInstanceType ty monadVarName newTypeVars)
+      (map (createInstanceFnDec mockType options) decs)
 
   mockFnDecs <- concat <$> mapM (createMockFnDec monadVarName varAppliedTypes options) decs
 
@@ -218,12 +268,11 @@ makeMockDecs ty className monadVarName cxt typeVars decs options = do
 
 getMonadVarNames :: Cxt -> [TyVarBndr a] -> Q [Name]
 getMonadVarNames cxt typeVars = do
-  let
-    parentClassInfos = toClassInfos cxt
+  let parentClassInfos = toClassInfos cxt
 
-    typeVarNames = getTypeVarNames typeVars
-    -- VarInfos (class names is empty)
-    emptyClassVarInfos = map (`VarName2ClassNames` []) typeVarNames
+      typeVarNames = getTypeVarNames typeVars
+      -- VarInfos (class names is empty)
+      emptyClassVarInfos = map (`VarName2ClassNames` []) typeVarNames
 
   varInfos <- collectVarInfos parentClassInfos emptyClassVarInfos
 
@@ -255,7 +304,7 @@ collectVarInfos :: [ClassName2VarNames] -> [VarName2ClassNames] -> Q [VarName2Cl
 collectVarInfos classInfos = mapM (collectVarInfo classInfos)
 
 collectVarInfo :: [ClassName2VarNames] -> VarName2ClassNames -> Q VarName2ClassNames
-collectVarInfo classInfos (VarName2ClassNames vName classNames) =  do
+collectVarInfo classInfos (VarName2ClassNames vName classNames) = do
   varClassNames <- collectVarClassNames vName classInfos
   pure $ VarName2ClassNames vName (classNames ++ varClassNames)
 
@@ -270,13 +319,12 @@ collectVarClassNames_ name (ClassName2VarNames cName vNames) = do
     Nothing -> pure []
     Just i -> do
       ClassI (ClassD cxt _ typeVars _ _) _ <- reify cName
-      let
-        -- type variable names
-        typeVarNames = getTypeVarNames typeVars
-        -- type variable name of same position
-        typeVarName = typeVarNames !! i
-        -- parent class information
-        parentClassInfos = toClassInfos cxt
+      let -- type variable names
+          typeVarNames = getTypeVarNames typeVars
+          -- type variable name of same position
+          typeVarName = typeVarNames !! i
+          -- parent class information
+          parentClassInfos = toClassInfos cxt
 
       case parentClassInfos of
         [] -> pure [cName]
@@ -287,8 +335,8 @@ collectVarClassNames_ name (ClassName2VarNames cName vNames) = do
 filterClassInfo :: Name -> [ClassName2VarNames] -> [ClassName2VarNames]
 filterClassInfo name = filter (hasVarName name)
   where
-  hasVarName :: Name -> ClassName2VarNames -> Bool
-  hasVarName name (ClassName2VarNames _ varNames) = name `elem` varNames
+    hasVarName :: Name -> ClassName2VarNames -> Bool
+    hasVarName name (ClassName2VarNames _ varNames) = name `elem` varNames
 
 filterMonadicVarInfos :: [VarName2ClassNames] -> [VarName2ClassNames]
 filterMonadicVarInfos = filter hasMonadInVarInfo
@@ -296,8 +344,26 @@ filterMonadicVarInfos = filter hasMonadInVarInfo
 hasMonadInVarInfo :: VarName2ClassNames -> Bool
 hasMonadInVarInfo (VarName2ClassNames _ classNames) = ''Monad `elem` classNames
 
-createCxt :: Name -> Cxt -> Q Cxt
-createCxt monadVarName = mapM (createPred monadVarName)
+createCxt :: [Pred] -> MockType -> Name -> Name -> [TyVarBndr a] -> [VarAppliedType] -> Q [Pred]
+createCxt cxt mockType className monadVarName tyVars varAppliedTypes = do
+  newCxt <- mapM (createPred monadVarName) cxt
+
+  monadAppT <- appT (conT ''Monad) (varT monadVarName)
+
+  let hasMonad = P.any (\(ClassName2VarNames c _) -> c == ''Monad) $ toClassInfos newCxt
+
+  pure $ case mockType of
+    Total -> newCxt ++ ([monadAppT | not hasMonad])
+    Partial -> do
+      let classAppT = constructClassAppT className $ toVarTs tyVars
+          varAppliedClassAppT = updateType classAppT varAppliedTypes
+      newCxt ++ ([monadAppT | not hasMonad]) ++ [varAppliedClassAppT]
+
+toVarTs :: [TyVarBndr a] -> [Type]
+toVarTs tyVars = VarT <$> getTypeVarNames tyVars
+
+constructClassAppT :: Name -> [Type] -> Type
+constructClassAppT className = foldl AppT (ConT className)
 
 createPred :: Name -> Pred -> Q Pred
 createPred monadVarName a@(AppT t@(ConT ty) b@(VarT varName))
@@ -323,57 +389,83 @@ tyVarBndrToType monadName (KindedTV name _ _)
   | monadName == name = appT (conT ''MockT) (varT monadName)
   | otherwise = varT name
 
-createInstanceFnDec :: MockOptions -> Dec -> Q Dec
-createInstanceFnDec options (SigD fnName funType) = do
+createInstanceFnDec :: MockType -> MockOptions -> Dec -> Q Dec
+createInstanceFnDec mockType options (SigD fnName funType) = do
   names <- sequence $ typeToNames funType
   let r = mkName "result"
       params = varP <$> names
       args = varE <$> names
       fnNameStr = createFnName fnName options
-      genStubFn = case names of
-        [] -> $([|generateConstantStubFn|])
-        _  -> $([|generateStubFn args|])
 
-      fnBody = [| MockT $ do
-                    defs <- get
-                    let mock = defs
-                               & findParam (Proxy :: Proxy $(litT (strTyLit fnNameStr)))
-                               & fromMaybe (error $ "no answer found stub function `" ++ fnNameStr ++ "`.")
-                        $(bangP $ varP r) = $(genStubFn [| mock |])
-                    pure $(varE r) |]
+      fnBody = case mockType of
+        Total -> generateInstanceMockFnBody fnNameStr args r
+        Partial -> generateInstanceRealFnBody fnName fnNameStr args r
+
       fnClause = clause params (normalB fnBody) []
   funD fnName [fnClause]
-createInstanceFnDec _ dec = fail $ "unsuported dec: " <> pprint dec
+createInstanceFnDec _ _ dec = fail $ "unsuported dec: " <> pprint dec
+
+generateInstanceMockFnBody :: String -> [Q Exp] -> Name -> Q Exp
+generateInstanceMockFnBody fnNameStr args r =
+  [|
+    MockT $ do
+      defs <- get
+      let mock =
+            defs
+              & findParam (Proxy :: Proxy $(litT (strTyLit fnNameStr)))
+              & fromMaybe (error $ "no answer found stub function `" ++ fnNameStr ++ "`.")
+          $(bangP $ varP r) = $(generateStubFn args [|mock|])
+      pure $(varE r)
+    |]
+
+generateInstanceRealFnBody :: Name -> String -> [Q Exp] -> Name -> Q Exp
+generateInstanceRealFnBody fnName fnNameStr args r =
+  [|
+    MockT $ do
+      defs <- get
+      case findParam (Proxy :: Proxy $(litT (strTyLit fnNameStr))) defs of
+        Just mock -> do
+          let $(bangP $ varP r) = $(generateStubFn args [|mock|])
+          pure $(varE r)
+        Nothing -> lift $ $(foldl appE (varE fnName) args)
+    |]
 
 generateStubFn :: [Q Exp] -> Q Exp -> Q Exp
-generateStubFn args mock = foldl appE [| stubFn $(mock) |] args
+generateStubFn [] = $([|generateConstantStubFn|])
+generateStubFn args = $([|generateNotConstantsStubFn args|])
+
+generateNotConstantsStubFn :: [Q Exp] -> Q Exp -> Q Exp
+generateNotConstantsStubFn args mock = foldl appE [|stubFn $(mock)|] args
 
 generateConstantStubFn :: Q Exp -> Q Exp
-generateConstantStubFn mock = [| stubFn $(mock) |]
+generateConstantStubFn mock = [|stubFn $(mock)|]
 
 createMockFnDec :: Name -> [VarAppliedType] -> MockOptions -> Dec -> Q [Dec]
 createMockFnDec monadVarName varAppliedTypes options (SigD funName ty) = do
   let funNameStr = createFnName funName options
       mockFunName = mkName funNameStr
       params = mkName "p"
-
-  if isConstant ty then
-    doCreateConstantMockFnDec funNameStr mockFunName params monadVarName
-  else do
-    let
       updatedType = updateType ty varAppliedTypes
       funType = createMockBuilderFnType monadVarName updatedType
+
+  if isFunctionType ty then
     doCreateMockFnDec funNameStr mockFunName params funType monadVarName updatedType
+  else
+    doCreateConstantMockFnDec funNameStr mockFunName funType monadVarName
 
 createMockFnDec _ _ _ dec = fail $ "unsupport dec: " <> pprint dec
 
-doCreateMockFnDec :: Quote m => String -> Name -> Name -> Type -> Name -> Type -> m [Dec]
+doCreateMockFnDec :: (Quote m) => String -> Name -> Name -> Type -> Name -> Type -> m [Dec]
 doCreateMockFnDec funNameStr mockFunName params funType monadVarName updatedType = do
   newFunSig <- do
     let verifyParams = createMockBuilderVerifyParams updatedType
-    sigD mockFunName [t|
-      (MockBuilder $(varT params) ($(pure funType)) ($(pure verifyParams)), Monad $(varT monadVarName))
-      => $(varT params) -> MockT $(varT monadVarName) ()|]
+    sigD
+      mockFunName
+      [t|
+        (MockBuilder $(varT params) ($(pure funType)) ($(pure verifyParams)), Monad $(varT monadVarName)) =>
+        $(varT params) ->
+        MockT $(varT monadVarName) ()
+        |]
 
   createMockFn <- [|createNamedMock|]
 
@@ -382,32 +474,39 @@ doCreateMockFnDec funNameStr mockFunName params funType monadVarName updatedType
 
   pure $ newFunSig : [newFun]
 
-doCreateConstantMockFnDec :: Quote m => String -> Name -> Name -> Name -> m [Dec]
-doCreateConstantMockFnDec funNameStr mockFunName params monadVarName = do
-  newFunSig <- sigD mockFunName [t|Monad $(varT monadVarName) => $(varT params) -> MockT $(varT monadVarName) ()|]
+doCreateConstantMockFnDec :: (Quote m) => String -> Name -> Type -> Name -> m [Dec]
+doCreateConstantMockFnDec funNameStr mockFunName ty monadVarName = do
+  newFunSig <- sigD mockFunName [t|(Monad $(varT monadVarName)) => $(pure ty) -> MockT $(varT monadVarName) ()|]
   createMockFn <- [|createNamedConstantMock|]
   mockBody <- createMockBody funNameStr createMockFn
   newFun <- funD mockFunName [clause [varP $ mkName "p"] (normalB (pure mockBody)) []]
   pure $ newFunSig : [newFun]
 
-createMockBody :: Quote m => String -> Exp -> m Exp
+createMockBody :: (Quote m) => String -> Exp -> m Exp
 createMockBody funNameStr createMockFn =
-  [| MockT $ modify (++ [Definition
-                    (Proxy :: Proxy $(litT (strTyLit funNameStr)))
-                    (unsafePerformIO $ $(pure createMockFn) $(litE (stringL funNameStr)) p)
-                    shouldApplyToAnything]) |]
+  [|
+    MockT $
+      modify
+        ( ++
+            [ Definition
+                (Proxy :: Proxy $(litT (strTyLit funNameStr)))
+                (unsafePerformIO $ $(pure createMockFn) $(litE (stringL funNameStr)) p)
+                shouldApplyToAnything
+            ]
+        )
+    |]
 
-isConstant :: Type -> Bool
-isConstant (AppT (VarT _) (VarT _)) = True
-isConstant (VarT _) = True
-isConstant (ConT _) = True
-isConstant _ = False
+isFunctionType :: Type -> Bool
+isFunctionType (AppT (AppT ArrowT _) _) = True
+isFunctionType (AppT t1 t2) = isFunctionType t1 || isFunctionType t2
+isFunctionType (TupleT _) = False
+isFunctionType (ForallT _ _ t) = isFunctionType t
+isFunctionType _ = False
 
 updateType :: Type -> [VarAppliedType] -> Type
 updateType (AppT (VarT v1) (VarT v2)) varAppliedTypes = do
-  let
-    x = maybe (VarT v1) ConT (findClass v1 varAppliedTypes)
-    y = maybe (VarT v2) ConT (findClass v2 varAppliedTypes)
+  let x = maybe (VarT v1) ConT (findClass v1 varAppliedTypes)
+      y = maybe (VarT v2) ConT (findClass v2 varAppliedTypes)
   AppT x y
 updateType ty _ = ty
 
@@ -435,12 +534,12 @@ createMockBuilderFnType _ ty = ty
 createMockBuilderVerifyParams :: Type -> Type
 createMockBuilderVerifyParams (AppT (AppT ArrowT ty) (AppT (VarT _) _)) = AppT (ConT ''Param) ty
 createMockBuilderVerifyParams (AppT (AppT ArrowT ty) ty2) =
-  AppT (AppT (ConT ''(:>)) (AppT (ConT ''Param) ty) ) (createMockBuilderVerifyParams ty2)
+  AppT (AppT (ConT ''(:>)) (AppT (ConT ''Param) ty)) (createMockBuilderVerifyParams ty2)
 createMockBuilderVerifyParams (AppT (VarT _) (ConT c)) = AppT (ConT ''Param) (ConT c)
 createMockBuilderVerifyParams (ForallT _ _ ty) = createMockBuilderVerifyParams ty
 createMockBuilderVerifyParams a = a
 
-findParam :: KnownSymbol sym => Proxy sym -> [Definition] -> Maybe a
+findParam :: (KnownSymbol sym) => Proxy sym -> [Definition] -> Maybe a
 findParam pa definitions = do
   let definition = find (\(Definition s _ _) -> symbolVal s == symbolVal pa) definitions
   fmap (\(Definition _ mock _) -> unsafeCoerce mock) definition
@@ -471,7 +570,7 @@ data VarName2ClassNames = VarName2ClassNames Name [Name]
 instance Show VarName2ClassNames where
   show (VarName2ClassNames varName classNames) = show varName <> " class is " <> unwords (showClassName <$> classNames)
 
-data VarAppliedType = VarAppliedType { name :: Name, appliedClassName :: Maybe Name }
+data VarAppliedType = VarAppliedType {name :: Name, appliedClassName :: Maybe Name}
   deriving (Show)
 
 showClassName :: Name -> String
@@ -488,9 +587,9 @@ split delimiter str = unpack <$> splitOn (pack delimiter) (pack str)
 
 safeIndex :: [a] -> Int -> Maybe a
 safeIndex [] _ = Nothing
-safeIndex (x:_) 0 = Just x
-safeIndex (_:xs) n
-  | n < 0     = Nothing
+safeIndex (x : _) 0 = Just x
+safeIndex (_ : xs) n
+  | n < 0 = Nothing
   | otherwise = safeIndex xs (n - 1)
 
 verifyExtension :: Extension -> Q ()

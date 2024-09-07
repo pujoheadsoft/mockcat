@@ -9,7 +9,7 @@ mockcatはシンプルで柔軟なモックライブラリです。
 2. スタブ関数が期待通り適用されたかを検証する
 
 モックは2種類作ることができます。
-1. モナド型クラスのモック
+1. モナド型クラスのモック(部分的なモックを作ることも可能)
 2. 関数のモック
 
 **1**のモナド型クラスとは、次のような型クラスを指しています。
@@ -172,6 +172,49 @@ operationProgram = do
 するとテスト実行に失敗し、スタブ関数が適用されなかったことが表示されます。
 ```haskell
 It has never been applied function `_ask`
+```
+
+## 部分的なモック
+`makePartialMock`関数を使うと、型クラスに定義された関数の一部だけをモックにできます。
+
+例えば次のような型クラスと関数があったとします。  
+`getUserInput`がテスト対象の関数です。
+```haskell
+data UserInput = UserInput String deriving (Show, Eq)
+
+class Monad m => UserInputGetter m where
+  getInput :: m String
+  toUserInput :: String -> m (Maybe UserInput)
+
+getUserInput :: UserInputGetter m => m (Maybe UserInput)
+getUserInput = do
+  i <- getInput
+  toUserInput i
+```
+この例では、一部本物の関数を使いたいので、次のように`IO`インスタンスを定義します。
+```haskell
+instance UserInputGetter IO where
+  getInput = getLine
+  toUserInput "" = pure Nothing
+  toUserInput a = (pure . Just . UserInput) a
+```
+テストは次のようになります。
+```haskell
+makePartialMock [t|UserInputGetter|]
+
+spec :: Spec
+spec = do
+  it "Get user input (has input)" do
+    a <- runMockT do
+      _getInput "value"
+      getUserInput
+    a `shouldBe` Just (UserInput "value")
+
+  it "Get user input (no input)" do
+    a <- runMockT do
+      _getInput ""
+      getUserInput
+    a `shouldBe` Nothing
 ```
 
 ## スタブ関数の名前を変える

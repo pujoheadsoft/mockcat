@@ -1,5 +1,5 @@
 name:                mockcat
-version:             0.3.1.0
+version:             0.4.0.0
 github:              pujoheadsoft/mockcat
 license:             "MIT"
 author:              "funnycat <pujoheadsoft@gmail.com>"
@@ -28,6 +28,7 @@ dependencies:
 - text >= 2.0 && < 2.2
 - template-haskell >= 2.18 && < 2.23
 - mtl >= 2.3.1 && < 2.4
+- transformers >= 0.5.6 && < 0.7
 
 ghc-options:
 - -Wall

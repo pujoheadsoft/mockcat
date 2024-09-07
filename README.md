@@ -177,6 +177,49 @@ Then the test run fails and you will see that the stub function was not applied.
 It has never been applied function `_ask`
 ```
 
+## Partial mocking
+The `makePartialMock` function can be used to mock only a part of a function defined in a typeclass.
+
+For example, suppose you have the following typeclasses and functions.  
+`getUserInput` is the function to be tested.
+```haskell
+data UserInput = UserInput String deriving (Show, Eq)
+
+class Monad m => UserInputGetter m where
+  getInput :: m String
+  toUserInput :: String -> m (Maybe UserInput)
+
+getUserInput :: UserInputGetter m => m (Maybe UserInput)
+getUserInput = do
+  i <- getInput
+  toUserInput i
+```
+In this example, we want to use real functions, so we define an `IO` instance as follows.
+```haskell
+instance UserInputGetter IO where
+  getInput = getLine
+  toUserInput "" = pure Nothing
+  toUserInput a = (pure . Just . UserInput) a
+```
+The test will look like this.
+```haskell
+makePartialMock [t|UserInputGetter|]
+
+spec :: Spec
+spec = do
+  it "Get user input (has input)" do
+    a <- runMockT do
+      _getInput "value"
+      getUserInput
+    a `shouldBe` Just (UserInput "value")
+
+  it "Get user input (no input)" do
+    a <- runMockT do
+      _getInput ""
+      getUserInput
+    a `shouldBe` Nothing
+```
+
 ## Rename stub functions
 The prefix and suffix of the generated stub functions can optionally be changed.  
 For example, the following will generate the functions `stub_readFile_fn` and `stub_writeFile_fn`.
