@@ -29,8 +29,27 @@ operationProgram inputPath outputPath = do
   content <- readFile inputPath
   writeFile outputPath content
 
+class Monad m => Teletype m where
+  readTTY :: m String
+  writeTTY :: String -> m ()
+
+echo :: Teletype m => m ()
+echo = do
+  i <- readTTY
+  case i of
+    "" -> pure ()
+    _  -> writeTTY i >> echo
+
+makeMockWithOptions [t|Teletype|] options { implicitMonadicReturn = False }
+
 spec :: Spec
 spec = do
+  -- it "echo" do
+  --   result <- runMockT do
+  --     _readTTY $ pure @IO "ax"
+  --     echo
+  --   result `shouldBe` ()
+
   it "read & write" do
     result <- runMockT do
       _readFile $ "input.txt" |> pack "Content"

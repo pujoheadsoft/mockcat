@@ -120,6 +120,14 @@ threeParamMonadExec = do
   v3 <- fnParam3_3
   pure $ v1 <> v2 <> show v3
 
+class Monad m => MultiApplyTest m where
+  getValueBy :: String -> m String
+
+getValues :: MultiApplyTest m => [String] -> m [String]
+getValues = mapM getValueBy
+
+makeMock [t|MultiApplyTest|]
+
 class Monad m => ExplicitlyReturnMonadicValuesTest m where
   echo :: String -> m ()
   getBy :: String -> m Int
@@ -190,6 +198,16 @@ spec = do
       _fnParam3_3 False
       threeParamMonadExec
     r `shouldBe` "Result1Result2False"
+  
+  it "Multi apply" do
+    result <- runMockT do
+      _getValueBy [
+        "a" |> "ax",
+        "b" |> "bx",
+        "c" |> "cx"
+        ]
+      getValues ["a", "b", "c"]
+    result `shouldBe` ["ax", "bx", "cx"]
 
   it "Return monadic value test" do
     result <- runMockT do
