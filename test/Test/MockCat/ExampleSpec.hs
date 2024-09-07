@@ -50,6 +50,13 @@ spec = do
       echo
     result `shouldBe` ()
 
+  it "echo" do
+    result <- runMockT do
+      _readTTY [pure @IO "a", pure @IO ""]
+      _writeTTY $ "a" |> pure @IO ()
+      echo
+    result `shouldBe` ()
+
   it "read & write" do
     result <- runMockT do
       _readFile $ "input.txt" |> pack "Content"

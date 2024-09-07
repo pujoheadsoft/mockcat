@@ -459,7 +459,10 @@ createMockFnDec monadVarName varAppliedTypes options (SigD funName ty) = do
   if isFunctionType ty then
     doCreateMockFnDec funNameStr mockFunName params funType monadVarName updatedType
   else
-    doCreateConstantMockFnDec funNameStr mockFunName funType monadVarName
+    if options.implicitMonadicReturn then
+      doCreateConstantMockFnDec funNameStr mockFunName funType monadVarName
+    else
+      doCreateMockFnDec2 funNameStr mockFunName params funType monadVarName updatedType
 
 createMockFnDec _ _ _ dec = fail $ "unsupport dec: " <> pprint dec
 
@@ -488,6 +491,25 @@ doCreateConstantMockFnDec funNameStr mockFunName ty monadVarName = do
   createMockFn <- [|createNamedConstantMock|]
   mockBody <- createMockBody funNameStr createMockFn
   newFun <- funD mockFunName [clause [varP $ mkName "p"] (normalB (pure mockBody)) []]
+  pure $ newFunSig : [newFun]
+
+doCreateMockFnDec2 :: (Quote m) => String -> Name -> Name -> Type -> Name -> Type -> m [Dec]
+doCreateMockFnDec2 funNameStr mockFunName params funType monadVarName updatedType = do
+  newFunSig <- do
+    let verifyParams = createMockBuilderVerifyParams updatedType
+    sigD
+      mockFunName
+      [t|
+        (MockBuilder $(varT params) ($(pure funType)) (), Monad $(varT monadVarName)) =>
+        $(varT params) ->
+        MockT $(varT monadVarName) ()
+        |]
+
+  createMockFn <- [|createNamedMock|]
+
+  mockBody <- createMockBody funNameStr createMockFn
+  newFun <- funD mockFunName [clause [varP $ mkName "p"] (normalB (pure mockBody)) []]
+
   pure $ newFunSig : [newFun]
 
 createMockBody :: (Quote m) => String -> Exp -> m Exp
