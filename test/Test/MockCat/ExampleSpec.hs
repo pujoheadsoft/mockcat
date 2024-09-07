@@ -44,11 +44,11 @@ makeMockWithOptions [t|Teletype|] options { implicitMonadicReturn = False }
 
 spec :: Spec
 spec = do
-  -- it "echo" do
-  --   result <- runMockT do
-  --     _readTTY $ pure @IO "ax"
-  --     echo
-  --   result `shouldBe` ()
+  it "echo" do
+    result <- runMockT do
+      _readTTY $ pure @IO ""
+      echo
+    result `shouldBe` ()
 
   it "read & write" do
     result <- runMockT do
