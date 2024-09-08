@@ -4,8 +4,8 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE TypeOperators #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
-
 {-# HLINT ignore "Use null" #-}
+{-# OPTIONS_GHC -Wno-name-shadowing #-}
 
 {- | This module provides bellow functions.
 
@@ -37,7 +37,8 @@ module Test.MockCat.Mock
     shouldApplyToAnything,
     shouldApplyTimesToAnything,
     to,
-    onCase
+    onCase,
+    cases
   )
 where
 
@@ -871,30 +872,28 @@ shouldApplyTimesToAnything (Mock name _ (Verifier ref)) count = do
             "   but got: " <> show appliedCount
           ]
 
-newtype Cases a b = CaseT { st :: State [a] b }
+newtype Cases a b = Cases (State [a] b)
 
 instance Functor (Cases a) where
-  fmap f (CaseT s) = CaseT (fmap f s)
+  fmap f (Cases s) = Cases (fmap f s)
 
 instance Applicative (Cases a) where
-  pure x = CaseT $ pure x
+  pure x = Cases $ pure x
   (<*>) = ap
 
 instance Monad (Cases a) where
-  (CaseT m) >>= f = CaseT $ do
+  (Cases m) >>= f = Cases $ do
     result <- m
-    let (CaseT newState) = f result
+    let (Cases newState) = f result
     newState
 
 onCase :: a -> Cases a ()
-onCase a = CaseT $ do
+onCase a = Cases $ do
   st <- get
   put (st ++ [a])
 
 runCase :: Cases a b -> [a]
-runCase (CaseT s) = execState s []
+runCase (Cases s) = execState s []
 
-xxx :: Cases (Param [Char] :> Param [Char]) ()
-xxx = do
-  onCase $ "a" |> "b"
-  onCase $ "c" |> "d"
+cases :: [a] -> Cases a ()
+cases a = Cases $ put a
