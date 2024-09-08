@@ -52,7 +52,9 @@ spec = do
 
   it "echo" do
     result <- runMockT do
-      _readTTY [pure @IO "a", pure @IO ""]
+      _readTTY $ do
+        onCase $ pure @IO "a"
+        onCase $ pure @IO ""
       _writeTTY $ "a" |> pure @IO ()
       echo
     result `shouldBe` ()
@@ -135,18 +137,18 @@ spec = do
 
   it "multi" do
     f <-
-      createStubFn
-        [ "a" |> "return x",
-          "b" |> "return y"
-        ]
+      createStubFn $ do
+        onCase $ "a" |> "return x"
+        onCase $ "b" |> "return y"
+
     f "a" `shouldBe` "return x"
     f "b" `shouldBe` "return y"
 
   it "Return different values for the same argument" do
-    f <- createStubFn [
-        "arg" |> "x",
-        "arg" |> "y"
-      ]
+    f <- createStubFn $ do
+      onCase $ "arg" |> "x"
+      onCase $ "arg" |> "y"
+
     -- Do not allow optimization to remove duplicates.
     v1 <- evaluate $ f "arg"
     v2 <- evaluate $ f "arg"

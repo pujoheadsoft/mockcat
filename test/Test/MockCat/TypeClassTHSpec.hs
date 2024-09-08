@@ -17,7 +17,7 @@ module Test.MockCat.TypeClassTHSpec (spec) where
 import Prelude hiding (readFile, writeFile, any)
 import Data.Text (Text, pack, isInfixOf)
 import Test.Hspec
-import Test.MockCat (makeMock, makeMockWithOptions, createStubFn, options, MockOptions(..), runMockT, (|>), any, applyTimesIs, neverApply)
+import Test.MockCat
 import Control.Monad.State
 import Control.Monad.Reader (MonadReader, ask)
 import Control.Monad (unless)
@@ -201,11 +201,10 @@ spec = do
   
   it "Multi apply" do
     result <- runMockT do
-      _getValueBy [
-        "a" |> "ax",
-        "b" |> "bx",
-        "c" |> "cx"
-        ]
+      _getValueBy $ do
+        onCase $ "a" |> "ax"
+        onCase $ "b" |> "bx"
+        onCase $ "c" |> "cx"
       getValues ["a", "b", "c"]
     result `shouldBe` ["ax", "bx", "cx"]
 

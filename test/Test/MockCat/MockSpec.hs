@@ -15,27 +15,6 @@ import qualified Control.Exception as E
 import Data.Function ((&))
 import Test.Hspec
 import Test.MockCat
-  ( any,
-    expectByExpr,
-    stubFn,
-    shouldApplyInOrder,
-    shouldApplyInPartialOrder,
-    shouldApplyTimes,
-    shouldApplyTimesGreaterThan,
-    shouldApplyTimesGreaterThanEqual,
-    shouldApplyTimesLessThan,
-    shouldApplyTimesLessThanEqual,
-    shouldApplyTo,
-    shouldApplyToAnything,
-    createMock,
-    createStubFn,
-    createNamedMock,
-    to,
-    (|>), 
-    createConstantMock,
-    createNamedConstantMock,
-    shouldApplyTimesToAnything
-  )
 import Prelude hiding (any)
 
 spec :: Spec
@@ -204,10 +183,10 @@ spec = do
       Fixture
         { name = "arity = 1",
           create =
-            createMock
-              [ "1" |> True,
-                "2" |> False
-              ],
+            createMock $ do
+              onCase $ "1" |> True
+              onCase $ "2" |> False
+              ,
           expected =
             [ True,
               False
@@ -228,10 +207,10 @@ spec = do
       Fixture
         { name = "arity = 2",
           create =
-            createMock
-              [ "1" |> "2" |> True,
-                "2" |> "3" |> False
-              ],
+            createMock $ do
+              onCase $ "1" |> "2" |> True
+              onCase $ "2" |> "3" |> False
+              ,
           expected =
             [ True,
               False
@@ -255,10 +234,10 @@ spec = do
       Fixture
         { name = "arity = 3",
           create =
-            createMock
-              [ "1" |> "2" |> "3" |> True,
-                "2" |> "3" |> "4" |> False
-              ],
+            createMock $ do
+              onCase $ "1" |> "2" |> "3" |> True
+              onCase $ "2" |> "3" |> "4" |> False
+              ,
           expected =
             [ True,
               False
@@ -282,10 +261,10 @@ spec = do
       Fixture
         { name = "arity = 4",
           create =
-            createMock
-              [ "1" |> "2" |> "3" |> "4" |> True,
-                "2" |> "3" |> "4" |> "5" |> False
-              ],
+            createMock $ do
+              onCase $ "1" |> "2" |> "3" |> "4" |> True
+              onCase $ "2" |> "3" |> "4" |> "5" |> False
+              ,
           expected =
             [ True,
               False
@@ -309,10 +288,10 @@ spec = do
       Fixture
         { name = "arity = 5",
           create =
-            createMock
-              [ "1" |> "2" |> "3" |> "4" |> "5" |> True,
-                "2" |> "3" |> "4" |> "5" |> "6" |> False
-              ],
+            createMock $ do
+              onCase $ "1" |> "2" |> "3" |> "4" |> "5" |> True
+              onCase $ "2" |> "3" |> "4" |> "5" |> "6" |> False
+              ,
           expected =
             [ True,
               False
@@ -336,10 +315,10 @@ spec = do
       Fixture
         { name = "arity = 6",
           create =
-            createMock
-              [ "1" |> "2" |> "3" |> "4" |> "5" |> "6" |> True,
-                "2" |> "3" |> "4" |> "5" |> "6" |> "7" |> False
-              ],
+            createMock $ do
+              onCase $ "1" |> "2" |> "3" |> "4" |> "5" |> "6" |> True
+              onCase $ "2" |> "3" |> "4" |> "5" |> "6" |> "7" |> False
+              ,
           expected =
             [ True,
               False
@@ -363,10 +342,10 @@ spec = do
       Fixture
         { name = "arity = 7",
           create =
-            createMock
-              [ "1" |> "2" |> "3" |> "4" |> "5" |> "6" |> "7" |> True,
-                "2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8" |> False
-              ],
+            createMock $ do
+              onCase $ "1" |> "2" |> "3" |> "4" |> "5" |> "6" |> "7" |> True
+              onCase $ "2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8" |> False
+              ,
           expected =
             [ True,
               False
@@ -390,10 +369,10 @@ spec = do
       Fixture
         { name = "arity = 8",
           create =
-            createMock
-              [ "1" |> "2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8" |> True,
-                "2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8" |> "9" |> False
-              ],
+            createMock $ do
+              onCase $ "1" |> "2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8" |> True
+              onCase $ "2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8" |> "9" |> False
+              ,
           expected =
             [ True,
               False
@@ -417,10 +396,10 @@ spec = do
       Fixture
         { name = "arity = 9",
           create =
-            createMock
-              [ "1" |> "2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8" |> "9" |> True,
-                "2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8" |> "9" |> "10" |> False
-              ],
+            createMock $ do
+              onCase $ "1" |> "2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8" |> "9" |> True
+              onCase $ "2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8" |> "9" |> "10" |> False
+              ,
           expected =
             [ True,
               False
@@ -638,10 +617,10 @@ spec = do
 
         it "multi mock" do
           m <-
-            createMock
-              [ "aaa" |> (100 :: Int) |> pure @IO True,
-                "bbb" |> (200 :: Int) |> pure @IO False
-              ]
+            createMock $ do
+              onCase $ "aaa" |> (100 :: Int) |> pure @IO True
+              onCase $ "bbb" |> (200 :: Int) |> pure @IO False
+
           stubFn m "aaa" 200
             `shouldThrow` errorCall
               "function was not applied to the expected arguments.\n\
@@ -744,9 +723,9 @@ spec = do
           m <-
             createNamedMock
               "mock function"
-              [ "aaa" |> True |> pure @IO True,
-                "bbb" |> False |> pure @IO False
-              ]
+              do 
+                onCase $ "aaa" |> True |> pure @IO True
+                onCase $ "bbb" |> False |> pure @IO False
           let e =
                 "function `mock function` was not applied to the expected arguments.\n\
                 \  expected one of the following:\n\
@@ -834,12 +813,12 @@ spec = do
 
   describe "repeatable" do
     it "arity = 1" do
-      f <- createStubFn [
-          "a" |> True,
-          "b" |> False,
-          "a" |> False,
-          "b" |> True
-        ]
+      f <- createStubFn $ do
+        onCase $ "a" |> True
+        onCase $ "b" |> False
+        onCase $ "a" |> False
+        onCase $ "b" |> True
+        
       v1 <- evaluate $ f "a"
       v2 <- evaluate $ f "a"
       v3 <- evaluate $ f "b"
@@ -850,12 +829,12 @@ spec = do
       v4 `shouldBe` True
 
     it "arity = 2" do
-      f <- createStubFn [
-          "a" |> "b" |> (0 :: Int),
-          "a" |> "c" |> (1 :: Int),
-          "a" |> "b" |> (2 :: Int),
-          "a" |> "c" |> (3 :: Int)
-        ]
+      f <- createStubFn $ do
+        onCase $ "a" |> "b" |> (0 :: Int)
+        onCase $ "a" |> "c" |> (1 :: Int)
+        onCase $ "a" |> "b" |> (2 :: Int)
+        onCase $ "a" |> "c" |> (3 :: Int)
+
       v1 <- evaluate $ f "a" "b"
       v2 <- evaluate $ f "a" "b"
       v3 <- evaluate $ f "a" "c"
@@ -894,11 +873,11 @@ spec = do
       m `shouldApplyTimesToAnything` 3
 
     it "verify constant multi IO mock" do
-      m <- createMock [
-        pure @IO "foo",
-        pure @IO "bar",
-        pure @IO "baz"
-        ]
+      m <- createMock $ do
+        onCase $ pure @IO "foo"
+        onCase $ pure @IO "bar"
+        onCase $ pure @IO "baz"
+
       stubFn m `shouldReturn` "foo"
       stubFn m `shouldReturn` "bar"
       stubFn m `shouldReturn` "baz"

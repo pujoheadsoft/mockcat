@@ -108,11 +108,10 @@ spec = do
 
       it "partial findById" do
         values <- runMockT  do
-          _findById [
-            (1 :: Int) |> "id1",
-            (2 :: Int) |> "id2",
-            (3 :: Int) |> "id3"
-            ]
+          _findById $ do
+            onCase $ (1 :: Int) |> "id1"
+            onCase $ (2 :: Int) |> "id2"
+            onCase $ (3 :: Int) |> "id3"
           findValue
         values `shouldBe` ["id1", "id2", "id3"]
 
