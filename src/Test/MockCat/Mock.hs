@@ -38,7 +38,8 @@ module Test.MockCat.Mock
     shouldApplyTimesToAnything,
     to,
     onCase,
-    cases
+    cases,
+    casesIO
   )
 where
 
@@ -887,13 +888,48 @@ instance Monad (Cases a) where
     let (Cases newState) = f result
     newState
 
+runCase :: Cases a b -> [a]
+runCase (Cases s) = execState s []
+
+{- | Make a case for stub functions.  
+This can be used to create stub functions that return different values depending on their arguments.
+
+  @
+  it "test" do
+    f <-
+      createStubFn $ do
+        onCase $ "a" |> "return x"
+        onCase $ "b" |> "return y"
+
+    f "a" `shouldBe` "return x"
+    f "b" `shouldBe` "return y"
+  @
+-}
 onCase :: a -> Cases a ()
 onCase a = Cases $ do
   st <- get
   put (st ++ [a])
 
-runCase :: Cases a b -> [a]
-runCase (Cases s) = execState s []
+{- | Make a list of patterns of arguments and returned values.  
+This can be used to create stub functions that return different values depending on their arguments.
 
+  @
+  it "test" do
+    f <-
+      createStubFn $ cases [
+        "a" |> "return x",
+        "b" |> "return y"
+      ]
+
+    f "a" `shouldBe` "return x"
+    f "b" `shouldBe` "return y"
+  @
+-}
 cases :: [a] -> Cases a ()
 cases a = Cases $ put a
+
+{- | IO version of @'cases'@.  
+@casesIO ["a", ""]@ has the same meaning as @cases [ pure \@IO "a", pure \@IO ""]@.
+-}
+casesIO :: [a] -> Cases (IO a) ()
+casesIO = Cases . (put . map pure)

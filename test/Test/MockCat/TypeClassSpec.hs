@@ -190,9 +190,10 @@ spec :: Spec
 spec = do
   it "echo" do
     result <- runMockT do
-      _readTTY $ do
-        onCase $ pure @IO "a"
-        onCase $ pure @IO ""
+      _readTTY $ casesIO [
+        "a",
+        ""
+        ]
       _writeTTY $ "a" |> pure @IO ()
       echo2
     result `shouldBe` ()

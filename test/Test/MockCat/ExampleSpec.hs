@@ -44,17 +44,26 @@ makeMockWithOptions [t|Teletype|] options { implicitMonadicReturn = False }
 
 spec :: Spec
 spec = do
-  it "echo" do
+  it "echo1" do
     result <- runMockT do
       _readTTY $ pure @IO ""
       echo
     result `shouldBe` ()
 
-  it "echo" do
+  it "echo2" do
     result <- runMockT do
       _readTTY $ do
         onCase $ pure @IO "a"
         onCase $ pure @IO ""
+
+      _writeTTY $ "a" |> pure @IO ()
+      echo
+    result `shouldBe` ()
+
+  it "echo3" do
+    result <- runMockT do
+      _readTTY $ casesIO ["a", ""]
+      _readTTY $ cases [ pure @IO "a", pure @IO "" ]
       _writeTTY $ "a" |> pure @IO ()
       echo
     result `shouldBe` ()
@@ -137,9 +146,10 @@ spec = do
 
   it "multi" do
     f <-
-      createStubFn $ do
-        onCase $ "a" |> "return x"
-        onCase $ "b" |> "return y"
+      createStubFn $ cases [
+        "a" |> "return x",
+        "b" |> "return y"
+      ]
 
     f "a" `shouldBe` "return x"
     f "b" `shouldBe` "return y"
