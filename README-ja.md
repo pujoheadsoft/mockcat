@@ -1,5 +1,5 @@
 <div align="center">
-    <img src="logo.png" width="830px" height="150px" align="center" style="object-fit: cover"/>
+    <img src="logo.png" width="830px" align="center" style="object-fit: cover"/>
 </div>
 
 # Mocking library for Haskell
