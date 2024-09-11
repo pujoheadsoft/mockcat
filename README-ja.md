@@ -1,4 +1,8 @@
-# 🐈Mocking library for Haskell🐈‍
+<div align="center">
+    <img src="logo.png" width="830px" height="150px" align="center" style="object-fit: cover"/>
+</div>
+
+# Mocking library for Haskell
 [![Test](https://github.com/pujoheadsoft/mockcat/workflows/Test/badge.svg)](https://github.com/pujoheadsoft/mockcat/actions?query=workflow%3ATest+branch%3Amain)
 
 # 概要
