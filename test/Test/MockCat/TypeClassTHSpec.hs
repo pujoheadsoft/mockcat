@@ -143,8 +143,8 @@ spec :: Spec
 spec = do
   it "Read, and output files" do
     result <- runMockT do
-      _readFile ("input.txt" |> pack "content")
-      _writeFile ("output.txt" |> pack "content" |> ())
+      _readFile $ "input.txt" |> pack "content"
+      _writeFile $ "output.txt" |> pack "content" |> ()
       operationProgram "input.txt" "output.txt"
 
     result `shouldBe` ()

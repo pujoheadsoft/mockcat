@@ -2,37 +2,59 @@
     <img src="logo.png" width="830px" align="center" style="object-fit: cover"/>
 </div>
 
-# Mocking library for Haskell
+[![Latest release](http://img.shields.io/github/release/pujoheadsoft/mockcat.svg)](https://github.com/pujoheadsoft/mockcat/releases)
 [![Test](https://github.com/pujoheadsoft/mockcat/workflows/Test/badge.svg)](https://github.com/pujoheadsoft/mockcat/actions?query=workflow%3ATest+branch%3Amain)
+[![](https://img.shields.io/hackage/v/mockcat)](https://hackage.haskell.org/package/mockcat)
 
-# 概要
-mockcatはシンプルで柔軟なモックライブラリです。
 
-モックができることは主に2つあります。
-1. スタブ関数を作る
-2. スタブ関数が期待通り適用されたかを検証する
+## 概要
+mockcatはHaskellのためのモックライブラリです。
 
-モックは2種類作ることができます。
-1. モナド型クラスのモック(部分的なモックを作ることも可能)
-2. 関数のモック
+簡単にスタブ関数を生成したり、スタブ関数の適用内容を検証することができます。
 
-**1**のモナド型クラスとは、次のような型クラスを指しています。
+<details>
+<summary>更新履歴</summary>
+
+- **0.5.0**: `IO a`型のスタブ関数が、適用される度に異なる値を返すことができるようになった
+- **0.4.0**: 型クラスの部分的なモックを作れるようになった
+- **0.3.0**: 型クラスのモックを作れるようになった
+- **0.2.0**: スタブ関数が、同じ引数に対して異なる値を返せるようになった
+- **0.1.0**: 1st release
+</details>
+
+## 例
+スタブ関数
 ```haskell
-class Monad m => FileOperation m where
-  readFile :: FilePath -> m Text
-  writeFile :: FilePath -> Text -> m ()
+-- create a stub function
+stubFn <- createStubFn $ "value" |> True
+-- assert
+stubFn "value" `shouldBe` True
+```
+適用の検証
+```haskell
+-- create a mock
+mock <- createMock $ "value" |> True
+-- stub function
+let stubFunction = stubFn mock
+-- assert
+stubFunction "value" `shouldBe` True
+-- verify
+mock `shouldApplyTo` "value"
+```
+型クラス
+```haskell
+result <- runMockT do
+  -- stub functions
+  _readFile $ "input.txt" |> pack "content"
+  _writeFile $ "output.txt" |> pack "content" |> ()
+  -- sut
+  program "input.txt" "output.txt"
+
+result `shouldBe` ()
 ```
 
-**2**の関数は次のような普通の関数です。
-(`IO ()`みたいにモナドに包まれた型もモックにできるし、定数関数もモックにできます)
-```haskell
-calc :: Int -> Int
-echo :: String -> IO ()
-constantValue :: String
-```
-
-# モナド型クラスのモック
-## 使用例
+## 型クラスのモック
+### 使用例
 例えば次のようなモナド型クラス`FileOperation`と、`FileOperation`を使う`operationProgram`という関数が定義されているとします。
 ```haskell
 class Monad m => FileOperation m where
@@ -75,7 +97,7 @@ spec = do
 
 モックは`runMockT`で実行します。
 
-## 検証
+### 検証
 実行の後、スタブ関数が期待通りに適用されたか検証が行われます。  
 例えば、上記の例のスタブ関数`_writeFile`の適用が期待される引数を`"content"`から`"edited content"`に書き換えてみます。
 ```haskell
@@ -104,7 +126,7 @@ result <- runMockT do
 no answer found stub function `_writeFile`.
 ```
 
-## 適用回数を検証
+### 適用回数を検証
 例えば、次のように特定の文字列を含んでいる場合は`writeFile`を適用させない場合のテストを書きたいとします。
 ```haskell
 operationProgram inputPath outputPath = do
@@ -140,7 +162,7 @@ result <- runMockT do
 
 後述しますが、mockcatは`M.any`以外にも様々なパラメーターを用意しています。
 
-## 定数関数のモック
+### 定数関数のモック
 mockcatは定数関数もモックにできます。
 `MonadReader`をモックにし、`ask`のスタブ関数を使ってみます。
 ```haskell
@@ -412,7 +434,7 @@ spec = do
 ```
 
 ## 適用される引数ごとに異なる値を返すスタブ関数
-`createStubFn`関数を、x |> y 形式のリストに適用させると、適用する引数ごとに異なる値を返すスタブ関数を作れます。
+`onCase`関数を使うと引数ごとに異なる値を返すスタブ関数を作れます。
 ```haskell
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE TypeApplications #-}
@@ -422,17 +444,16 @@ import Test.MockCat
 spec :: Spec
 spec = do
   it "multi" do
-    f <-
-      createStubFn
-        [ "a" |> "return x",
-          "b" |> "return y"
-        ]
+    f <- createStubFn do
+      onCase $ "a" |> "return x"
+      onCase $ "b" |> "return y"
+
     f "a" `shouldBe` "return x"
     f "b" `shouldBe` "return y"
 ```
 
-## 同じ引数に適用されても異なる値を返すスタブ関数
-`createStubFn`関数を、x |> y 形式のリストに適用させるとき、引数が同じで返り値が異なるようにすると、同じ引数に適用しても異なる値を返すスタブ関数を作れます。
+## 同じ引数に適用されたとき異なる値を返すスタブ関数
+`onCase`関数を使うとき、引数が同じで返り値が異なるようにすると、同じ引数に適用しても異なる値を返すスタブ関数を作れます。
 ```haskell
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE TypeApplications #-}
@@ -443,10 +464,10 @@ import GHC.IO (evaluate)
 spec :: Spec
 spec = do
   it "Return different values for the same argument" do
-    f <- createStubFn [
-        "arg" |> "x",
-        "arg" |> "y"
-      ]
+    f <- createStubFn $ do
+      onCase $ "arg" |> "x"
+      onCase $ "arg" |> "y"
+
     -- Do not allow optimization to remove duplicates.
     v1 <- evaluate $ f "arg"
     v2 <- evaluate $ f "arg"

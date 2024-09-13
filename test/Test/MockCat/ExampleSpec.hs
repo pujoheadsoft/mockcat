@@ -76,6 +76,12 @@ spec = do
 
     result `shouldBe` ()
 
+  it "stub" do
+    -- create a stub function
+    stubFn <- createStubFn $ "value" |> True
+    -- assert
+    stubFn "value" `shouldBe` True
+
   it "stub & verify" do
     -- create a mock
     mock <- createMock $ "value" |> True
@@ -145,11 +151,9 @@ spec = do
     f 6 `shouldBe` "return value"
 
   it "multi" do
-    f <-
-      createStubFn $ cases [
-        "a" |> "return x",
-        "b" |> "return y"
-      ]
+    f <- createStubFn do
+      onCase $ "a" |> "return x"
+      onCase $ "b" |> "return y"
 
     f "a" `shouldBe` "return x"
     f "b" `shouldBe` "return y"
