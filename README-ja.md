@@ -1,34 +1,128 @@
-# 🐈Mocking library for Haskell🐈‍
+<div align="center">
+    <img src="logo.png" width="830px" align="center" style="object-fit: cover"/>
+</div>
+
+[![Latest release](http://img.shields.io/github/release/pujoheadsoft/mockcat.svg)](https://github.com/pujoheadsoft/mockcat/releases)
 [![Test](https://github.com/pujoheadsoft/mockcat/workflows/Test/badge.svg)](https://github.com/pujoheadsoft/mockcat/actions?query=workflow%3ATest+branch%3Amain)
+[![](https://img.shields.io/hackage/v/mockcat)](https://hackage.haskell.org/package/mockcat)
 
-# 概要
-mockcatはシンプルで柔軟なモックライブラリです。
 
-モックができることは主に2つあります。
-1. スタブ関数を作る
-2. スタブ関数が期待通り適用されたかを検証する
+## 概要
+mockcatはHaskellのためのモックライブラリです。
 
-モックは2種類作ることができます。
-1. モナド型クラスのモック(部分的なモックを作ることも可能)
-2. 関数のモック
+簡単にスタブ関数を生成したり、スタブ関数の適用内容を検証することができます。
 
-**1**のモナド型クラスとは、次のような型クラスを指しています。
+<details>
+<summary>更新履歴</summary>
+
+- **0.5.0**: `IO a`型のスタブ関数が、適用される度に異なる値を返すことができるようになった
+- **0.4.0**: 型クラスの部分的なモックを作れるようになった
+- **0.3.0**: 型クラスのモックを作れるようになった
+- **0.2.0**: スタブ関数が、同じ引数に対して異なる値を返せるようになった
+- **0.1.0**: 1st release
+</details>
+
+## 例
+スタブ関数
 ```haskell
-class Monad m => FileOperation m where
-  readFile :: FilePath -> m Text
-  writeFile :: FilePath -> Text -> m ()
+-- create a stub function
+stubFn <- createStubFn $ "value" |> True
+-- assert
+stubFn "value" `shouldBe` True
 ```
-
-**2**の関数は次のような普通の関数です。
-(`IO ()`みたいにモナドに包まれた型もモックにできるし、定数関数もモックにできます)
+適用の検証
 ```haskell
-calc :: Int -> Int
-echo :: String -> IO ()
-constantValue :: String
+-- create a mock
+mock <- createMock $ "value" |> True
+-- stub function
+let stubFunction = stubFn mock
+-- assert
+stubFunction "value" `shouldBe` True
+-- verify
+mock `shouldApplyTo` "value"
 ```
+型クラス
+```haskell
+result <- runMockT do
+  -- stub functions
+  _readFile $ "input.txt" |> pack "content"
+  _writeFile $ "output.txt" |> pack "content" |> ()
+  -- sut
+  program "input.txt" "output.txt"
 
-# モナド型クラスのモック
-## 使用例
+result `shouldBe` ()
+```
+## スタブ関数の概要
+スタブ関数は`createStubFn`関数で生成することができます。
+`createStubFn`の引数は、適用が期待される引数を `|>` で連結したもので、`|>` の最後の値が関数の返り値となります。
+```haskell
+createStubFn $ (10 :: Int) |> "return value"
+```
+これは型クラスのモックにおけるスタブ関数の場合も同様です。
+```haskell
+runMockT do
+  _readFile $ "input.txt" |> pack "content"
+```
+期待される引数は、条件として指定することもできます。
+```haskell
+-- Conditions other than exact match
+createStubFn $ any |> "return value"
+createStubFn $ expect (> 5) "> 5" |> "return value"
+createStubFn $ expect_ (> 5) |> "return value"
+createStubFn $ $(expectByExpr [|(> 5)|]) |> "return value"
+```
+また、引数に応じて返す値を変えることも可能です。
+（同じ引数に対して、別の値を返すことも可能できます。）
+```haskell
+-- Parameterized Stub
+createStubFn do
+  onCase $ "a" |> "return x"
+  onCase $ "b" |> "return y"
+createStubFn do
+  onCase $ "arg" |> "x"
+  onCase $ "arg" |> "y"
+```
+## 検証の概要
+スタブ関数の適用を検証するには、まず`createMock`関数でモックを作ります。
+スタブ関数はモックから`stubFn`関数で取り出して使います。
+検証はモックに対して行います。
+```haskell
+-- create a mock
+mock <- createMock $ "value" |> True
+-- stub function
+let stubFunction = stubFn mock
+-- assert
+stubFunction "value" `shouldBe` True
+-- verify
+mock `shouldApplyTo` "value"
+```
+スタブ関数と同様に検証の場合も条件を指定することができます。
+```haskell
+mock `shouldApplyTo` any @String
+mock `shouldApplyTo` expect_ (/= "not value")
+mock `shouldApplyTo` $(expectByExpr [|(/= "not value")|])
+```
+また適用された回数を検証することもできます。
+```haskell
+mock `shouldApplyTimes` (1 :: Int) `to` "value"
+mock `shouldApplyTimesGreaterThan` (0 :: Int) `to` "value"
+mock `shouldApplyTimesGreaterThanEqual` (1 :: Int) `to` "value"
+mock `shouldApplyTimesLessThan` (2 :: Int) `to` "value"
+mock `shouldApplyTimesLessThanEqual` (1 :: Int) `to` "value"
+mock `shouldApplyTimesToAnything` (1 :: Int)
+```
+型クラスのモックの場合は、`runMockT`を適用した際、用意したスタブ関数の適用が行われたかの検証が自動で行われます。
+```haskell
+result <- runMockT do
+  _readFile $ "input.txt" |> pack "Content"
+  _writeFile $ "output.text" |> pack "Content" |> ()
+  operationProgram "input.txt" "output.text"
+
+result `shouldBe` ()
+```
+## 型クラスのモック
+ここからはより詳しく説明していきます。
+### 例
 例えば次のようなモナド型クラス`FileOperation`と、`FileOperation`を使う`operationProgram`という関数が定義されているとします。
 ```haskell
 class Monad m => FileOperation m where
@@ -71,7 +165,7 @@ spec = do
 
 モックは`runMockT`で実行します。
 
-## 検証
+### 検証
 実行の後、スタブ関数が期待通りに適用されたか検証が行われます。  
 例えば、上記の例のスタブ関数`_writeFile`の適用が期待される引数を`"content"`から`"edited content"`に書き換えてみます。
 ```haskell
@@ -100,7 +194,7 @@ result <- runMockT do
 no answer found stub function `_writeFile`.
 ```
 
-## 適用回数を検証
+### 適用回数を検証
 例えば、次のように特定の文字列を含んでいる場合は`writeFile`を適用させない場合のテストを書きたいとします。
 ```haskell
 operationProgram inputPath outputPath = do
@@ -136,7 +230,7 @@ result <- runMockT do
 
 後述しますが、mockcatは`M.any`以外にも様々なパラメーターを用意しています。
 
-## 定数関数のモック
+### 定数関数のモック
 mockcatは定数関数もモックにできます。
 `MonadReader`をモックにし、`ask`のスタブ関数を使ってみます。
 ```haskell
@@ -173,8 +267,41 @@ operationProgram = do
 ```haskell
 It has never been applied function `_ask`
 ```
+### `IO a`型の値を返すモック
+通常定数関数は同じ値を返しますが、`IO a`型の値を返すモックの場合のみ、適用する度に別の値を返すようなモックを作ることができます。
+例えば型クラス`Teletype`とテスト対象の関数`echo`が定義されているとします。
+`echo`は、`readTTY`が返す値によって異なる動作をします。
+```haskell
+class Monad m => Teletype m where
+  readTTY :: m String
+  writeTTY :: String -> m ()
 
-## 部分的なモック
+echo :: Teletype m => m ()
+echo = do
+  i <- readTTY
+  case i of
+    "" -> pure ()
+    _  -> writeTTY i >> echo
+```
+  `readTTY`が`""`以外を返した場合は、再帰的に呼び出されることを検証したいでしょう。
+  そのためには、一度のテストの中で`readTTY`が異なる値を返せる必要があります。
+  これを実現するためには、`implicitMonadicReturn`オプションを指定してモックを作ります。
+  `implicitMonadicReturn`を使うことで、スタブ関数が明示的にモナディックな値を返せるようになります。
+```haskell
+makeMockWithOptions [t|Teletype|] options { implicitMonadicReturn = False }
+```
+これによりテストでは、`onCase`を使って、1回目の適用では`""`以外の値を返し、2回目の適用では`""`を返すような動作をさせることが可能になります。
+```haskell
+result <- runMockT do
+  _readTTY $ do
+    onCase $ pure @IO "a"
+    onCase $ pure @IO ""
+
+  _writeTTY $ "a" |> pure @IO ()
+  echo
+result `shouldBe` ()
+```
+### 部分的なモック
 `makePartialMock`関数を使うと、型クラスに定義された関数の一部だけをモックにできます。
 
 例えば次のような型クラスと関数があったとします。  
@@ -217,7 +344,7 @@ spec = do
     a `shouldBe` Nothing
 ```
 
-## スタブ関数の名前を変える
+### スタブ関数の名前を変える
 生成されるスタブ関数の接頭辞と接尾辞はオプションで変更することができます。  
 例えば次のように指定すると、`stub_readFile_fn`と`stub_writeFile_fn`関数が生成されます。
 ```haskell
@@ -225,7 +352,7 @@ makeMockWithOptions [t|FileOperation|] options { prefix = "stub_", suffix = "_fn
 ```
 オプションが指定されない場合はデフォルトで`_`になります。
 
-## makeMockが生成するコード
+### makeMockが生成するコード
 使用する上で意識する必要はありませんが、`makeMock`関数は次のようなコードを生成します。
 ```haskell
 -- MockTインスタンス
@@ -237,11 +364,11 @@ _readFile :: (MockBuilder params (FilePath -> Text) (Param FilePath), Monad m) =
 _writeFile :: (MockBuilder params (FilePath -> Text -> ()) (Param FilePath :> Param Text), Monad m) => params -> MockT m ()
 ```
 
-# 関数のモック
+## 関数のモック
 mockcatはモナド型クラスのモックだけでなく、通常の関数のモックを作ることもできます。  
 モナド型のモックとは異なり、元になる関数は不要です。
 
-## 使用例
+### 使用例
 ```haskell
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE TypeApplications #-}
@@ -265,7 +392,7 @@ spec = do
 
 ```
 
-## スタブ関数
+### スタブ関数
 スタブ関数を直接作るには `createStubFn` 関数を使います。  
 検証が不要な場合は、こちらを使うとよいでしょう。
 ```haskell
@@ -296,7 +423,7 @@ Expected arguments were not applied to the function.
   expected: "value"
   but got: "valuo"
 ```
-## 名前付きスタブ関数
+### 名前付きスタブ関数
 スタブ関数には名前を付けることができます。
 ```haskell
 {-# LANGUAGE BlockArguments #-}
@@ -318,7 +445,7 @@ Expected arguments were not applied to the function `named stub`.
   but got: "x","z"
 ```
 
-## 定数スタブ関数
+### 定数スタブ関数
 定数を返すようなスタブ関数を作るには`createConstantMock`もしくは`createNamedConstantMock`関数を使います。  
 
 ```haskell
@@ -335,7 +462,7 @@ spec = do
     shouldApplyToAnything m
 ```
 
-## 柔軟なスタブ関数
+### 柔軟なスタブ関数
 `createStubFn` 関数に具体的な値ではなく、条件式を与えることで、柔軟なスタブ関数を生成できます。  
 これを使うと、任意の値や、特定のパターンに合致する文字列などに対して期待値を返すことができます。  
 これはモナド型のモックを生成した際のスタブ関数も同様です。
@@ -407,8 +534,8 @@ spec = do
     f 6 `shouldBe` "return value"
 ```
 
-## 適用される引数ごとに異なる値を返すスタブ関数
-`createStubFn`関数を、x |> y 形式のリストに適用させると、適用する引数ごとに異なる値を返すスタブ関数を作れます。
+### 適用される引数ごとに異なる値を返すスタブ関数
+`onCase`関数を使うと引数ごとに異なる値を返すスタブ関数を作れます。
 ```haskell
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE TypeApplications #-}
@@ -418,17 +545,16 @@ import Test.MockCat
 spec :: Spec
 spec = do
   it "multi" do
-    f <-
-      createStubFn
-        [ "a" |> "return x",
-          "b" |> "return y"
-        ]
+    f <- createStubFn do
+      onCase $ "a" |> "return x"
+      onCase $ "b" |> "return y"
+
     f "a" `shouldBe` "return x"
     f "b" `shouldBe` "return y"
 ```
 
-## 同じ引数に適用されても異なる値を返すスタブ関数
-`createStubFn`関数を、x |> y 形式のリストに適用させるとき、引数が同じで返り値が異なるようにすると、同じ引数に適用しても異なる値を返すスタブ関数を作れます。
+### 同じ引数に適用されたとき異なる値を返すスタブ関数
+`onCase`関数を使うとき、引数が同じで返り値が異なるようにすると、同じ引数に適用しても異なる値を返すスタブ関数を作れます。
 ```haskell
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE TypeApplications #-}
@@ -439,10 +565,10 @@ import GHC.IO (evaluate)
 spec :: Spec
 spec = do
   it "Return different values for the same argument" do
-    f <- createStubFn [
-        "arg" |> "x",
-        "arg" |> "y"
-      ]
+    f <- createStubFn do
+      onCase $ "arg" |> "x"
+      onCase $ "arg" |> "y"
+
     -- Do not allow optimization to remove duplicates.
     v1 <- evaluate $ f "arg"
     v2 <- evaluate $ f "arg"
@@ -451,9 +577,21 @@ spec = do
     v2 `shouldBe` "y"
     v3 `shouldBe` "y" -- After the second time, “y” is returned.
 ```
+あるいは`cases`関数を使うこともできます。
+```haskell
+f <-
+  createStubFn $
+    cases
+      [ "a" |> "return x",
+        "b" |> "return y"
+      ]
 
-# 検証
-## 期待される引数に適用されたか検証する
+f "a" `shouldBe` "return x"
+f "b" `shouldBe` "return y"
+```
+
+## 検証
+### 期待される引数に適用されたか検証する
 期待される引数に適用されたかは `shouldApplyTo` 関数で検証することができます。  
 検証を行う場合は、`createStubFn` 関数ではなく `createMock` 関数でモックを作る必要があります。
 この場合スタブ関数は `stubFn` 関数でモックから取り出して使います。
@@ -499,7 +637,7 @@ Expected arguments were not applied to the function.
   but got: Never been called.
 ```
 
-## 期待される引数に適用された回数を検証する
+### 期待される引数に適用された回数を検証する
 期待される引数が適用された回数は `shouldApplyTimes` 関数で検証することができます。
 ```haskell
 {-# LANGUAGE BlockArguments #-}
@@ -516,13 +654,13 @@ spec = do
     m `shouldApplyTimes` (2 :: Int) `to` "value"
 ```
 
-## 何かしらに適用されたかを検証する
+### 何かしらに適用されたかを検証する
 関数が何かしらに適用されたかは、`shouldApplyToAnything`関数で検証することができます。
 
-## 何かしらに適用された回数を検証する
+### 何かしらに適用された回数を検証する
 関数が何かしらに適用されたかの回数は、`shouldApplyTimesToAnything`関数で検証することができます。
 
-## 期待される順序で適用されたかを検証する
+### 期待される順序で適用されたかを検証する
 期待される順序で適用されたかは `shouldApplyInOrder` 関数で検証することができます。
 ```haskell
 {-# LANGUAGE BlockArguments #-}
@@ -542,7 +680,7 @@ spec = do
                            ]
 ```
 
-## 期待される順序で適用されたかを検証する(部分一致)
+### 期待される順序で適用されたかを検証する(部分一致)
 `shouldApplyInOrder` 関数は適用の順序を厳密に検証しますが、  
 `shouldApplyInPartialOrder` 関数は適用の順序が部分的に一致しているかを検証することができます。
 ```haskell

@@ -116,13 +116,13 @@ data MockType = Total | Partial deriving (Eq)
 --
 --  - prefix: Stub function prefix
 --  - suffix: stub function suffix
-data MockOptions = MockOptions {prefix :: String, suffix :: String}
+data MockOptions = MockOptions {prefix :: String, suffix :: String, implicitMonadicReturn :: Bool}
 
 -- | Default Options.
 --
 --  Stub function names are prefixed with “_”.
 options :: MockOptions
-options = MockOptions {prefix = "_", suffix = ""}
+options = MockOptions {prefix = "_", suffix = "", implicitMonadicReturn = True}
 
 -- | Create a mock of the typeclasses that returns a monad according to the `MockOptions`.
 --
@@ -398,15 +398,18 @@ createInstanceFnDec mockType options (SigD fnName funType) = do
       fnNameStr = createFnName fnName options
 
       fnBody = case mockType of
-        Total -> generateInstanceMockFnBody fnNameStr args r
-        Partial -> generateInstanceRealFnBody fnName fnNameStr args r
+        Total -> generateInstanceMockFnBody fnNameStr args r options
+        Partial -> generateInstanceRealFnBody fnName fnNameStr args r options
 
       fnClause = clause params (normalB fnBody) []
   funD fnName [fnClause]
 createInstanceFnDec _ _ dec = fail $ "unsuported dec: " <> pprint dec
 
-generateInstanceMockFnBody :: String -> [Q Exp] -> Name -> Q Exp
-generateInstanceMockFnBody fnNameStr args r =
+generateInstanceMockFnBody :: String -> [Q Exp] -> Name -> MockOptions -> Q Exp
+generateInstanceMockFnBody fnNameStr args r options = do
+  returnExp <- if options.implicitMonadicReturn
+    then [| pure $(varE r) |]
+    else [| lift $(varE r) |]
   [|
     MockT $ do
       defs <- get
@@ -415,18 +418,21 @@ generateInstanceMockFnBody fnNameStr args r =
               & findParam (Proxy :: Proxy $(litT (strTyLit fnNameStr)))
               & fromMaybe (error $ "no answer found stub function `" ++ fnNameStr ++ "`.")
           $(bangP $ varP r) = $(generateStubFn args [|mock|])
-      pure $(varE r)
+      $(pure returnExp)
     |]
 
-generateInstanceRealFnBody :: Name -> String -> [Q Exp] -> Name -> Q Exp
-generateInstanceRealFnBody fnName fnNameStr args r =
+generateInstanceRealFnBody :: Name -> String -> [Q Exp] -> Name -> MockOptions -> Q Exp
+generateInstanceRealFnBody fnName fnNameStr args r options = do
+  returnExp <- if options.implicitMonadicReturn
+    then [| pure $(varE r) |]
+    else [| lift $(varE r) |]
   [|
     MockT $ do
       defs <- get
       case findParam (Proxy :: Proxy $(litT (strTyLit fnNameStr))) defs of
         Just mock -> do
           let $(bangP $ varP r) = $(generateStubFn args [|mock|])
-          pure $(varE r)
+          $(pure returnExp)
         Nothing -> lift $ $(foldl appE (varE fnName) args)
     |]
 
@@ -446,12 +452,17 @@ createMockFnDec monadVarName varAppliedTypes options (SigD funName ty) = do
       mockFunName = mkName funNameStr
       params = mkName "p"
       updatedType = updateType ty varAppliedTypes
-      funType = createMockBuilderFnType monadVarName updatedType
+      funType = if options.implicitMonadicReturn 
+        then createMockBuilderFnType monadVarName updatedType
+        else updatedType
 
   if isFunctionType ty then
     doCreateMockFnDec funNameStr mockFunName params funType monadVarName updatedType
   else
-    doCreateConstantMockFnDec funNameStr mockFunName funType monadVarName
+    if options.implicitMonadicReturn then
+      doCreateConstantMockFnDec funNameStr mockFunName funType monadVarName
+    else
+      doCreateMockFnDec2 funNameStr mockFunName params funType monadVarName updatedType
 
 createMockFnDec _ _ _ dec = fail $ "unsupport dec: " <> pprint dec
 
@@ -480,6 +491,25 @@ doCreateConstantMockFnDec funNameStr mockFunName ty monadVarName = do
   createMockFn <- [|createNamedConstantMock|]
   mockBody <- createMockBody funNameStr createMockFn
   newFun <- funD mockFunName [clause [varP $ mkName "p"] (normalB (pure mockBody)) []]
+  pure $ newFunSig : [newFun]
+
+doCreateMockFnDec2 :: (Quote m) => String -> Name -> Name -> Type -> Name -> Type -> m [Dec]
+doCreateMockFnDec2 funNameStr mockFunName params funType monadVarName updatedType = do
+  newFunSig <- do
+    let verifyParams = createMockBuilderVerifyParams updatedType
+    sigD
+      mockFunName
+      [t|
+        (MockBuilder $(varT params) ($(pure funType)) (), Monad $(varT monadVarName)) =>
+        $(varT params) ->
+        MockT $(varT monadVarName) ()
+        |]
+
+  createMockFn <- [|createNamedMock|]
+
+  mockBody <- createMockBody funNameStr createMockFn
+  newFun <- funD mockFunName [clause [varP $ mkName "p"] (normalB (pure mockBody)) []]
+
   pure $ newFunSig : [newFun]
 
 createMockBody :: (Quote m) => String -> Exp -> m Exp

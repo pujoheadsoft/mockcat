@@ -29,15 +29,58 @@ operationProgram inputPath outputPath = do
   content <- readFile inputPath
   writeFile outputPath content
 
+class Monad m => Teletype m where
+  readTTY :: m String
+  writeTTY :: String -> m ()
+
+echo :: Teletype m => m ()
+echo = do
+  i <- readTTY
+  case i of
+    "" -> pure ()
+    _  -> writeTTY i >> echo
+
+makeMockWithOptions [t|Teletype|] options { implicitMonadicReturn = False }
+
 spec :: Spec
 spec = do
-  it "" do
+  it "echo1" do
+    result <- runMockT do
+      _readTTY $ pure @IO ""
+      echo
+    result `shouldBe` ()
+
+  it "echo2" do
+    result <- runMockT do
+      _readTTY $ do
+        onCase $ pure @IO "a"
+        onCase $ pure @IO ""
+
+      _writeTTY $ "a" |> pure @IO ()
+      echo
+    result `shouldBe` ()
+
+  it "echo3" do
+    result <- runMockT do
+      _readTTY $ casesIO ["a", ""]
+      _readTTY $ cases [ pure @IO "a", pure @IO "" ]
+      _writeTTY $ "a" |> pure @IO ()
+      echo
+    result `shouldBe` ()
+
+  it "read & write" do
     result <- runMockT do
       _readFile $ "input.txt" |> pack "Content"
       _writeFile $ "output.text" |> pack "Content" |> ()
       operationProgram "input.txt" "output.text"
 
     result `shouldBe` ()
+
+  it "stub" do
+    -- create a stub function
+    stubFn <- createStubFn $ "value" |> True
+    -- assert
+    stubFn "value" `shouldBe` True
 
   it "stub & verify" do
     -- create a mock
@@ -108,19 +151,18 @@ spec = do
     f 6 `shouldBe` "return value"
 
   it "multi" do
-    f <-
-      createStubFn
-        [ "a" |> "return x",
-          "b" |> "return y"
-        ]
+    f <- createStubFn do
+      onCase $ "a" |> "return x"
+      onCase $ "b" |> "return y"
+
     f "a" `shouldBe` "return x"
     f "b" `shouldBe` "return y"
 
   it "Return different values for the same argument" do
-    f <- createStubFn [
-        "arg" |> "x",
-        "arg" |> "y"
-      ]
+    f <- createStubFn $ do
+      onCase $ "arg" |> "x"
+      onCase $ "arg" |> "y"
+
     -- Do not allow optimization to remove duplicates.
     v1 <- evaluate $ f "arg"
     v2 <- evaluate $ f "arg"

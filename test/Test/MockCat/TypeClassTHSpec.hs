@@ -10,13 +10,14 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-# OPTIONS_GHC -Wno-simplifiable-class-constraints #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
+{-# LANGUAGE TypeApplications #-}
 
 module Test.MockCat.TypeClassTHSpec (spec) where
 
 import Prelude hiding (readFile, writeFile, any)
 import Data.Text (Text, pack, isInfixOf)
 import Test.Hspec
-import Test.MockCat (makeMock, makeMockWithOptions, createStubFn, options, MockOptions(..), runMockT, (|>), any, applyTimesIs, neverApply)
+import Test.MockCat
 import Control.Monad.State
 import Control.Monad.Reader (MonadReader, ask)
 import Control.Monad (unless)
@@ -119,12 +120,31 @@ threeParamMonadExec = do
   v3 <- fnParam3_3
   pure $ v1 <> v2 <> show v3
 
+class Monad m => MultiApplyTest m where
+  getValueBy :: String -> m String
+
+getValues :: MultiApplyTest m => [String] -> m [String]
+getValues = mapM getValueBy
+
+makeMock [t|MultiApplyTest|]
+
+class Monad m => ExplicitlyReturnMonadicValuesTest m where
+  echo :: String -> m ()
+  getBy :: String -> m Int
+  
+echoProgram :: ExplicitlyReturnMonadicValuesTest m => String -> m ()
+echoProgram s = do
+  v <- getBy s
+  echo $ show v
+
+makeMockWithOptions [t|ExplicitlyReturnMonadicValuesTest|] options { implicitMonadicReturn = False }
+
 spec :: Spec
 spec = do
   it "Read, and output files" do
     result <- runMockT do
-      _readFile ("input.txt" |> pack "content")
-      _writeFile ("output.txt" |> pack "content" |> ())
+      _readFile $ "input.txt" |> pack "content"
+      _writeFile $ "output.txt" |> pack "content" |> ()
       operationProgram "input.txt" "output.txt"
 
     result `shouldBe` ()
@@ -178,3 +198,20 @@ spec = do
       _fnParam3_3 False
       threeParamMonadExec
     r `shouldBe` "Result1Result2False"
+  
+  it "Multi apply" do
+    result <- runMockT do
+      _getValueBy $ do
+        onCase $ "a" |> "ax"
+        onCase $ "b" |> "bx"
+        onCase $ "c" |> "cx"
+      getValues ["a", "b", "c"]
+    result `shouldBe` ["ax", "bx", "cx"]
+
+  it "Return monadic value test" do
+    result <- runMockT do
+      _getBy $ "s" |> pure @IO (10 :: Int)
+      _echo $ "10" |> pure @IO ()
+      echoProgram "s"
+
+    result `shouldBe` ()

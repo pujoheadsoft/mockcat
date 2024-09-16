@@ -7,6 +7,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
+{-# LANGUAGE TypeApplications #-}
 
 module Test.MockCat.TypeClassSpec (spec) where
 
@@ -107,15 +108,112 @@ findParam pa definitions = do
   let definition = find (\(Definition s _ _) -> symbolVal s == symbolVal pa) definitions
   fmap (\(Definition _ mock _) -> unsafeCoerce mock) definition
 
+class Monad m => TestClass m where
+  echo :: String -> m ()
+  getBy :: String -> m Int
+
+echoProgram :: MonadIO m => TestClass m => String -> m ()
+echoProgram s = do
+  v <- getBy s
+  liftIO $ print v
+  echo $ show v
+
+instance (Monad m) => TestClass (MockT m) where
+  getBy a = MockT do
+    defs <- get
+    let
+      mock = fromMaybe (error "no answer found stub function `_getBy`.") $ findParam (Proxy :: Proxy "_getBy") defs
+      !result = stubFn mock a
+    lift result
+
+  echo a = MockT do
+    defs <- get
+    let
+      mock = fromMaybe (error "no answer found stub function `_echo`.") $ findParam (Proxy :: Proxy "_echo") defs
+      !result = stubFn mock a
+    lift result
+
+_getBy :: (MockBuilder params (String -> m Int) (Param String), Monad m) => params -> MockT m ()
+_getBy p = MockT $ do
+  modify (++ [Definition
+    (Proxy :: Proxy "_getBy")
+    (unsafePerformIO $ createNamedMock "_getBy" p)
+    shouldApplyToAnything])
+
+_echo :: (MockBuilder params (String -> m ()) (Param String), Monad m) => params -> MockT m ()
+_echo p = MockT $ modify (++ [Definition
+  (Proxy :: Proxy "_echo")
+  (unsafePerformIO $ createNamedMock "_echo" p)
+  shouldApplyToAnything])
+
+
+class Monad m => Teletype m where
+  readTTY :: m String
+  writeTTY :: String -> m ()
+
+echo2 :: Teletype m => m ()
+echo2 = do
+  i <- readTTY
+  case i of
+    "" -> pure ()
+    _  -> writeTTY i >> echo2
+
+instance (Monad m) => Teletype (MockT m) where
+  readTTY = MockT do
+    defs <- get
+    let
+      mock = fromMaybe (error "no answer found stub function `_readTTY`.") $ findParam (Proxy :: Proxy "_readTTY") defs
+      !result = stubFn mock
+    lift result
+
+  writeTTY a = MockT do
+    defs <- get
+    let
+      mock = fromMaybe (error "no answer found stub function `_writeTTY`.") $ findParam (Proxy :: Proxy "_writeTTY") defs
+      !result = stubFn mock a
+    lift result
+
+_readTTY :: (MockBuilder params (m String) (), Monad m) => params -> MockT m ()
+_readTTY p = MockT $ do
+  modify (++ [Definition
+    (Proxy :: Proxy "_readTTY")
+    (unsafePerformIO $ createNamedMock "_readTTY" p)
+    shouldApplyToAnything])
+
+_writeTTY :: (MockBuilder params (String -> m ()) (Param String), Monad m) => params -> MockT m ()
+_writeTTY p = MockT $ modify (++ [Definition
+  (Proxy :: Proxy "_writeTTY")
+  (unsafePerformIO $ createNamedMock "_writeTTY" p)
+  shouldApplyToAnything])
+
 spec :: Spec
-spec = it "Read, edit, and output files" do
-  modifyContentStub <- createStubFn $ pack "content" |> pack "modifiedContent"
+spec = do
+  it "echo" do
+    result <- runMockT do
+      _readTTY $ casesIO [
+        "a",
+        ""
+        ]
+      _writeTTY $ "a" |> pure @IO ()
+      echo2
+    result `shouldBe` ()
 
-  result <- runMockT do
-    _ask "environment"
-    _readFile ("input.txt" |> pack "content")
-    _writeFile $ "output.text" |> pack "modifiedContent" |> ()
-    _post $ pack "modifiedContent+environment" |> ()
-    program "input.txt" "output.text" modifyContentStub
+  it "Read, edit, and output files" do
+    modifyContentStub <- createStubFn $ pack "content" |> pack "modifiedContent"
 
-  result `shouldBe` ()
+    result <- runMockT do
+      _ask "environment"
+      _readFile ("input.txt" |> pack "content")
+      _writeFile $ "output.text" |> pack "modifiedContent" |> ()
+      _post $ pack "modifiedContent+environment" |> ()
+      program "input.txt" "output.text" modifyContentStub
+
+    result `shouldBe` ()
+
+  it "return monadic value test" do
+    result <- runMockT do
+      _getBy $ "s" |> pure @IO (10 :: Int)
+      _echo $ "10" |> pure @IO ()
+      echoProgram "s"
+
+    result `shouldBe` ()
