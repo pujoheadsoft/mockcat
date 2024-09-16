@@ -565,7 +565,7 @@ import GHC.IO (evaluate)
 spec :: Spec
 spec = do
   it "Return different values for the same argument" do
-    f <- createStubFn $ do
+    f <- createStubFn do
       onCase $ "arg" |> "x"
       onCase $ "arg" |> "y"
 
@@ -576,6 +576,18 @@ spec = do
     v1 `shouldBe` "x"
     v2 `shouldBe` "y"
     v3 `shouldBe` "y" -- After the second time, “y” is returned.
+```
+あるいは`cases`関数を使うこともできます。
+```haskell
+f <-
+  createStubFn $
+    cases
+      [ "a" |> "return x",
+        "b" |> "return y"
+      ]
+
+f "a" `shouldBe` "return x"
+f "b" `shouldBe` "return y"
 ```
 
 ## 検証

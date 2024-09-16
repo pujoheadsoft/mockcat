@@ -554,6 +554,18 @@ spec = do
     f "a" `shouldBe` "return x"
     f "b" `shouldBe` "return y"
 ```
+Alternatively, you can use the `cases` function.
+```haskell
+f <-
+  createStubFn $
+    cases
+      [ "a" |> "return x",
+        "b" |> "return y"
+      ]
+
+f "a" `shouldBe` "return x"
+f "b" `shouldBe` "return y"
+```
 
 ### Stub functions that return different values when applied to the same argument
 When the `createStubFn` function is applied to a list of x |> y format, with the same arguments but different return values, you can create stub functions that return different values when applied to the same arguments.
