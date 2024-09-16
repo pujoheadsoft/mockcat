@@ -2,40 +2,128 @@
     <img src="logo.png" width="830px" align="center" style="object-fit: cover"/>
 </div>
 
-# Mocking library for Haskell
-
+[![Latest release](http://img.shields.io/github/release/pujoheadsoft/mockcat.svg)](https://github.com/pujoheadsoft/mockcat/releases)
 [![Test](https://github.com/pujoheadsoft/mockcat/workflows/Test/badge.svg)](https://github.com/pujoheadsoft/mockcat/actions?query=workflow%3ATest+branch%3Amain)
+[![](https://img.shields.io/hackage/v/mockcat)](https://hackage.haskell.org/package/mockcat)
+
+
+## Overview
+mockcat is a mock library for Haskell.  
+
+It can easily generate stub functions and verify the application of stub functions.
 
 [日本語版 README はこちら](https://github.com/pujoheadsoft/mockcat/blob/master/README-ja.md)
 
-# Overview
-mockcat is a simple and flexible mocking library.
+<details>
+<summary>Update History</summary>
 
-There are two main things you can do with mocks:
-1. Create stub functions
-2. Verify whether the stub functions were applied as expected
+- **0.5.0**: Stub functions of type `IO a` can now return different values each time they are applied
+- **0.4.0**: Can make partial mocks of type classes.
+- **0.3.0**: Can make mocks of type classes.
+- **0.2.0**: Stub functions can now return different values for the same argument.
+- **0.1.0**: 1st release
+</details>
 
-You can create two types of mocks:
-1. Mocks for monad type classes
-2. Mocks for functions
-
-**1** The monad type classes refer to classes like the following:
+## Examples
+Stub Function
 ```haskell
-class Monad m => FileOperation m where
-  readFile :: FilePath -> m Text
-  writeFile :: FilePath -> Text -> m ()
+-- create a stub function
+stubFn <- createStubFn $ "value" |> True
+-- assert
+stubFn "value" `shouldBe` True
 ```
-
-**2** The functions refer to regular functions like the following:  
-(You can mock functions wrapped in a monad like IO (), as well as constant functions)
+Verification
 ```haskell
-calc :: Int -> Int
-echo :: String -> IO ()
-constantValue :: String
+-- create a mock
+mock <- createMock $ "value" |> True
+-- stub function
+let stubFunction = stubFn mock
+-- assert
+stubFunction "value" `shouldBe` True
+-- verify
+mock `shouldApplyTo` "value"
 ```
+Mock of Type Class
+```haskell
+result <- runMockT do
+  -- stub functions
+  _readFile $ "input.txt" |> pack "content"
+  _writeFile $ "output.txt" |> pack "content" |> ()
+  -- sut
+  program "input.txt" "output.txt"
 
-# Mock of monad type class
-## Example usage
+result `shouldBe` ()
+```
+## Stub Function Overview
+Stub functions can be created with the `createStubFn` function.  
+The arguments of `createStubFn` are the arguments expected to be applied, concatenated by `|>`, where the last value of `|>` is the return value of the function.
+```haskell
+createStubFn $ (10 :: Int) |> "return value"
+```
+The same is true for stub functions in typeclass mocks.
+```haskell
+runMockT do
+  _readFile $ "input.txt" |> pack "content"
+```
+Expected arguments can also be specified as conditions.
+```haskell
+-- Conditions other than exact match
+createStubFn $ any |> "return value"
+createStubFn $ expect (> 5) "> 5" |> "return value"
+createStubFn $ expect_ (> 5) |> "return value"
+createStubFn $ $(expectByExpr [|(> 5)|]) |> "return value"
+```
+It is also possible to change the value returned depending on the argument.  
+(It is also possible to return different values for the same argument.)
+```haskell
+-- Parameterized Stub
+createStubFn do
+  onCase $ "a" |> "return x"
+  onCase $ "b" |> "return y"
+createStubFn do
+  onCase $ "arg" |> "x"
+  onCase $ "arg" |> "y"
+```
+## Verification Overview
+To verify the application of a stub function, first create a mock with the `createMock` function.  
+Stub functions are retrieved from the mock with the `stubFn` function and used.  
+Verification is performed on the mock.
+```haskell
+-- create a mock
+mock <- createMock $ "value" |> True
+-- stub function
+let stubFunction = stubFn mock
+-- assert
+stubFunction "value" `shouldBe` True
+-- verify
+mock `shouldApplyTo` "value"
+```
+As with stub functions, conditions can be specified in the case of verification.
+```haskell
+mock `shouldApplyTo` any @String
+mock `shouldApplyTo` expect_ (/= "not value")
+mock `shouldApplyTo` $(expectByExpr [|(/= "not value")|])
+```
+You can also verify the number of times it has been applied.
+```haskell
+mock `shouldApplyTimes` (1 :: Int) `to` "value"
+mock `shouldApplyTimesGreaterThan` (0 :: Int) `to` "value"
+mock `shouldApplyTimesGreaterThanEqual` (1 :: Int) `to` "value"
+mock `shouldApplyTimesLessThan` (2 :: Int) `to` "value"
+mock `shouldApplyTimesLessThanEqual` (1 :: Int) `to` "value"
+mock `shouldApplyTimesToAnything` (1 :: Int)
+```
+In the case of typeclass mocks, when `runMockT` is applied, verification that the prepared stub functions have been applied is performed automatically.
+```haskell
+result <- runMockT do
+  _readFile $ "input.txt" |> pack "Content"
+  _writeFile $ "output.text" |> pack "Content" |> ()
+  operationProgram "input.txt" "output.text"
+
+result `shouldBe` ()
+```
+## Mock of monad type class
+### Example usage
 For example, suppose the following monad type class `FileOperation` and a function `operationProgram` that uses `FileOperation` are defined.
 ```haskell
 class Monad m => FileOperation m where
@@ -78,7 +166,7 @@ The last value of `|>` is the return value of the function.
 
 Mocks are run with `runMockT`.
 
-## Verification
+### Verification
 After execution, the stub function is verified to see if it is applied as expected.  
 For example, the expected argument of the stub function `_writeFile` in the above example is changed from `"content"` to `"edited content"`.
 ```haskell
@@ -143,7 +231,7 @@ This example uses `M.any` to verify that the `writeFile` function does not apply
 
 As described below, mockcat provides a variety of parameters other than `M.any`.
 
-## Mock constant functions
+### Mock constant functions
 mockcat can also mock constant functions.  
 Let's mock `MonadReader` and use the `ask` stub function.
 ```haskell
@@ -180,8 +268,42 @@ Then the test run fails and you will see that the stub function was not applied.
 ```haskell
 It has never been applied function `_ask`
 ```
+### Mock that returns a value of type `IO a`.
+Normally constant functions return the same value, but only for mocks that return a value of type `IO a`, you can create a mock that returns a different value each time it is applied.  
+For example, suppose a typeclass `Teletype` and a function `echo` to be tested are defined.  
+The `echo` will behave differently depending on the value returned by `readTTY`.
+```haskell
+class Monad m => Teletype m where
+  readTTY :: m String
+  writeTTY :: String -> m ()
 
-## Partial mocking
+echo :: Teletype m => m ()
+echo = do
+  i <- readTTY
+  case i of
+    "" -> pure ()
+    _  -> writeTTY i >> echo
+```
+You will want to verify that if `readTTY` returns anything other than `""`, it is called recursively.  
+To do this, we need to be able to have `readTTY` return different values in a single test.  
+To achieve this, create a mock with the `implicitMonadicReturn` option.
+Using `implicitMonadicReturn` allows stub functions to explicitly return monadic values.
+```haskell
+makeMockWithOptions [t|Teletype|] options { implicitMonadicReturn = False }
+```
+This allows the test to use `onCase` to have a behavior where the first application returns a value other than `""` and the second application returns `""`.
+```haskell
+result <- runMockT do
+  _readTTY $ do
+    onCase $ pure @IO "a"
+    onCase $ pure @IO ""
+
+  _writeTTY $ "a" |> pure @IO ()
+  echo
+result `shouldBe` ()
+```
+
+### Partial mocking
 The `makePartialMock` function can be used to mock only a part of a function defined in a typeclass.
 
 For example, suppose you have the following typeclasses and functions.  
@@ -224,7 +346,7 @@ spec = do
     a `shouldBe` Nothing
 ```
 
-## Rename stub functions
+### Rename stub functions
 The prefix and suffix of the generated stub functions can optionally be changed.  
 For example, the following will generate the functions `stub_readFile_fn` and `stub_writeFile_fn`.
 ```haskell
@@ -232,7 +354,7 @@ makeMockWithOptions [t|FileOperation|] options { prefix = "stub_", suffix = "_fn
 ```
 If no options are specified, it defaults to ``_``.
 
-## Code generated by makeMock
+### Code generated by makeMock
 Although you do not need to be aware of it, the ``makeMock`` function generates the following code.
 ```haskell
 -- MockT instance
@@ -244,12 +366,12 @@ _readFile :: (MockBuilder params (FilePath -> Text) (Param FilePath), Monad m) =
 _writeFile :: (MockBuilder params (FilePath -> Text -> ()) (Param FilePath :> Param Text), Monad m) => params -> MockT m ()
 ```
 
-# Mocking functions
+## Mocking functions
 In addition to mocking monad type classes, mockcat can also mock regular functions.  
 Unlike monad type mocks, the original function is not required.
 
-## Example usage
-````haskell
+### Example usage
+```haskell
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE TypeApplications #-}
 import Test.Hspec
@@ -271,7 +393,6 @@ spec = do
     mock `shouldApplyTo` "value"
 
 ```
-
 ## Stub functions
 To create a stub function directly, use the `createStubFn` function.  
 If you don't need verification, you can use this one.
@@ -304,7 +425,7 @@ Expected arguments were not applied to the function.
   but got: "valuo"
 ````
 
-## Named Stub Functions
+### Named Stub Functions
 You can name stub functions.
 ```haskell
 {-# LANGUAGE BlockArguments #-}
@@ -326,7 +447,7 @@ Expected arguments were not applied to the function `named stub`.
   but got: "x","z"
 ```
 
-## Constant stub functions
+### Constant stub functions
 To create a stub function that returns a constant, use the `createConstantMock` or `createNamedConstantMock` function.  
 
 ```haskell
@@ -343,7 +464,7 @@ spec = do
     shouldApplyToAnything m
 ```
 
-## Flexible stub functions
+### Flexible stub functions
 Flexible stub functions can be generated by giving the `createStubFn` function a conditional expression rather than a concrete value.  
 This can be used to return expected values for arbitrary values or strings that match a specific pattern.  
 This is also true for the stub function when generating a mock of a monad type.
@@ -415,7 +536,7 @@ spec = do
     f 6 `shouldBe` "return value"
 ```
 
-## Stub functions that return different values for each argument applied
+### Stub functions that return different values for each argument applied
 By applying the `createStubFn` function to a list of x |> y format, you can create a stub function that returns a different value for each argument you apply.
 ```haskell
 {-# LANGUAGE BlockArguments #-}
@@ -436,7 +557,7 @@ spec = do
     f "b" `shouldBe` "return y"
 ```
 
-## Stub functions that return different values when applied to the same argument
+### Stub functions that return different values when applied to the same argument
 When the `createStubFn` function is applied to a list of x |> y format, with the same arguments but different return values, you can create stub functions that return different values when applied to the same arguments.
 ```haskell
 {-# LANGUAGE BlockArguments #-}
@@ -461,7 +582,7 @@ spec = do
     v3 `shouldBe` "y" -- After the second time, "y" is returned.
 ```
 
-## Verify that expected arguments are applied
+### Verify that expected arguments are applied
 The `shouldApplyTo` function can be used to verify that a stub function has been applied to the expected arguments.  
 If you want to verify this, you need to create a mock with the `createMock` function instead of the `createStubFn` function.  
 In this case, stub functions are taken from the mock with the `stubFn` function.
@@ -507,7 +628,7 @@ Expected arguments were not applied to the function.
   but got: Never been called.
 ```
 
-## Verify the number of times the stub function was applied to the expected argument
+### Verify the number of times the stub function was applied to the expected argument
 The number of times a stub function is applied to an expected argument can be verified with the `shouldApplyTimes` function.
 ```haskell
 {-# LANGUAGE BlockArguments #-}
@@ -523,13 +644,13 @@ spec = do
     print $ stubFn m "value"
     m `shouldApplyTimes` (2 :: Int) `to` "value"
 ```
-## Verify that a function has been applied to something
+### Verify that a function has been applied to something
 You can verify that a function has been applied to something with the `shouldApplyToAnything` function.
 
-## Verify the number of times a function has been applied to something
+### Verify the number of times a function has been applied to something
 The number of times a function has been applied to something can be verified with the `shouldApplyTimesToAnything` function.
 
-## Verify that stub functions are applied in the expected order
+### Verify that stub functions are applied in the expected order
 The `shouldApplyInOrder` function can be used to verify that the order in which they were applied is the expected order.
 ```haskell
 {-# LANGUAGE BlockArguments #-}
@@ -549,7 +670,7 @@ spec = do
                            ]
 ```
 
-## Verify that they were applied in the expected order (partial match)
+### Verify that they were applied in the expected order (partial match)
 While the `shouldApplyInOrder` function verifies the exact order of application,  
 The `shouldApplyInPartialOrder` function allows you to verify that the order of application is partially matched.
 ```haskell
