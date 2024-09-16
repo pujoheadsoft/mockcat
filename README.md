@@ -548,11 +548,9 @@ import Prelude hiding (and)
 spec :: Spec
 spec = do
   it "multi" do
-    f <-
-      createStubFn
-        [ "a" |> "return x",
-          "b" |> "return y"
-        ]
+    f <- createStubFn do
+      onCase $ "a" |> "return x"
+      onCase $ "b" |> "return y"
     f "a" `shouldBe` "return x"
     f "b" `shouldBe` "return y"
 ```
@@ -569,10 +567,10 @@ import GHC.IO (evaluate)
 spec :: Spec
 spec = do
   it "Return different values for the same argument" do
-    f <- createStubFn [
-        "arg" |> "x",
-        "arg" |> "y"
-      ]
+    f <- createStubFn $ do
+      onCase $ "arg" |> "x"
+      onCase $ "arg" |> "y"
+
     -- Do not allow optimization to remove duplicates.
     v1 <- evaluate $ f "arg"
     v2 <- evaluate $ f "arg"
