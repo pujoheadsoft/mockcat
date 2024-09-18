@@ -63,6 +63,12 @@ spec = do
   it "echo3" do
     result <- runMockT do
       _readTTY $ casesIO ["a", ""]
+      _writeTTY $ "a" |> pure @IO ()
+      echo
+    result `shouldBe` ()
+
+  it "echo4" do
+    result <- runMockT do
       _readTTY $ cases [ pure @IO "a", pure @IO "" ]
       _writeTTY $ "a" |> pure @IO ()
       echo
