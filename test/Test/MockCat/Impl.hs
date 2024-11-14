@@ -25,5 +25,5 @@ instance Monad m => FileOperation (ReaderT String m) where
   writeFile _ _ = undefined
 
 instance Finder Int String IO where
-  findIds = pure [1, 2, 3]
+  findIds = pure [1 :: Int, 2 :: Int, 3 :: Int]
   findById id = pure $ "{id: " <> show id <> "}"
