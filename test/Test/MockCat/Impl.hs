@@ -5,7 +5,7 @@
 module Test.MockCat.Impl (FileOperation, Finder) where
 
 import Test.MockCat.Definition
-import Data.Text
+import Data.Text (pack)
 import Prelude hiding (readFile, writeFile)
 import Control.Monad.Trans.Maybe
 import Control.Monad.Reader
