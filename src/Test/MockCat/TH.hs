@@ -49,6 +49,9 @@ import Language.Haskell.TH
     mkName,
     pprint,
     reify,
+    Inline (NoInline),
+    RuleMatch (FunLike),
+    Phases (AllPhases),
   )
 import Language.Haskell.TH.Lib
 import Language.Haskell.TH.PprLib (Doc, hcat, parens, text)
@@ -116,6 +119,8 @@ data MockType = Total | Partial deriving (Eq)
 --
 --  - prefix: Stub function prefix
 --  - suffix: stub function suffix
+--  - implicitMonadicReturn: If True, the return value of the stub function is wrapped in a monad automatically.
+--                           If Else, the return value of stub function is not wrapped in a monad,  so required explicitly return monadic values.
 data MockOptions = MockOptions {prefix :: String, suffix :: String, implicitMonadicReturn :: Bool}
 
 -- | Default Options.
@@ -447,27 +452,31 @@ generateConstantStubFn :: Q Exp -> Q Exp
 generateConstantStubFn mock = [|stubFn $(mock)|]
 
 createMockFnDec :: Name -> [VarAppliedType] -> MockOptions -> Dec -> Q [Dec]
-createMockFnDec monadVarName varAppliedTypes options (SigD funName ty) = do
-  let funNameStr = createFnName funName options
-      mockFunName = mkName funNameStr
+createMockFnDec monadVarName varAppliedTypes options (SigD sigFnName ty) = do
+  let fnName = createFnName sigFnName options
+      mockFnName = mkName fnName
       params = mkName "p"
       updatedType = updateType ty varAppliedTypes
-      funType = if options.implicitMonadicReturn 
+      fnType = if options.implicitMonadicReturn
         then createMockBuilderFnType monadVarName updatedType
         else updatedType
 
-  if isFunctionType ty then
-    doCreateMockFnDec funNameStr mockFunName params funType monadVarName updatedType
+  fnDecs <- if isNotConstantFunctionType ty then
+    doCreateMockFnDecs fnName mockFnName params fnType monadVarName updatedType
   else
     if options.implicitMonadicReturn then
-      doCreateConstantMockFnDec funNameStr mockFunName funType monadVarName
+      doCreateConstantMockFnDecs fnName mockFnName fnType monadVarName
     else
-      doCreateMockFnDec2 funNameStr mockFunName params funType monadVarName updatedType
+      doCreateEmptyVerifyParamMockFnDecs fnName mockFnName params fnType monadVarName updatedType
+
+  pragmaDec <- pragInlD mockFnName NoInline FunLike AllPhases
+
+  pure $ pragmaDec : fnDecs
 
 createMockFnDec _ _ _ dec = fail $ "unsupport dec: " <> pprint dec
 
-doCreateMockFnDec :: (Quote m) => String -> Name -> Name -> Type -> Name -> Type -> m [Dec]
-doCreateMockFnDec funNameStr mockFunName params funType monadVarName updatedType = do
+doCreateMockFnDecs :: (Quote m) => String -> Name -> Name -> Type -> Name -> Type -> m [Dec]
+doCreateMockFnDecs funNameStr mockFunName params funType monadVarName updatedType = do
   newFunSig <- do
     let verifyParams = createMockBuilderVerifyParams updatedType
     sigD
@@ -485,16 +494,17 @@ doCreateMockFnDec funNameStr mockFunName params funType monadVarName updatedType
 
   pure $ newFunSig : [newFun]
 
-doCreateConstantMockFnDec :: (Quote m) => String -> Name -> Type -> Name -> m [Dec]
-doCreateConstantMockFnDec funNameStr mockFunName ty monadVarName = do
+doCreateConstantMockFnDecs :: (Quote m) => String -> Name -> Type -> Name -> m [Dec]
+doCreateConstantMockFnDecs funNameStr mockFunName ty monadVarName = do
   newFunSig <- sigD mockFunName [t|(Monad $(varT monadVarName)) => $(pure ty) -> MockT $(varT monadVarName) ()|]
   createMockFn <- [|createNamedConstantMock|]
   mockBody <- createMockBody funNameStr createMockFn
   newFun <- funD mockFunName [clause [varP $ mkName "p"] (normalB (pure mockBody)) []]
   pure $ newFunSig : [newFun]
 
-doCreateMockFnDec2 :: (Quote m) => String -> Name -> Name -> Type -> Name -> Type -> m [Dec]
-doCreateMockFnDec2 funNameStr mockFunName params funType monadVarName updatedType = do
+-- MockBuilder constraints, but verifyParams are empty.
+doCreateEmptyVerifyParamMockFnDecs :: (Quote m) => String -> Name -> Name -> Type -> Name -> Type -> m [Dec]
+doCreateEmptyVerifyParamMockFnDecs funNameStr mockFunName params funType monadVarName updatedType = do
   newFunSig <- do
     let verifyParams = createMockBuilderVerifyParams updatedType
     sigD
@@ -526,12 +536,12 @@ createMockBody funNameStr createMockFn =
         )
     |]
 
-isFunctionType :: Type -> Bool
-isFunctionType (AppT (AppT ArrowT _) _) = True
-isFunctionType (AppT t1 t2) = isFunctionType t1 || isFunctionType t2
-isFunctionType (TupleT _) = False
-isFunctionType (ForallT _ _ t) = isFunctionType t
-isFunctionType _ = False
+isNotConstantFunctionType :: Type -> Bool
+isNotConstantFunctionType (AppT (AppT ArrowT _) _) = True
+isNotConstantFunctionType (AppT t1 t2) = isNotConstantFunctionType t1 || isNotConstantFunctionType t2
+isNotConstantFunctionType (TupleT _) = False
+isNotConstantFunctionType (ForallT _ _ t) = isNotConstantFunctionType t
+isNotConstantFunctionType _ = False
 
 updateType :: Type -> [VarAppliedType] -> Type
 updateType (AppT (VarT v1) (VarT v2)) varAppliedTypes = do
