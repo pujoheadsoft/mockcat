@@ -1,5 +1,5 @@
 name:                mockcat
-version:             0.5.2.0
+version:             0.5.3.0
 github:              pujoheadsoft/mockcat
 license:             "MIT"
 author:              "funnycat <pujoheadsoft@gmail.com>"
@@ -32,9 +32,11 @@ description: |
 dependencies:
 - base >= 4.7 && < 5
 - text >= 2.0 && < 2.2
-- template-haskell >= 2.18 && < 2.23
+- template-haskell >= 2.18 && < 2.24
 - mtl >= 2.3.1 && < 2.4
 - transformers >= 0.5.6 && < 0.7
+- unliftio-core >= 0.2.1.0 && < 0.2.2
+- unliftio >= 0.2.25.0 && < 0.2.26
 
 ghc-options:
 - -Wall
@@ -62,4 +64,5 @@ tests:
 
     dependencies:
     - mockcat
-    - hspec
+    - hspec >= 2.11 && < 2.12
+    - async >= 2.2.4 && < 2.3

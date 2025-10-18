@@ -17,6 +17,7 @@ It can easily generate stub functions and verify the application of stub functio
 <details>
 <summary>Update History</summary>
 
+- **0.5.3.0**: MockT now implements MonadUnliftIO
 - **0.5.0**: Stub functions of type `IO a` can now return different values each time they are applied
 - **0.4.0**: Can make partial mocks of type classes.
 - **0.3.0**: Can make mocks of type classes.

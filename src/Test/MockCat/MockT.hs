@@ -6,14 +6,22 @@
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 module Test.MockCat.MockT (MockT(..), Definition(..), runMockT, applyTimesIs, neverApply) where
 import Control.Monad.State
-    ( StateT(..), MonadIO(..), MonadTrans(..), modify, execStateT )
+    ( StateT(..), MonadIO(..), MonadTrans(..), modify, execStateT, runStateT )
 import GHC.TypeLits (KnownSymbol)
 import Data.Data (Proxy)
 import Test.MockCat.Mock (Mock, shouldApplyTimesToAnything)
 import Data.Foldable (for_)
+import UnliftIO (MonadUnliftIO(..))
+import Data.Functor ((<&>))
 
 newtype MockT m a = MockT { st :: StateT [Definition] m a }
   deriving (Functor, Applicative, Monad, MonadTrans, MonadIO)
+
+instance MonadUnliftIO m => MonadUnliftIO (MockT m) where
+  withRunInIO inner = MockT $ StateT $ \s -> do
+    a <- withRunInIO $ \runInIO ->
+      inner (\(MockT m) -> runInIO (runStateT m s) <&> fst)
+    pure (a, s)
 
 data Definition = forall f p sym. KnownSymbol sym => Definition {
   symbol :: Proxy sym,

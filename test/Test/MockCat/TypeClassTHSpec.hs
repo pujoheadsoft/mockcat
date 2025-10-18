@@ -21,6 +21,8 @@ import Test.MockCat
 import Control.Monad.State
 import Control.Monad.Reader (MonadReader, ask)
 import Control.Monad (unless)
+import Control.Monad.IO.Unlift (withRunInIO, MonadUnliftIO)
+import Control.Concurrent.Async (async, wait)
 
 class Monad m => FileOperation m where
   writeFile :: FilePath -> Text -> m ()
@@ -139,6 +141,15 @@ echoProgram s = do
 
 makeMockWithOptions [t|ExplicitlyReturnMonadicValuesTest|] options { implicitMonadicReturn = False }
 
+class MonadUnliftIO m => MonadAsync m where
+  mapConcurrently :: Traversable t => (a -> m b) -> t a -> m (t b)
+
+instance (MonadUnliftIO m) => MonadAsync (MockT m) where
+  mapConcurrently = traverse
+
+processFiles :: MonadAsync m => FileOperation m => [FilePath] -> m [Text]
+processFiles = mapConcurrently readFile
+
 spec :: Spec
 spec = do
   it "Read, and output files" do
@@ -215,3 +226,38 @@ spec = do
       echoProgram "s"
 
     result `shouldBe` ()
+
+  it "MonadUnliftIO instance works correctly" do
+    result <- runMockT do
+      _readFile ("test.txt" |> pack "content")
+
+      content <- withRunInIO $ \runInIO -> do
+        asyncAction <- async $ runInIO (readFile "test.txt")
+        wait asyncAction
+
+      liftIO $ content `shouldBe` pack "content"
+      pure content
+
+    result `shouldBe` pack "content"
+
+  it "MonadUnliftIO basic functionality" do
+    result <- runMockT do
+      _readFile ("test.txt" |> pack "test content")
+      
+      content <- withRunInIO $ \runInIO -> do
+        runInIO (readFile "test.txt")
+      
+      liftIO $ content `shouldBe` pack "test content"
+      pure content
+
+    result `shouldBe` pack "test content"
+  
+  it "MonadAsync type class can be instantiated for MockT" do
+    result <- runMockT do
+      _readFile $ do
+        onCase $ "file1.txt" |> pack "content1"
+        onCase $ "file2.txt" |> pack "content2"
+
+      processFiles ["file1.txt", "file2.txt"]
+    result `shouldBe` [pack "content1", pack "content2"]
+

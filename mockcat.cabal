@@ -5,7 +5,7 @@ cabal-version: 1.12
 -- see: https://github.com/sol/hpack
 
 name:           mockcat
-version:        0.5.2.0
+version:        0.5.3.0
 synopsis:       Mock library for test in Haskell.
 description:    mockcat is a flexible and powerful mock library.
                 .
@@ -55,9 +55,11 @@ library
   build-depends:
       base >=4.7 && <5
     , mtl >=2.3.1 && <2.4
-    , template-haskell >=2.18 && <2.23
+    , template-haskell >=2.18 && <2.24
     , text >=2.0 && <2.2
     , transformers >=0.5.6 && <0.7
+    , unliftio >=0.2.25.0 && <0.2.26
+    , unliftio-core >=0.2.1.0 && <0.2.2
   default-language: Haskell2010
 
 test-suite mockcat-test
@@ -80,11 +82,14 @@ test-suite mockcat-test
       test
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -fprint-potential-instances -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      base >=4.7 && <5
-    , hspec
+      async >=2.2.4 && <2.3
+    , base >=4.7 && <5
+    , hspec ==2.11.*
     , mockcat
     , mtl >=2.3.1 && <2.4
-    , template-haskell >=2.18 && <2.23
+    , template-haskell >=2.18 && <2.24
     , text >=2.0 && <2.2
     , transformers >=0.5.6 && <0.7
+    , unliftio >=0.2.25.0 && <0.2.26
+    , unliftio-core >=0.2.1.0 && <0.2.2
   default-language: Haskell2010
