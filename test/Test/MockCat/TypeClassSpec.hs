@@ -45,7 +45,7 @@ program inputPath outputPath modifyText = do
   writeFile outputPath modifiedContent
   post $ modifiedContent <> pack ("+" <> e)
 
-instance (MonadIO m, Monad m) => FileOperation (MockT m) where
+instance MonadIO m => FileOperation (MockT m) where
   readFile path = MockT do
     defs <- getDefinitions
     let
@@ -60,7 +60,7 @@ instance (MonadIO m, Monad m) => FileOperation (MockT m) where
       !result = stubFn mock path content
     pure result
 
-instance (MonadIO m, Monad m) => ApiOperation (MockT m) where
+instance MonadIO m => ApiOperation (MockT m) where
   post content = MockT do
     defs <- getDefinitions
     let
@@ -68,7 +68,7 @@ instance (MonadIO m, Monad m) => ApiOperation (MockT m) where
       !result = stubFn mock content
     pure result
 
-instance (MonadIO m, Monad m) => MonadReader String (MockT m) where
+instance MonadIO m => MonadReader String (MockT m) where
   ask = MockT do
     defs <- getDefinitions
     let
@@ -112,7 +112,7 @@ echoProgram s = do
   liftIO $ print v
   echo $ show v
 
-instance (MonadIO m, Monad m) => TestClass (MockT m) where
+instance MonadIO m => TestClass (MockT m) where
   getBy a = MockT do
     defs <- getDefinitions
     let
@@ -149,7 +149,7 @@ echo2 = do
     "" -> pure ()
     _  -> writeTTY i >> echo2
 
-instance (MonadIO m, Monad m) => Teletype (MockT m) where
+instance MonadIO m => Teletype (MockT m) where
   readTTY = MockT do
     defs <- getDefinitions
     let

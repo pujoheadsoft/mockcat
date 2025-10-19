@@ -29,7 +29,7 @@ import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Maybe (MaybeT (..))
 import Control.Monad.Trans.Reader hiding (ask)
 
-instance (MonadIO m, Monad m, FileOperation m) => FileOperation (MockT m) where
+instance (MonadIO m, FileOperation m) => FileOperation (MockT m) where
   readFile path = MockT do
     defs <- getDefinitions
     case findParam (Proxy :: Proxy "readFile") defs of
@@ -46,12 +46,12 @@ instance (MonadIO m, Monad m, FileOperation m) => FileOperation (MockT m) where
         pure result
       Nothing -> lift $ writeFile path content
 
-_readFile :: (MockBuilder params (FilePath -> Text) (Param FilePath), MonadIO m, Monad m) => params -> MockT m ()
+_readFile :: (MockBuilder params (FilePath -> Text) (Param FilePath), MonadIO m) => params -> MockT m ()
 _readFile p = MockT $ do
   mockInstance <- liftIO $ createNamedMock "readFile" p
   addDefinition (Definition (Proxy :: Proxy "readFile") mockInstance shouldApplyToAnything)
 
-_writeFile :: (MockBuilder params (FilePath -> Text -> ()) (Param FilePath :> Param Text), MonadIO m, Monad m) => params -> MockT m ()
+_writeFile :: (MockBuilder params (FilePath -> Text -> ()) (Param FilePath :> Param Text), MonadIO m) => params -> MockT m ()
 _writeFile p = MockT $ do
   mockInstance <- liftIO $ createNamedMock "writeFile" p
   addDefinition (Definition (Proxy :: Proxy "writeFile") mockInstance shouldApplyToAnything)
@@ -61,8 +61,8 @@ findParam pa definitions = do
   let definition = find (\(Definition s _ _) -> symbolVal s == symbolVal pa) definitions
   fmap (\(Definition _ mock _) -> unsafeCoerce mock) definition
 
-instance (MonadIO m, Monad m, Finder a b m) => Finder a b (MockT m) where
-  findIds :: (Monad m, Finder a b m) => MockT m [a]
+instance (MonadIO m, Finder a b m) => Finder a b (MockT m) where
+  findIds :: (Finder a b m) => MockT m [a]
   findIds = MockT do
     defs <- getDefinitions
     case findParam (Proxy :: Proxy "_findIds") defs of
@@ -70,7 +70,7 @@ instance (MonadIO m, Monad m, Finder a b m) => Finder a b (MockT m) where
         let !result = stubFn mock
         pure result
       Nothing -> lift findIds
-  findById :: (Monad m, Finder a b m) => a -> MockT m b
+  findById :: (Finder a b m) => a -> MockT m b
   findById id = MockT do
     defs <- getDefinitions
     case findParam (Proxy :: Proxy "_findById") defs of
@@ -79,7 +79,7 @@ instance (MonadIO m, Monad m, Finder a b m) => Finder a b (MockT m) where
         pure result
       Nothing -> lift $ findById id
 
-_findIds :: (MonadIO m, Monad m) => r -> MockT m ()
+_findIds :: MonadIO m => r -> MockT m ()
 _findIds p = MockT $ do
   mockInstance <- liftIO $ createNamedConstantMock "_findIds" p
   addDefinition (Definition (Proxy :: Proxy "_findIds") mockInstance shouldApplyToAnything)
