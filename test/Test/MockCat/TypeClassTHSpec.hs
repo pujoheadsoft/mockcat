@@ -78,15 +78,15 @@ class Monad m => MonadVar2_2 a m where
 class MonadVar2_2 a m => MonadVar2_2Sub a m where
   fn2_2Sub :: String -> m ()
 
-class Monad m => MonadVar3_1 m a b where
+class MonadIO m => MonadVar3_1 m a b where
 class MonadVar3_1 m a b => MonadVar3_1Sub m a b where
   fn3_1Sub :: String -> m ()
 
-class Monad m => MonadVar3_2 a m b where
+class MonadIO m => MonadVar3_2 a m b where
 class MonadVar3_2 a m b => MonadVar3_2Sub a m b where
   fn3_2Sub :: String -> m ()
 
-class Monad m => MonadVar3_3 a b m where
+class MonadIO m => MonadVar3_3 a b m where
 class MonadVar3_3 a b m => MonadVar3_3Sub a b m where
   fn3_3Sub :: String -> m ()
 

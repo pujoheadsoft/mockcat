@@ -352,17 +352,18 @@ createCxt :: [Pred] -> MockType -> Name -> Name -> [TyVarBndr a] -> [VarAppliedT
 createCxt cxt mockType className monadVarName tyVars varAppliedTypes = do
   newCxt <- mapM (createPred monadVarName) cxt
 
-  monadAppT <- appT (conT ''Monad) (varT monadVarName)
   monadIOAppT <- appT (conT ''MonadIO) (varT monadVarName)
 
-  let hasMonad = P.any (\(ClassName2VarNames c _) -> c == ''Monad) $ toClassInfos newCxt
+  let classInfos = toClassInfos newCxt
+      hasMonadIO = P.any (\(ClassName2VarNames c _) -> c == ''MonadIO) classInfos
+      addedMonads = [monadIOAppT | not hasMonadIO]
 
   pure $ case mockType of
-    Total -> newCxt ++ ([monadAppT | not hasMonad]) ++ [monadIOAppT]
+    Total -> newCxt ++ addedMonads
     Partial -> do
       let classAppT = constructClassAppT className $ toVarTs tyVars
           varAppliedClassAppT = updateType classAppT varAppliedTypes
-      newCxt ++ ([monadAppT | not hasMonad]) ++ [monadIOAppT] ++ [varAppliedClassAppT]
+      newCxt ++ addedMonads ++ [varAppliedClassAppT]
 
 toVarTs :: [TyVarBndr a] -> [Type]
 toVarTs tyVars = VarT <$> getTypeVarNames tyVars
@@ -524,12 +525,6 @@ doCreateEmptyVerifyParamMockFnDecs funNameStr mockFunName params funType monadVa
 
 createMockBody :: (Quote m) => String -> Exp -> m Exp
 createMockBody funNameStr createMockFn =
-  -- NOTE: Previously this used unsafePerformIO to construct the mock:
-  --   unsafePerformIO $ createNamedMock ...
-  -- That allowed the IORef inside the Mock to be CAF/shared across examples,
-  -- causing call count leakage (e.g. +10 from a prior test => 1010 vs 1000 expected).
-  -- We now allocate the mock in the MockT monad via liftIO so every usage
-  -- within a runMockT gets a fresh verifier state.
   [|
     MockT $ do
       mockInstance <- liftIO $ $(pure createMockFn) $(litE (stringL funNameStr)) p
