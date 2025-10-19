@@ -51,6 +51,7 @@ ghc-options:
 - -Wpartial-fields
 - -Wredundant-constraints
 - -fprint-potential-instances
+- -Wredundant-constraints
 
 library:
   source-dirs: src

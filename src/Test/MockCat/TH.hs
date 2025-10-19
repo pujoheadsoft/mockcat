@@ -350,7 +350,11 @@ hasMonadInVarInfo (VarName2ClassNames _ classNames) = ''Monad `elem` classNames
 
 createCxt :: [Pred] -> MockType -> Name -> Name -> [TyVarBndr a] -> [VarAppliedType] -> Q [Pred]
 createCxt cxt mockType className monadVarName tyVars varAppliedTypes = do
-  newCxt <- mapM (createPred monadVarName) cxt
+  newCxtRaw <- mapM (createPred monadVarName) cxt
+
+  let isRedundantMonad (AppT (ConT m) (VarT v)) = m == ''Monad && v == monadVarName
+      isRedundantMonad _ = False
+      newCxt = filter (not . isRedundantMonad) newCxtRaw
 
   monadIOAppT <- appT (conT ''MonadIO) (varT monadVarName)
 
