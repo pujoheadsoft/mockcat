@@ -5,21 +5,21 @@ cabal-version: 1.12
 -- see: https://github.com/sol/hpack
 
 name:           mockcat
-version:        0.5.3.0
+version:        0.5.4.0
 synopsis:       Mock library for test in Haskell.
-description:    mockcat is a flexible and powerful mock library.
+description:    mockcat is a small mocking / stubbing DSL for Haskell tests.
                 .
-                It provides the following main features.
+                Features:
+                - Describe expectations with left-to-right pipelines: `arg |> ... |> result`
+                - Generate typeclass mocks via Template Haskell (`makeMock`, `makePartialMock`)
+                - Create standalone function stubs (`createStubFn`, constant mocks)
+                - Flexible return behaviour: vary by argument or occurrence (including identical args later)
+                - Optional per-call variation for `IO a` results
+                - Concurrency-safe counting and explicit lazy semantics (unevaluated results are not recorded)
+                - Simple verification helpers (apply count predicates, ordering checks)
+                - Partial adoption: mock only selected methods; no hidden global state
                 .
-                - Mock generation of monadic typeclasses
-                .
-                - Generation of stub functions independent of typeclasses
-                .
-                - Verification of stub functions
-                .
-                Stub functions can return not only values of monadic types, but also pure types.
-                .
-                For more please see the README on GitHub at <https://github.com/pujoheadsoft/mockcat#readme>
+                See README for full examples: <https://github.com/pujoheadsoft/mockcat#readme>
 category:       Testing
 homepage:       https://github.com/pujoheadsoft/mockcat#readme
 bug-reports:    https://github.com/pujoheadsoft/mockcat/issues
@@ -67,6 +67,7 @@ test-suite mockcat-test
   main-is: Spec.hs
   other-modules:
       Test.MockCat.AssociationListSpec
+      Test.MockCat.ConcurrencySpec
       Test.MockCat.ConsSpec
       Test.MockCat.Definition
       Test.MockCat.ExampleSpec

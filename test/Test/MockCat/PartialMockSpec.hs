@@ -23,14 +23,15 @@ import Data.Data
 import Data.List (find)
 import GHC.TypeLits (KnownSymbol, symbolVal)
 import Unsafe.Coerce (unsafeCoerce)
-import GHC.IO (unsafePerformIO)
-import Control.Monad.State
+
+import Control.Monad.IO.Class (MonadIO, liftIO)
+import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Maybe (MaybeT (..))
 import Control.Monad.Trans.Reader hiding (ask)
 
-instance (Monad m, FileOperation m) => FileOperation (MockT m) where
+instance (MonadIO m, Monad m, FileOperation m) => FileOperation (MockT m) where
   readFile path = MockT do
-    defs <- get
+    defs <- getDefinitions
     case findParam (Proxy :: Proxy "readFile") defs of
       Just mock -> do
         let !result = stubFn mock path
@@ -38,35 +39,32 @@ instance (Monad m, FileOperation m) => FileOperation (MockT m) where
       Nothing -> lift $ readFile path
 
   writeFile path content = MockT do
-    defs <- get
+    defs <- getDefinitions
     case findParam (Proxy :: Proxy "writeFile") defs of
       Just mock -> do
         let !result = stubFn mock path content
         pure result
       Nothing -> lift $ writeFile path content
 
-_readFile :: (MockBuilder params (FilePath -> Text) (Param FilePath), Monad m) => params -> MockT m ()
+_readFile :: (MockBuilder params (FilePath -> Text) (Param FilePath), MonadIO m, Monad m) => params -> MockT m ()
 _readFile p = MockT $ do
-  modify (++ [Definition
-    (Proxy :: Proxy "readFile")
-    (unsafePerformIO $ createNamedMock "readFile" p)
-    shouldApplyToAnything])
+  mockInstance <- liftIO $ createNamedMock "readFile" p
+  addDefinition (Definition (Proxy :: Proxy "readFile") mockInstance shouldApplyToAnything)
 
-_writeFile :: (MockBuilder params (FilePath -> Text -> ()) (Param FilePath :> Param Text), Monad m) => params -> MockT m ()
-_writeFile p = MockT $ modify (++ [Definition
-  (Proxy :: Proxy "writeFile")
-  (unsafePerformIO $ createNamedMock "writeFile" p)
-  shouldApplyToAnything])
+_writeFile :: (MockBuilder params (FilePath -> Text -> ()) (Param FilePath :> Param Text), MonadIO m, Monad m) => params -> MockT m ()
+_writeFile p = MockT $ do
+  mockInstance <- liftIO $ createNamedMock "writeFile" p
+  addDefinition (Definition (Proxy :: Proxy "writeFile") mockInstance shouldApplyToAnything)
 
 findParam :: KnownSymbol sym => Proxy sym -> [Definition] -> Maybe a
 findParam pa definitions = do
   let definition = find (\(Definition s _ _) -> symbolVal s == symbolVal pa) definitions
   fmap (\(Definition _ mock _) -> unsafeCoerce mock) definition
 
-instance (Monad m, Finder a b m) => Finder a b (MockT m) where
+instance (MonadIO m, Monad m, Finder a b m) => Finder a b (MockT m) where
   findIds :: (Monad m, Finder a b m) => MockT m [a]
   findIds = MockT do
-    defs <- get
+    defs <- getDefinitions
     case findParam (Proxy :: Proxy "_findIds") defs of
       Just mock -> do
         let !result = stubFn mock
@@ -74,18 +72,17 @@ instance (Monad m, Finder a b m) => Finder a b (MockT m) where
       Nothing -> lift findIds
   findById :: (Monad m, Finder a b m) => a -> MockT m b
   findById id = MockT do
-    defs <- get
+    defs <- getDefinitions
     case findParam (Proxy :: Proxy "_findById") defs of
       Just mock -> do
         let !result = stubFn mock id
         pure result
       Nothing -> lift $ findById id
 
-_findIds :: Monad m => r -> MockT m ()
-_findIds p = MockT do
-  modify (++ [Definition
-                (Proxy :: Proxy "_findIds")
-                (unsafePerformIO $ createNamedConstantMock "_findIds" p) shouldApplyToAnything])
+_findIds :: (MonadIO m, Monad m) => r -> MockT m ()
+_findIds p = MockT $ do
+  mockInstance <- liftIO $ createNamedConstantMock "_findIds" p
+  addDefinition (Definition (Proxy :: Proxy "_findIds") mockInstance shouldApplyToAnything)
 
 spec :: Spec
 spec = do

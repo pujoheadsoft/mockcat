@@ -1,27 +1,49 @@
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
-module Test.MockCat.MockT (MockT(..), Definition(..), runMockT, applyTimesIs, neverApply) where
-import Control.Monad.State
-    ( StateT(..), MonadIO(..), MonadTrans(..), modify, execStateT, runStateT )
+module Test.MockCat.MockT (MockT(..), Definition(..), runMockT, applyTimesIs, neverApply, MonadMockDefs(..)) where
+import Control.Monad.IO.Class (MonadIO(..))
+import Control.Monad.Trans.Class (MonadTrans(..))
+import Control.Monad.Reader (ReaderT(..), runReaderT)
 import GHC.TypeLits (KnownSymbol)
 import Data.Data (Proxy)
 import Test.MockCat.Mock (Mock, shouldApplyTimesToAnything)
 import Data.Foldable (for_)
 import UnliftIO (MonadUnliftIO(..))
-import Data.Functor ((<&>))
+import Data.IORef (IORef, newIORef, readIORef, atomicModifyIORef')
 
-newtype MockT m a = MockT { st :: StateT [Definition] m a }
+{- | MockT is a thin wrapper over @ReaderT (IORef [Definition])@ providing
+     mock/stub registration and post-run verification.
+
+Concurrency safety (summary):
+  * Within a single 'runMockT' invocation, concurrent applications of stub
+    functions are recorded without lost or double counts. This is achieved via
+    atomic modifications ('atomicModifyIORef'').
+  * The /moment/ a call is recorded is when the stub's return value is evaluated;
+    if you only create an application but never force the result, it will not
+    appear in the verification log.
+  * Order-sensitive checks reflect evaluation order, not necessarily wall-clock
+    start order between threads.
+  * Perform verification (e.g. 'shouldApplyTimes', 'applyTimesIs') after all
+    parallel work has completed; running it mid-flight may observe fewer calls
+    simply because some results are still lazy.
+  * Each 'runMockT' call uses a fresh IORef store; mocks are not shared across
+    separate 'runMockT' boundaries.
+-}
+newtype MockT m a = MockT { unMockT :: ReaderT (IORef [Definition]) m a }
   deriving (Functor, Applicative, Monad, MonadTrans, MonadIO)
 
+class Monad m => MonadMockDefs m where
+  addDefinition :: Definition -> m ()
+  getDefinitions :: m [Definition]
+
 instance MonadUnliftIO m => MonadUnliftIO (MockT m) where
-  withRunInIO inner = MockT $ StateT $ \s -> do
-    a <- withRunInIO $ \runInIO ->
-      inner (\(MockT m) -> runInIO (runStateT m s) <&> fst)
-    pure (a, s)
+  withRunInIO inner = MockT $ ReaderT $ \ref ->
+    withRunInIO $ \run -> inner (\(MockT r) -> run (runReaderT r ref))
 
 data Definition = forall f p sym. KnownSymbol sym => Definition {
   symbol :: Proxy sym,
@@ -65,15 +87,25 @@ data Definition = forall f p sym. KnownSymbol sym => Definition {
 
 -}
 runMockT :: MonadIO m => MockT m a -> m a
-runMockT (MockT s) = do
-  r <- runStateT s []
-  let
-    !a = fst r
-    defs = snd r
+runMockT (MockT r) = do
+  ref <- liftIO $ newIORef []
+  a <- runReaderT r ref
+  defs <- liftIO $ readIORef ref
   for_ defs (\(Definition _ m v) -> liftIO $ v m)
   pure a
 
-{- | Specify how many times a stub function should be applied.
+{- | Specify how many times a stub function (or group of stub definitions) must
+     be applied (to /any/ arguments). The function patches the verification
+     predicate for the provided stub definitions so that, after 'runMockT'
+     completes, the total number of evaluated applications is checked.
+
+  Concurrency & laziness notes:
+    * Counting is thread-safe: each evaluated application contributes exactly 1.
+    * An application is only counted once its return value is evaluated; ensure
+      your test forces (e.g. via @shouldBe@ or sequencing) all stub results
+      before relying on the count.
+    * Invoke 'applyTimesIs' inside the 'runMockT' block during setup; do not
+      call it after the block ends.
 
   @
   import Test.Hspec
@@ -108,14 +140,28 @@ runMockT (MockT s) = do
   @
 
 -}
-applyTimesIs :: Monad m => MockT m () -> Int -> MockT m ()
-applyTimesIs (MockT st) a = MockT do
-  defs <- lift $ execStateT st []
-  let newDefs = map (\(Definition s m _) -> Definition s m (`shouldApplyTimesToAnything` a)) defs
-  modify (++ newDefs)
+applyTimesIs :: MonadIO m => MockT m () -> Int -> MockT m ()
+applyTimesIs (MockT inner) a = MockT $ ReaderT $ \ref -> do
+  tmp <- liftIO $ newIORef []
+  _ <- runReaderT inner tmp
+  defs <- liftIO $ readIORef tmp
+  let patched = map (\(Definition s m _) -> Definition s m (`shouldApplyTimesToAnything` a)) defs
+  liftIO $ atomicModifyIORef' ref (\xs -> (xs ++ patched, ()))
+  pure ()
 
-neverApply :: Monad m => MockT m () -> MockT m ()
-neverApply (MockT st) = MockT do
-  defs <- lift $ execStateT st []
-  let newDefs = map (\(Definition s m _) -> Definition s m (`shouldApplyTimesToAnything` 0)) defs
-  modify (++ newDefs)
+neverApply :: MonadIO m => MockT m () -> MockT m ()
+neverApply (MockT inner) = MockT $ ReaderT $ \ref -> do
+  tmp <- liftIO $ newIORef []
+  _ <- runReaderT inner tmp
+  defs <- liftIO $ readIORef tmp
+  let patched = map (\(Definition s m _) -> Definition s m (`shouldApplyTimesToAnything` 0)) defs
+  liftIO $ atomicModifyIORef' ref (\xs -> (xs ++ patched, ()))
+  pure ()
+
+instance MonadIO m => MonadMockDefs (MockT m) where
+  addDefinition d = MockT $ ReaderT $ \ref -> liftIO $ atomicModifyIORef' ref (\xs -> (xs ++ [d], ()))
+  getDefinitions = MockT $ ReaderT $ \ref -> liftIO $ readIORef ref
+
+instance MonadIO m => MonadMockDefs (ReaderT (IORef [Definition]) m) where
+  addDefinition d = ReaderT $ \ref -> liftIO $ atomicModifyIORef' ref (\xs -> (xs ++ [d], ()))
+  getDefinitions = ReaderT $ \ref -> liftIO $ readIORef ref

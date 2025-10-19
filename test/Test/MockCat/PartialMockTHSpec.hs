@@ -17,13 +17,14 @@ module Test.MockCat.PartialMockTHSpec (spec) where
 import Data.Text (pack)
 import Test.Hspec (Spec, it, shouldBe, describe)
 import Test.MockCat
+
 import Test.MockCat.Definition
 import Test.MockCat.Impl ()
 import Prelude hiding (readFile, writeFile)
 import Control.Monad.Trans.Maybe (MaybeT (..))
 import Control.Monad.Reader (ReaderT(..))
 
-data UserInput = UserInput String deriving (Show, Eq)
+newtype UserInput = UserInput String deriving (Show, Eq)
 
 class Monad m => UserInputGetter m where
   getInput :: m String

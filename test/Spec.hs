@@ -8,6 +8,7 @@ import Test.MockCat.TypeClassSpec as TypeClass
 import Test.MockCat.TypeClassTHSpec as TypeClassTH
 import Test.MockCat.PartialMockSpec as PartialMock
 import Test.MockCat.PartialMockTHSpec as PartialMockTH
+import Test.MockCat.ConcurrencySpec as Concurrency
 
 main :: IO ()
 main = do
@@ -21,3 +22,4 @@ main = do
     TypeClassTH.spec
     PartialMock.spec
     PartialMockTH.spec
+    Concurrency.spec

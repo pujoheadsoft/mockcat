@@ -45,7 +45,7 @@ where
 
 import Control.Monad (guard, when, ap)
 import Data.Function ((&))
-import Data.IORef (IORef, modifyIORef', newIORef, readIORef)
+import Data.IORef (IORef, newIORef, readIORef, atomicModifyIORef')
 import Data.List (elemIndex, intercalate)
 import Data.Maybe
 import Data.Text (pack, replace, unpack)
@@ -831,17 +831,21 @@ readAppliedCount ref params = do
 
 appendAppliedParams :: IORef (AppliedRecord params) -> params -> IO ()
 appendAppliedParams ref inputParams = do
-  modifyIORef' ref (\AppliedRecord {appliedParamsList, appliedParamsCounter} -> AppliedRecord {
-    appliedParamsList = appliedParamsList ++ [inputParams],
-    appliedParamsCounter = appliedParamsCounter
-  })
+  atomicModifyIORef' ref (\AppliedRecord {appliedParamsList, appliedParamsCounter} ->
+    let newRecord = AppliedRecord {
+          appliedParamsList = appliedParamsList ++ [inputParams],
+          appliedParamsCounter = appliedParamsCounter
+        }
+    in (newRecord, ()))
 
-incrementAppliedParamCount ::Eq params => IORef (AppliedRecord params) -> params -> IO ()
+incrementAppliedParamCount :: Eq params => IORef (AppliedRecord params) -> params -> IO ()
 incrementAppliedParamCount ref inputParams = do
-  modifyIORef' ref (\AppliedRecord {appliedParamsList, appliedParamsCounter} -> AppliedRecord {
-    appliedParamsList = appliedParamsList,
-    appliedParamsCounter = incrementCount inputParams appliedParamsCounter
-  })
+  atomicModifyIORef' ref (\AppliedRecord {appliedParamsList, appliedParamsCounter} ->
+    let newRecord = AppliedRecord {
+          appliedParamsList = appliedParamsList,
+          appliedParamsCounter = incrementCount inputParams appliedParamsCounter
+        }
+    in (newRecord, ()))
 
 incrementCount :: Eq k => k -> AppliedParamsCounter k -> AppliedParamsCounter k
 incrementCount key list =

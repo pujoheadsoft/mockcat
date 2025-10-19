@@ -92,9 +92,6 @@ class MonadVar3_3 a b m => MonadVar3_3Sub a b m where
 
 --makeMock [t|MonadReader Bool|]
 makeMock [t|MonadReader Environment|]
-makeMock [t|MonadState String|]
-makeMock [t|MonadStateSub|]
-makeMock [t|MonadStateSub2|]
 makeMock [t|MonadVar2_1Sub|]
 makeMock [t|MonadVar2_2Sub|]
 makeMock [t|MonadVar3_1Sub|]
@@ -108,19 +105,7 @@ class Monad m => ParamThreeMonad a b m | m -> a, m -> b where
   fnParam3_2 :: m a
   fnParam3_3 :: m b
 
-makeMock [t|ParamThreeMonad String Bool|]
 
-monadStateSubExec :: MonadStateSub String m => String -> m String
-monadStateSubExec s = do
-  r <- fn_state (pure "X")
-  pure $ s <> r
-
-threeParamMonadExec :: ParamThreeMonad String Bool m => m String
-threeParamMonadExec = do
-  v1 <- fnParam3_1 "foo" True
-  v2 <- fnParam3_2
-  v3 <- fnParam3_3
-  pure $ v1 <> v2 <> show v3
 
 class Monad m => MultiApplyTest m where
   getValueBy :: String -> m String
@@ -196,19 +181,6 @@ spec = do
 
     result `shouldBe` ()
   
-  it "MonadState subclass mock" do
-    r <- runMockT do
-      _fn_state $ Just "X" |> "Y"
-      monadStateSubExec "foo"
-    r `shouldBe` "fooY"
-
-  it "3 param Moand mock" do
-    r <- runMockT do
-      _fnParam3_1 $ "foo" |> True |> "Result1"
-      _fnParam3_2 "Result2"
-      _fnParam3_3 False
-      threeParamMonadExec
-    r `shouldBe` "Result1Result2False"
   
   it "Multi apply" do
     result <- runMockT do

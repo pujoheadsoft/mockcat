@@ -22,14 +22,13 @@ module Test.MockCat.TH
 where
 
 import Control.Monad (guard, unless)
-import Control.Monad.State (get, modify)
+import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.Trans.Class (lift)
 import Data.Data (Proxy (..))
 import Data.Function ((&))
 import Data.List (elemIndex, find, nub)
 import Data.Maybe (fromMaybe, isJust)
 import Data.Text (pack, splitOn, unpack)
-import GHC.IO (unsafePerformIO)
 import GHC.TypeLits (KnownSymbol, symbolVal)
 import Language.Haskell.TH
   ( Cxt,
@@ -354,15 +353,16 @@ createCxt cxt mockType className monadVarName tyVars varAppliedTypes = do
   newCxt <- mapM (createPred monadVarName) cxt
 
   monadAppT <- appT (conT ''Monad) (varT monadVarName)
+  monadIOAppT <- appT (conT ''MonadIO) (varT monadVarName)
 
   let hasMonad = P.any (\(ClassName2VarNames c _) -> c == ''Monad) $ toClassInfos newCxt
 
   pure $ case mockType of
-    Total -> newCxt ++ ([monadAppT | not hasMonad])
+    Total -> newCxt ++ ([monadAppT | not hasMonad]) ++ [monadIOAppT]
     Partial -> do
       let classAppT = constructClassAppT className $ toVarTs tyVars
           varAppliedClassAppT = updateType classAppT varAppliedTypes
-      newCxt ++ ([monadAppT | not hasMonad]) ++ [varAppliedClassAppT]
+      newCxt ++ ([monadAppT | not hasMonad]) ++ [monadIOAppT] ++ [varAppliedClassAppT]
 
 toVarTs :: [TyVarBndr a] -> [Type]
 toVarTs tyVars = VarT <$> getTypeVarNames tyVars
@@ -417,7 +417,7 @@ generateInstanceMockFnBody fnNameStr args r options = do
     else [| lift $(varE r) |]
   [|
     MockT $ do
-      defs <- get
+      defs <- getDefinitions
       let mock =
             defs
               & findParam (Proxy :: Proxy $(litT (strTyLit fnNameStr)))
@@ -433,7 +433,7 @@ generateInstanceRealFnBody fnName fnNameStr args r options = do
     else [| lift $(varE r) |]
   [|
     MockT $ do
-      defs <- get
+      defs <- getDefinitions
       case findParam (Proxy :: Proxy $(litT (strTyLit fnNameStr))) defs of
         Just mock -> do
           let $(bangP $ varP r) = $(generateStubFn args [|mock|])
@@ -482,7 +482,7 @@ doCreateMockFnDecs funNameStr mockFunName params funType monadVarName updatedTyp
     sigD
       mockFunName
       [t|
-        (MockBuilder $(varT params) ($(pure funType)) ($(pure verifyParams)), Monad $(varT monadVarName)) =>
+        (MockBuilder $(varT params) ($(pure funType)) ($(pure verifyParams)), MonadIO $(varT monadVarName)) =>
         $(varT params) ->
         MockT $(varT monadVarName) ()
         |]
@@ -496,7 +496,7 @@ doCreateMockFnDecs funNameStr mockFunName params funType monadVarName updatedTyp
 
 doCreateConstantMockFnDecs :: (Quote m) => String -> Name -> Type -> Name -> m [Dec]
 doCreateConstantMockFnDecs funNameStr mockFunName ty monadVarName = do
-  newFunSig <- sigD mockFunName [t|(Monad $(varT monadVarName)) => $(pure ty) -> MockT $(varT monadVarName) ()|]
+  newFunSig <- sigD mockFunName [t|(MonadIO $(varT monadVarName)) => $(pure ty) -> MockT $(varT monadVarName) ()|]
   createMockFn <- [|createNamedConstantMock|]
   mockBody <- createMockBody funNameStr createMockFn
   newFun <- funD mockFunName [clause [varP $ mkName "p"] (normalB (pure mockBody)) []]
@@ -510,7 +510,7 @@ doCreateEmptyVerifyParamMockFnDecs funNameStr mockFunName params funType monadVa
     sigD
       mockFunName
       [t|
-        (MockBuilder $(varT params) ($(pure funType)) (), Monad $(varT monadVarName)) =>
+        (MockBuilder $(varT params) ($(pure funType)) (), MonadIO $(varT monadVarName)) =>
         $(varT params) ->
         MockT $(varT monadVarName) ()
         |]
@@ -524,15 +524,20 @@ doCreateEmptyVerifyParamMockFnDecs funNameStr mockFunName params funType monadVa
 
 createMockBody :: (Quote m) => String -> Exp -> m Exp
 createMockBody funNameStr createMockFn =
+  -- NOTE: Previously this used unsafePerformIO to construct the mock:
+  --   unsafePerformIO $ createNamedMock ...
+  -- That allowed the IORef inside the Mock to be CAF/shared across examples,
+  -- causing call count leakage (e.g. +10 from a prior test => 1010 vs 1000 expected).
+  -- We now allocate the mock in the MockT monad via liftIO so every usage
+  -- within a runMockT gets a fresh verifier state.
   [|
-    MockT $
-      modify
-        ( ++
-            [ Definition
-                (Proxy :: Proxy $(litT (strTyLit funNameStr)))
-                (unsafePerformIO $ $(pure createMockFn) $(litE (stringL funNameStr)) p)
-                shouldApplyToAnything
-            ]
+    MockT $ do
+      mockInstance <- liftIO $ $(pure createMockFn) $(litE (stringL funNameStr)) p
+      addDefinition
+        ( Definition
+            (Proxy :: Proxy $(litT (strTyLit funNameStr)))
+            mockInstance
+            shouldApplyToAnything
         )
     |]
 
