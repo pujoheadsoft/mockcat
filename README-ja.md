@@ -211,14 +211,14 @@ operationProgram inputPath outputPath = do
     writeFile outputPath content
 ```
 
-これは次のように`applyTimesIs`関数を使うことで実現できます。
+これは次のように`expectApplyTimes`関数（旧: `applyTimesIs`）を使うことで実現できます。
 ```haskell
 import Test.MockCat as M
 ...
 it "Read, and output files (contain ng word)" do
   result <- runMockT do
     _readFile ("input.txt" |> pack "contains ngWord")
-    _writeFile ("output.txt" |> M.any |> ()) `applyTimesIs` 0
+    _writeFile ("output.txt" |> M.any |> ()) `expectApplyTimes` 0
     operationProgram "input.txt" "output.txt"
 
   result `shouldBe` ()
@@ -442,7 +442,7 @@ import Test.MockCat
 spec :: Spec
 spec = do
   it "named stub" do
-    f <- createNamedStubFun "named stub" $ "x" |> "y" |> True
+    f <- createNamedStubFn "named stub" $ "x" |> "y" |> True
     f "x" "z" `shouldBe` True
 ```
 期待した引数に適用されなかった場合に出力されるエラーメッセージには、この名前が含まれるようになります。

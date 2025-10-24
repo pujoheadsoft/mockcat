@@ -5,7 +5,7 @@ cabal-version: 1.12
 -- see: https://github.com/sol/hpack
 
 name:           mockcat
-version:        0.5.4.0
+version:        0.5.5.0
 synopsis:       Mock library for test in Haskell.
 description:    mockcat is a small mocking / stubbing DSL for Haskell tests.
                 .

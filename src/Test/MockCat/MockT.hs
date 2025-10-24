@@ -5,7 +5,15 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
-module Test.MockCat.MockT (MockT(..), Definition(..), runMockT, applyTimesIs, neverApply, MonadMockDefs(..)) where
+module Test.MockCat.MockT (
+  MockT(..), Definition(..),
+  runMockT,
+  applyTimesIs,
+  expectApplyTimes,
+  neverApply,
+  expectNever,
+  MonadMockDefs(..)
+  ) where
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans.Class (MonadTrans(..))
 import Control.Monad.Reader (ReaderT(..), runReaderT)
@@ -28,7 +36,7 @@ Concurrency safety (summary):
     appear in the verification log.
   * Order-sensitive checks reflect evaluation order, not necessarily wall-clock
     start order between threads.
-  * Perform verification (e.g. 'shouldApplyTimes', 'applyTimesIs') after all
+  * Perform verification (e.g. 'shouldApplyTimes', 'expectApplyTimes') after all
     parallel work has completed; running it mid-flight may observe fewer calls
     simply because some results are still lazy.
   * Each 'runMockT' call uses a fresh IORef store; mocks are not shared across
@@ -94,17 +102,18 @@ runMockT (MockT r) = do
   for_ defs (\(Definition _ m v) -> liftIO $ v m)
   pure a
 
-{- | Specify how many times a stub function (or group of stub definitions) must
-     be applied (to /any/ arguments). The function patches the verification
-     predicate for the provided stub definitions so that, after 'runMockT'
-     completes, the total number of evaluated applications is checked.
+{- | (Preferred: 'expectApplyTimes'; legacy: 'applyTimesIs')
+  Specify how many times a stub function (or group of stub definitions) must
+  be applied (to /any/ arguments). The function patches the verification
+  predicate for the provided stub definitions so that, after 'runMockT'
+  completes, the total number of evaluated applications is checked.
 
   Concurrency & laziness notes:
     * Counting is thread-safe: each evaluated application contributes exactly 1.
     * An application is only counted once its return value is evaluated; ensure
       your test forces (e.g. via @shouldBe@ or sequencing) all stub results
       before relying on the count.
-    * Invoke 'applyTimesIs' inside the 'runMockT' block during setup; do not
+    * Invoke 'expectApplyTimes' (or legacy 'applyTimesIs') inside the 'runMockT' block during setup; do not
       call it after the block ends.
 
   @
@@ -132,7 +141,7 @@ runMockT (MockT r) = do
     it "test runMockT" do
       result <- runMockT do
         _readFile ("input.txt" |> pack "content")
-        _writeFile ("output.text" |> pack "content" |> ()) `applyTimesIs` 0
+        _writeFile ("output.text" |> pack "content" |> ()) `expectApplyTimes` 0
         operationProgram "input.txt" "output.text"
 
       result `shouldBe` ()
@@ -149,6 +158,10 @@ applyTimesIs (MockT inner) a = MockT $ ReaderT $ \ref -> do
   liftIO $ atomicModifyIORef' ref (\xs -> (xs ++ patched, ()))
   pure ()
 
+-- | Preferred clearer alias for 'applyTimesIs'. Use this in new code.
+expectApplyTimes :: MonadIO m => MockT m () -> Int -> MockT m ()
+expectApplyTimes = applyTimesIs
+
 neverApply :: MonadIO m => MockT m () -> MockT m ()
 neverApply (MockT inner) = MockT $ ReaderT $ \ref -> do
   tmp <- liftIO $ newIORef []
@@ -157,6 +170,10 @@ neverApply (MockT inner) = MockT $ ReaderT $ \ref -> do
   let patched = map (\(Definition s m _) -> Definition s m (`shouldApplyTimesToAnything` 0)) defs
   liftIO $ atomicModifyIORef' ref (\xs -> (xs ++ patched, ()))
   pure ()
+
+-- | Alias for 'neverApply' providing naming symmetry with 'expectApplyTimes'.
+expectNever :: MonadIO m => MockT m () -> MockT m ()
+expectNever = neverApply
 
 instance MonadIO m => MonadMockDefs (MockT m) where
   addDefinition d = MockT $ ReaderT $ \ref -> liftIO $ atomicModifyIORef' ref (\xs -> (xs ++ [d], ()))

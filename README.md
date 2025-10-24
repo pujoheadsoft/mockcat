@@ -87,7 +87,7 @@ spec = it "kv" do
 
 Non‑invocation (two styles):
 ```haskell
-  _putKV ("x" |> "y" |> ()) `applyTimesIs` 0
+  _putKV ("x" |> "y" |> ()) `expectApplyTimes` 0  -- (legacy name: applyTimesIs)
   neverApply $ _putKV ("x" |> "y" |> ())
 ```
 
@@ -95,7 +95,7 @@ Non‑invocation (two styles):
 * Pipeline DSL: `a |> b |> returnValue` describes one expected application.
 * Matchers: `any`, `expect p label`, `expect_ p`, `$(expectByExpr [| predicate |])`.
 * Argument‑dependent returns: `onCase` or `cases [...]` (including differing values for same arg on later occurrences).
-* Counting: `applyTimesIs`, `neverApply`, plus `shouldApplyTimes*` predicates on mocks.
+* Counting: `expectApplyTimes` (legacy: `applyTimesIs`), `expectNever` (legacy: `neverApply`), plus `shouldApplyTimes*` predicates on mocks.
 * Ordering: `shouldApplyInOrder`, `shouldApplyInPartialOrder`.
 * Concurrency: Call recorded only when result evaluated; counting atomic.
 * Partial mocks: `makePartialMock` for generating only some methods.
@@ -314,14 +314,14 @@ operationProgram inputPath outputPath = do
   unless (pack "ngWord" `isInfixOf` content) $
     writeFile outputPath content
 ```
-This can be accomplished by using the `applyTimesIs` function as follows.
+This can be accomplished by using the `expectApplyTimes` function (legacy name: `applyTimesIs`) as follows.
 ```haskell
 import Test.MockCat as M
 ...
 it "Read, and output files (contain ng word)" do
   result <- runMockT do
     _readFile ("input.txt" |> pack "contains ngWord")
-    _writeFile ("output.txt" |> M.any |> ()) `applyTimesIs` 0
+    _writeFile ("output.txt" |> M.any |> ()) `expectApplyTimes` 0
     operationProgram "input.txt" "output.txt"
 
   result `shouldBe` ()
@@ -529,7 +529,7 @@ import Test.MockCat
 spec :: Spec
 spec = do
   it "named stub" do
-    f <- createNamedStubFun "named stub" $ "x" |> "y" |> True
+  f <- createNamedStubFn "named stub" $ "x" |> "y" |> True
     f "x" "z" `shouldBe` True
 ```
 The error message printed when a stub function is not applied to an expected argument will include this name.

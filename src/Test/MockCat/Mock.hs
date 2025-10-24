@@ -7,7 +7,7 @@
 {-# HLINT ignore "Use null" #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 
-{- | This module provides bellow functions.
+{- | This module provides the following functions.
 
   - Create mocks that can be stubbed and verified.
 
@@ -527,13 +527,13 @@ type Message = String
 doVerify :: (Eq a, Show a) => Maybe MockName -> AppliedParamsList a -> VerifyMatchType a -> Maybe VerifyFailed
 doVerify name list (MatchAny a) = do
   guard $ notElem a list
-  pure $ verifyFailedMesssage name list a
+  pure $ verifyFailedMessage name list a
 doVerify name list (MatchAll a) = do
   guard $ Prelude.any (a /=) list
-  pure $ verifyFailedMesssage name list a
+  pure $ verifyFailedMessage name list a
 
-verifyFailedMesssage :: Show a => Maybe MockName -> AppliedParamsList a -> a -> VerifyFailed
-verifyFailedMesssage name appliedParams expected =
+verifyFailedMessage :: Show a => Maybe MockName -> AppliedParamsList a -> a -> VerifyFailed
+verifyFailedMessage name appliedParams expected =
   VerifyFailed $
     intercalate
       "\n"
