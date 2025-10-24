@@ -27,6 +27,22 @@ You describe expected applications using a left‑to‑right pipeline (`arg |> a
 * Template Haskell helpers: `makeMock` to cut boilerplate for typeclasses
 * No hidden global state: tests stay isolated
 
+### Tested Versions
+mockcat is continuously tested in CI across these configurations (see `.github/workflows/Test.yml`):
+
+| GHC | Cabal | OS |
+|-----|-------|----|
+| 9.2.8 | 3.10.3.0 / 3.12.1.0 | Ubuntu, macOS, Windows |
+| 9.4.8 | 3.10.3.0 / 3.12.1.0 | Ubuntu, macOS, Windows |
+| 9.6.3 | 3.10.3.0 / 3.12.1.0 | Ubuntu, macOS, Windows |
+| 9.8.2 | 3.10.3.0 / 3.12.1.0 | Ubuntu, macOS, Windows |
+| 9.10.1 | 3.10.3.0 / 3.12.1.0 | Ubuntu, macOS, Windows |
+
+Notes:
+* The `tested-with` stanza in the cabal file reflects the same GHC list.
+* Other patch releases within the same minor series typically work; open an issue if you hit a snag.
+* Older GHCs (< 9.2) are not targeted due to dependency bounds and modern TH/unliftio requirements.
+
 Designed to be something you can pick up to stub one or two spots and then forget again – more a handy extension of regular Haskell testing than a new framework.
 
 ### Quick Start

@@ -30,6 +30,12 @@ copyright:      2024 funnycat
 license:        MIT
 license-file:   LICENSE
 build-type:     Simple
+tested-with:
+    GHC == 9.2.8
+  , GHC == 9.4.8
+  , GHC == 9.6.3
+  , GHC == 9.8.2
+  , GHC == 9.10.1
 extra-source-files:
     README.md
     README-ja.md

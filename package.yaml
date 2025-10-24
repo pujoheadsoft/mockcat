@@ -31,6 +31,13 @@ description: |
 
   See README for full examples: <https://github.com/pujoheadsoft/mockcat#readme>
 
+tested-with:
+  - GHC == 9.2.8
+  - GHC == 9.4.8
+  - GHC == 9.6.3
+  - GHC == 9.8.2
+  - GHC == 9.10.1
+
 dependencies:
 - base >= 4.7 && < 5
 - text >= 2.0 && < 2.2
