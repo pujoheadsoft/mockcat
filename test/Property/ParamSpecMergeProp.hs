@@ -5,7 +5,7 @@ module Property.ParamSpecMergeProp (spec) where
 
 import Test.Hspec
 import Test.QuickCheck
-import "mockcat" Test.MockCat.ParamSpec (ParamSpec(..))
+import Support.ParamSpec (ParamSpec(..))
 import Support.ParamSpecNormalize
 
 spec :: Spec

@@ -21,7 +21,7 @@
 --
 -- When in doubt prefer using smart constructors (`exact`, `enum`, ...) instead
 -- of pattern matching directly so future internal tweaks are easier.
-module Test.MockCat.ParamSpec
+module Support.ParamSpec
   (
     ParamSpec(..)
   , fromParam

@@ -8,7 +8,7 @@ module Property.ParamSpecNormalizeProp (spec, prop_enum_duplicate_equivalence) w
 import Test.Hspec
 import Test.QuickCheck
 import Data.List (nub)
-import "mockcat" Test.MockCat.ParamSpec (ParamSpec(..))
+import Support.ParamSpec (ParamSpec(..))
 import Support.ParamSpecNormalize
 import Data.Hashable (Hashable)
 

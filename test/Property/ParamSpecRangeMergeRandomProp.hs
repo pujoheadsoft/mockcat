@@ -5,7 +5,7 @@ module Property.ParamSpecRangeMergeRandomProp (spec) where
 
 import Test.Hspec
 import Test.QuickCheck
-import "mockcat" Test.MockCat.ParamSpec (ParamSpec(..))
+import Support.ParamSpec (ParamSpec(..))
 import Support.ParamSpecNormalize
 
 -- ランダムに Range / Exact を生成し normaliseManyInt の受理集合と元集合の OR が一致するか検証

@@ -17,7 +17,7 @@ module Support.ParamSpecNormalize
 
 import qualified Data.HashSet as HS
 import Data.Hashable (Hashable)
-import "mockcat" Test.MockCat.ParamSpec
+import Support.ParamSpec
 import Data.List (sortOn)
 
 -- | Canonical internal form (test-only).

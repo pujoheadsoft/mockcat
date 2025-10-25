@@ -54,7 +54,6 @@ library
       Test.MockCat.MockT
       Test.MockCat.Param
       Test.MockCat.ParamDivider
-      Test.MockCat.ParamSpec
       Test.MockCat.TH
   other-modules:
       Paths_mockcat
@@ -85,6 +84,7 @@ test-suite mockcat-test
       Property.ParamSpecRangeMergeRandomProp
       Property.ReinforcementProps
       Property.ScriptProps
+      Support.ParamSpec
       Support.ParamSpecNormalize
       Test.MockCat.AssociationListSpec
       Test.MockCat.ConcurrencySpec
