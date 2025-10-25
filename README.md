@@ -45,6 +45,73 @@ Notes:
 
 Designed to be something you can pick up to stub one or two spots and then forget again – more a handy extension of regular Haskell testing than a new framework.
 
+### When should you use mockcat?
+Use it when the following resonate:
+
+| Situation | Why mockcat helps |
+|-----------|-------------------|
+| You only need 1–3 small mocks and don’t want a heavy framework | Single expression `a |> b |> r` expectations stay lightweight |
+| You want argument + occurrence sensitive returns | Multiple `onCase` (including duplicate args) choose per call deterministically |
+| Verifying exact / partial order matters | Built‑in `shouldApplyInOrder` / `shouldApplyInPartialOrder` without extra harness |
+| Need to assert precise call counts (including zero) | `expectApplyTimes`, `expectNever`, plus granular `shouldApplyTimes*` APIs |
+| Concurrency: parallel tasks must not lose counts | Atomic recording + per‑call evaluation semantics tested with property tests |
+| You prefer explicit, non‑magical DSL | Only `|>` and a few combinators (`any`, `expect`, `expect_`, TH expectByExpr) |
+| You mix real + mocked methods in a typeclass | `makePartialMock` keeps untouched members real |
+| Occasional tests, not an application‑wide inversion setup | Zero global registry; opt‑in per test |
+| Need monadic variation for `IO` results | Repeated cases + monadic explicit returns under `implicitMonadicReturn` |
+
+### When should you NOT use mockcat?
+Consider alternatives if:
+
+| Case | Probably better with |
+|------|---------------------|
+| Large system with dozens of interacting behaviors and deep expectations | A fuller test double / simulation layer or effect system (e.g. Polysemy / fused‑effects) |
+| You want automatic generation of all mocks and default fallbacks | Dedicated auto‑deriving mock frameworks |
+| Property‑based orchestration of complex multi‑step protocols with shrinking | Use Hedgehog directly (future integration planned) |
+| You require record‑style structured matchers (e.g. JSON diff, partial AST pattern) | Custom predicate functions or a richer matcher library layered on top |
+| You need time‑travel / virtual clock / deterministic scheduling | A purpose built simulation or effect runtime |
+| Performance micro‑bench harness of millions of calls | Hand coded stub (mockcat overhead is small but non‑zero) |
+| Cross‑module pervasive dependency injection | Typeclass instances / reader environment without mocks |
+
+### Design philosophy & trade‑offs
+* Favors readability of individual expectations over bulk generation.
+* Explicit over implicit: no hidden global state; verification is opt‑in or at `runMockT` boundary.
+* Encourages shrinking scope: mocks local to the test file; does not push architectural rewrites.
+* Leaves advanced generation (scenarios, property fuzz) as optional layering – PoCs exist, but core stays minimal.
+* Concurrency correctness prioritized above micro‑optimizing hot paths.
+
+### Migrating from handwritten stubs
+If you already write tiny handmade stubs:
+1. Replace the stub body with `createMock` + `stubFn`.
+2. Inline expectation in the test (keep original type signature).
+3. Add verification only where it increases confidence (don’t verify everything by habit).
+
+### Interoperability notes
+| Layer | Status | Notes |
+|-------|--------|-------|
+| QuickCheck integration | PoC | ParamSpec → Gen, scenario DSL prototypes |
+| Hedgehog integration | Planned | Will focus on shrinking ordered call sequences |
+| Effect systems (Polysemy / fused‑effects) | Manual | Wrap `MockT` inside effect stack or lift via newtype derivation |
+| Benchmarking | Planned | Criterion harness template (compare hand stub vs mockcat) |
+
+### FAQ (selected)
+**Q. Does mockcat force results strictly?**  
+No. A call is recorded when the return value is evaluated; unevaluated results don’t count.
+
+**Q. How are duplicate argument cases resolved?**  
+Left‑to‑right; once the last variant is reached it repeats (sticky tail).
+
+**Q. Thread safety?**  
+All state mutations use a single `IORef` with atomic modification; properties cover contention scenarios.
+
+**Q. Will the DSL expand a lot?**  
+Core is intentionally stable; higher level generators / scenario DSL live in optional modules.
+
+**Q. How to debug a mismatch?**  
+Failure message lists expected vs actual (or sequence diff). Add labels via `expect (>x) "label"` for clarity.
+
+---
+
 ### Quick Start
 
 Function mock:

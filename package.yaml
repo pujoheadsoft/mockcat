@@ -76,3 +76,4 @@ tests:
     - mockcat
     - hspec >= 2.11 && < 2.12
     - async >= 2.2.4 && < 2.3
+    - QuickCheck >= 2.14 && < 2.15

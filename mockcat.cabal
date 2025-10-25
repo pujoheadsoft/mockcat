@@ -54,6 +54,7 @@ library
       Test.MockCat.MockT
       Test.MockCat.Param
       Test.MockCat.ParamDivider
+      Test.MockCat.ParamSpec
       Test.MockCat.TH
   other-modules:
       Paths_mockcat
@@ -74,6 +75,16 @@ test-suite mockcat-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
+      PoC.ParamSpecGen
+      PoC.QuickCheckIntegration
+      PoC.ScenarioDSLPoC
+      Property.AdditionalProps
+      Property.ConcurrentCountProp
+      Property.Generators
+      Property.LazyEvalProp
+      Property.OrderProps
+      Property.ReinforcementProps
+      Property.ScriptProps
       Test.MockCat.AssociationListSpec
       Test.MockCat.ConcurrencySpec
       Test.MockCat.ConsSpec
@@ -91,7 +102,8 @@ test-suite mockcat-test
       test
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -fprint-potential-instances -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      async >=2.2.4 && <2.3
+      QuickCheck ==2.14.*
+    , async >=2.2.4 && <2.3
     , base >=4.7 && <5
     , hspec ==2.11.*
     , mockcat
