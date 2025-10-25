@@ -1,3 +1,5 @@
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE MonoLocalBinds #-}
 module PoC.ParamSpecIntGenBridge (prop_paramSpec_bridge_sound) where
 
 import Hedgehog
