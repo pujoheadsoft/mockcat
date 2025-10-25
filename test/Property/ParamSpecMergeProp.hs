@@ -1,4 +1,6 @@
 {-# LANGUAGE PackageImports #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE MonoLocalBinds #-}
 module Property.ParamSpecMergeProp (spec) where
 
 import Test.Hspec
