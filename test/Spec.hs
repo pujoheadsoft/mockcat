@@ -1,8 +1,7 @@
-import Test.Hspec (hspec)
-import Test.Hspec (describe, it)
+import Test.Hspec (hspec, describe, it)
 import Test.MockCat.MockSpec as Mock
 import Test.MockCat.ConsSpec as Cons
-import Test.MockCat.ParamSpec as Param
+import Test.MockCat.ParamSpecSpec as Param
 import Test.MockCat.AssociationListSpec as AssociationList
 import Test.MockCat.ExampleSpec as Example
 import Test.MockCat.TypeClassSpec as TypeClass
@@ -16,15 +15,16 @@ import qualified PoC.ParamSpecGen as ParamSpecGen
 import qualified PoC.ScenarioDSLPoC as ScenarioPoC
 import qualified Property.ConcurrentCountProp as ConcurrencyProp
 import qualified Property.LazyEvalProp as LazyEvalProp
-import qualified Property.Generators as ScriptGen
 import qualified Property.ScriptProps as ScriptProps
 import qualified Property.OrderProps as OrderProps
 import qualified Property.AdditionalProps as AdditionalProps
 import qualified Property.ReinforcementProps as ReinforcementProps
+import qualified Property.ParamSpecNormalizeProp as ParamSpecNormalizeProp
+import qualified Property.ParamSpecMergeProp as ParamSpecMergeProp
+import qualified Property.ParamSpecRangeMergeRandomProp as ParamSpecRangeMergeRandomProp
 
 main :: IO ()
-main = do
-  hspec $ do
+main = hspec $ do
     Cons.spec
     Param.spec
     Mock.spec
@@ -67,3 +67,6 @@ main = do
       it "predicate negative not counted" $ property ReinforcementProps.prop_predicate_negative_not_counted
       it "lazy partial force in concurrency counts only forced" $ property ReinforcementProps.prop_lazy_partial_force_concurrency
       it "interleaved duplicate partial order semantics" $ property ReinforcementProps.prop_partial_order_interleaved_duplicates
+    ParamSpecNormalizeProp.spec
+    ParamSpecMergeProp.spec
+    ParamSpecRangeMergeRandomProp.spec

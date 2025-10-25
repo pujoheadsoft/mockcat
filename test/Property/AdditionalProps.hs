@@ -1,6 +1,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeApplications #-}
+{-# OPTIONS_GHC -O0 #-}
 module Property.AdditionalProps
   ( prop_predicate_param_match_counts
   , prop_multicase_progression
@@ -12,6 +13,7 @@ module Property.AdditionalProps
 import Test.QuickCheck
 import Test.QuickCheck.Monadic (monadicIO, run, assert)
 import Control.Exception (try, SomeException, evaluate)
+import Control.Monad (replicateM, replicateM_)
 import Data.List (nub)
 import Data.Proxy (Proxy(..))
 import Test.MockCat
@@ -51,11 +53,10 @@ prop_multicase_progression = forAll genSeq $ \(arg, rs, extra) -> monadicIO $ do
   m <- run $ createMock $ cases [ param arg |> r | r <- rs ]
   let f = stubFn m
       totalCalls = length rs + extra
-  vals <- run $ sequence [ pure (f arg) | _ <- [1..totalCalls] ]
+  vals <- run $ replicateM totalCalls (evaluate (f arg))
   let (prefix, suffix) = splitAt (length rs) vals
   assert (prefix == rs)
   assert (all (== last rs) suffix)
-  -- total apply count should equal totalCalls
   run $ m `shouldApplyTimesToAnything` totalCalls
   where
     genSeq = do
@@ -107,7 +108,7 @@ prop_neverApply_unused = forAll (chooseInt (0,5)) $ \n -> monadicIO $ do
     mUnused <- liftIO $ createMock (param (42 :: Int) |> True)
     addDefinition Definition { symbol = Proxy @"unused", mock = mUnused, verify = \m' -> m' `shouldApplyTimesToAnything` 0 }
     let f = stubFn mUsed
-    liftIO $ sequence_ [ f 0 `seq` pure () | _ <- [1..n] ]
+    liftIO $ replicateM_ n (evaluate (f 0))
   case r of
     Left (_ :: SomeException) -> assert False
     Right () -> assert True

@@ -46,6 +46,8 @@ dependencies:
 - transformers >= 0.5.6 && < 0.7
 - unliftio-core >= 0.2.1.0 && < 0.2.2
 - unliftio >= 0.2.25.0 && < 0.2.26
+- hashable >= 1.4 && < 1.5
+- unordered-containers >= 0.2.19 && < 0.3
 
 ghc-options:
 - -Wall
@@ -76,4 +78,17 @@ tests:
     - mockcat
     - hspec >= 2.11 && < 2.12
     - async >= 2.2.4 && < 2.3
+    - hedgehog >= 1.4 && < 1.5
     - QuickCheck >= 2.14 && < 2.15
+  mockcat-hedgehog:
+    main:                Main.hs
+    source-dirs:
+      - test/hedgehog
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - mockcat
+    - hedgehog >= 1.4 && < 1.5
+    - base
