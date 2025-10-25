@@ -1,3 +1,5 @@
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE MonoLocalBinds #-}
 module Test.MockCat.Hedgehog.ParamGen
   ( paramSpecIntGenMaybe
   , normalParamIntGenMaybe
