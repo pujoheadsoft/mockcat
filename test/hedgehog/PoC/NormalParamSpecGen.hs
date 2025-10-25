@@ -1,3 +1,5 @@
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE MonoLocalBinds #-}
 module PoC.NormalParamSpecGen (genParamSpecIntH, prop_genFromNormalInt_sound) where
 
 import Hedgehog
