@@ -10,9 +10,6 @@ import Test.MockCat.PartialMockSpec as PartialMock
 import Test.MockCat.PartialMockTHSpec as PartialMockTH
 import Test.MockCat.ConcurrencySpec as Concurrency
 import Test.QuickCheck (property)
-import qualified PoC.QuickCheckIntegration as PoC
-import qualified PoC.ParamSpecGen as ParamSpecGen
-import qualified PoC.ScenarioDSLPoC as ScenarioPoC
 import qualified Property.ConcurrentCountProp as ConcurrencyProp
 import qualified Property.LazyEvalProp as LazyEvalProp
 import qualified Property.ScriptProps as ScriptProps
@@ -35,16 +32,6 @@ main = hspec $ do
     PartialMock.spec
     PartialMockTH.spec
     Concurrency.spec
-    describe "PoC QuickCheck integration" $ do
-      it "single call example" $ property PoC.prop_singleCall_example
-      it "multi call count example" $ property PoC.prop_multiCallCount_example
-    describe "PoC ParamSpec -> Gen" $ do
-      it "exact reproduces the same value" $ property ParamSpecGen.prop_exact
-      it "rangeInt stays within bounds" $ property ParamSpecGen.prop_rangeIntWithin
-      it "enum chooses only listed" $ property ParamSpecGen.prop_enumOnly
-    describe "PoC Scenario DSL" $ do
-      it "scenario order preserved" $ property ScenarioPoC.prop_scenario_order
-      it "scenario call count matches" $ property ScenarioPoC.prop_scenario_count
     describe "Property Concurrency" $ do
       it "total apply count is preserved across threads" $ property ConcurrencyProp.prop_concurrent_total_apply_count
     describe "Property Lazy Evaluation" $ do

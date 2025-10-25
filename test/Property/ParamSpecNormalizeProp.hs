@@ -9,7 +9,7 @@ import Test.Hspec
 import Test.QuickCheck
 import Data.List (nub)
 import "mockcat" Test.MockCat.ParamSpec (ParamSpec(..))
-import Test.MockCat.Internal.ParamSpec.Normalize
+import Support.ParamSpecNormalize
 import Data.Hashable (Hashable)
 
 -- Generator for small ParamSpec Int

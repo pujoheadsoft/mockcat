@@ -1,7 +1,10 @@
 {-# LANGUAGE GADTs #-}
--- | Internal normalization for ParamSpec (experimental).
--- NOT exported to end users; subject to change.
-module Test.MockCat.Internal.ParamSpec.Normalize
+{-# LANGUAGE PackageImports #-}
+-- | Test-only normalization utilities migrated from former
+-- Test.MockCat.Internal.ParamSpec.Normalize. These are not part of the
+-- public API and may change freely. Copied here because only the
+-- property tests rely on the canonical form & merging behaviour.
+module Support.ParamSpecNormalize
   ( NormalParamSpec(..)
   , normalise
   , normaliseMany
@@ -10,23 +13,19 @@ module Test.MockCat.Internal.ParamSpec.Normalize
   , toParamSpec
   , acceptsParamSpec
   , acceptsNormal
-  , genFromNormalInt
   ) where
 
 import qualified Data.HashSet as HS
 import Data.Hashable (Hashable)
-import Test.MockCat.ParamSpec
+import "mockcat" Test.MockCat.ParamSpec
 import Data.List (sortOn)
 
--- | Canonical internal form.
--- NOTE: We intentionally keep opaque predicate only by its function + label.
--- Eq instance treats predicate functions as unequal unless labels match (best effort).
--- For test equivalence we only rely on behavioural acceptance, not structural Eq of predicates.
+-- | Canonical internal form (test-only).
 data NormalParamSpec a where
   NExact      :: a -> NormalParamSpec a
-  NEnum       :: [a] -> NormalParamSpec a            -- ^ de-duplicated, stable order, length >= 2
-  NRangeInt   :: Int -> Int -> NormalParamSpec Int   -- ^ low <= high, low < high (else collapsed to NExact)
-  NUnion      :: [NormalParamSpec a] -> NormalParamSpec a -- ^ flattened, length >= 2
+  NEnum       :: [a] -> NormalParamSpec a
+  NRangeInt   :: Int -> Int -> NormalParamSpec Int
+  NUnion      :: [NormalParamSpec a] -> NormalParamSpec a
   NAny        :: NormalParamSpec a
   NOpaquePred :: (a -> Bool) -> String -> NormalParamSpec a
 
@@ -47,7 +46,6 @@ instance Eq a => Eq (NormalParamSpec a) where
   NOpaquePred _ la == NOpaquePred _ lb = la == lb
   _ == _ = False
 
--- | Convert public ParamSpec to internal canonical form (minimal subset of rules).
 normalise :: Hashable a => ParamSpec a -> NormalParamSpec a
 normalise ps = case ps of
   PSExact a      -> NExact a
@@ -60,7 +58,7 @@ normalise ps = case ps of
     | l == h    = NExact l
     | l < h     = NRangeInt l h
     | otherwise = NRangeInt h l
-  enumNorm [] = NEnum []  -- unreachable by current API (documented non-empty), but keep safe
+  enumNorm [] = NEnum []
   enumNorm xs =
     let uniq = dedupStable xs
     in case uniq of
@@ -73,7 +71,6 @@ normaliseMany [] = NEnum []
 normaliseMany [p] = normalise p
 normaliseMany ps = combine (map normalise ps)
 
--- | Combine already normalised specs (flatten union, absorb Any). More advanced merging TBD.
 combine :: [NormalParamSpec a] -> NormalParamSpec a
 combine specs
   | any isAny specs = NAny
@@ -126,18 +123,15 @@ normaliseManyInt ps = finalize merged others
            [x] -> x
            xs  -> NUnion xs
 
--- | Convert back to a (not necessarily original shape) ParamSpec.
 toParamSpec :: NormalParamSpec a -> ParamSpec a
 toParamSpec n = case n of
   NExact a        -> PSExact a
   NEnum xs        -> PSEnum xs
-  -- Union does not have a faithful representation in simple ParamSpec; fall back to PSAny.
   NUnion _        -> PSAny
   NAny            -> PSAny
   NOpaquePred f l -> PSPredicate f l
   NRangeInt l h   -> PSRangeInt l h
 
--- | Semantics: does a value satisfy the (non normalised) ParamSpec?
 acceptsParamSpec :: Eq a => ParamSpec a -> a -> Bool
 acceptsParamSpec ps x = case ps of
   PSExact a        -> x == a
@@ -145,10 +139,7 @@ acceptsParamSpec ps x = case ps of
   PSRangeInt l h   -> let (lo,hi) = if l <= h then (l,h) else (h,l) in lo <= x && x <= hi
   PSAny            -> True
   PSPredicate f _  -> f x
- where
-  -- (旧 between 削除) intentionally empty
 
--- | Semantics for NormalParamSpec.
 acceptsNormal :: Eq a => NormalParamSpec a -> a -> Bool
 acceptsNormal n x = case n of
   NExact a        -> x == a
@@ -158,7 +149,6 @@ acceptsNormal n x = case n of
   NOpaquePred f _ -> f x
   NRangeInt l h   -> l <= x && x <= h
 
--- | Stable dedup preserving first occurrence.
 dedupStable :: Hashable a => [a] -> [a]
 dedupStable = go HS.empty
   where
@@ -166,17 +156,3 @@ dedupStable = go HS.empty
     go seen (z:zs)
       | HS.member z seen = go seen zs
       | otherwise        = z : go (HS.insert z seen) zs
-
--- | Simple Int sampler helper; returns a deterministic function from seed -> value.
-genFromNormalInt :: NormalParamSpec Int -> Maybe (Int -> Int)
-genFromNormalInt n = case n of
-  NExact a -> Just (\_ -> a)
-  NEnum [] -> Nothing
-  NEnum xs -> Just (\k -> xs !! (k `mod` length xs))
-  NRangeInt l h -> Just (\k -> l + (k `mod` (h - l + 1)))
-  NUnion xs -> case mapM genFromNormalInt xs of
-                 Just fs | not (null fs) -> Just (\k -> let (q,r) = k `divMod` length fs
-                                                       in (fs !! r) q)
-                 _ -> Nothing
-  NAny -> Nothing
-  NOpaquePred _ _ -> Nothing

@@ -6,7 +6,7 @@ module Property.ParamSpecMergeProp (spec) where
 import Test.Hspec
 import Test.QuickCheck
 import "mockcat" Test.MockCat.ParamSpec (ParamSpec(..))
-import Test.MockCat.Internal.ParamSpec.Normalize
+import Support.ParamSpecNormalize
 
 spec :: Spec
 spec = describe "ParamSpec Int merge (normaliseManyInt)" $ do

@@ -302,7 +302,7 @@ instance
   build name cases = do
     let params = runCase cases
     s <- liftIO $ newIORef appliedRecord
-    makeMock name s (\a2 b2 c2 d2 e2 f2 g2 h2 i2 -> unsafePerformIO $ findReturnValueWithStore name params (p a2 :> p b2 :> p c2 :> p d2 :> p e2 :> p f2 :> p g2 :> p h2 :> p i2) s)
+    makeMock name s (\a2 b2 c2 d2 e2 f2 g2 h2 i2 -> perform $ findReturnValueWithStore name params (p a2 :> p b2 :> p c2 :> p d2 :> p e2 :> p f2 :> p g2 :> p h2 :> p i2) s)
 
 instance
   (Show a, Eq a, Show b, Eq b, Show c, Eq c, Show d, Eq d, Show e, Eq e, Show f, Eq f, Show g, Eq g, Show h, Eq h) =>
@@ -314,7 +314,7 @@ instance
   build name cases = do
     let params = runCase cases
     s <- liftIO $ newIORef appliedRecord
-    makeMock name s (\a2 b2 c2 d2 e2 f2 g2 h2 -> unsafePerformIO $ findReturnValueWithStore name params (p a2 :> p b2 :> p c2 :> p d2 :> p e2 :> p f2 :> p g2 :> p h2) s)
+    makeMock name s (\a2 b2 c2 d2 e2 f2 g2 h2 -> perform $ findReturnValueWithStore name params (p a2 :> p b2 :> p c2 :> p d2 :> p e2 :> p f2 :> p g2 :> p h2) s)
 
 instance
   (Show a, Eq a, Show b, Eq b, Show c, Eq c, Show d, Eq d, Show e, Eq e, Show f, Eq f, Show g, Eq g) =>
@@ -326,7 +326,7 @@ instance
   build name cases = do
     let params = runCase cases
     s <- liftIO $ newIORef appliedRecord
-    makeMock name s (\a2 b2 c2 d2 e2 f2 g2 -> unsafePerformIO $ findReturnValueWithStore name params (p a2 :> p b2 :> p c2 :> p d2 :> p e2 :> p f2 :> p g2) s)
+    makeMock name s (\a2 b2 c2 d2 e2 f2 g2 -> perform $ findReturnValueWithStore name params (p a2 :> p b2 :> p c2 :> p d2 :> p e2 :> p f2 :> p g2) s)
 
 instance
   (Show a, Eq a, Show b, Eq b, Show c, Eq c, Show d, Eq d, Show e, Eq e, Show f, Eq f) =>
@@ -338,7 +338,7 @@ instance
   build name cases = do
     let params = runCase cases
     s <- liftIO $ newIORef appliedRecord
-    makeMock name s (\a2 b2 c2 d2 e2 f2 -> unsafePerformIO $ findReturnValueWithStore name params (p a2 :> p b2 :> p c2 :> p d2 :> p e2 :> p f2) s)
+    makeMock name s (\a2 b2 c2 d2 e2 f2 -> perform $ findReturnValueWithStore name params (p a2 :> p b2 :> p c2 :> p d2 :> p e2 :> p f2) s)
 
 instance
   (Show a, Eq a, Show b, Eq b, Show c, Eq c, Show d, Eq d, Show e, Eq e) =>
@@ -350,7 +350,7 @@ instance
   build name cases = do
     let params = runCase cases
     s <- liftIO $ newIORef appliedRecord
-    makeMock name s (\a2 b2 c2 d2 e2 -> unsafePerformIO $ findReturnValueWithStore name params (p a2 :> p b2 :> p c2 :> p d2 :> p e2) s)
+    makeMock name s (\a2 b2 c2 d2 e2 -> perform $ findReturnValueWithStore name params (p a2 :> p b2 :> p c2 :> p d2 :> p e2) s)
 
 instance
   (Show a, Eq a, Show b, Eq b, Show c, Eq c, Show d, Eq d) =>
@@ -362,7 +362,7 @@ instance
   build name cases = do
     let params = runCase cases
     s <- liftIO $ newIORef appliedRecord
-    makeMock name s (\a2 b2 c2 d2 -> unsafePerformIO $ findReturnValueWithStore name params (p a2 :> p b2 :> p c2 :> p d2) s)
+    makeMock name s (\a2 b2 c2 d2 -> perform $ findReturnValueWithStore name params (p a2 :> p b2 :> p c2 :> p d2) s)
 
 instance
   (Show a, Eq a, Show b, Eq b, Show c, Eq c) =>
@@ -374,7 +374,7 @@ instance
   build name cases = do
     let params = runCase cases
     s <- liftIO $ newIORef appliedRecord
-    makeMock name s (\a2 b2 c2 -> unsafePerformIO $ findReturnValueWithStore name params (p a2 :> p b2 :> p c2) s)
+    makeMock name s (\a2 b2 c2 -> perform $ findReturnValueWithStore name params (p a2 :> p b2 :> p c2) s)
 
 instance
   (Show a, Eq a, Show b, Eq b) =>
@@ -383,7 +383,7 @@ instance
   build name cases = do
     let params = runCase cases
     s <- liftIO $ newIORef appliedRecord
-    makeMock name s (\a2 b2 -> unsafePerformIO $ findReturnValueWithStore name params (p a2 :> p b2) s)
+    makeMock name s (\a2 b2 -> perform $ findReturnValueWithStore name params (p a2 :> p b2) s)
 
 instance
   (Show a, Eq a) =>
@@ -392,7 +392,7 @@ instance
   build name cases = do
     let params = runCase cases
     s <- liftIO $ newIORef appliedRecord
-    makeMock name s (\a2 -> unsafePerformIO $ findReturnValueWithStore name params (p a2) s)
+    makeMock name s (\a2 -> perform $ findReturnValueWithStore name params (p a2) s)
 
 instance
   MockBuilder (Cases (IO a) ()) (IO a) ()
@@ -937,3 +937,7 @@ cases a = Cases $ put a
 -}
 casesIO :: [a] -> Cases (IO a) ()
 casesIO = Cases . (put . map pure)
+
+{-# NOINLINE perform #-}
+perform :: IO a -> a
+perform = unsafePerformIO

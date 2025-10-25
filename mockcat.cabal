@@ -50,8 +50,6 @@ library
       Test.MockCat
       Test.MockCat.AssociationList
       Test.MockCat.Cons
-      Test.MockCat.Internal.Generation
-      Test.MockCat.Internal.ParamSpec.Normalize
       Test.MockCat.Mock
       Test.MockCat.MockT
       Test.MockCat.Param
@@ -65,25 +63,18 @@ library
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -fprint-potential-instances -Wredundant-constraints
   build-depends:
       base >=4.7 && <5
-    , hashable ==1.4.*
     , mtl >=2.3.1 && <2.4
     , template-haskell >=2.18 && <2.24
     , text >=2.0 && <2.2
     , transformers >=0.5.6 && <0.7
     , unliftio >=0.2.25.0 && <0.2.26
     , unliftio-core >=0.2.1.0 && <0.2.2
-    , unordered-containers >=0.2.19 && <0.3
   default-language: Haskell2010
-
 
 test-suite mockcat-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
-  HedgehogSpec
-      PoC.ParamSpecGen
-      PoC.QuickCheckIntegration
-      PoC.ScenarioDSLPoC
       Property.AdditionalProps
       Property.ConcurrentCountProp
       Property.Generators
@@ -94,6 +85,7 @@ test-suite mockcat-test
       Property.ParamSpecRangeMergeRandomProp
       Property.ReinforcementProps
       Property.ScriptProps
+      Support.ParamSpecNormalize
       Test.MockCat.AssociationListSpec
       Test.MockCat.ConcurrencySpec
       Test.MockCat.ConsSpec
@@ -112,11 +104,11 @@ test-suite mockcat-test
       test
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -fprint-potential-instances -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      QuickCheck ==2.14.*
+      QuickCheck >=2.14 && <2.17
     , async >=2.2.4 && <2.3
     , base >=4.7 && <5
     , hashable ==1.4.*
-    , hspec ==2.11.*
+    , hspec >=2.11 && <2.13
     , mockcat
     , mtl >=2.3.1 && <2.4
     , template-haskell >=2.18 && <2.24
