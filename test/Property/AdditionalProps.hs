@@ -13,7 +13,7 @@ module Property.AdditionalProps
 import Test.QuickCheck
 import Test.QuickCheck.Monadic (monadicIO, run, assert)
 import Control.Exception (try, SomeException, evaluate)
-import Control.Monad (replicateM, replicateM_)
+import Control.Monad (replicateM, replicateM_, forM, forM_)
 import Data.List (nub)
 import Data.Proxy (Proxy(..))
 import Test.MockCat
@@ -53,7 +53,14 @@ prop_multicase_progression = forAll genSeq $ \(arg, rs, extra) -> monadicIO $ do
   m <- run $ createMock $ cases [ param arg |> r | r <- rs ]
   let f = stubFn m
       totalCalls = length rs + extra
-  vals <- run $ replicateM totalCalls (evaluate (f arg))
+  -- NOTE [GHC9.4 duplicate-call counting]
+  -- On GHC 9.4 we observed that using @replicateM totalCalls (evaluate (f arg))@
+  -- can result in only a single side‑effect (application recording) when all
+  -- of (argument,result) pairs are identical. The optimizer (or full laziness
+  -- even under -O0) may float the pure expression @f arg@ and share it.
+  -- We intentionally inject the loop index via a seq so each iteration has a
+  -- syntactically distinct thunk, ensuring the unsafePerformIO body runs per call.
+  vals <- run $ forM [1 .. totalCalls] $ \i -> evaluate (case i of { _ -> f arg })
   let (prefix, suffix) = splitAt (length rs) vals
   assert (prefix == rs)
   assert (all (== last rs) suffix)
@@ -108,7 +115,9 @@ prop_neverApply_unused = forAll (chooseInt (0,5)) $ \n -> monadicIO $ do
     mUnused <- liftIO $ createMock (param (42 :: Int) |> True)
     addDefinition Definition { symbol = Proxy @"unused", mock = mUnused, verify = \m' -> m' `shouldApplyTimesToAnything` 0 }
     let f = stubFn mUsed
-    liftIO $ replicateM_ n (evaluate (f 0))
+    -- See NOTE [GHC9.4 duplicate-call counting] above: make each application
+    -- depend on the loop index to avoid sharing; case forces dependence.
+    liftIO $ forM_ [1 .. n] $ \i -> evaluate (case i of { _ -> f 0 })
   case r of
     Left (_ :: SomeException) -> assert False
     Right () -> assert True
