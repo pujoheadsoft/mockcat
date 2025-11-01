@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to the
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
+## 0.6.0.0
+### Changed
+- Removed the upper limit on variable arguments when creating stub functions. Previously, there was a restriction on the maximum number of arguments, but this limitation has been removed, allowing stub functions to accept an arbitrary number of arguments.
+
 ## 0.5.5.0
 ### Added
 - Aliases `expectApplyTimes` and `expectNever` (preferred names) for pre-run expectation declarations.

@@ -188,6 +188,7 @@ Migration: internal `(modify/get)` swapped to `addDefinition/getDefinitions` (vi
 <details>
 <summary><strong>Update History</strong></summary>
 
+* **0.6.0.0**: Removed the upper limit on variable arguments when creating stub functions.
 * **0.5.3.0**: `MockT` now implements `MonadUnliftIO`; concurrency safety clarified; removal of `unsafePerformIO`.
 * **0.5.0**: `IO a` stubs can return different values on successive applications.
 * **0.4.0**: Partial mocks for typeclasses.
