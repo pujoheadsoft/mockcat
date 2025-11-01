@@ -160,38 +160,49 @@ createNamedStubFn ::
   m fn
 createNamedStubFn name params = stubFn <$> createNamedMock name params
 
--- | Class for creating a mock corresponding to the parameter.
-class MockBuilder params fn verifyParams | params -> fn, params -> verifyParams where
-  -- build a mock
-  build :: MonadIO m => Maybe MockName -> params -> m (Mock fn verifyParams)
-
 -- | Class for building a curried function.
+-- The purpose of this class is to automatically generate and provide
+-- an implementation for the corresponding curried function type (such as `a -> b -> ... -> IO r`)
+-- when given the argument list type of the mock (`Param a :> Param b :> ...`).
+-- @args@ is the argument list type of the mock.
+-- @r@ is the return type of the function.
+-- @fn@ is the curried function type.
 class BuildCurried args r fn | args r -> fn where
+  -- | Build a curried function.
+  -- Accept a function that combines all arguments and convert it into a curried function.
   buildCurried :: (args -> IO r) -> fn
 
+-- | Base case: The last parameter.
+-- Converts a single-argument function (Param a -> IO r) into a final
+-- curried function (a -> r) by performing the IO action.
 instance BuildCurried (Param a) r (a -> r) where
   buildCurried :: (Param a -> IO r) -> a -> r
   buildCurried a2r a = perform $ a2r (param a)
 
+-- | Recursive case: Consumes the head parameter and generates the next curried function.
+-- Generates a function of type (a -> fn) that immediately calls the next
+-- 'BuildCurried' instance with the remaining arguments.
 instance BuildCurried rest r fn
       => BuildCurried (Param a :> rest) r (a -> fn) where
   buildCurried :: ((Param a :> rest) -> IO r) -> a -> fn
   buildCurried args2r a = buildCurried (\rest -> args2r (p a :> rest))
 
-instance {-# OVERLAPPABLE #-}
-  ( p ~ (Param a :> rest)
-  , ProjectionArgs p
-  , ProjectionReturn p
-  , ArgsOf p ~ args
-  , ReturnOf p ~ Param r
-  , BuildCurried args r fn
-  , Eq args
-  , Show args
-  ) => MockBuilder (Param a :> rest) fn args where
-  build name params = do
-    s <- liftIO $ newIORef appliedRecord
-    makeMock name s (buildCurried (\inputParams -> extractReturnValueWithValidate name params inputParams s))
+-- | Class for creating a mock corresponding to the parameter.
+class MockBuilder params fn verifyParams | params -> fn, params -> verifyParams where
+  -- build a mock
+  build :: MonadIO m => Maybe MockName -> params -> m (Mock fn verifyParams)
 
+-- | Instance for building a mock for a constant function.
+instance
+  MockBuilder (IO r) (IO r) ()
+  where
+  build name a = do
+    s <- liftIO $ newIORef appliedRecord
+    makeMock name s (do
+      liftIO $ appendAppliedParams s ()
+      a)
+
+-- | Instance for building a mock for a function with a single parameter.
 instance
   MockBuilder (Param r) r ()
   where
@@ -202,15 +213,21 @@ instance
       liftIO $ appendAppliedParams s ()
       pure v)
 
-instance
-  MockBuilder (IO r) (IO r) ()
-  where
-  build name a = do
+-- | Instance for building a mock for a function with multiple parameters.
+instance MockBuilder (Cases (IO a) ()) (IO a) () where
+  build name cases = do
+    let params = runCase cases
     s <- liftIO $ newIORef appliedRecord
     makeMock name s (do
-      liftIO $ appendAppliedParams s ()
-      a)
+      count <- readAppliedCount s ()
+      let index = min count (length params - 1)
+          r = safeIndex params index
+      appendAppliedParams s ()
+      incrementAppliedParamCount s ()
+      fromJust r)
 
+-- | Overlapping instance for building a mock for a function with multiple parameters.
+-- This instance is used when the parameter type is a 'Cases' type.
 instance {-# OVERLAPPABLE #-}
   ( ProjectionArgs params
   , ProjectionReturn params
@@ -225,18 +242,21 @@ instance {-# OVERLAPPABLE #-}
     s <- liftIO $ newIORef appliedRecord
     makeMock name s (buildCurried (\inputParams -> findReturnValueWithStore name paramsList inputParams s))
 
-instance MockBuilder (Cases (IO a) ()) (IO a) () where
-  build name cases = do
-    let params = runCase cases
+-- | Overlapping instance for building a mock for a function with multiple parameters.
+-- This instance is used when the parameter type is a 'Param a :> rest' type.
+instance {-# OVERLAPPABLE #-}
+  ( p ~ (Param a :> rest)
+  , ProjectionArgs p
+  , ProjectionReturn p
+  , ArgsOf p ~ args
+  , ReturnOf p ~ Param r
+  , BuildCurried args r fn
+  , Eq args
+  , Show args
+  ) => MockBuilder (Param a :> rest) fn args where
+  build name params = do
     s <- liftIO $ newIORef appliedRecord
-    makeMock name s (do
-      count <- readAppliedCount s ()
-      let index = min count (length params - 1)
-          r = safeIndex params index
-      appendAppliedParams s ()
-      incrementAppliedParamCount s ()
-      fromJust r)
--- ------
+    makeMock name s (buildCurried (\inputParams -> extractReturnValueWithValidate name params inputParams s))
 
 p :: a -> Param a
 p = param
