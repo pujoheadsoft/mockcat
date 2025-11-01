@@ -94,7 +94,6 @@ test-suite mockcat-test
       Test.MockCat.Impl
       Test.MockCat.MockSpec
       Test.MockCat.ParamSpec
-      Test.MockCat.ParamSpecSpec
       Test.MockCat.PartialMockSpec
       Test.MockCat.PartialMockTHSpec
       Test.MockCat.TypeClassSpec

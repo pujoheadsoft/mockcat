@@ -64,5 +64,17 @@ spec = do
       
       it "use data" do
         show $(expectByExpr [|\x -> x == Foo "foo"|]) `shouldBe` "(\\x -> (x == (Foo \"foo\")))"
+    
+    describe "ProjectionArgs" do
+      it "Param a :> Param r" do
+        projArgs (param 10 :> param "foo") `shouldBe` param 10
+      it "Param a :> rest" do
+        projArgs (param 10 :> param "foo" :> param True) `shouldBe` (param 10 :> param "foo")
+    
+    describe "ProjectionReturn" do
+      it "Param a :> Param r" do
+        projReturn (param 10 :> param "foo") `shouldBe` param "foo"
+      it "Param a :> rest" do
+        projReturn (param 10 :> param "foo" :> param True) `shouldBe` param True
 
 data TestData = Foo String | Bar deriving (Eq, Show)

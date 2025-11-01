@@ -4,7 +4,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeFamilyDependencies #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
@@ -20,7 +19,13 @@ module Test.MockCat.Param
     (|>),
     expect,
     expect_,
-    any
+    any,
+    ArgsOf,
+    ProjectionArgs,
+    projArgs,
+    ReturnOf,
+    ProjectionReturn,
+    projReturn
   )
 where
 
@@ -102,3 +107,38 @@ expect = ExpectCondition
 -}
 expect_ :: (a -> Bool) -> Param a
 expect_ f = ExpectCondition f "[some condition]"
+
+-- | The type of the argument parameters of the parameters.
+type family ArgsOf params where
+  ArgsOf (Param a :> Param r) = Param a
+  ArgsOf (Param a :> rest) = Param a :> ArgsOf rest
+
+-- | Class for projecting the arguments of the parameter.
+class ProjectionArgs params where
+  projArgs :: params -> ArgsOf params
+
+instance {-# OVERLAPPING #-} ProjectionArgs (Param a :> Param r) where
+  projArgs (a :> _) = a
+
+instance
+  {-# OVERLAPPABLE #-}
+  (ProjectionArgs rest, ArgsOf (Param a :> rest) ~ (Param a :> ArgsOf rest)) =>
+  ProjectionArgs (Param a :> rest) where
+  projArgs (a :> rest) = a :> projArgs rest
+
+-- | The type of the return parameter of the parameters.
+type family ReturnOf params where
+  ReturnOf (Param a :> Param r) = Param r
+  ReturnOf (Param a :> rest) = ReturnOf rest
+
+class ProjectionReturn param where
+  projReturn :: param -> ReturnOf param
+
+instance {-# OVERLAPPING #-} ProjectionReturn (Param a :> Param r) where
+  projReturn (_ :> r) = r
+
+instance
+  {-# OVERLAPPABLE #-}
+  (ProjectionReturn rest, ReturnOf (Param a :> rest) ~ ReturnOf rest) =>
+  ProjectionReturn (Param a :> rest) where
+  projReturn (_ :> rest) = projReturn rest
