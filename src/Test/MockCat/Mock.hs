@@ -61,7 +61,7 @@ import GHC.Stack (HasCallStack)
 import Control.Monad.Trans
 import Control.Monad.State
 
-data Mock fun params = Mock (Maybe MockName) fun (Verifier params)
+data Mock fn params = Mock (Maybe MockName) fn (Verifier params)
 
 type MockName = String
 
@@ -89,10 +89,9 @@ From this mock, you can generate stub functions and verify the functions.
 
 -}
 createMock ::
-  MockBuilder params fun verifyParams =>
-  MonadIO m =>
+  (MonadIO m, MockBuilder params fn verifyParams) =>
   params ->
-  m (Mock fun verifyParams)
+  m (Mock fn verifyParams)
 createMock params = liftIO $ build Nothing params
 
 {- | Create a constant mock.
@@ -123,19 +122,18 @@ createConstantMock a = liftIO $ build Nothing $ param a
   @
 -}
 createNamedMock ::
-  MockBuilder params fun verifyParams =>
-  MonadIO m =>
+  (MonadIO m, MockBuilder params fn verifyParams) =>
   MockName ->
   params ->
-  m (Mock fun verifyParams)
+  m (Mock fn verifyParams)
 createNamedMock name params = liftIO $ build (Just name) params
 
 -- | Create a named constant mock.
-createNamedConstantMock :: MonadIO m => MockName -> fun -> m (Mock fun ())
+createNamedConstantMock :: MonadIO m => MockName -> fn -> m (Mock fn ())
 createNamedConstantMock name a = liftIO $ build (Just name) (param a)
 
 -- | Extract the stub function from the mock.
-stubFn :: Mock fun v -> fun
+stubFn :: Mock fn v -> fn
 stubFn (Mock _ f _) = f
 
 {- | Create a stub function.
@@ -149,25 +147,23 @@ stubFn (Mock _ f _) = f
   @
 -}
 createStubFn ::
-  MockBuilder params fun verifyParams =>
-  MonadIO m =>
+  (MonadIO m, MockBuilder params fn verifyParams) =>
   params ->
-  m fun
+  m fn
 createStubFn params = stubFn <$> createMock params
 
 -- | Create a named stub function.
 createNamedStubFn ::
-  MockBuilder params fun verifyParams =>
-  MonadIO m =>
+  (MonadIO m, MockBuilder params fn verifyParams) =>
   String ->
   params ->
-  m fun
+  m fn
 createNamedStubFn name params = stubFn <$> createNamedMock name params
 
 -- | Class for creating a mock corresponding to the parameter.
-class MockBuilder params fun verifyParams | params -> fun, params -> verifyParams where
+class MockBuilder params fn verifyParams | params -> fn, params -> verifyParams where
   -- build a mock
-  build :: MonadIO m => Maybe MockName -> params -> m (Mock fun verifyParams)
+  build :: MonadIO m => Maybe MockName -> params -> m (Mock fn verifyParams)
 
 -- | Class for building a curried function.
 class BuildCurried args r fn | args r -> fn where
@@ -177,24 +173,21 @@ instance BuildCurried (Param a) r (a -> r) where
   buildCurried :: (Param a -> IO r) -> a -> r
   buildCurried a2r a = perform $ a2r (param a)
 
-instance
-     BuildCurried rest r fn
-  => BuildCurried (Param a :> rest) r (a -> fn) where
+instance BuildCurried rest r fn
+      => BuildCurried (Param a :> rest) r (a -> fn) where
   buildCurried :: ((Param a :> rest) -> IO r) -> a -> fn
   buildCurried args2r a = buildCurried (\rest -> args2r (p a :> rest))
 
-instance
-  {-# OVERLAPPABLE #-}
+instance {-# OVERLAPPABLE #-}
   ( p ~ (Param a :> rest)
-  , ArgsOf p ~ args
-  , ReturnOf p ~ Param r
   , ProjectionArgs p
   , ProjectionReturn p
+  , ArgsOf p ~ args
+  , ReturnOf p ~ Param r
+  , BuildCurried args r fn
   , Eq args
   , Show args
-  , BuildCurried args r fun
-  )
-  => MockBuilder (Param a :> rest) fun args where
+  ) => MockBuilder (Param a :> rest) fn args where
   build name params = do
     s <- liftIO $ newIORef appliedRecord
     makeMock name s (buildCurried (\inputParams -> extractReturnValueWithValidate name params inputParams s))
@@ -218,24 +211,21 @@ instance
       liftIO $ appendAppliedParams s ()
       a)
 
-instance
-  {-# OVERLAPPABLE #-}
-  ( ArgsOf params ~ args
-  , ReturnOf params ~ Param r
-  , ProjectionArgs params
+instance {-# OVERLAPPABLE #-}
+  ( ProjectionArgs params
   , ProjectionReturn params
+  , ArgsOf params ~ args
+  , ReturnOf params ~ Param r
+  , BuildCurried args r fn
   , Eq args
   , Show args
-  , BuildCurried args r fn)
-  => MockBuilder (Cases params ()) fn args where
+  ) => MockBuilder (Cases params ()) fn args where
   build name cases = do
     let paramsList = runCase cases
     s <- liftIO $ newIORef appliedRecord
     makeMock name s (buildCurried (\inputParams -> findReturnValueWithStore name paramsList inputParams s))
 
-instance
-  MockBuilder (Cases (IO a) ()) (IO a) ()
-  where
+instance MockBuilder (Cases (IO a) ()) (IO a) () where
   build name cases = do
     let params = runCase cases
     s <- liftIO $ newIORef appliedRecord
@@ -251,16 +241,17 @@ instance
 p :: a -> Param a
 p = param
 
-makeMock :: MonadIO m => Maybe MockName -> IORef (AppliedRecord params) -> fun -> m (Mock fun params)
+makeMock :: MonadIO m => Maybe MockName -> IORef (AppliedRecord params) -> fn -> m (Mock fn params)
 makeMock name l fn = pure $ Mock name fn (Verifier l)
 
 extractReturnValueWithValidate ::
-  ProjectionArgs params =>
-  ProjectionReturn params =>
-  ArgsOf params ~ args =>
-  ReturnOf params ~ Param r =>
-  Eq args =>
-  Show args =>
+  ( ProjectionArgs params
+  , ProjectionReturn params
+  , ArgsOf params ~ args
+  , ReturnOf params ~ Param r
+  , Eq args
+  , Show args
+  ) =>
   Maybe MockName ->
   params ->
   args ->
@@ -271,12 +262,13 @@ extractReturnValueWithValidate name params inputParams s = do
   pure $ returnValue params
 
 findReturnValueWithStore ::
-  ProjectionArgs params =>
-  ProjectionReturn params =>
-  ArgsOf params ~ args =>
-  ReturnOf params ~ Param r =>
-  Eq args =>
-  Show args =>
+  ( ProjectionArgs params
+  , ProjectionReturn params
+  , ArgsOf params ~ args
+  , ReturnOf params ~ Param r
+  , Eq args
+  , Show args
+  ) =>
   Maybe MockName ->
   AppliedParamsList params ->
   args ->
@@ -292,11 +284,12 @@ findReturnValueWithStore name paramsList inputParams ref = do
     r
 
 findReturnValue ::
-  Eq args =>
-  ProjectionArgs params =>
-  ProjectionReturn params =>
-  ArgsOf params ~ args =>
-  ReturnOf params ~ Param r =>
+  ( ProjectionArgs params
+  , ProjectionReturn params
+  , ArgsOf params ~ args
+  , ReturnOf params ~ Param r
+  , Eq args
+  ) =>
   AppliedParamsList params ->
   args ->
   IORef (AppliedRecord args) ->
@@ -379,7 +372,7 @@ data VerifyMatchType a = MatchAny a | MatchAll a
 -- | Class for verifying mock function.
 class Verify params input where
   -- | Verifies that the function has been applied to the expected arguments.
-  shouldApplyTo :: HasCallStack => Mock fun params -> input -> IO ()
+  shouldApplyTo :: HasCallStack => Mock fn params -> input -> IO ()
 
 instance (Eq a, Show a) => Verify (Param a) a where
   shouldApplyTo v a = verify v (MatchAny (param a))
@@ -387,7 +380,7 @@ instance (Eq a, Show a) => Verify (Param a) a where
 instance (Eq a, Show a) => Verify a a where
   shouldApplyTo v a = verify v (MatchAny a)
 
-verify :: (Eq params, Show params) => Mock fun params -> VerifyMatchType params -> IO ()
+verify :: (Eq params, Show params) => Mock fn params -> VerifyMatchType params -> IO ()
 verify (Mock name _ (Verifier ref)) matchType = do
   appliedParamsList <- readAppliedParamsList ref
   let result = doVerify name appliedParamsList matchType
@@ -459,7 +452,7 @@ class VerifyCount countType params a where
   --   m \`shouldApplyTimes\` (2 :: Int) \`to\` "value" 
   -- @
   --
-  shouldApplyTimes :: HasCallStack => Eq params => Mock fun params -> countType -> a -> IO ()
+  shouldApplyTimes :: HasCallStack => Eq params => Mock fn params -> countType -> a -> IO ()
 
 instance VerifyCount CountVerifyMethod (Param a) a where
   shouldApplyTimes v count a = verifyCount v (param a) count
@@ -494,7 +487,7 @@ compareCount (LessThan e) a = a < e
 compareCount (GreaterThanEqual e) a = a >= e
 compareCount (GreaterThan e) a = a > e
 
-verifyCount :: Eq params => Mock fun params -> params -> CountVerifyMethod -> IO ()
+verifyCount :: Eq params => Mock fn params -> params -> CountVerifyMethod -> IO ()
 verifyCount (Mock name _ (Verifier ref)) v method = do
   appliedParamsList <- readAppliedParamsList ref
   let appliedCount = length (filter (v ==) appliedParamsList)
@@ -526,14 +519,14 @@ class VerifyOrder params input where
   --   print $ stubFn m "b" True
   --   m \`shouldApplyInOrder\` ["a" |\> True, "b" |\> True]
   -- @
-  shouldApplyInOrder :: HasCallStack => Mock fun params -> [input] -> IO ()
+  shouldApplyInOrder :: HasCallStack => Mock fn params -> [input] -> IO ()
 
   -- | Verify that functions are applied in the expected order.
   --
   -- Unlike @'shouldApplyInOrder'@, not all applications need to match exactly.
   --
   -- As long as the order matches, the verification succeeds.
-  shouldApplyInPartialOrder :: HasCallStack => Mock fun params -> [input] -> IO ()
+  shouldApplyInPartialOrder :: HasCallStack => Mock fn params -> [input] -> IO ()
 
 instance (Eq a, Show a) => VerifyOrder (Param a) a where
   shouldApplyInOrder v a = verifyOrder ExactlySequence v $ param <$> a
@@ -548,10 +541,9 @@ data VerifyOrderMethod
   | PartiallySequence
 
 verifyOrder ::
-  Eq params =>
-  Show params =>
+  (Eq params, Show params) =>
   VerifyOrderMethod ->
-  Mock fun params ->
+  Mock fn params ->
   [params] ->
   IO ()
 verifyOrder method (Mock name _ (Verifier ref)) matchers = do
@@ -560,8 +552,7 @@ verifyOrder method (Mock name _ (Verifier ref)) matchers = do
   result & maybe (pure ()) (\(VerifyFailed msg) -> errorWithoutStackTrace msg)
 
 doVerifyOrder ::
-  Eq a =>
-  Show a =>
+  (Eq a, Show a) =>
   VerifyOrderMethod ->
   Maybe MockName ->
   AppliedParamsList a ->
@@ -660,9 +651,8 @@ mapWithIndex f xs = [f i x | (i, x) <- zip [0 ..] xs]
 
 -- | Verify that the function has been applied to the expected arguments at least the expected number of times.
 shouldApplyTimesGreaterThanEqual ::
-  VerifyCount CountVerifyMethod params a =>
-  Eq params =>
-  Mock fun params ->
+  (VerifyCount CountVerifyMethod params a, Eq params) =>
+  Mock fn params ->
   Int ->
   a ->
   IO ()
@@ -670,9 +660,8 @@ shouldApplyTimesGreaterThanEqual m i = shouldApplyTimes m (GreaterThanEqual i)
 
 -- | Verify that the function is applied to the expected arguments less than or equal to the expected number of times.
 shouldApplyTimesLessThanEqual ::
-  VerifyCount CountVerifyMethod params a =>
-  Eq params =>
-  Mock fun params ->
+  (VerifyCount CountVerifyMethod params a, Eq params) =>
+  Mock fn params ->
   Int ->
   a ->
   IO ()
@@ -680,9 +669,8 @@ shouldApplyTimesLessThanEqual m i = shouldApplyTimes m (LessThanEqual i)
 
 -- | Verify that the function has been applied to the expected arguments a greater number of times than expected.
 shouldApplyTimesGreaterThan ::
-  VerifyCount CountVerifyMethod params a =>
-  Eq params =>
-  Mock fun params ->
+  (VerifyCount CountVerifyMethod params a, Eq params) =>
+  Mock fn params ->
   Int ->
   a ->
   IO ()
@@ -690,9 +678,8 @@ shouldApplyTimesGreaterThan m i = shouldApplyTimes m (GreaterThan i)
 
 -- | Verify that the function has been applied to the expected arguments less than the expected number of times.
 shouldApplyTimesLessThan ::
-  VerifyCount CountVerifyMethod params a =>
-  Eq params =>
-  Mock fun params ->
+  (VerifyCount CountVerifyMethod params a, Eq params) =>
+  Mock fn params ->
   Int ->
   a ->
   IO ()
@@ -752,13 +739,13 @@ safeIndex xs n
   | otherwise = listToMaybe (drop n xs)
 
 -- | Verify that it was apply to anything.
-shouldApplyToAnything :: HasCallStack => Mock fun params -> IO ()
+shouldApplyToAnything :: HasCallStack => Mock fn params -> IO ()
 shouldApplyToAnything (Mock name _ (Verifier ref)) = do
   appliedParamsList <- readAppliedParamsList ref
   when (null appliedParamsList) $ error $ "It has never been applied function" <> mockNameLabel name
 
 -- | Verify that it was apply to anything (times).
-shouldApplyTimesToAnything :: Mock fun params -> Int -> IO ()
+shouldApplyTimesToAnything :: Mock fn params -> Int -> IO ()
 shouldApplyTimesToAnything (Mock name _ (Verifier ref)) count = do
   appliedParamsList <- readAppliedParamsList ref
   let appliedCount = length appliedParamsList
