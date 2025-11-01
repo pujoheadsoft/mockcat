@@ -25,7 +25,8 @@ module Test.MockCat.Param
     projArgs,
     ReturnOf,
     ProjectionReturn,
-    projReturn
+    projReturn,
+    returnValue
   )
 where
 
@@ -142,3 +143,6 @@ instance
   (ProjectionReturn rest, ReturnOf (Param a :> rest) ~ ReturnOf rest) =>
   ProjectionReturn (Param a :> rest) where
   projReturn (_ :> rest) = projReturn rest
+
+returnValue :: (ProjectionReturn params, ReturnOf params ~ Param r) => params -> r
+returnValue = value . projReturn

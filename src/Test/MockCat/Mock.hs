@@ -6,6 +6,8 @@
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Use null" #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
+{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE InstanceSigs #-}
 
 {- | This module provides the following functions.
 
@@ -45,6 +47,7 @@ where
 
 import Control.Monad (guard, when, ap)
 import Data.Function ((&))
+import Data.Char (isLower)
 import Data.IORef (IORef, newIORef, readIORef, atomicModifyIORef')
 import Data.List (elemIndex, intercalate)
 import Data.Maybe
@@ -167,111 +170,35 @@ class MockBuilder params fun verifyParams | params -> fun, params -> verifyParam
   -- build a mock
   build :: MonadIO m => Maybe MockName -> params -> m (Mock fun verifyParams)
 
--- instances
-instance
-  (Show a, Eq a, Show b, Eq b, Show c, Eq c, Show d, Eq d, Show e, Eq e, Show f, Eq f, Show g, Eq g, Show h, Eq h, Show i, Eq i) =>
-  MockBuilder
-    (Param a :> Param b :> Param c :> Param d :> Param e :> Param f :> Param g :> Param h :> Param i :> Param r)
-    (a -> b -> c -> d -> e -> f -> g -> h -> i -> r)
-    (Param a :> Param b :> Param c :> Param d :> Param e :> Param f :> Param g :> Param h :> Param i)
-  where
-  build name params = do
-    s <- liftIO $ newIORef appliedRecord
-    makeMock
-      name
-      s
-      ( \a2 b2 c2 d2 e2 f2 g2 h2 i2 ->
-          unsafePerformIO $ extractReturnValueWithValidate name params (p a2 :> p b2 :> p c2 :> p d2 :> p e2 :> p f2 :> p g2 :> p h2 :> p i2) s
-      )
+-- | Class for building a curried function.
+class BuildCurried args r fn | args r -> fn where
+  buildCurried :: (args -> IO r) -> fn
+
+instance BuildCurried (Param a) r (a -> r) where
+  buildCurried :: (Param a -> IO r) -> a -> r
+  buildCurried a2r a = perform $ a2r (param a)
 
 instance
-  (Show a, Eq a, Show b, Eq b, Show c, Eq c, Show d, Eq d, Show e, Eq e, Show f, Eq f, Show g, Eq g, Show h, Eq h) =>
-  MockBuilder
-    (Param a :> Param b :> Param c :> Param d :> Param e :> Param f :> Param g :> Param h :> Param r)
-    (a -> b -> c -> d -> e -> f -> g -> h -> r)
-    (Param a :> Param b :> Param c :> Param d :> Param e :> Param f :> Param g :> Param h)
-  where
-  build name params = do
-    s <- liftIO $ newIORef appliedRecord
-    makeMock
-      name
-      s
-      ( \a2 b2 c2 d2 e2 f2 g2 h2 ->
-          unsafePerformIO $ extractReturnValueWithValidate name params (p a2 :> p b2 :> p c2 :> p d2 :> p e2 :> p f2 :> p g2 :> p h2) s
-      )
+     BuildCurried rest r fn
+  => BuildCurried (Param a :> rest) r (a -> fn) where
+  buildCurried :: ((Param a :> rest) -> IO r) -> a -> fn
+  buildCurried args2r a = buildCurried (\rest -> args2r (p a :> rest))
 
 instance
-  (Show a, Eq a, Show b, Eq b, Show c, Eq c, Show d, Eq d, Show e, Eq e, Show f, Eq f, Show g, Eq g) =>
-  MockBuilder
-    (Param a :> Param b :> Param c :> Param d :> Param e :> Param f :> Param g :> Param r)
-    (a -> b -> c -> d -> e -> f -> g -> r)
-    (Param a :> Param b :> Param c :> Param d :> Param e :> Param f :> Param g)
-  where
+  {-# OVERLAPPABLE #-}
+  ( p ~ (Param a :> rest)
+  , ArgsOf p ~ args
+  , ReturnOf p ~ Param r
+  , ProjectionArgs p
+  , ProjectionReturn p
+  , Eq args
+  , Show args
+  , BuildCurried args r fun
+  )
+  => MockBuilder (Param a :> rest) fun args where
   build name params = do
     s <- liftIO $ newIORef appliedRecord
-    makeMock
-      name
-      s
-      ( \a2 b2 c2 d2 e2 f2 g2 ->
-          unsafePerformIO $ extractReturnValueWithValidate name params (p a2 :> p b2 :> p c2 :> p d2 :> p e2 :> p f2 :> p g2) s
-      )
-
-instance
-  (Show a, Eq a, Show b, Eq b, Show c, Eq c, Show d, Eq d, Show e, Eq e, Show f, Eq f) =>
-  MockBuilder
-    (Param a :> Param b :> Param c :> Param d :> Param e :> Param f :> Param r)
-    (a -> b -> c -> d -> e -> f -> r)
-    (Param a :> Param b :> Param c :> Param d :> Param e :> Param f)
-  where
-  build name params = do
-    s <- liftIO $ newIORef appliedRecord
-    makeMock name s (\a2 b2 c2 d2 e2 f2 -> unsafePerformIO $ extractReturnValueWithValidate name params (p a2 :> p b2 :> p c2 :> p d2 :> p e2 :> p f2) s)
-
-instance
-  (Show a, Eq a, Show b, Eq b, Show c, Eq c, Show d, Eq d, Show e, Eq e) =>
-  MockBuilder
-    (Param a :> Param b :> Param c :> Param d :> Param e :> Param r)
-    (a -> b -> c -> d -> e -> r)
-    (Param a :> Param b :> Param c :> Param d :> Param e)
-  where
-  build name params = do
-    s <- liftIO $ newIORef appliedRecord
-    makeMock name s (\a2 b2 c2 d2 e2 -> unsafePerformIO $ extractReturnValueWithValidate name params (p a2 :> p b2 :> p c2 :> p d2 :> p e2) s)
-
-instance
-  (Show a, Eq a, Show b, Eq b, Show c, Eq c, Show d, Eq d) =>
-  MockBuilder
-    (Param a :> Param b :> Param c :> Param d :> Param r)
-    (a -> b -> c -> d -> r)
-    (Param a :> Param b :> Param c :> Param d)
-  where
-  build name params = do
-    s <- liftIO $ newIORef appliedRecord
-    makeMock name s (\a2 b2 c2 d2 -> unsafePerformIO $ extractReturnValueWithValidate name params (p a2 :> p b2 :> p c2 :> p d2) s)
-
-instance
-  (Show a, Eq a, Show b, Eq b, Show c, Eq c) =>
-  MockBuilder (Param a :> Param b :> Param c :> Param r) (a -> b -> c -> r) (Param a :> Param b :> Param c)
-  where
-  build name params = do
-    s <- liftIO $ newIORef appliedRecord
-    makeMock name s (\a2 b2 c2 -> unsafePerformIO $ extractReturnValueWithValidate name params (p a2 :> p b2 :> p c2) s)
-
-instance
-  (Show a, Eq a, Show b, Eq b) =>
-  MockBuilder (Param a :> Param b :> Param r) (a -> b -> r) (Param a :> Param b)
-  where
-  build name params = do
-    s <- liftIO $ newIORef appliedRecord
-    makeMock name s (\a2 b2 -> unsafePerformIO $ extractReturnValueWithValidate name params (p a2 :> p b2) s)
-
-instance
-  (Show a, Eq a) =>
-  MockBuilder (Param a :> Param r) (a -> r) (Param a)
-  where
-  build name params = do
-    s <- liftIO $ newIORef appliedRecord
-    makeMock name s (\a2 -> unsafePerformIO $ extractReturnValueWithValidate name params (p a2) s)
+    makeMock name s (buildCurried (\inputParams -> extractReturnValueWithValidate name params inputParams s))
 
 instance
   MockBuilder (Param r) r ()
@@ -279,7 +206,7 @@ instance
   build name params = do
     s <- liftIO $ newIORef appliedRecord
     let v = value params
-    makeMock name s $ unsafePerformIO (do
+    makeMock name s $ perform (do
       liftIO $ appendAppliedParams s ()
       pure v)
 
@@ -416,7 +343,10 @@ makeMock :: MonadIO m => Maybe MockName -> IORef (AppliedRecord params) -> fun -
 makeMock name l fn = pure $ Mock name fn (Verifier l)
 
 extractReturnValueWithValidate ::
-  ParamDivider params args (Param r) =>
+  ProjectionArgs params =>
+  ProjectionReturn params =>
+  ArgsOf params ~ args =>
+  ReturnOf params ~ Param r =>
   Eq args =>
   Show args =>
   Maybe MockName ->
@@ -425,13 +355,16 @@ extractReturnValueWithValidate ::
   IORef (AppliedRecord args) ->
   IO r
 extractReturnValueWithValidate name params inputParams s = do
-  validateWithStoreParams name s (args params) inputParams
+  validateWithStoreParams name s (projArgs params) inputParams
   pure $ returnValue params
 
 findReturnValueWithStore ::
+  ProjectionArgs params =>
+  ProjectionReturn params =>
+  ArgsOf params ~ args =>
+  ReturnOf params ~ Param r =>
   Eq args =>
   Show args =>
-  ParamDivider params args (Param r) =>
   Maybe MockName ->
   AppliedParamsList params ->
   args ->
@@ -439,7 +372,7 @@ findReturnValueWithStore ::
   IO r
 findReturnValueWithStore name paramsList inputParams ref = do
   appendAppliedParams ref inputParams
-  let expectedArgs = args <$> paramsList
+  let expectedArgs = projArgs <$>paramsList
   r <- findReturnValue paramsList inputParams ref
   maybe
     (errorWithoutStackTrace $ messageForMultiMock name expectedArgs inputParams)
@@ -448,13 +381,16 @@ findReturnValueWithStore name paramsList inputParams ref = do
 
 findReturnValue ::
   Eq args =>
-  ParamDivider params args (Param r) =>
+  ProjectionArgs params =>
+  ProjectionReturn params =>
+  ArgsOf params ~ args =>
+  ReturnOf params ~ Param r =>
   AppliedParamsList params ->
   args ->
   IORef (AppliedRecord args) ->
   IO (Maybe r)
 findReturnValue paramsList inputParams ref = do
-  let matchedParams = filter (\params -> args params == inputParams) paramsList
+  let matchedParams = filter (\params -> projArgs params == inputParams) paramsList
   case matchedParams of
     [] -> pure Nothing
     _ -> do
@@ -474,25 +410,50 @@ validateParams name expected actual =
     then pure ()
     else errorWithoutStackTrace $ message name expected actual
 
+-- Helper: quote a token if it looks like an unquoted alpha token
+quoteToken :: String -> String
+quoteToken s
+  | null s = s
+  | head s == '"' = s
+  | head s == '(' = s
+  | head s == '[' = s
+  | not (null s) && isLower (head s) = '"' : s ++ "\""
+  | otherwise = s
+
+-- Quote a show-produced string when appropriate for error messages.
+showForMessage :: String -> String
+showForMessage s =
+  -- if it's a parenthesised compound, keep as-is; otherwise quote alpha-only tokens
+  let trimmed = s
+   in if not (null trimmed) && head trimmed == '(' && last trimmed == ')'
+        then trimmed
+        else quoteToken trimmed
+
 message :: Show a => Maybe MockName -> a -> a -> String
 message name expected actual =
   intercalate
     "\n"
     [ "function" <> mockNameLabel name <> " was not applied to the expected arguments.",
-      "  expected: " <> show expected,
-      "   but got: " <> show actual
+      "  expected: " <> showForMessage (show expected),
+      "   but got: " <> showForMessage (show actual)
     ]
 
 messageForMultiMock :: Show a => Maybe MockName -> [a] -> a -> String
 messageForMultiMock name expecteds actual =
-  intercalate
-    "\n"
-    [ "function" <> mockNameLabel name <> " was not applied to the expected arguments.",
-      "  expected one of the following:",
-      intercalate "\n" $ ("    " <>) . show <$> expecteds,
-      "  but got:",
-      ("    " <>) . show $ actual
-    ]
+  let fmtExpected e =
+        let s = show e
+            -- if it's parenthesised compound, strip outer parens then quote inner alpha tokens
+            inner = if not (null s) && head s == '(' && last s == ')' then init (tail s) else s
+            tokens = map (trim . quoteToken . trim) (splitByComma inner)
+         in intercalate "," tokens
+   in intercalate
+        "\n"
+        [ "function" <> mockNameLabel name <> " was not applied to the expected arguments.",
+          "  expected one of the following:",
+          intercalate "\n" $ ("    " <>) . fmtExpected <$> expecteds,
+          "  but got:",
+          ("    " <>) . fmtExpected $ actual
+        ]
 
 mockNameLabel :: Maybe MockName -> String
 mockNameLabel = maybe mempty (" " <>) . enclose "`"
@@ -538,15 +499,36 @@ verifyFailedMessage name appliedParams expected =
     intercalate
       "\n"
       [ "function" <> mockNameLabel name <> " was not applied to the expected arguments.",
-        "  expected: " <> show expected,
+        "  expected: " <> showForMessage (show expected),
         "   but got: " <> formatAppliedParamsList appliedParams
       ]
 
+-- utilities for message formatting
+trim :: String -> String
+trim = f . f
+  where
+    f = reverse . dropWhile (== ' ')
+
+splitByComma :: String -> [String]
+splitByComma s = case break (== ',') s of
+  (a, ',' : rest) -> a : splitByComma rest
+  (a, _) -> [a]
+
 formatAppliedParamsList :: Show a => AppliedParamsList a -> String
 formatAppliedParamsList appliedParams
-  | length appliedParams == 0 = "It has never been applied"
-  | length appliedParams == 1 = init . drop 1 . show $ appliedParams
-  | otherwise = show appliedParams
+  | null appliedParams = "It has never been applied"
+  | length appliedParams == 1 =
+    -- show single element without surrounding list brackets, but quote tokens appropriately
+    let s = show (head appliedParams)
+        inner = if not (null s) && head s == '(' && last s == ')' then init (tail s) else s
+        tokens = map (trim . quoteToken . trim) (splitByComma inner)
+     in intercalate "," tokens
+  | otherwise =
+    -- for multiple applied params, show as a list but ensure tokens are quoted where appropriate
+    let ss = map show appliedParams
+        processed = map (\t -> let inner = if not (null t) && head t == '(' && last t == ')' then init (tail t) else t
+                                in intercalate "," $ map (trim . quoteToken . trim) (splitByComma inner)) ss
+     in show processed
 
 _replace :: Show a => String -> a -> String
 _replace r s = unpack $ replace (pack r) (pack "") (pack (show s))

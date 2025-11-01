@@ -3,7 +3,7 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE FlexibleInstances #-}
 
-module Test.MockCat.ParamDivider (ParamDivider, args, return, returnValue) where
+module Test.MockCat.ParamDivider (ParamDivider, args, return) where
 
 import Test.MockCat.Cons
 import Test.MockCat.Param
