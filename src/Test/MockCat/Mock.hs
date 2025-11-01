@@ -55,7 +55,6 @@ import Data.Text (pack, replace, unpack)
 import GHC.IO (unsafePerformIO)
 import Test.MockCat.Cons
 import Test.MockCat.Param
-import Test.MockCat.ParamDivider
 import Test.MockCat.AssociationList (AssociationList, lookup, update, insert, empty, member)
 import Prelude hiding (lookup)
 import GHC.Stack (HasCallStack)
@@ -220,106 +219,19 @@ instance
       a)
 
 instance
-  (Show a, Eq a, Show b, Eq b, Show c, Eq c, Show d, Eq d, Show e, Eq e, Show f, Eq f, Show g, Eq g, Show h, Eq h, Show i, Eq i) =>
-  MockBuilder
-    (Cases (Param a :> Param b :> Param c :> Param d :> Param e :> Param f :> Param g :> Param h :> Param i :> Param r) ())
-    (a -> b -> c -> d -> e -> f -> g -> h -> i -> r)
-    (Param a :> Param b :> Param c :> Param d :> Param e :> Param f :> Param g :> Param h :> Param i)
-  where
+  {-# OVERLAPPABLE #-}
+  ( ArgsOf params ~ args
+  , ReturnOf params ~ Param r
+  , ProjectionArgs params
+  , ProjectionReturn params
+  , Eq args
+  , Show args
+  , BuildCurried args r fn)
+  => MockBuilder (Cases params ()) fn args where
   build name cases = do
-    let params = runCase cases
+    let paramsList = runCase cases
     s <- liftIO $ newIORef appliedRecord
-    makeMock name s (\a2 b2 c2 d2 e2 f2 g2 h2 i2 -> perform $ findReturnValueWithStore name params (p a2 :> p b2 :> p c2 :> p d2 :> p e2 :> p f2 :> p g2 :> p h2 :> p i2) s)
-
-instance
-  (Show a, Eq a, Show b, Eq b, Show c, Eq c, Show d, Eq d, Show e, Eq e, Show f, Eq f, Show g, Eq g, Show h, Eq h) =>
-  MockBuilder
-    (Cases (Param a :> Param b :> Param c :> Param d :> Param e :> Param f :> Param g :> Param h :> Param r) ())
-    (a -> b -> c -> d -> e -> f -> g -> h -> r)
-    (Param a :> Param b :> Param c :> Param d :> Param e :> Param f :> Param g :> Param h)
-  where
-  build name cases = do
-    let params = runCase cases
-    s <- liftIO $ newIORef appliedRecord
-    makeMock name s (\a2 b2 c2 d2 e2 f2 g2 h2 -> perform $ findReturnValueWithStore name params (p a2 :> p b2 :> p c2 :> p d2 :> p e2 :> p f2 :> p g2 :> p h2) s)
-
-instance
-  (Show a, Eq a, Show b, Eq b, Show c, Eq c, Show d, Eq d, Show e, Eq e, Show f, Eq f, Show g, Eq g) =>
-  MockBuilder
-    (Cases (Param a :> Param b :> Param c :> Param d :> Param e :> Param f :> Param g :> Param r) ())
-    (a -> b -> c -> d -> e -> f -> g -> r)
-    (Param a :> Param b :> Param c :> Param d :> Param e :> Param f :> Param g)
-  where
-  build name cases = do
-    let params = runCase cases
-    s <- liftIO $ newIORef appliedRecord
-    makeMock name s (\a2 b2 c2 d2 e2 f2 g2 -> perform $ findReturnValueWithStore name params (p a2 :> p b2 :> p c2 :> p d2 :> p e2 :> p f2 :> p g2) s)
-
-instance
-  (Show a, Eq a, Show b, Eq b, Show c, Eq c, Show d, Eq d, Show e, Eq e, Show f, Eq f) =>
-  MockBuilder
-    (Cases (Param a :> Param b :> Param c :> Param d :> Param e :> Param f :> Param r) ())
-    (a -> b -> c -> d -> e -> f -> r)
-    (Param a :> Param b :> Param c :> Param d :> Param e :> Param f)
-  where
-  build name cases = do
-    let params = runCase cases
-    s <- liftIO $ newIORef appliedRecord
-    makeMock name s (\a2 b2 c2 d2 e2 f2 -> perform $ findReturnValueWithStore name params (p a2 :> p b2 :> p c2 :> p d2 :> p e2 :> p f2) s)
-
-instance
-  (Show a, Eq a, Show b, Eq b, Show c, Eq c, Show d, Eq d, Show e, Eq e) =>
-  MockBuilder
-    (Cases (Param a :> Param b :> Param c :> Param d :> Param e :> Param r) ())
-    (a -> b -> c -> d -> e -> r)
-    (Param a :> Param b :> Param c :> Param d :> Param e)
-  where
-  build name cases = do
-    let params = runCase cases
-    s <- liftIO $ newIORef appliedRecord
-    makeMock name s (\a2 b2 c2 d2 e2 -> perform $ findReturnValueWithStore name params (p a2 :> p b2 :> p c2 :> p d2 :> p e2) s)
-
-instance
-  (Show a, Eq a, Show b, Eq b, Show c, Eq c, Show d, Eq d) =>
-  MockBuilder
-    (Cases (Param a :> Param b :> Param c :> Param d :> Param r) ())
-    (a -> b -> c -> d -> r)
-    (Param a :> Param b :> Param c :> Param d)
-  where
-  build name cases = do
-    let params = runCase cases
-    s <- liftIO $ newIORef appliedRecord
-    makeMock name s (\a2 b2 c2 d2 -> perform $ findReturnValueWithStore name params (p a2 :> p b2 :> p c2 :> p d2) s)
-
-instance
-  (Show a, Eq a, Show b, Eq b, Show c, Eq c) =>
-  MockBuilder
-    (Cases (Param a :> Param b :> Param c :> Param r) ())
-    (a -> b -> c -> r)
-    (Param a :> Param b :> Param c)
-  where
-  build name cases = do
-    let params = runCase cases
-    s <- liftIO $ newIORef appliedRecord
-    makeMock name s (\a2 b2 c2 -> perform $ findReturnValueWithStore name params (p a2 :> p b2 :> p c2) s)
-
-instance
-  (Show a, Eq a, Show b, Eq b) =>
-  MockBuilder (Cases (Param a :> Param b :> Param r) ()) (a -> b -> r) (Param a :> Param b)
-  where
-  build name cases = do
-    let params = runCase cases
-    s <- liftIO $ newIORef appliedRecord
-    makeMock name s (\a2 b2 -> perform $ findReturnValueWithStore name params (p a2 :> p b2) s)
-
-instance
-  (Show a, Eq a) =>
-  MockBuilder (Cases (Param a :> Param r) ()) (a -> r) (Param a)
-  where
-  build name cases = do
-    let params = runCase cases
-    s <- liftIO $ newIORef appliedRecord
-    makeMock name s (\a2 -> perform $ findReturnValueWithStore name params (p a2) s)
+    makeMock name s (buildCurried (\inputParams -> findReturnValueWithStore name paramsList inputParams s))
 
 instance
   MockBuilder (Cases (IO a) ()) (IO a) ()
