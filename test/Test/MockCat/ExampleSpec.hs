@@ -13,6 +13,7 @@ import Test.MockCat
 import Prelude hiding (writeFile, readFile, and, any, not, or)
 import GHC.IO (evaluate)
 import Data.Text hiding (any)
+import Control.Monad.Trans.Maybe (runMaybeT)
 
 class (Monad m) => FileOperation m where
   writeFile :: FilePath -> Text -> m ()
@@ -106,6 +107,22 @@ spec = do
   it "named stub" do
     f <- createNamedStubFn "named stub" $ "x" |> "y" |> True
     f "x" "y" `shouldBe` True
+
+  it "createMockIO returns monadic stub (IO)" do
+    f <- createStubFnIO $ "a" |> (11 :: Int) |> False
+    f "a" (11 :: Int) `shouldReturn` False
+
+  it "createMockIO returns monadic stub (MaybeT)" do
+    mm <- runMaybeT do
+      -- create a mock inside MaybeT
+      createMockIO $ True |> False
+    case mm of
+      Nothing -> expectationFailure "createNamedMock returned Nothing"
+      Just m -> do
+        let f = stubFnIO m
+        -- f :: Bool -> MaybeT IO Bool
+        res <- runMaybeT $ f True
+        res `shouldBe` Just False
 
   it "named mock" do
     m <- createNamedMock "mock" $ "value" |> "a" |> True

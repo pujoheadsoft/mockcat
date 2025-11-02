@@ -9,6 +9,7 @@
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE InstanceSigs #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 {- | This module provides the following functions.
 
@@ -42,7 +43,10 @@ module Test.MockCat.Mock
     to,
     onCase,
     cases,
-    casesIO
+    casesIO,
+    createMockIO,
+    stubFnIO,
+    createStubFnIO
   )
 where
 
@@ -61,6 +65,8 @@ import Prelude hiding (lookup)
 import GHC.Stack (HasCallStack)
 import Control.Monad.Trans
 import Control.Monad.State
+import Data.Kind (Type)
+import Data.Proxy (Proxy (..))
 
 data Mock fn params = Mock (Maybe MockName) fn (Verifier params)
 
@@ -187,6 +193,21 @@ instance BuildCurried rest r fn
       => BuildCurried (Param a :> rest) r (a -> fn) where
   buildCurried :: ((Param a :> rest) -> IO r) -> a -> fn
   buildCurried args2r a = buildCurried (\rest -> args2r (p a :> rest))
+
+-- | Like 'BuildCurried' but returns an IO result at the end of the curried function.
+-- This is used by the MockIO builder to produce functions whose final result is in IO,
+-- allowing them to be lifted into other monads via 'LiftFunTo'.
+class BuildCurriedIO args r fn | args r -> fn where
+  buildCurriedIO :: (args -> IO r) -> fn
+
+instance BuildCurriedIO (Param a) r (a -> IO r) where
+  buildCurriedIO a2r a = a2r (param a)
+
+instance BuildCurriedIO rest r fn
+      => BuildCurriedIO (Param a :> rest) r (a -> fn) where
+  buildCurriedIO :: ((Param a :> rest) -> IO r) -> a -> fn
+  buildCurriedIO args2r a = buildCurriedIO (\rest -> args2r (p a :> rest))
+
 
 -- | Class for creating a mock corresponding to the parameter.
 class MockBuilder params fn verifyParams | params -> fn, params -> verifyParams where
@@ -843,3 +864,69 @@ casesIO = Cases . (put . map pure)
 {-# NOINLINE perform #-}
 perform :: IO a -> a
 perform = unsafePerformIO
+
+-- ------------------
+-- MockIO
+data MockIO (m :: Type -> Type) fn params = MockIO (Maybe MockName) fn (Verifier params)
+
+class MockIOBuilder params fn verifyParams | params -> fn, params -> verifyParams where
+  -- build a mock
+  buildIO :: MonadIO m => Maybe MockName -> params -> m (MockIO m fn verifyParams)
+
+instance {-# OVERLAPPABLE #-}
+  ( p ~ (Param a :> rest)
+  , ProjectionArgs p
+  , ProjectionReturn p
+  , ArgsOf p ~ args
+  , ReturnOf p ~ Param r
+  , BuildCurriedIO args r fn
+  , Eq args
+  , Show args
+  ) => MockIOBuilder (Param a :> rest) fn args where
+  buildIO name params = do
+    s <- liftIO $ newIORef appliedRecord
+    makeMockIO name s (buildCurriedIO (\inputParams -> extractReturnValueWithValidate name params inputParams s))
+
+makeMockIO :: MonadIO m => Maybe MockName -> IORef (AppliedRecord params) -> fn -> m (MockIO m fn params)
+makeMockIO name l fn = pure $ MockIO name fn (Verifier l)
+
+createMockIO ::
+  forall params fn fnM verifyParams m.
+  ( MonadIO m
+  , MockIOBuilder params fn verifyParams
+  , LiftFunTo fn fnM m
+  ) =>
+  params ->
+  m (MockIO m fnM verifyParams)
+createMockIO params = do
+  mockIO <- liftIO (buildIO Nothing params)
+  pure $ widenMock mockIO
+
+stubFnIO :: MockIO m fn params -> fn
+stubFnIO (MockIO _ f _) = f
+
+createStubFnIO ::
+  forall params fn verifyParams m fnM.
+  ( MockIOBuilder params fn verifyParams
+  , MonadIO m
+  , LiftFunTo fn fnM m
+  ) =>
+  params ->
+  m fnM
+createStubFnIO params = stubFnIO <$> createMockIO params
+
+class LiftFunTo funIO funM (m :: Type -> Type) | funIO m -> funM where
+  liftFunTo :: Proxy m -> funIO -> funM
+
+instance MonadIO m => LiftFunTo (IO r) (m r) m where
+  liftFunTo _ = liftIO
+
+instance LiftFunTo restIO restM m => LiftFunTo (a -> restIO) (a -> restM) m where
+  liftFunTo p f a = liftFunTo p (f a)
+
+widenMock ::
+  forall m funIO funM params.
+  LiftFunTo funIO funM m => 
+  MockIO IO funIO params ->
+  MockIO m funM params
+widenMock (MockIO name f verifier) = MockIO name (liftFunTo (Proxy :: Proxy m) f) verifier
