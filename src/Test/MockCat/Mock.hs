@@ -46,14 +46,7 @@ module Test.MockCat.Mock
     casesIO,
     createMockIO,
     stubFnIO,
-    createStubFnIO,
-    createMockSession,
-    runMockSession,
-    createStubFnM,
-    createMockM,
-    stubFnM,
-    MockM,
-    runMockM
+    createStubFnIO
   )
 where
 
@@ -937,68 +930,3 @@ widenMock ::
   MockIO IO funIO params ->
   MockIO m funM params
 widenMock (MockIO name f verifier) = MockIO name (liftFunTo (Proxy :: Proxy m) f) verifier
-
--- ------------------------------------------------------------------
--- Mock session / monadic API
---
--- These APIs provide a session-aware monadic interface so that tests
--- can create and run mocks without relying on unsafePerformIO. Names
--- are suffixed with `M` to avoid colliding with existing top-level
--- functions in this module.
-
--- | A lightweight session token. Currently a placeholder but kept for
--- future session-scoped state (shared registries, global verification,
--- etc.).
-data MockSession = MockSession
-
--- | Create a new mock session.
-createMockSession :: IO MockSession
-createMockSession = pure MockSession
-
--- | MockM: a small wrapper around IO to represent mock-related actions.
--- We keep it deliberately simple (IO-backed) so it composes with the
--- existing `createMockIO` / `createStubFnIO` implementations which only
--- require `MonadIO` and the provided `LiftFunTo` instances.
-newtype MockM a = MockM { runMockM :: IO a }
-
-instance Functor MockM where
-  fmap f (MockM io) = MockM (fmap f io)
-
-instance Applicative MockM where
-  pure x = MockM (pure x)
-  MockM f <*> MockM x = MockM (f <*> x)
-
-instance Monad MockM where
-  MockM m >>= k = MockM (m >>= (runMockM . k))
-
-instance MonadIO MockM where
-  liftIO io = MockM io
-
--- | Run a `MockM` action in IO using the provided session. The
--- session value is currently unused but passed for future extensibility.
-runMockSession :: MockSession -> MockM a -> IO a
-runMockSession _ (MockM io) = io
-
--- | Convenience aliases that expose monadic mock creation/usage within
--- `MockM`. These names avoid colliding with existing `createMock` /
--- `stubFn` and reuse the existing `createMockIO`/`stubFnIO` logic.
-
--- Create a mock inside `MockM`.
-createMockM ::
-  ( MockIOBuilder params fn verifyParams
-  , LiftFunTo fn fnM MockM
-  ) =>
-  params -> MockM (MockIO MockM fnM verifyParams)
-createMockM = createMockIO
-
--- Extract a stub function from a `MockIO` created for `MockM`.
-stubFnM :: MockIO MockM fn params -> fn
-stubFnM = stubFnIO
-
--- Create a stub function inside `MockM`.
-createStubFnM ::
-  ( MockIOBuilder params fn verifyParams
-  , LiftFunTo fn fnM MockM
-  ) =>
-  params -> MockM fnM
-createStubFnM = createStubFnIO
