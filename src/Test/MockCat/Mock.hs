@@ -414,7 +414,9 @@ data VerifyMatchType a = MatchAny a | MatchAll a
 -- | Class for verifying mock function.
 class Verify params input where
   -- | Verifies that the function has been applied to the expected arguments.
-  shouldApplyTo :: HasCallStack => Mock fn params -> input -> IO ()
+  -- Generic over mock representation `m` which must satisfy `IsMock` and
+  -- whose `MockParams m` match this class's `params`.
+  shouldApplyTo :: (IsMock m, MockParams m ~ params, HasCallStack) => m -> input -> IO ()
 
 instance (Eq a, Show a) => Verify (Param a) a where
   shouldApplyTo v a = verify v (MatchAny (param a))
@@ -422,10 +424,11 @@ instance (Eq a, Show a) => Verify (Param a) a where
 instance (Eq a, Show a) => Verify a a where
   shouldApplyTo v a = verify v (MatchAny a)
 
-verify :: (Eq params, Show params) => Mock fn params -> VerifyMatchType params -> IO ()
-verify (Mock name _ (Verifier ref)) matchType = do
+verify :: (IsMock m, Eq (MockParams m), Show (MockParams m)) => m -> VerifyMatchType (MockParams m) -> IO ()
+verify m matchType = do
+  let Verifier ref = mockVerifier m
   appliedParamsList <- readAppliedParamsList ref
-  let result = doVerify name appliedParamsList matchType
+  let result = doVerify (mockName m) appliedParamsList matchType
   result & maybe (pure ()) (\(VerifyFailed msg) -> errorWithoutStackTrace msg)
 
 newtype VerifyFailed = VerifyFailed Message
@@ -494,7 +497,7 @@ class VerifyCount countType params a where
   --   m \`shouldApplyTimes\` (2 :: Int) \`to\` "value" 
   -- @
   --
-  shouldApplyTimes :: HasCallStack => Eq params => Mock fn params -> countType -> a -> IO ()
+  shouldApplyTimes :: (IsMock m, MockParams m ~ params, HasCallStack, Eq params) => m -> countType -> a -> IO ()
 
 instance VerifyCount CountVerifyMethod (Param a) a where
   shouldApplyTimes v count a = verifyCount v (param a) count
@@ -529,8 +532,9 @@ compareCount (LessThan e) a = a < e
 compareCount (GreaterThanEqual e) a = a >= e
 compareCount (GreaterThan e) a = a > e
 
-verifyCount :: Eq params => Mock fn params -> params -> CountVerifyMethod -> IO ()
-verifyCount (Mock name _ (Verifier ref)) v method = do
+verifyCount :: (IsMock m, Eq (MockParams m)) => m -> MockParams m -> CountVerifyMethod -> IO ()
+verifyCount m v method = do
+  let Verifier ref = mockVerifier m
   appliedParamsList <- readAppliedParamsList ref
   let appliedCount = length (filter (v ==) appliedParamsList)
   if compareCount method appliedCount
@@ -539,7 +543,7 @@ verifyCount (Mock name _ (Verifier ref)) v method = do
       errorWithoutStackTrace $
         intercalate
           "\n"
-          [ "function" <> mockNameLabel name <> " was not applied the expected number of times to the expected arguments.",
+          [ "function" <> mockNameLabel (mockName m) <> " was not applied the expected number of times to the expected arguments.",
             "  expected: " <> show method,
             "   but got: " <> show appliedCount
           ]
@@ -561,14 +565,14 @@ class VerifyOrder params input where
   --   print $ stubFn m "b" True
   --   m \`shouldApplyInOrder\` ["a" |\> True, "b" |\> True]
   -- @
-  shouldApplyInOrder :: HasCallStack => Mock fn params -> [input] -> IO ()
+  shouldApplyInOrder :: (IsMock m, MockParams m ~ params, HasCallStack) => m -> [input] -> IO ()
 
   -- | Verify that functions are applied in the expected order.
   --
   -- Unlike @'shouldApplyInOrder'@, not all applications need to match exactly.
   --
   -- As long as the order matches, the verification succeeds.
-  shouldApplyInPartialOrder :: HasCallStack => Mock fn params -> [input] -> IO ()
+  shouldApplyInPartialOrder :: (IsMock m, MockParams m ~ params, HasCallStack) => m -> [input] -> IO ()
 
 instance (Eq a, Show a) => VerifyOrder (Param a) a where
   shouldApplyInOrder v a = verifyOrder ExactlySequence v $ param <$> a
@@ -583,14 +587,15 @@ data VerifyOrderMethod
   | PartiallySequence
 
 verifyOrder ::
-  (Eq params, Show params) =>
+  (IsMock m, Eq (MockParams m), Show (MockParams m)) =>
   VerifyOrderMethod ->
-  Mock fn params ->
-  [params] ->
+  m ->
+  [MockParams m] ->
   IO ()
-verifyOrder method (Mock name _ (Verifier ref)) matchers = do
+verifyOrder method m matchers = do
+  let Verifier ref = mockVerifier m
   appliedParamsList <- readAppliedParamsList ref
-  let result = doVerifyOrder method name appliedParamsList matchers
+  let result = doVerifyOrder method (mockName m) appliedParamsList matchers
   result & maybe (pure ()) (\(VerifyFailed msg) -> errorWithoutStackTrace msg)
 
 doVerifyOrder ::
@@ -693,8 +698,8 @@ mapWithIndex f xs = [f i x | (i, x) <- zip [0 ..] xs]
 
 -- | Verify that the function has been applied to the expected arguments at least the expected number of times.
 shouldApplyTimesGreaterThanEqual ::
-  (VerifyCount CountVerifyMethod params a, Eq params) =>
-  Mock fn params ->
+  (VerifyCount CountVerifyMethod params a, Eq params, IsMock m, MockParams m ~ params) =>
+  m ->
   Int ->
   a ->
   IO ()
@@ -702,8 +707,8 @@ shouldApplyTimesGreaterThanEqual m i = shouldApplyTimes m (GreaterThanEqual i)
 
 -- | Verify that the function is applied to the expected arguments less than or equal to the expected number of times.
 shouldApplyTimesLessThanEqual ::
-  (VerifyCount CountVerifyMethod params a, Eq params) =>
-  Mock fn params ->
+  (VerifyCount CountVerifyMethod params a, Eq params, IsMock m, MockParams m ~ params) =>
+  m ->
   Int ->
   a ->
   IO ()
@@ -711,8 +716,8 @@ shouldApplyTimesLessThanEqual m i = shouldApplyTimes m (LessThanEqual i)
 
 -- | Verify that the function has been applied to the expected arguments a greater number of times than expected.
 shouldApplyTimesGreaterThan ::
-  (VerifyCount CountVerifyMethod params a, Eq params) =>
-  Mock fn params ->
+  (VerifyCount CountVerifyMethod params a, Eq params, IsMock m, MockParams m ~ params) =>
+  m ->
   Int ->
   a ->
   IO ()
@@ -720,8 +725,8 @@ shouldApplyTimesGreaterThan m i = shouldApplyTimes m (GreaterThan i)
 
 -- | Verify that the function has been applied to the expected arguments less than the expected number of times.
 shouldApplyTimesLessThan ::
-  (VerifyCount CountVerifyMethod params a, Eq params) =>
-  Mock fn params ->
+  (VerifyCount CountVerifyMethod params a, Eq params, IsMock m, MockParams m ~ params) =>
+  m ->
   Int ->
   a ->
   IO ()
@@ -781,21 +786,23 @@ safeIndex xs n
   | otherwise = listToMaybe (drop n xs)
 
 -- | Verify that it was apply to anything.
-shouldApplyToAnything :: HasCallStack => Mock fn params -> IO ()
-shouldApplyToAnything (Mock name _ (Verifier ref)) = do
+shouldApplyToAnything :: (IsMock m, MockParams m ~ params, HasCallStack) => m -> IO ()
+shouldApplyToAnything m = do
+  let Verifier ref = mockVerifier m
   appliedParamsList <- readAppliedParamsList ref
-  when (null appliedParamsList) $ error $ "It has never been applied function" <> mockNameLabel name
+  when (null appliedParamsList) $ error $ "It has never been applied function" <> mockNameLabel (mockName m)
 
 -- | Verify that it was apply to anything (times).
-shouldApplyTimesToAnything :: Mock fn params -> Int -> IO ()
-shouldApplyTimesToAnything (Mock name _ (Verifier ref)) count = do
+shouldApplyTimesToAnything :: (IsMock m, MockParams m ~ params) => m -> Int -> IO ()
+shouldApplyTimesToAnything m count = do
+  let Verifier ref = mockVerifier m
   appliedParamsList <- readAppliedParamsList ref
   let appliedCount = length appliedParamsList
   when (count /= appliedCount) $
         errorWithoutStackTrace $
         intercalate
           "\n"
-          [ "function" <> mockNameLabel name <> " was not applied the expected number of times.",
+          [ "function" <> mockNameLabel (mockName m) <> " was not applied the expected number of times.",
             "  expected: " <> show count,
             "   but got: " <> show appliedCount
           ]
@@ -930,3 +937,26 @@ widenMock ::
   MockIO IO funIO params ->
   MockIO m funM params
 widenMock (MockIO name f verifier) = MockIO name (liftFunTo (Proxy :: Proxy m) f) verifier
+
+-- ------------------
+-- Abstract mock interface
+--
+-- A small type class to abstract over `Mock` and `MockIO` so verification
+-- code can be generic over different mock representations.
+class IsMock m where
+  type MockFn m :: Type
+  type MockParams m :: Type
+  mockName :: m -> Maybe MockName
+  mockVerifier :: m -> Verifier (MockParams m)
+
+instance IsMock (Mock fn params) where
+  type MockFn (Mock fn params) = fn
+  type MockParams (Mock fn params) = params
+  mockName (Mock name _ _) = name
+  mockVerifier (Mock _ _ v) = v
+
+instance IsMock (MockIO m fn params) where
+  type MockFn (MockIO m fn params) = fn
+  type MockParams (MockIO m fn params) = params
+  mockName (MockIO name _ _) = name
+  mockVerifier (MockIO _ _ v) = v
