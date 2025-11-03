@@ -451,10 +451,10 @@ generateStubFn [] = $([|generateConstantStubFn|])
 generateStubFn args = $([|generateNotConstantsStubFn args|])
 
 generateNotConstantsStubFn :: [Q Exp] -> Q Exp -> Q Exp
-generateNotConstantsStubFn args mock = foldl appE [|stubFn $(mock)|] args
+generateNotConstantsStubFn args mock = foldl appE [|stubFnMock $(mock)|] args
 
 generateConstantStubFn :: Q Exp -> Q Exp
-generateConstantStubFn mock = [|stubFn $(mock)|]
+generateConstantStubFn mock = [|stubFnMock $(mock)|]
 
 createMockFnDec :: Name -> [VarAppliedType] -> MockOptions -> Dec -> Q [Dec]
 createMockFnDec monadVarName varAppliedTypes options (SigD sigFnName ty) = do

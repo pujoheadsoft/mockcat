@@ -30,6 +30,7 @@ module Test.MockCat.Mock
   , createStubFn
   , createNamedStubFn
   , stubFn
+  , stubFnMock
   , shouldApplyTo
   , shouldApplyTimes
   , shouldApplyInOrder
@@ -45,7 +46,7 @@ module Test.MockCat.Mock
   , cases
   , casesIO
   , createMockIO
-  , stubFnIO
+  , stubFnMockIO
   , createStubFnIO
   )
 where
@@ -68,7 +69,9 @@ import Control.Monad.State
 import Data.Kind (Type)
 import Data.Proxy (Proxy (..))
 
-data Mock fn params = Mock (Maybe MockName) fn (Verifier params)
+data Mock fn params =
+    Mock fn (Verifier params)
+  | NamedMock MockName fn (Verifier params)
 
 type MockName = String
 
@@ -140,8 +143,12 @@ createNamedConstantMock :: MonadIO m => MockName -> fn -> m (Mock fn ())
 createNamedConstantMock name a = liftIO $ build (Just name) (param a)
 
 -- | Extract the stub function from the mock.
-stubFn :: Mock fn v -> fn
-stubFn (Mock _ f _) = f
+stubFn :: forall m fn. (IsMock m, MockFn m ~ fn) => m -> fn
+stubFn = mockStubFn
+
+stubFnMock :: Mock fn v -> fn
+stubFnMock (Mock f _) = f
+stubFnMock (NamedMock _ f _) = f
 
 {- | Create a stub function.
   @
@@ -284,7 +291,8 @@ p :: a -> Param a
 p = param
 
 makeMock :: MonadIO m => Maybe MockName -> IORef (AppliedRecord params) -> fn -> m (Mock fn params)
-makeMock name l fn = pure $ Mock name fn (Verifier l)
+makeMock (Just name) l fn = pure $ NamedMock name fn (Verifier l)
+makeMock Nothing l fn = pure $ Mock fn (Verifier l)
 
 extractReturnValueWithValidate ::
   ( ProjectionArgs params
@@ -874,7 +882,9 @@ perform = unsafePerformIO
 
 -- ------------------
 -- MockIO
-data MockIO (m :: Type -> Type) fn params = MockIO (Maybe MockName) fn (Verifier params)
+data MockIO (m :: Type -> Type) fn params =
+   MockIO fn (Verifier params)
+ | NamedMockIO MockName fn (Verifier params)
 
 class MockIOBuilder params fn verifyParams | params -> fn, params -> verifyParams where
   -- build a mock
@@ -895,7 +905,8 @@ instance {-# OVERLAPPABLE #-}
     makeMockIO name s (buildCurriedIO (\inputParams -> extractReturnValueWithValidate name params inputParams s))
 
 makeMockIO :: MonadIO m => Maybe MockName -> IORef (AppliedRecord params) -> fn -> m (MockIO m fn params)
-makeMockIO name l fn = pure $ MockIO name fn (Verifier l)
+makeMockIO Nothing l fn = pure $ MockIO fn (Verifier l)
+makeMockIO (Just name) l fn = pure $ NamedMockIO name fn (Verifier l)
 
 createMockIO ::
   forall params fn fnM verifyParams m.
@@ -909,8 +920,9 @@ createMockIO params = do
   mockIO <- liftIO (buildIO Nothing params)
   pure $ widenMock mockIO
 
-stubFnIO :: MockIO m fn params -> fn
-stubFnIO (MockIO _ f _) = f
+stubFnMockIO :: MockIO m fn params -> fn
+stubFnMockIO (MockIO f _) = f
+stubFnMockIO (NamedMockIO _ f _) = f
 
 createStubFnIO ::
   forall params fn verifyParams m fnM.
@@ -920,7 +932,7 @@ createStubFnIO ::
   ) =>
   params ->
   m fnM
-createStubFnIO params = stubFnIO <$> createMockIO params
+createStubFnIO params = stubFnMockIO <$> createMockIO params
 
 class LiftFunTo funIO funM (m :: Type -> Type) | funIO m -> funM where
   liftFunTo :: Proxy m -> funIO -> funM
@@ -936,7 +948,8 @@ widenMock ::
   LiftFunTo funIO funM m => 
   MockIO IO funIO params ->
   MockIO m funM params
-widenMock (MockIO name f verifier) = MockIO name (liftFunTo (Proxy :: Proxy m) f) verifier
+widenMock (MockIO f verifier) = MockIO (liftFunTo (Proxy :: Proxy m) f) verifier
+widenMock (NamedMockIO name f verifier) = NamedMockIO name (liftFunTo (Proxy :: Proxy m) f) verifier
 
 -- ------------------
 -- Abstract mock interface
@@ -947,16 +960,25 @@ class IsMock m where
   type MockFn m :: Type
   type MockParams m :: Type
   mockName :: m -> Maybe MockName
+  mockStubFn :: m -> MockFn m
   mockVerifier :: m -> Verifier (MockParams m)
 
 instance IsMock (Mock fn params) where
   type MockFn (Mock fn params) = fn
   type MockParams (Mock fn params) = params
-  mockName (Mock name _ _) = name
-  mockVerifier (Mock _ _ v) = v
+  mockName (Mock _ _) = Nothing
+  mockName (NamedMock name _ _) = Just name
+  mockStubFn (Mock f _) = f
+  mockStubFn (NamedMock _ f _) = f
+  mockVerifier (Mock _ v) = v
+  mockVerifier (NamedMock _ _ v) = v
 
 instance IsMock (MockIO m fn params) where
   type MockFn (MockIO m fn params) = fn
   type MockParams (MockIO m fn params) = params
-  mockName (MockIO name _ _) = name
-  mockVerifier (MockIO _ _ v) = v
+  mockName (MockIO _ _) = Nothing
+  mockName (NamedMockIO name _ _) = Just name
+  mockStubFn (MockIO f _) = f
+  mockStubFn (NamedMockIO _ f _) = f
+  mockVerifier (MockIO _ v) = v
+  mockVerifier (NamedMockIO _ _ v) = v

@@ -119,7 +119,7 @@ spec = do
     case mm of
       Nothing -> expectationFailure "createNamedMock returned Nothing"
       Just m -> do
-        let f = stubFnIO m
+        let f = stubFnMockIO m
         -- f :: Bool -> MaybeT IO Bool
         res <- runMaybeT $ f True
         res `shouldBe` Just False

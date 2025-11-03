@@ -34,7 +34,7 @@ instance (MonadIO m, FileOperation m) => FileOperation (MockT m) where
     defs <- getDefinitions
     case findParam (Proxy :: Proxy "readFile") defs of
       Just mock -> do
-        let !result = stubFn mock path
+        let !result = stubFnMock mock path
         pure result
       Nothing -> lift $ readFile path
 
@@ -42,7 +42,7 @@ instance (MonadIO m, FileOperation m) => FileOperation (MockT m) where
     defs <- getDefinitions
     case findParam (Proxy :: Proxy "writeFile") defs of
       Just mock -> do
-        let !result = stubFn mock path content
+        let !result = stubFnMock mock path content
         pure result
       Nothing -> lift $ writeFile path content
 
@@ -67,7 +67,7 @@ instance (MonadIO m, Finder a b m) => Finder a b (MockT m) where
     defs <- getDefinitions
     case findParam (Proxy :: Proxy "_findIds") defs of
       Just mock -> do
-        let !result = stubFn mock
+        let !result = stubFnMock mock
         pure result
       Nothing -> lift findIds
   findById :: (Finder a b m) => a -> MockT m b
@@ -75,7 +75,7 @@ instance (MonadIO m, Finder a b m) => Finder a b (MockT m) where
     defs <- getDefinitions
     case findParam (Proxy :: Proxy "_findById") defs of
       Just mock -> do
-        let !result = stubFn mock id
+        let !result = stubFnMock mock id
         pure result
       Nothing -> lift $ findById id
 

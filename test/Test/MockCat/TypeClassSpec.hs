@@ -50,14 +50,14 @@ instance MonadIO m => FileOperation (MockT m) where
     defs <- getDefinitions
     let
       mock = fromMaybe (error "no answer found stub function `readFile`.") $ findParam (Proxy :: Proxy "readFile") defs
-      !result = stubFn mock path
+      !result = stubFnMock mock path
     pure result
 
   writeFile path content = MockT do
     defs <- getDefinitions
     let
       mock = fromMaybe (error "no answer found stub function `writeFile`.") $ findParam (Proxy :: Proxy "writeFile") defs
-      !result = stubFn mock path content
+      !result = stubFnMock mock path content
     pure result
 
 instance MonadIO m => ApiOperation (MockT m) where
@@ -65,7 +65,7 @@ instance MonadIO m => ApiOperation (MockT m) where
     defs <- getDefinitions
     let
       mock = fromMaybe (error "no answer found stub function `post`.") $ findParam (Proxy :: Proxy "post") defs
-      !result = stubFn mock content
+      !result = stubFnMock mock content
     pure result
 
 instance MonadIO m => MonadReader String (MockT m) where
@@ -73,7 +73,7 @@ instance MonadIO m => MonadReader String (MockT m) where
     defs <- getDefinitions
     let
       mock = fromMaybe (error "no answer found stub function `ask`.") $ findParam (Proxy :: Proxy "ask") defs
-      !result = stubFn mock
+      !result = stubFnMock mock
     pure result
   local = undefined
 
@@ -117,14 +117,14 @@ instance MonadIO m => TestClass (MockT m) where
     defs <- getDefinitions
     let
       mock = fromMaybe (error "no answer found stub function `_getBy`.") $ findParam (Proxy :: Proxy "_getBy") defs
-      !result = stubFn mock a
+      !result = stubFnMock mock a
     lift result
 
   echo a = MockT do
     defs <- getDefinitions
     let
       mock = fromMaybe (error "no answer found stub function `_echo`.") $ findParam (Proxy :: Proxy "_echo") defs
-      !result = stubFn mock a
+      !result = stubFnMock mock a
     lift result
 
 _getBy :: (MockBuilder params (String -> m Int) (Param String), MonadIO m) => params -> MockT m ()
@@ -154,14 +154,14 @@ instance MonadIO m => Teletype (MockT m) where
     defs <- getDefinitions
     let
       mock = fromMaybe (error "no answer found stub function `_readTTY`.") $ findParam (Proxy :: Proxy "_readTTY") defs
-      !result = stubFn mock
+      !result = stubFnMock mock
     lift result
 
   writeTTY a = MockT do
     defs <- getDefinitions
     let
       mock = fromMaybe (error "no answer found stub function `_writeTTY`.") $ findParam (Proxy :: Proxy "_writeTTY") defs
-      !result = stubFn mock a
+      !result = stubFnMock mock a
     lift result
 
 _readTTY :: (MockBuilder params (m String) (), MonadIO m) => params -> MockT m ()
