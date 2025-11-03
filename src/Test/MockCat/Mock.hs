@@ -20,33 +20,33 @@
   - Verify applied mock function.
 -}
 module Test.MockCat.Mock
-  ( Mock,
-    MockBuilder,
-    build,
-    createMock,
-    createNamedMock,
-    createConstantMock,
-    createNamedConstantMock,
-    createStubFn,
-    createNamedStubFn,
-    stubFn,
-    shouldApplyTo,
-    shouldApplyTimes,
-    shouldApplyInOrder,
-    shouldApplyInPartialOrder,
-    shouldApplyTimesGreaterThanEqual,
-    shouldApplyTimesLessThanEqual,
-    shouldApplyTimesGreaterThan,
-    shouldApplyTimesLessThan,
-    shouldApplyToAnything,
-    shouldApplyTimesToAnything,
-    to,
-    onCase,
-    cases,
-    casesIO,
-    createMockIO,
-    stubFnIO,
-    createStubFnIO
+  ( Mock
+  , MockBuilder
+  , build
+  , createMock
+  , createNamedMock
+  , createConstantMock
+  , createNamedConstantMock
+  , createStubFn
+  , createNamedStubFn
+  , stubFn
+  , shouldApplyTo
+  , shouldApplyTimes
+  , shouldApplyInOrder
+  , shouldApplyInPartialOrder
+  , shouldApplyTimesGreaterThanEqual
+  , shouldApplyTimesLessThanEqual
+  , shouldApplyTimesGreaterThan
+  , shouldApplyTimesLessThan
+  , shouldApplyToAnything
+  , shouldApplyTimesToAnything
+  , to
+  , onCase
+  , cases
+  , casesIO
+  , createMockIO
+  , stubFnIO
+  , createStubFnIO
   )
 where
 
