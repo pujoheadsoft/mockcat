@@ -70,14 +70,6 @@ import Data.Kind (Type)
 import Data.Proxy (Proxy (..))
 import Test.MockCat.Internal.Types
 
-data Mock fn params =
-    Mock fn (Verifier params)
-  | NamedMock MockName fn (Verifier params)
-
-type MockName = String
-
-
-
 {- | Create a mock.
 From this mock, you can generate stub functions and verify the functions.
 
@@ -417,9 +409,6 @@ mockNameLabel = maybe mempty (" " <>) . enclose "`"
 enclose :: String -> Maybe String -> Maybe String
 enclose e = fmap (\v -> e <> v <> e)
 
--- verify
-data VerifyMatchType a = MatchAny a | MatchAll a
-
 -- | Class for verifying mock function.
 class Verify params input where
   -- | Verifies that the function has been applied to the expected arguments.
@@ -440,9 +429,6 @@ verify m matchType = do
   let result = doVerify (mockName m) appliedParamsList matchType
   result & maybe (pure ()) (\(VerifyFailed msg) -> errorWithoutStackTrace msg)
 
-newtype VerifyFailed = VerifyFailed Message
-
-type Message = String
 
 doVerify :: (Eq a, Show a) => Maybe MockName -> AppliedParamsList a -> VerifyMatchType a -> Maybe VerifyFailed
 doVerify name list (MatchAny a) = do
@@ -796,20 +782,7 @@ shouldApplyTimesToAnything m count = do
             "   but got: " <> show appliedCount
           ]
 
-newtype Cases a b = Cases (State [a] b)
 
-instance Functor (Cases a) where
-  fmap f (Cases s) = Cases (fmap f s)
-
-instance Applicative (Cases a) where
-  pure x = Cases $ pure x
-  (<*>) = ap
-
-instance Monad (Cases a) where
-  (Cases m) >>= f = Cases $ do
-    result <- m
-    let (Cases newState) = f result
-    newState
 
 runCase :: Cases a b -> [a]
 runCase (Cases s) = execState s []
@@ -862,10 +835,7 @@ perform :: IO a -> a
 perform = unsafePerformIO
 
 -- ------------------
--- MockIO
-data MockIO (m :: Type -> Type) fn params =
-   MockIO fn (Verifier params)
- | NamedMockIO MockName fn (Verifier params)
+
 
 class MockIOBuilder params fn verifyParams | params -> fn, params -> verifyParams where
   -- build a mock

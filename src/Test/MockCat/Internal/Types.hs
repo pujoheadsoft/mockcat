@@ -54,3 +54,36 @@ instance Show CountVerifyMethod where
   show (LessThan e) = "< " <> show e
   show (GreaterThanEqual e) = ">= " <> show e
   show (GreaterThan e) = "> " <> show e
+
+newtype Cases a b = Cases (State [a] b)
+
+instance Functor (Cases a) where
+  fmap f (Cases s) = Cases (fmap f s)
+
+instance Applicative (Cases a) where
+  pure x = Cases $ pure x
+  (<*>) = ap
+
+instance Monad (Cases a) where
+  (Cases m) >>= f = Cases $ do
+    result <- m
+    let (Cases newState) = f result
+    newState
+
+newtype VerifyFailed = VerifyFailed Message
+
+type Message = String
+
+-- verify
+data VerifyMatchType a = MatchAny a | MatchAll a
+
+type MockName = String
+
+data Mock fn params =
+    Mock fn (Verifier params)
+  | NamedMock MockName fn (Verifier params)
+
+-- MockIO
+data MockIO (m :: Type -> Type) fn params =
+   MockIO fn (Verifier params)
+ | NamedMockIO MockName fn (Verifier params)
