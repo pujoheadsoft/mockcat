@@ -69,6 +69,7 @@ import Control.Monad.State
 import Data.Kind (Type)
 import Data.Proxy (Proxy (..))
 import Test.MockCat.Internal.Types
+import Test.MockCat.Internal.Core
 import Test.MockCat.Internal.Message
 
 {- | Create a mock.
@@ -826,34 +827,4 @@ widenMock ::
 widenMock (MockIO f verifier) = MockIO (liftFunTo (Proxy :: Proxy m) f) verifier
 widenMock (NamedMockIO name f verifier) = NamedMockIO name (liftFunTo (Proxy :: Proxy m) f) verifier
 
--- ------------------
--- Abstract mock interface
---
--- A small type class to abstract over `Mock` and `MockIO` so verification
--- code can be generic over different mock representations.
-class IsMock m where
-  type MockFn m :: Type
-  type MockParams m :: Type
-  mockName :: m -> Maybe MockName
-  mockStubFn :: m -> MockFn m
-  mockVerifier :: m -> Verifier (MockParams m)
 
-instance IsMock (Mock fn params) where
-  type MockFn (Mock fn params) = fn
-  type MockParams (Mock fn params) = params
-  mockName (Mock _ _) = Nothing
-  mockName (NamedMock name _ _) = Just name
-  mockStubFn (Mock f _) = f
-  mockStubFn (NamedMock _ f _) = f
-  mockVerifier (Mock _ v) = v
-  mockVerifier (NamedMock _ _ v) = v
-
-instance IsMock (MockIO m fn params) where
-  type MockFn (MockIO m fn params) = fn
-  type MockParams (MockIO m fn params) = params
-  mockName (MockIO _ _) = Nothing
-  mockName (NamedMockIO name _ _) = Just name
-  mockStubFn (MockIO f _) = f
-  mockStubFn (NamedMockIO _ f _) = f
-  mockVerifier (MockIO _ v) = v
-  mockVerifier (NamedMockIO _ _ v) = v
