@@ -68,6 +68,7 @@ import Control.Monad.Trans
 import Control.Monad.State
 import Data.Kind (Type)
 import Data.Proxy (Proxy (..))
+import Test.MockCat.Internal.Types
 
 data Mock fn params =
     Mock fn (Verifier params)
@@ -75,7 +76,7 @@ data Mock fn params =
 
 type MockName = String
 
-newtype Verifier params = Verifier (IORef (AppliedRecord params))
+
 
 {- | Create a mock.
 From this mock, you can generate stub functions and verify the functions.
@@ -519,19 +520,7 @@ instance {-# OVERLAPPABLE #-} VerifyCount CountVerifyMethod a a where
 instance {-# OVERLAPPABLE #-} VerifyCount Int a a where
   shouldApplyTimes v count a = verifyCount v a (Equal count)
 
-data CountVerifyMethod
-  = Equal Int
-  | LessThanEqual Int
-  | GreaterThanEqual Int
-  | LessThan Int
-  | GreaterThan Int
 
-instance Show CountVerifyMethod where
-  show (Equal e) = show e
-  show (LessThanEqual e) = "<= " <> show e
-  show (LessThan e) = "< " <> show e
-  show (GreaterThanEqual e) = ">= " <> show e
-  show (GreaterThan e) = "> " <> show e
 
 compareCount :: CountVerifyMethod -> Int -> Bool
 compareCount (Equal e) a = a == e
@@ -739,14 +728,6 @@ shouldApplyTimesLessThan ::
   a ->
   IO ()
 shouldApplyTimesLessThan m i = shouldApplyTimes m (LessThan i)
-
-type AppliedParamsList params = [params]
-type AppliedParamsCounter params = AssociationList params Int
-
-data AppliedRecord params = AppliedRecord {
-  appliedParamsList :: AppliedParamsList params,
-  appliedParamsCounter :: AppliedParamsCounter params
-}
 
 appliedRecord :: AppliedRecord params
 appliedRecord = AppliedRecord {

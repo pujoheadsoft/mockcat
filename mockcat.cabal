@@ -50,10 +50,14 @@ library
       Test.MockCat
       Test.MockCat.AssociationList
       Test.MockCat.Cons
+      Test.MockCat.Internal.Builder
+      Test.MockCat.Internal.Core
+      Test.MockCat.Internal.Types
       Test.MockCat.Mock
       Test.MockCat.MockT
       Test.MockCat.Param
       Test.MockCat.TH
+      Test.MockCat.Verify
   other-modules:
       Paths_mockcat
   hs-source-dirs:
