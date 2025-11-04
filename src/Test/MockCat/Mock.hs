@@ -680,11 +680,6 @@ incrementCount key list =
   if member key list then update (+ 1) key list
   else insert key 1 list
 
-safeIndex :: [a] -> Int -> Maybe a
-safeIndex xs n
-  | n < 0 = Nothing
-  | otherwise = listToMaybe (drop n xs)
-
 -- | Verify that it was apply to anything.
 shouldApplyToAnything :: (IsMock m, MockParams m ~ params, HasCallStack) => m -> IO ()
 shouldApplyToAnything m = do
@@ -755,9 +750,7 @@ cases a = Cases $ put a
 casesIO :: [a] -> Cases (IO a) ()
 casesIO = Cases . (put . map pure)
 
-{-# NOINLINE perform #-}
-perform :: IO a -> a
-perform = unsafePerformIO
+
 
 -- ------------------
 

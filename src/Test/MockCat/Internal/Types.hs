@@ -97,3 +97,12 @@ data Mock fn params =
 data MockIO (m :: Type -> Type) fn params =
    MockIO fn (Verifier params)
  | NamedMockIO MockName fn (Verifier params)
+
+safeIndex :: [a] -> Int -> Maybe a
+safeIndex xs n
+  | n < 0 = Nothing
+  | otherwise = listToMaybe (drop n xs)
+
+{-# NOINLINE perform #-}
+perform :: IO a -> a
+perform = unsafePerformIO
