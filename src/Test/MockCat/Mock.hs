@@ -57,7 +57,7 @@ import Data.Function ((&))
 import Data.IORef (IORef, newIORef, readIORef, atomicModifyIORef')
 import Data.List (elemIndex, intercalate)
 import Data.Maybe
-import Data.Text (pack, replace, unpack)
+
 import GHC.IO (unsafePerformIO)
 import Test.MockCat.Cons
 import Test.MockCat.Param
@@ -411,45 +411,6 @@ doVerify name list (MatchAll a) = do
   guard $ Prelude.any (a /=) list
   pure $ verifyFailedMessage name list a
 
-verifyFailedMessage :: Show a => Maybe MockName -> AppliedParamsList a -> a -> VerifyFailed
-verifyFailedMessage name appliedParams expected =
-  VerifyFailed $
-    intercalate
-      "\n"
-      [ "function" <> mockNameLabel name <> " was not applied to the expected arguments.",
-        "  expected: " <> showForMessage (show expected),
-        "   but got: " <> formatAppliedParamsList appliedParams
-      ]
-
--- utilities for message formatting
-trim :: String -> String
-trim = f . f
-  where
-    f = reverse . dropWhile (== ' ')
-
-splitByComma :: String -> [String]
-splitByComma s = case break (== ',') s of
-  (a, ',' : rest) -> a : splitByComma rest
-  (a, _) -> [a]
-
-formatAppliedParamsList :: Show a => AppliedParamsList a -> String
-formatAppliedParamsList appliedParams
-  | null appliedParams = "It has never been applied"
-  | length appliedParams == 1 =
-    -- show single element without surrounding list brackets, but quote tokens appropriately
-    let s = show (head appliedParams)
-        inner = if not (null s) && head s == '(' && last s == ')' then init (tail s) else s
-        tokens = map (trim . quoteToken . trim) (splitByComma inner)
-     in intercalate "," tokens
-  | otherwise =
-    -- for multiple applied params, show as a list but ensure tokens are quoted where appropriate
-    let ss = map show appliedParams
-        processed = map (\t -> let inner = if not (null t) && head t == '(' && last t == ')' then init (tail t) else t
-                                in intercalate "," $ map (trim . quoteToken . trim) (splitByComma inner)) ss
-     in show processed
-
-_replace :: Show a => String -> a -> String
-_replace r s = unpack $ replace (pack r) (pack "") (pack (show s))
 
 class VerifyCount countType params a where
   -- | Verify the number of times a function has been applied to an argument.
