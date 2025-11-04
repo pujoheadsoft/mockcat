@@ -72,6 +72,16 @@ instance Monad (Cases a) where
 
 newtype VerifyFailed = VerifyFailed Message
 
+data VerifyOrderMethod
+  = ExactlySequence
+  | PartiallySequence
+
+data VerifyOrderResult a = VerifyOrderResult
+  { index :: Int,
+    appliedValue :: a,
+    expectedValue :: a
+  }
+
 type Message = String
 
 -- verify

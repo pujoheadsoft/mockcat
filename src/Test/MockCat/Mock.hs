@@ -565,10 +565,6 @@ instance {-# OVERLAPPABLE #-} (Eq a, Show a) => VerifyOrder a a where
   shouldApplyInOrder = verifyOrder ExactlySequence
   shouldApplyInPartialOrder = verifyOrder PartiallySequence
 
-data VerifyOrderMethod
-  = ExactlySequence
-  | PartiallySequence
-
 verifyOrder ::
   (IsMock m, Eq (MockParams m), Show (MockParams m)) =>
   VerifyOrderMethod ->
@@ -658,12 +654,6 @@ verifyOrderFailedMesssage VerifyOrderResult {index, appliedValue, expectedValue}
     showHumanReadable 2 = "2nd"
     showHumanReadable 3 = "3rd"
     showHumanReadable n = show n <> "th"
-
-data VerifyOrderResult a = VerifyOrderResult
-  { index :: Int,
-    appliedValue :: a,
-    expectedValue :: a
-  }
 
 collectUnExpectedOrder :: Eq a => AppliedParamsList a -> [a] -> [VerifyOrderResult a]
 collectUnExpectedOrder appliedValues expectedValues =
