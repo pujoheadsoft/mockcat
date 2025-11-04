@@ -52,6 +52,7 @@ library
       Test.MockCat.Cons
       Test.MockCat.Internal.Builder
       Test.MockCat.Internal.Core
+      Test.MockCat.Internal.Message
       Test.MockCat.Internal.Types
       Test.MockCat.Mock
       Test.MockCat.MockT

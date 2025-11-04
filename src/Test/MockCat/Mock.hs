@@ -53,7 +53,7 @@ where
 
 import Control.Monad (guard, when, ap)
 import Data.Function ((&))
-import Data.Char (isLower)
+
 import Data.IORef (IORef, newIORef, readIORef, atomicModifyIORef')
 import Data.List (elemIndex, intercalate)
 import Data.Maybe
@@ -69,6 +69,7 @@ import Control.Monad.State
 import Data.Kind (Type)
 import Data.Proxy (Proxy (..))
 import Test.MockCat.Internal.Types
+import Test.MockCat.Internal.Message
 
 {- | Create a mock.
 From this mock, you can generate stub functions and verify the functions.
@@ -358,33 +359,7 @@ validateParams name expected actual =
     then pure ()
     else errorWithoutStackTrace $ message name expected actual
 
--- Helper: quote a token if it looks like an unquoted alpha token
-quoteToken :: String -> String
-quoteToken s
-  | null s = s
-  | head s == '"' = s
-  | head s == '(' = s
-  | head s == '[' = s
-  | not (null s) && isLower (head s) = '"' : s ++ "\""
-  | otherwise = s
 
--- Quote a show-produced string when appropriate for error messages.
-showForMessage :: String -> String
-showForMessage s =
-  -- if it's a parenthesised compound, keep as-is; otherwise quote alpha-only tokens
-  let trimmed = s
-   in if not (null trimmed) && head trimmed == '(' && last trimmed == ')'
-        then trimmed
-        else quoteToken trimmed
-
-message :: Show a => Maybe MockName -> a -> a -> String
-message name expected actual =
-  intercalate
-    "\n"
-    [ "function" <> mockNameLabel name <> " was not applied to the expected arguments.",
-      "  expected: " <> showForMessage (show expected),
-      "   but got: " <> showForMessage (show actual)
-    ]
 
 messageForMultiMock :: Show a => Maybe MockName -> [a] -> a -> String
 messageForMultiMock name expecteds actual =
@@ -403,11 +378,9 @@ messageForMultiMock name expecteds actual =
           ("    " <>) . fmtExpected $ actual
         ]
 
-mockNameLabel :: Maybe MockName -> String
-mockNameLabel = maybe mempty (" " <>) . enclose "`"
 
-enclose :: String -> Maybe String -> Maybe String
-enclose e = fmap (\v -> e <> v <> e)
+
+
 
 -- | Class for verifying mock function.
 class Verify params input where
