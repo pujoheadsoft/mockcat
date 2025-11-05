@@ -1,3 +1,4 @@
+{-# LANGUAGE NamedFieldPuns #-}
 module Test.MockCat.Internal.Message where
 
 import Data.List (intercalate)
@@ -95,3 +96,18 @@ messageForMultiMock name expecteds actual =
           "  but got:",
           ("    " <>) . fmtExpected $ actual
         ]
+
+verifyOrderFailedMesssage :: Show a => VerifyOrderResult a -> String
+verifyOrderFailedMesssage VerifyOrderResult {index, appliedValue, expectedValue} =
+  let appliedCount = showHumanReadable (index + 1)
+   in intercalate
+        "\n"
+        [ "  expected " <> appliedCount <> " applied: " <> show expectedValue,
+          "   but got " <> appliedCount <> " applied: " <> show appliedValue
+        ]
+  where
+    showHumanReadable :: Int -> String
+    showHumanReadable 1 = "1st"
+    showHumanReadable 2 = "2nd"
+    showHumanReadable 3 = "3rd"
+    showHumanReadable n = show n <> "th"

@@ -198,27 +198,6 @@ createNamedStubFn name params = stubFn <$> createNamedMock name params
 
 
 
-instance (Eq a, Show a) => Verify (Param a) a where
-  shouldApplyTo v a = verify v (MatchAny (param a))
-
-instance (Eq a, Show a) => Verify a a where
-  shouldApplyTo v a = verify v (MatchAny a)
-
-verify :: (IsMock m, Eq (MockParams m), Show (MockParams m)) => m -> VerifyMatchType (MockParams m) -> IO ()
-verify m matchType = do
-  let Verifier ref = mockVerifier m
-  appliedParamsList <- readAppliedParamsList ref
-  let result = doVerify (mockName m) appliedParamsList matchType
-  result & maybe (pure ()) (\(VerifyFailed msg) -> errorWithoutStackTrace msg)
-
-
-doVerify :: (Eq a, Show a) => Maybe MockName -> AppliedParamsList a -> VerifyMatchType a -> Maybe VerifyFailed
-doVerify name list (MatchAny a) = do
-  guard $ notElem a list
-  pure $ verifyFailedMessage name list a
-doVerify name list (MatchAll a) = do
-  guard $ Prelude.any (a /=) list
-  pure $ verifyFailedMessage name list a
 
 
 class VerifyCount countType params a where
@@ -383,20 +362,7 @@ verifyFailedSequence name fails =
       ( ("function" <> mockNameLabel name <> " was not applied to the expected arguments in the expected order.") : (verifyOrderFailedMesssage <$> fails)
       )
 
-verifyOrderFailedMesssage :: Show a => VerifyOrderResult a -> String
-verifyOrderFailedMesssage VerifyOrderResult {index, appliedValue, expectedValue} =
-  let appliedCount = showHumanReadable (index + 1)
-   in intercalate
-        "\n"
-        [ "  expected " <> appliedCount <> " applied: " <> show expectedValue,
-          "   but got " <> appliedCount <> " applied: " <> show appliedValue
-        ]
-  where
-    showHumanReadable :: Int -> String
-    showHumanReadable 1 = "1st"
-    showHumanReadable 2 = "2nd"
-    showHumanReadable 3 = "3rd"
-    showHumanReadable n = show n <> "th"
+
 
 collectUnExpectedOrder :: Eq a => AppliedParamsList a -> [a] -> [VerifyOrderResult a]
 collectUnExpectedOrder appliedValues expectedValues =
@@ -450,10 +416,7 @@ shouldApplyTimesLessThan m i = shouldApplyTimes m (LessThan i)
 
 
 
-readAppliedParamsList :: IORef (AppliedRecord params) -> IO (AppliedParamsList params)
-readAppliedParamsList ref = do
-  record <- readIORef ref
-  pure $ appliedParamsList record
+
 
 
 

@@ -32,6 +32,7 @@ import Control.Monad.State
 import Data.Kind (Type)
 import Data.Proxy (Proxy (..))
 import Test.MockCat.Internal.Core
+import Test.MockCat.Internal.Message
 
 -- | Class for verifying mock function.
 class Verify params input where
@@ -39,3 +40,31 @@ class Verify params input where
   -- Generic over mock representation `m` which must satisfy `IsMock` and
   -- whose `MockParams m` match this class's `params`.
   shouldApplyTo :: (IsMock m, MockParams m ~ params, HasCallStack) => m -> input -> IO ()
+
+instance (Eq a, Show a) => Verify (Param a) a where
+  shouldApplyTo v a = verify v (MatchAny (param a))
+
+instance (Eq a, Show a) => Verify a a where
+  shouldApplyTo v a = verify v (MatchAny a)
+
+verify :: (IsMock m, Eq (MockParams m), Show (MockParams m)) => m -> VerifyMatchType (MockParams m) -> IO ()
+verify m matchType = do
+  let Verifier ref = mockVerifier m
+  appliedParamsList <- readAppliedParamsList ref
+  let result = doVerify (mockName m) appliedParamsList matchType
+  result & maybe (pure ()) (\(VerifyFailed msg) -> errorWithoutStackTrace msg)
+
+
+doVerify :: (Eq a, Show a) => Maybe MockName -> AppliedParamsList a -> VerifyMatchType a -> Maybe VerifyFailed
+doVerify name list (MatchAny a) = do
+  guard $ notElem a list
+  pure $ verifyFailedMessage name list a
+doVerify name list (MatchAll a) = do
+  guard $ Prelude.any (a /=) list
+  pure $ verifyFailedMessage name list a
+
+
+readAppliedParamsList :: IORef (AppliedRecord params) -> IO (AppliedParamsList params)
+readAppliedParamsList ref = do
+  record <- readIORef ref
+  pure $ appliedParamsList record
