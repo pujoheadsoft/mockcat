@@ -71,6 +71,7 @@ import Data.Proxy (Proxy (..))
 import Test.MockCat.Internal.Types
 import Test.MockCat.Internal.Core
 import Test.MockCat.Internal.Message
+import Test.MockCat.Internal.Builder
 
 {- | Create a mock.
 From this mock, you can generate stub functions and verify the functions.
@@ -211,10 +212,7 @@ instance BuildCurriedIO rest r fn
   buildCurriedIO args2r a = buildCurriedIO (\rest -> args2r (p a :> rest))
 
 
--- | Class for creating a mock corresponding to the parameter.
-class MockBuilder params fn verifyParams | params -> fn, params -> verifyParams where
-  -- build a mock
-  build :: MonadIO m => Maybe MockName -> params -> m (Mock fn verifyParams)
+
 
 -- | Instance for building a mock for a constant function.
 instance
@@ -378,9 +376,6 @@ messageForMultiMock name expecteds actual =
           "  but got:",
           ("    " <>) . fmtExpected $ actual
         ]
-
-
-
 
 
 -- | Class for verifying mock function.

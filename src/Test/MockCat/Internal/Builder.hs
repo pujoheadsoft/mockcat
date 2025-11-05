@@ -33,3 +33,8 @@ import Test.MockCat.Internal.Types
 import Test.MockCat.Internal.Core
 import Test.MockCat.Internal.Message
 
+
+-- | Class for creating a mock corresponding to the parameter.
+class MockBuilder params fn verifyParams | params -> fn, params -> verifyParams where
+  -- build a mock
+  build :: MonadIO m => Maybe MockName -> params -> m (Mock fn verifyParams)
