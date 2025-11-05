@@ -132,6 +132,43 @@ instance {-# OVERLAPPABLE #-}
     s <- liftIO $ newIORef appliedRecord
     makeMock name s (buildCurried (\inputParams -> findReturnValueWithStore name paramsList inputParams s))
 
+-- | Overlapping instance for building a mock for a function with multiple parameters.
+-- This instance is used when the parameter type is a 'Param a :> rest' type.
+instance {-# OVERLAPPABLE #-}
+  ( p ~ (Param a :> rest)
+  , ProjectionArgs p
+  , ProjectionReturn p
+  , ArgsOf p ~ args
+  , ReturnOf p ~ Param r
+  , BuildCurried args r fn
+  , Eq args
+  , Show args
+  ) => MockBuilder (Param a :> rest) fn args where
+  build name params = do
+    s <- liftIO $ newIORef appliedRecord
+    makeMock name s (buildCurried (\inputParams -> extractReturnValueWithValidate name params inputParams s))
+
+
+
+
+class MockIOBuilder params fn verifyParams | params -> fn, params -> verifyParams where
+  -- build a mock
+  buildIO :: MonadIO m => Maybe MockName -> params -> m (MockIO m fn verifyParams)
+
+instance {-# OVERLAPPABLE #-}
+  ( p ~ (Param a :> rest)
+  , ProjectionArgs p
+  , ProjectionReturn p
+  , ArgsOf p ~ args
+  , ReturnOf p ~ Param r
+  , BuildCurriedIO args r fn
+  , Eq args
+  , Show args
+  ) => MockIOBuilder (Param a :> rest) fn args where
+  buildIO name params = do
+    s <- liftIO $ newIORef appliedRecord
+    makeMockIO name s (buildCurriedIO (\inputParams -> extractReturnValueWithValidate name params inputParams s))
+
 
 
 
@@ -139,6 +176,13 @@ instance {-# OVERLAPPABLE #-}
 makeMock :: MonadIO m => Maybe MockName -> IORef (AppliedRecord params) -> fn -> m (Mock fn params)
 makeMock (Just name) l fn = pure $ NamedMock name fn (Verifier l)
 makeMock Nothing l fn = pure $ Mock fn (Verifier l)
+
+
+makeMockIO :: MonadIO m => Maybe MockName -> IORef (AppliedRecord params) -> fn -> m (MockIO m fn params)
+makeMockIO Nothing l fn = pure $ MockIO fn (Verifier l)
+makeMockIO (Just name) l fn = pure $ NamedMockIO name fn (Verifier l)
+
+
 
 
 appliedRecord :: AppliedRecord params
@@ -220,6 +264,39 @@ findReturnValue paramsList inputParams ref = do
       let index = min count (length matchedParams - 1)
       incrementAppliedParamCount ref inputParams
       pure $ returnValue <$> safeIndex matchedParams index
+
+
+
+
+extractReturnValueWithValidate ::
+  ( ProjectionArgs params
+  , ProjectionReturn params
+  , ArgsOf params ~ args
+  , ReturnOf params ~ Param r
+  , Eq args
+  , Show args
+  ) =>
+  Maybe MockName ->
+  params ->
+  args ->
+  IORef (AppliedRecord args) ->
+  IO r
+extractReturnValueWithValidate name params inputParams s = do
+  validateWithStoreParams name s (projArgs params) inputParams
+  pure $ returnValue params
+
+validateWithStoreParams :: (Eq a, Show a) => Maybe MockName -> IORef (AppliedRecord a) -> a -> a -> IO ()
+validateWithStoreParams name ref expected actual = do
+  validateParams name expected actual
+  appendAppliedParams ref actual
+
+validateParams :: (Eq a, Show a) => Maybe MockName -> a -> a -> IO ()
+validateParams name expected actual =
+  if expected == actual
+    then pure ()
+    else errorWithoutStackTrace $ message name expected actual
+
+
 
 
 

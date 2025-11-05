@@ -31,3 +31,11 @@ import Control.Monad.State
     ( execState, MonadState(put, get), State )
 import Data.Kind (Type)
 import Data.Proxy (Proxy (..))
+import Test.MockCat.Internal.Core
+
+-- | Class for verifying mock function.
+class Verify params input where
+  -- | Verifies that the function has been applied to the expected arguments.
+  -- Generic over mock representation `m` which must satisfy `IsMock` and
+  -- whose `MockParams m` match this class's `params`.
+  shouldApplyTo :: (IsMock m, MockParams m ~ params, HasCallStack) => m -> input -> IO ()
