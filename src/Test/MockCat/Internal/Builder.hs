@@ -38,3 +38,15 @@ import Test.MockCat.Internal.Message
 class MockBuilder params fn verifyParams | params -> fn, params -> verifyParams where
   -- build a mock
   build :: MonadIO m => Maybe MockName -> params -> m (Mock fn verifyParams)
+
+-- | Class for building a curried function.
+-- The purpose of this class is to automatically generate and provide
+-- an implementation for the corresponding curried function type (such as `a -> b -> ... -> IO r`)
+-- when given the argument list type of the mock (`Param a :> Param b :> ...`).
+-- @args@ is the argument list type of the mock.
+-- @r@ is the return type of the function.
+-- @fn@ is the curried function type.
+class BuildCurried args r fn | args r -> fn where
+  -- | Build a curried function.
+  -- Accept a function that combines all arguments and convert it into a curried function.
+  buildCurried :: (args -> IO r) -> fn

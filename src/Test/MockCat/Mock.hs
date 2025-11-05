@@ -170,17 +170,7 @@ createNamedStubFn ::
   m fn
 createNamedStubFn name params = stubFn <$> createNamedMock name params
 
--- | Class for building a curried function.
--- The purpose of this class is to automatically generate and provide
--- an implementation for the corresponding curried function type (such as `a -> b -> ... -> IO r`)
--- when given the argument list type of the mock (`Param a :> Param b :> ...`).
--- @args@ is the argument list type of the mock.
--- @r@ is the return type of the function.
--- @fn@ is the curried function type.
-class BuildCurried args r fn | args r -> fn where
-  -- | Build a curried function.
-  -- Accept a function that combines all arguments and convert it into a curried function.
-  buildCurried :: (args -> IO r) -> fn
+
 
 -- | Base case: The last parameter.
 -- Converts a single-argument function (Param a -> IO r) into a final
