@@ -68,3 +68,61 @@ readAppliedParamsList :: IORef (AppliedRecord params) -> IO (AppliedParamsList p
 readAppliedParamsList ref = do
   record <- readIORef ref
   pure $ appliedParamsList record
+
+
+
+
+
+class VerifyCount countType params a where
+  -- | Verify the number of times a function has been applied to an argument.
+  --
+  -- @
+  -- import Test.Hspec
+  -- import Test.MockCat
+  -- ...
+  -- it "verify to applied times." do
+  --   m \<- createMock $ "value" |\> True
+  --   print $ stubFn m "value"
+  --   print $ stubFn m "value"
+  --   m \`shouldApplyTimes\` (2 :: Int) \`to\` "value" 
+  -- @
+  --
+  shouldApplyTimes :: (IsMock m, MockParams m ~ params, HasCallStack, Eq params) => m -> countType -> a -> IO ()
+
+instance VerifyCount CountVerifyMethod (Param a) a where
+  shouldApplyTimes v count a = verifyCount v (param a) count
+
+instance VerifyCount Int (Param a) a where
+  shouldApplyTimes v count a = verifyCount v (param a) (Equal count)
+
+instance {-# OVERLAPPABLE #-} VerifyCount CountVerifyMethod a a where
+  shouldApplyTimes v count a = verifyCount v a count
+
+instance {-# OVERLAPPABLE #-} VerifyCount Int a a where
+  shouldApplyTimes v count a = verifyCount v a (Equal count)
+
+
+
+compareCount :: CountVerifyMethod -> Int -> Bool
+compareCount (Equal e) a = a == e
+compareCount (LessThanEqual e) a = a <= e
+compareCount (LessThan e) a = a < e
+compareCount (GreaterThanEqual e) a = a >= e
+compareCount (GreaterThan e) a = a > e
+
+verifyCount :: (IsMock m, Eq (MockParams m)) => m -> MockParams m -> CountVerifyMethod -> IO ()
+verifyCount m v method = do
+  let Verifier ref = mockVerifier m
+  appliedParamsList <- readAppliedParamsList ref
+  let appliedCount = length (filter (v ==) appliedParamsList)
+  if compareCount method appliedCount
+    then pure ()
+    else
+      errorWithoutStackTrace $
+        intercalate
+          "\n"
+          [ "function" <> mockNameLabel (mockName m) <> " was not applied the expected number of times to the expected arguments.",
+            "  expected: " <> show method,
+            "   but got: " <> show appliedCount
+          ]
+
