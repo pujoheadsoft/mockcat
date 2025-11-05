@@ -176,29 +176,9 @@ createNamedStubFn name params = stubFn <$> createNamedMock name params
 
 
 
--- | Instance for building a mock for a function with a single parameter.
-instance
-  MockBuilder (Param r) r ()
-  where
-  build name params = do
-    s <- liftIO $ newIORef appliedRecord
-    let v = value params
-    makeMock name s $ perform (do
-      liftIO $ appendAppliedParams s ()
-      pure v)
 
--- | Instance for building a mock for a function with multiple parameters.
-instance MockBuilder (Cases (IO a) ()) (IO a) () where
-  build name cases = do
-    let params = runCase cases
-    s <- liftIO $ newIORef appliedRecord
-    makeMock name s (do
-      count <- readAppliedCount s ()
-      let index = min count (length params - 1)
-          r = safeIndex params index
-      appendAppliedParams s ()
-      incrementAppliedParamCount s ()
-      fromJust r)
+
+
 
 -- | Overlapping instance for building a mock for a function with multiple parameters.
 -- This instance is used when the parameter type is a 'Cases' type.
@@ -591,26 +571,11 @@ readAppliedParamsList ref = do
   record <- readIORef ref
   pure $ appliedParamsList record
 
-readAppliedCount :: Eq params => IORef (AppliedRecord params) -> params -> IO Int
-readAppliedCount ref params = do
-  record <- readIORef ref
-  let count = appliedParamsCounter record
-  pure $ fromMaybe 0 (lookup params count)
 
 
-incrementAppliedParamCount :: Eq params => IORef (AppliedRecord params) -> params -> IO ()
-incrementAppliedParamCount ref inputParams = do
-  atomicModifyIORef' ref (\AppliedRecord {appliedParamsList, appliedParamsCounter} ->
-    let newRecord = AppliedRecord {
-          appliedParamsList = appliedParamsList,
-          appliedParamsCounter = incrementCount inputParams appliedParamsCounter
-        }
-    in (newRecord, ()))
 
-incrementCount :: Eq k => k -> AppliedParamsCounter k -> AppliedParamsCounter k
-incrementCount key list =
-  if member key list then update (+ 1) key list
-  else insert key 1 list
+
+
 
 -- | Verify that it was apply to anything.
 shouldApplyToAnything :: (IsMock m, MockParams m ~ params, HasCallStack) => m -> IO ()
@@ -636,8 +601,7 @@ shouldApplyTimesToAnything m count = do
 
 
 
-runCase :: Cases a b -> [a]
-runCase (Cases s) = execState s []
+
 
 {- | Make a case for stub functions.  
 This can be used to create stub functions that return different values depending on their arguments.
