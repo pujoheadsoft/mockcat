@@ -75,10 +75,44 @@ instance BuildCurriedIO rest r fn
   buildCurriedIO :: ((Param a :> rest) -> IO r) -> a -> fn
   buildCurriedIO args2r a = buildCurriedIO (\rest -> args2r (p a :> rest))
 
-p :: a -> Param a
-p = param
+
 
 -- | Class for creating a mock corresponding to the parameter.
 class MockBuilder params fn verifyParams | params -> fn, params -> verifyParams where
   -- build a mock
   build :: MonadIO m => Maybe MockName -> params -> m (Mock fn verifyParams)
+
+-- | Instance for building a mock for a constant function.
+instance
+  MockBuilder (IO r) (IO r) ()
+  where
+  build name a = do
+    s <- liftIO $ newIORef appliedRecord
+    makeMock name s (do
+      liftIO $ appendAppliedParams s ()
+      a)
+
+
+makeMock :: MonadIO m => Maybe MockName -> IORef (AppliedRecord params) -> fn -> m (Mock fn params)
+makeMock (Just name) l fn = pure $ NamedMock name fn (Verifier l)
+makeMock Nothing l fn = pure $ Mock fn (Verifier l)
+
+
+appliedRecord :: AppliedRecord params
+appliedRecord = AppliedRecord {
+  appliedParamsList = mempty,
+  appliedParamsCounter = empty
+}
+
+appendAppliedParams :: IORef (AppliedRecord params) -> params -> IO ()
+appendAppliedParams ref inputParams = do
+  atomicModifyIORef' ref (\AppliedRecord {appliedParamsList, appliedParamsCounter} ->
+    let newRecord = AppliedRecord {
+          appliedParamsList = appliedParamsList ++ [inputParams],
+          appliedParamsCounter = appliedParamsCounter
+        }
+    in (newRecord, ()))
+
+
+p :: a -> Param a
+p = param

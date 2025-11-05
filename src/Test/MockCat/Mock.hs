@@ -175,15 +175,6 @@ createNamedStubFn name params = stubFn <$> createNamedMock name params
 
 
 
--- | Instance for building a mock for a constant function.
-instance
-  MockBuilder (IO r) (IO r) ()
-  where
-  build name a = do
-    s <- liftIO $ newIORef appliedRecord
-    makeMock name s (do
-      liftIO $ appendAppliedParams s ()
-      a)
 
 -- | Instance for building a mock for a function with a single parameter.
 instance
@@ -243,9 +234,7 @@ instance {-# OVERLAPPABLE #-}
 
 
 
-makeMock :: MonadIO m => Maybe MockName -> IORef (AppliedRecord params) -> fn -> m (Mock fn params)
-makeMock (Just name) l fn = pure $ NamedMock name fn (Verifier l)
-makeMock Nothing l fn = pure $ Mock fn (Verifier l)
+
 
 extractReturnValueWithValidate ::
   ( ProjectionArgs params
@@ -595,11 +584,7 @@ shouldApplyTimesLessThan ::
   IO ()
 shouldApplyTimesLessThan m i = shouldApplyTimes m (LessThan i)
 
-appliedRecord :: AppliedRecord params
-appliedRecord = AppliedRecord {
-  appliedParamsList = mempty,
-  appliedParamsCounter = empty
-}
+
 
 readAppliedParamsList :: IORef (AppliedRecord params) -> IO (AppliedParamsList params)
 readAppliedParamsList ref = do
@@ -612,14 +597,6 @@ readAppliedCount ref params = do
   let count = appliedParamsCounter record
   pure $ fromMaybe 0 (lookup params count)
 
-appendAppliedParams :: IORef (AppliedRecord params) -> params -> IO ()
-appendAppliedParams ref inputParams = do
-  atomicModifyIORef' ref (\AppliedRecord {appliedParamsList, appliedParamsCounter} ->
-    let newRecord = AppliedRecord {
-          appliedParamsList = appliedParamsList ++ [inputParams],
-          appliedParamsCounter = appliedParamsCounter
-        }
-    in (newRecord, ()))
 
 incrementAppliedParamCount :: Eq params => IORef (AppliedRecord params) -> params -> IO ()
 incrementAppliedParamCount ref inputParams = do
