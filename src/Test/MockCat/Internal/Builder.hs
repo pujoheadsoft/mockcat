@@ -34,11 +34,6 @@ import Test.MockCat.Internal.Core
 import Test.MockCat.Internal.Message
 
 
--- | Class for creating a mock corresponding to the parameter.
-class MockBuilder params fn verifyParams | params -> fn, params -> verifyParams where
-  -- build a mock
-  build :: MonadIO m => Maybe MockName -> params -> m (Mock fn verifyParams)
-
 -- | Class for building a curried function.
 -- The purpose of this class is to automatically generate and provide
 -- an implementation for the corresponding curried function type (such as `a -> b -> ... -> IO r`)
@@ -50,3 +45,40 @@ class BuildCurried args r fn | args r -> fn where
   -- | Build a curried function.
   -- Accept a function that combines all arguments and convert it into a curried function.
   buildCurried :: (args -> IO r) -> fn
+
+-- | Base case: The last parameter.
+-- Converts a single-argument function (Param a -> IO r) into a final
+-- curried function (a -> r) by performing the IO action.
+instance BuildCurried (Param a) r (a -> r) where
+  buildCurried :: (Param a -> IO r) -> a -> r
+  buildCurried a2r a = perform $ a2r (param a)
+
+-- | Recursive case: Consumes the head parameter and generates the next curried function.
+-- Generates a function of type (a -> fn) that immediately calls the next
+-- 'BuildCurried' instance with the remaining arguments.
+instance BuildCurried rest r fn
+      => BuildCurried (Param a :> rest) r (a -> fn) where
+  buildCurried :: ((Param a :> rest) -> IO r) -> a -> fn
+  buildCurried args2r a = buildCurried (\rest -> args2r (p a :> rest))
+
+-- | Like 'BuildCurried' but returns an IO result at the end of the curried function.
+-- This is used by the MockIO builder to produce functions whose final result is in IO,
+-- allowing them to be lifted into other monads via 'LiftFunTo'.
+class BuildCurriedIO args r fn | args r -> fn where
+  buildCurriedIO :: (args -> IO r) -> fn
+
+instance BuildCurriedIO (Param a) r (a -> IO r) where
+  buildCurriedIO a2r a = a2r (param a)
+
+instance BuildCurriedIO rest r fn
+      => BuildCurriedIO (Param a :> rest) r (a -> fn) where
+  buildCurriedIO :: ((Param a :> rest) -> IO r) -> a -> fn
+  buildCurriedIO args2r a = buildCurriedIO (\rest -> args2r (p a :> rest))
+
+p :: a -> Param a
+p = param
+
+-- | Class for creating a mock corresponding to the parameter.
+class MockBuilder params fn verifyParams | params -> fn, params -> verifyParams where
+  -- build a mock
+  build :: MonadIO m => Maybe MockName -> params -> m (Mock fn verifyParams)

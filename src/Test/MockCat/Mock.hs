@@ -172,35 +172,6 @@ createNamedStubFn name params = stubFn <$> createNamedMock name params
 
 
 
--- | Base case: The last parameter.
--- Converts a single-argument function (Param a -> IO r) into a final
--- curried function (a -> r) by performing the IO action.
-instance BuildCurried (Param a) r (a -> r) where
-  buildCurried :: (Param a -> IO r) -> a -> r
-  buildCurried a2r a = perform $ a2r (param a)
-
--- | Recursive case: Consumes the head parameter and generates the next curried function.
--- Generates a function of type (a -> fn) that immediately calls the next
--- 'BuildCurried' instance with the remaining arguments.
-instance BuildCurried rest r fn
-      => BuildCurried (Param a :> rest) r (a -> fn) where
-  buildCurried :: ((Param a :> rest) -> IO r) -> a -> fn
-  buildCurried args2r a = buildCurried (\rest -> args2r (p a :> rest))
-
--- | Like 'BuildCurried' but returns an IO result at the end of the curried function.
--- This is used by the MockIO builder to produce functions whose final result is in IO,
--- allowing them to be lifted into other monads via 'LiftFunTo'.
-class BuildCurriedIO args r fn | args r -> fn where
-  buildCurriedIO :: (args -> IO r) -> fn
-
-instance BuildCurriedIO (Param a) r (a -> IO r) where
-  buildCurriedIO a2r a = a2r (param a)
-
-instance BuildCurriedIO rest r fn
-      => BuildCurriedIO (Param a :> rest) r (a -> fn) where
-  buildCurriedIO :: ((Param a :> rest) -> IO r) -> a -> fn
-  buildCurriedIO args2r a = buildCurriedIO (\rest -> args2r (p a :> rest))
-
 
 
 
@@ -270,8 +241,7 @@ instance {-# OVERLAPPABLE #-}
     s <- liftIO $ newIORef appliedRecord
     makeMock name s (buildCurried (\inputParams -> extractReturnValueWithValidate name params inputParams s))
 
-p :: a -> Param a
-p = param
+
 
 makeMock :: MonadIO m => Maybe MockName -> IORef (AppliedRecord params) -> fn -> m (Mock fn params)
 makeMock (Just name) l fn = pure $ NamedMock name fn (Verifier l)
