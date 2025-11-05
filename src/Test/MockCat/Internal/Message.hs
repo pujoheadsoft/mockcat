@@ -79,3 +79,19 @@ formatAppliedParamsList appliedParams
 _replace :: Show a => String -> a -> String
 _replace r s = unpack $ replace (pack r) (pack "") (pack (show s))
 
+messageForMultiMock :: Show a => Maybe MockName -> [a] -> a -> String
+messageForMultiMock name expecteds actual =
+  let fmtExpected e =
+        let s = show e
+            -- if it's parenthesised compound, strip outer parens then quote inner alpha tokens
+            inner = if not (null s) && head s == '(' && last s == ')' then init (tail s) else s
+            tokens = map (trim . quoteToken . trim) (splitByComma inner)
+         in intercalate "," tokens
+   in intercalate
+        "\n"
+        [ "function" <> mockNameLabel name <> " was not applied to the expected arguments.",
+          "  expected one of the following:",
+          intercalate "\n" $ ("    " <>) . fmtExpected <$> expecteds,
+          "  but got:",
+          ("    " <>) . fmtExpected $ actual
+        ]

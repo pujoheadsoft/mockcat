@@ -180,21 +180,6 @@ createNamedStubFn name params = stubFn <$> createNamedMock name params
 
 
 
--- | Overlapping instance for building a mock for a function with multiple parameters.
--- This instance is used when the parameter type is a 'Cases' type.
-instance {-# OVERLAPPABLE #-}
-  ( ProjectionArgs params
-  , ProjectionReturn params
-  , ArgsOf params ~ args
-  , ReturnOf params ~ Param r
-  , BuildCurried args r fn
-  , Eq args
-  , Show args
-  ) => MockBuilder (Cases params ()) fn args where
-  build name cases = do
-    let paramsList = runCase cases
-    s <- liftIO $ newIORef appliedRecord
-    makeMock name s (buildCurried (\inputParams -> findReturnValueWithStore name paramsList inputParams s))
 
 -- | Overlapping instance for building a mock for a function with multiple parameters.
 -- This instance is used when the parameter type is a 'Param a :> rest' type.
@@ -233,48 +218,7 @@ extractReturnValueWithValidate name params inputParams s = do
   validateWithStoreParams name s (projArgs params) inputParams
   pure $ returnValue params
 
-findReturnValueWithStore ::
-  ( ProjectionArgs params
-  , ProjectionReturn params
-  , ArgsOf params ~ args
-  , ReturnOf params ~ Param r
-  , Eq args
-  , Show args
-  ) =>
-  Maybe MockName ->
-  AppliedParamsList params ->
-  args ->
-  IORef (AppliedRecord args) ->
-  IO r
-findReturnValueWithStore name paramsList inputParams ref = do
-  appendAppliedParams ref inputParams
-  let expectedArgs = projArgs <$>paramsList
-  r <- findReturnValue paramsList inputParams ref
-  maybe
-    (errorWithoutStackTrace $ messageForMultiMock name expectedArgs inputParams)
-    pure
-    r
 
-findReturnValue ::
-  ( ProjectionArgs params
-  , ProjectionReturn params
-  , ArgsOf params ~ args
-  , ReturnOf params ~ Param r
-  , Eq args
-  ) =>
-  AppliedParamsList params ->
-  args ->
-  IORef (AppliedRecord args) ->
-  IO (Maybe r)
-findReturnValue paramsList inputParams ref = do
-  let matchedParams = filter (\params -> projArgs params == inputParams) paramsList
-  case matchedParams of
-    [] -> pure Nothing
-    _ -> do
-      count <- readAppliedCount ref inputParams
-      let index = min count (length matchedParams - 1)
-      incrementAppliedParamCount ref inputParams
-      pure $ returnValue <$> safeIndex matchedParams index
 
 validateWithStoreParams :: (Eq a, Show a) => Maybe MockName -> IORef (AppliedRecord a) -> a -> a -> IO ()
 validateWithStoreParams name ref expected actual = do
@@ -289,22 +233,7 @@ validateParams name expected actual =
 
 
 
-messageForMultiMock :: Show a => Maybe MockName -> [a] -> a -> String
-messageForMultiMock name expecteds actual =
-  let fmtExpected e =
-        let s = show e
-            -- if it's parenthesised compound, strip outer parens then quote inner alpha tokens
-            inner = if not (null s) && head s == '(' && last s == ')' then init (tail s) else s
-            tokens = map (trim . quoteToken . trim) (splitByComma inner)
-         in intercalate "," tokens
-   in intercalate
-        "\n"
-        [ "function" <> mockNameLabel name <> " was not applied to the expected arguments.",
-          "  expected one of the following:",
-          intercalate "\n" $ ("    " <>) . fmtExpected <$> expecteds,
-          "  but got:",
-          ("    " <>) . fmtExpected $ actual
-        ]
+
 
 
 -- | Class for verifying mock function.

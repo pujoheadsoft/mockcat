@@ -116,6 +116,26 @@ instance MockBuilder (Cases (IO a) ()) (IO a) () where
       incrementAppliedParamCount s ()
       fromJust r)
 
+-- | Overlapping instance for building a mock for a function with multiple parameters.
+-- This instance is used when the parameter type is a 'Cases' type.
+instance {-# OVERLAPPABLE #-}
+  ( ProjectionArgs params
+  , ProjectionReturn params
+  , ArgsOf params ~ args
+  , ReturnOf params ~ Param r
+  , BuildCurried args r fn
+  , Eq args
+  , Show args
+  ) => MockBuilder (Cases params ()) fn args where
+  build name cases = do
+    let paramsList = runCase cases
+    s <- liftIO $ newIORef appliedRecord
+    makeMock name s (buildCurried (\inputParams -> findReturnValueWithStore name paramsList inputParams s))
+
+
+
+
+
 makeMock :: MonadIO m => Maybe MockName -> IORef (AppliedRecord params) -> fn -> m (Mock fn params)
 makeMock (Just name) l fn = pure $ NamedMock name fn (Verifier l)
 makeMock Nothing l fn = pure $ Mock fn (Verifier l)
@@ -155,6 +175,53 @@ incrementCount :: Eq k => k -> AppliedParamsCounter k -> AppliedParamsCounter k
 incrementCount key list =
   if member key list then update (+ 1) key list
   else insert key 1 list
+
+
+
+findReturnValueWithStore ::
+  ( ProjectionArgs params
+  , ProjectionReturn params
+  , ArgsOf params ~ args
+  , ReturnOf params ~ Param r
+  , Eq args
+  , Show args
+  ) =>
+  Maybe MockName ->
+  AppliedParamsList params ->
+  args ->
+  IORef (AppliedRecord args) ->
+  IO r
+findReturnValueWithStore name paramsList inputParams ref = do
+  appendAppliedParams ref inputParams
+  let expectedArgs = projArgs <$>paramsList
+  r <- findReturnValue paramsList inputParams ref
+  maybe
+    (errorWithoutStackTrace $ messageForMultiMock name expectedArgs inputParams)
+    pure
+    r
+
+findReturnValue ::
+  ( ProjectionArgs params
+  , ProjectionReturn params
+  , ArgsOf params ~ args
+  , ReturnOf params ~ Param r
+  , Eq args
+  ) =>
+  AppliedParamsList params ->
+  args ->
+  IORef (AppliedRecord args) ->
+  IO (Maybe r)
+findReturnValue paramsList inputParams ref = do
+  let matchedParams = filter (\params -> projArgs params == inputParams) paramsList
+  case matchedParams of
+    [] -> pure Nothing
+    _ -> do
+      count <- readAppliedCount ref inputParams
+      let index = min count (length matchedParams - 1)
+      incrementAppliedParamCount ref inputParams
+      pure $ returnValue <$> safeIndex matchedParams index
+
+
 
 runCase :: Cases a b -> [a]
 runCase (Cases s) = execState s []
