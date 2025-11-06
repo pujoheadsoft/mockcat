@@ -383,8 +383,7 @@ extractReturnValue ::
   args ->
   r
 extractReturnValue name params inputParams = do
-  let _ = validateOnly name (projArgs params) inputParams
-  returnValue params
+  validateOnly name (projArgs params) inputParams `seq` returnValue params
 
 validateOnly :: (Eq a, Show a) => Maybe MockName -> a -> a -> ()
 validateOnly name expected actual = do

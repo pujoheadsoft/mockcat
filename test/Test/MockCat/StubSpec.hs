@@ -3,6 +3,7 @@ module Test.MockCat.StubSpec where
 
 import Test.Hspec
 import Test.MockCat
+import Control.Exception (evaluate)
 
 spec :: Spec
 spec = do
@@ -22,7 +23,7 @@ spec = do
     let f = createPureStubFn $ "value1" |> "value2" |> "value3" |> "value4" |> True
     f "value1" "value2" "value3" "value4" `shouldBe` True
   
-  it "validateOnly" do
+  it "createPureStubFn with multiple arguments and return value" do
     let 
       f = createPureStubFn do
         onCase $ "value1" |> "value2" |> True
@@ -30,3 +31,11 @@ spec = do
     
     f "value1" "value2" `shouldBe` True
     f "value2" "value3" `shouldBe` False
+  
+  it "throws on unexpected argument" do
+    let f = createPureStubFn $ "value1" |> True
+    let e =
+          "function was not applied to the expected arguments.\n\
+          \  expected: \"value1\"\n\
+          \   but got: \"value2\""
+    evaluate (f "value2") `shouldThrow` errorCall e
