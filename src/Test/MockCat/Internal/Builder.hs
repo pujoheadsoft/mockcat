@@ -45,6 +45,7 @@ class BuildCurried args r fn | args r -> fn where
   -- | Build a curried function.
   -- Accept a function that combines all arguments and convert it into a curried function.
   buildCurried :: (args -> IO r) -> fn
+  buildCurriedPure :: (args -> r) -> fn
 
 -- | Base case: The last parameter.
 -- Converts a single-argument function (Param a -> IO r) into a final
@@ -53,6 +54,9 @@ instance BuildCurried (Param a) r (a -> r) where
   buildCurried :: (Param a -> IO r) -> a -> r
   buildCurried a2r a = perform $ a2r (param a)
 
+  buildCurriedPure :: (Param a -> r) -> a -> r
+  buildCurriedPure a2r a = a2r (param a)
+
 -- | Recursive case: Consumes the head parameter and generates the next curried function.
 -- Generates a function of type (a -> fn) that immediately calls the next
 -- 'BuildCurried' instance with the remaining arguments.
@@ -60,6 +64,9 @@ instance BuildCurried rest r fn
       => BuildCurried (Param a :> rest) r (a -> fn) where
   buildCurried :: ((Param a :> rest) -> IO r) -> a -> fn
   buildCurried args2r a = buildCurried (\rest -> args2r (p a :> rest))
+
+  buildCurriedPure :: ((Param a :> rest) -> r) -> a -> fn
+  buildCurriedPure args2r a = buildCurriedPure (\rest -> args2r (p a :> rest))
 
 -- | Like 'BuildCurried' but returns an IO result at the end of the curried function.
 -- This is used by the MockIO builder to produce functions whose final result is in IO,
@@ -305,3 +312,91 @@ runCase (Cases s) = execState s []
 
 p :: a -> Param a
 p = param
+
+
+
+class StubBuilder params fn | params -> fn where
+  buildStub :: Maybe MockName -> params -> fn
+
+-- | Instance for building a mock for a constant function.
+instance
+  StubBuilder (IO r) (IO r)
+  where
+  buildStub name a = a
+
+-- | Instance for building a mock for a function with a single parameter.
+instance
+  StubBuilder (Param r) r
+  where
+  buildStub name params = do
+    let v = value params
+    v
+
+-- | Instance for building a mock for a function with multiple parameters.
+instance StubBuilder (Cases (IO a) ()) (IO a) where
+  buildStub name cases = do
+    let params = runCase cases
+    s <- liftIO $ newIORef appliedRecord
+    (do
+      count <- readAppliedCount s ()
+      let index = min count (length params - 1)
+          r = safeIndex params index
+      appendAppliedParams s ()
+      incrementAppliedParamCount s ()
+      fromJust r)
+
+-- | Overlapping instance for building a mock for a function with multiple parameters.
+-- This instance is used when the parameter type is a 'Cases' type.
+-- instance {-# OVERLAPPABLE #-}
+--   ( ProjectionArgs params
+--   , ProjectionReturn params
+--   , ArgsOf params ~ args
+--   , ReturnOf params ~ Param r
+--   , BuildCurried args r fn
+--   , Eq args
+--   , Show args
+--   ) => StubBuilder (Cases params ()) fn where
+--   buildStub name cases = do
+--     let paramsList = runCase cases
+--     s <- liftIO $ newIORef appliedRecord
+--     (buildCurriedPure (\inputParams -> findReturnValueWithStore name paramsList inputParams s))
+
+
+instance {-# OVERLAPPABLE #-}
+  ( p ~ (Param a :> rest)
+  , ProjectionArgs p
+  , ProjectionReturn p
+  , ArgsOf p ~ args
+  , ReturnOf p ~ Param r
+  , BuildCurried args r fn
+  , Eq args
+  , Show args
+  ) => StubBuilder (Param a :> rest) fn where
+  buildStub name params = buildCurriedPure (\inputParams -> extractReturnValue name params inputParams)
+
+extractReturnValue ::
+  ( ProjectionArgs params
+  , ProjectionReturn params
+  , ArgsOf params ~ args
+  , ReturnOf params ~ Param r
+  , Eq args
+  , Show args
+  ) =>
+  Maybe MockName ->
+  params ->
+  args ->
+  r
+extractReturnValue name params inputParams = do
+  let _ = validateOnly name (projArgs params) inputParams
+  returnValue params
+
+validateOnly :: (Eq a, Show a) => Maybe MockName -> a -> a -> ()
+validateOnly name expected actual = do
+  validateParamsPure name expected actual
+
+validateParamsPure :: (Eq a, Show a) => Maybe MockName -> a -> a -> ()
+validateParamsPure name expected actual =
+  if expected == actual
+    then ()
+    else errorWithoutStackTrace $ message name expected actual
+

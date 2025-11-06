@@ -48,6 +48,7 @@ module Test.MockCat.Mock
   , createMockIO
   , stubFnMockIO
   , createStubFnIO
+  , createPureStubFn
   )
 where
 
@@ -162,6 +163,12 @@ createStubFn ::
   params ->
   m fn
 createStubFn params = stubFn <$> createMock params
+
+createPureStubFn ::
+  (StubBuilder params fn) =>
+  params ->
+  fn
+createPureStubFn params = buildStub Nothing params
 
 -- | Create a named stub function.
 createNamedStubFn ::
