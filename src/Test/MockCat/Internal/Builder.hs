@@ -322,19 +322,17 @@ class StubBuilder params fn | params -> fn where
 instance
   StubBuilder (IO r) (IO r)
   where
-  buildStub name a = a
+  buildStub _ = id
 
 -- | Instance for building a mock for a function with a single parameter.
 instance
   StubBuilder (Param r) r
   where
-  buildStub name params = do
-    let v = value params
-    v
+  buildStub _ = value
 
 -- | Instance for building a mock for a function with multiple parameters.
 instance StubBuilder (Cases (IO a) ()) (IO a) where
-  buildStub name cases = do
+  buildStub _ cases = do
     let params = runCase cases
     s <- liftIO $ newIORef appliedRecord
     (do
@@ -347,20 +345,18 @@ instance StubBuilder (Cases (IO a) ()) (IO a) where
 
 -- | Overlapping instance for building a mock for a function with multiple parameters.
 -- This instance is used when the parameter type is a 'Cases' type.
--- instance {-# OVERLAPPABLE #-}
---   ( ProjectionArgs params
---   , ProjectionReturn params
---   , ArgsOf params ~ args
---   , ReturnOf params ~ Param r
---   , BuildCurried args r fn
---   , Eq args
---   , Show args
---   ) => StubBuilder (Cases params ()) fn where
---   buildStub name cases = do
---     let paramsList = runCase cases
---     s <- liftIO $ newIORef appliedRecord
---     (buildCurriedPure (\inputParams -> findReturnValueWithStore name paramsList inputParams s))
-
+instance {-# OVERLAPPABLE #-}
+  ( ProjectionArgs params
+  , ProjectionReturn params
+  , ArgsOf params ~ args
+  , ReturnOf params ~ Param r
+  , BuildCurried args r fn
+  , Eq args
+  , Show args
+  ) => StubBuilder (Cases params ()) fn where
+  buildStub name cases = do
+    let paramsList = runCase cases
+    buildCurriedPure (findReturnValueWithPure name paramsList)
 
 instance {-# OVERLAPPABLE #-}
   ( p ~ (Param a :> rest)
@@ -372,7 +368,7 @@ instance {-# OVERLAPPABLE #-}
   , Eq args
   , Show args
   ) => StubBuilder (Param a :> rest) fn where
-  buildStub name params = buildCurriedPure (\inputParams -> extractReturnValue name params inputParams)
+  buildStub name params = buildCurriedPure (extractReturnValue name params)
 
 extractReturnValue ::
   ( ProjectionArgs params
@@ -400,3 +396,37 @@ validateParamsPure name expected actual =
     then ()
     else errorWithoutStackTrace $ message name expected actual
 
+findReturnValueWithPure ::
+  ( ProjectionArgs params
+  , ProjectionReturn params
+  , ArgsOf params ~ args
+  , ReturnOf params ~ Param r
+  , Eq args
+  , Show args
+  ) =>
+  Maybe MockName ->
+  AppliedParamsList params ->
+  args ->
+  r
+findReturnValueWithPure name paramsList inputParams = do
+  let
+    expectedArgs = projArgs <$> paramsList
+    r = findReturnValuePure paramsList inputParams
+  fromMaybe (errorWithoutStackTrace $ messageForMultiMock name expectedArgs inputParams) r
+
+findReturnValuePure ::
+  ( ProjectionArgs params
+  , ProjectionReturn params
+  , ArgsOf params ~ args
+  , ReturnOf params ~ Param r
+  , Eq args
+  ) =>
+  AppliedParamsList params ->
+  args ->
+  Maybe r
+findReturnValuePure paramsList inputParams = do
+  let matchedParams = filter (\params -> projArgs params == inputParams) paramsList
+  case matchedParams of
+    [] -> Nothing
+    _ -> do
+      returnValue <$> safeIndex matchedParams 0
