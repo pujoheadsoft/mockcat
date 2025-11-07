@@ -10,6 +10,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE ConstraintKinds #-}
 module Test.MockCat.Internal.Builder where
 
 import Control.Monad (guard, when, ap)
@@ -126,13 +127,8 @@ instance MockBuilder (Cases (IO a) ()) (IO a) () where
 -- | Overlapping instance for building a mock for a function with multiple parameters.
 -- This instance is used when the parameter type is a 'Cases' type.
 instance {-# OVERLAPPABLE #-}
-  ( ProjectionArgs params
-  , ProjectionReturn params
-  , ArgsOf params ~ args
-  , ReturnOf params ~ Param r
+  ( ParamConstraints params args r
   , BuildCurried args r fn
-  , Eq args
-  , Show args
   ) => MockBuilder (Cases params ()) fn args where
   build name cases = do
     let paramsList = runCase cases
@@ -143,13 +139,8 @@ instance {-# OVERLAPPABLE #-}
 -- This instance is used when the parameter type is a 'Param a :> rest' type.
 instance {-# OVERLAPPABLE #-}
   ( p ~ (Param a :> rest)
-  , ProjectionArgs p
-  , ProjectionReturn p
-  , ArgsOf p ~ args
-  , ReturnOf p ~ Param r
+  , ParamConstraints p args r
   , BuildCurried args r fn
-  , Eq args
-  , Show args
   ) => MockBuilder (Param a :> rest) fn args where
   build name params = do
     s <- liftIO $ newIORef appliedRecord
@@ -164,13 +155,8 @@ class MockIOBuilder params fn verifyParams | params -> fn, params -> verifyParam
 
 instance {-# OVERLAPPABLE #-}
   ( p ~ (Param a :> rest)
-  , ProjectionArgs p
-  , ProjectionReturn p
-  , ArgsOf p ~ args
-  , ReturnOf p ~ Param r
+  , ParamConstraints p args r
   , BuildCurriedIO args r fn
-  , Eq args
-  , Show args
   ) => MockIOBuilder (Param a :> rest) fn args where
   buildIO name params = do
     s <- liftIO $ newIORef appliedRecord
@@ -230,12 +216,7 @@ incrementCount key list =
 
 
 findReturnValueWithStore ::
-  ( ProjectionArgs params
-  , ProjectionReturn params
-  , ArgsOf params ~ args
-  , ReturnOf params ~ Param r
-  , Eq args
-  , Show args
+  ( ParamConstraints params args r
   ) =>
   Maybe MockName ->
   AppliedParamsList params ->
@@ -252,11 +233,7 @@ findReturnValueWithStore name paramsList inputParams ref = do
     r
 
 findReturnValue ::
-  ( ProjectionArgs params
-  , ProjectionReturn params
-  , ArgsOf params ~ args
-  , ReturnOf params ~ Param r
-  , Eq args
+  ( ParamConstraints params args r
   ) =>
   AppliedParamsList params ->
   args ->
@@ -276,12 +253,7 @@ findReturnValue paramsList inputParams ref = do
 
 
 extractReturnValueWithValidate ::
-  ( ProjectionArgs params
-  , ProjectionReturn params
-  , ArgsOf params ~ args
-  , ReturnOf params ~ Param r
-  , Eq args
-  , Show args
+  ( ParamConstraints params args r
   ) =>
   Maybe MockName ->
   params ->
@@ -346,13 +318,8 @@ instance StubBuilder (Cases (IO a) ()) (IO a) where
 -- | Overlapping instance for building a mock for a function with multiple parameters.
 -- This instance is used when the parameter type is a 'Cases' type.
 instance {-# OVERLAPPABLE #-}
-  ( ProjectionArgs params
-  , ProjectionReturn params
-  , ArgsOf params ~ args
-  , ReturnOf params ~ Param r
+  ( ParamConstraints params args r
   , BuildCurried args r fn
-  , Eq args
-  , Show args
   ) => StubBuilder (Cases params ()) fn where
   buildStub name cases = do
     let paramsList = runCase cases
@@ -360,28 +327,21 @@ instance {-# OVERLAPPABLE #-}
 
 instance {-# OVERLAPPABLE #-}
   ( p ~ (Param a :> rest)
-  , ProjectionArgs p
-  , ProjectionReturn p
-  , ArgsOf p ~ args
-  , ReturnOf p ~ Param r
+  , ParamConstraints p args r
   , BuildCurried args r fn
-  , Eq args
-  , Show args
   ) => StubBuilder (Param a :> rest) fn where
   buildStub name params = buildCurriedPure (extractReturnValue name params)
 
-extractReturnValue ::
+type ParamConstraints params args r = 
   ( ProjectionArgs params
   , ProjectionReturn params
   , ArgsOf params ~ args
   , ReturnOf params ~ Param r
   , Eq args
   , Show args
-  ) =>
-  Maybe MockName ->
-  params ->
-  args ->
-  r
+  )
+
+extractReturnValue :: ParamConstraints params args r => Maybe MockName -> params -> args -> r
 extractReturnValue name params inputParams = do
   validateOnly name (projArgs params) inputParams `seq` returnValue params
 
@@ -396,12 +356,7 @@ validateParamsPure name expected actual =
     else errorWithoutStackTrace $ message name expected actual
 
 findReturnValueWithPure ::
-  ( ProjectionArgs params
-  , ProjectionReturn params
-  , ArgsOf params ~ args
-  , ReturnOf params ~ Param r
-  , Eq args
-  , Show args
+  ( ParamConstraints params args r
   ) =>
   Maybe MockName ->
   AppliedParamsList params ->
@@ -414,11 +369,7 @@ findReturnValueWithPure name paramsList inputParams = do
   fromMaybe (errorWithoutStackTrace $ messageForMultiMock name expectedArgs inputParams) r
 
 findReturnValuePure ::
-  ( ProjectionArgs params
-  , ProjectionReturn params
-  , ArgsOf params ~ args
-  , ReturnOf params ~ Param r
-  , Eq args
+  ( ParamConstraints params args r
   ) =>
   AppliedParamsList params ->
   args ->
