@@ -11,6 +11,9 @@
 {-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE PolyKinds #-}
+{-# LANGUAGE TypeApplications #-}
 module Test.MockCat.Internal.Builder where
 
 import Control.Monad (guard, when, ap)
@@ -34,6 +37,53 @@ import Test.MockCat.Internal.Types
 import Test.MockCat.Internal.Core
 import Test.MockCat.Internal.Message
 
+-- ------------
+data Pure
+data PureWithIO
+data InIO
+
+type family ApplyMode (mode :: k) (r :: Type) :: Type where
+  ApplyMode Pure r = r
+  ApplyMode PureWithIO r = r
+  ApplyMode InIO r = IO r
+
+type family ModeInput (mode :: k) (r :: Type) :: Type where
+  ModeInput Pure r = r
+  ModeInput PureWithIO r = IO r
+  ModeInput InIO r = IO r
+
+class ModeSpec mode where
+  finalize :: forall r. ModeInput mode r -> ApplyMode mode r
+
+instance ModeSpec Pure where
+  finalize :: ModeInput Pure r -> ApplyMode Pure r
+  finalize = id
+
+instance ModeSpec PureWithIO where
+  finalize :: ModeInput PureWithIO r -> ApplyMode PureWithIO r
+  finalize = perform
+
+instance ModeSpec InIO where
+  finalize :: ModeInput InIO r -> ApplyMode InIO r
+  finalize = id
+
+type InputFn mode args r = args -> ModeInput mode r
+
+type family CurriedFn (mode :: k) (args :: Type) (r :: Type) :: Type where
+  CurriedFn mode (Param a) r = a -> ApplyMode mode r
+  CurriedFn mode (Param a :> rest) r = a -> CurriedFn mode rest r
+
+class ModeSpec mode => BuildCurriedGeneric mode args r fn | mode args r -> fn where
+  buildGeneric :: InputFn mode args r -> fn
+
+instance (ModeSpec mode, fn ~ (a -> ApplyMode mode r))
+      => BuildCurriedGeneric mode (Param a) r fn where
+  buildGeneric f a = finalize @mode @r (f (param a))
+
+instance (ModeSpec mode, BuildCurriedGeneric mode rest r fn, fn' ~ (a -> fn))
+      => BuildCurriedGeneric mode (Param a :> rest) r fn' where
+  buildGeneric input a = buildGeneric @mode @rest @r (input . (\rest -> p a :> rest))
+-- ------------
 
 -- | Class for building a curried function.
 -- The purpose of this class is to automatically generate and provide
@@ -42,47 +92,24 @@ import Test.MockCat.Internal.Message
 -- @args@ is the argument list type of the mock.
 -- @r@ is the return type of the function.
 -- @fn@ is the curried function type.
-class BuildCurried args r fn | args r -> fn where
-  -- | Build a curried function.
-  -- Accept a function that combines all arguments and convert it into a curried function.
-  buildCurried :: (args -> IO r) -> fn
-  buildCurriedPure :: (args -> r) -> fn
+type BuildCurried args r fn = BuildCurriedGeneric PureWithIO args r fn
 
--- | Base case: The last parameter.
--- Converts a single-argument function (Param a -> IO r) into a final
--- curried function (a -> r) by performing the IO action.
-instance BuildCurried (Param a) r (a -> r) where
-  buildCurried :: (Param a -> IO r) -> a -> r
-  buildCurried a2r a = perform $ a2r (param a)
+-- | Build a curried function that returns an IO result.
+buildCurried :: forall args r fn. BuildCurried args r fn => (args -> IO r) -> fn
+buildCurried = buildGeneric @PureWithIO @args @r
 
-  buildCurriedPure :: (Param a -> r) -> a -> r
-  buildCurriedPure a2r a = a2r (param a)
-
--- | Recursive case: Consumes the head parameter and generates the next curried function.
--- Generates a function of type (a -> fn) that immediately calls the next
--- 'BuildCurried' instance with the remaining arguments.
-instance BuildCurried rest r fn
-      => BuildCurried (Param a :> rest) r (a -> fn) where
-  buildCurried :: ((Param a :> rest) -> IO r) -> a -> fn
-  buildCurried args2r a = buildCurried (\rest -> args2r (p a :> rest))
-
-  buildCurriedPure :: ((Param a :> rest) -> r) -> a -> fn
-  buildCurriedPure args2r a = buildCurriedPure (\rest -> args2r (p a :> rest))
+-- | Build a curried function that returns a pure result.
+buildCurriedPure :: forall args r fn. BuildCurried args r fn => (args -> r) -> fn
+buildCurriedPure a2r = buildCurried (pure . a2r)
 
 -- | Like 'BuildCurried' but returns an IO result at the end of the curried function.
 -- This is used by the MockIO builder to produce functions whose final result is in IO,
 -- allowing them to be lifted into other monads via 'LiftFunTo'.
-class BuildCurriedIO args r fn | args r -> fn where
-  buildCurriedIO :: (args -> IO r) -> fn
+type BuildCurriedIO args r fn = BuildCurriedGeneric InIO args r fn
 
-instance BuildCurriedIO (Param a) r (a -> IO r) where
-  buildCurriedIO a2r a = a2r (param a)
-
-instance BuildCurriedIO rest r fn
-      => BuildCurriedIO (Param a :> rest) r (a -> fn) where
-  buildCurriedIO :: ((Param a :> rest) -> IO r) -> a -> fn
-  buildCurriedIO args2r a = buildCurriedIO (\rest -> args2r (p a :> rest))
-
+-- | Build a curried function that returns an IO result.
+buildCurriedIO :: forall args r fn. BuildCurriedIO args r fn => (args -> IO r) -> fn
+buildCurriedIO = buildGeneric @InIO @args @r
 
 
 -- | Class for creating a mock corresponding to the parameter.
@@ -332,7 +359,7 @@ instance {-# OVERLAPPABLE #-}
   ) => StubBuilder (Param a :> rest) fn where
   buildStub name params = buildCurriedPure (extractReturnValue name params)
 
-type ParamConstraints params args r = 
+type ParamConstraints params args r =
   ( ProjectionArgs params
   , ProjectionReturn params
   , ArgsOf params ~ args
