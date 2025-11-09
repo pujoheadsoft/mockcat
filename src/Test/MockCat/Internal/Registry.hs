@@ -1,7 +1,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MonoLocalBinds #-}
-module Test.MockCat.Internal.Registry (attachVerifierToFn, lookupVerifierForFn, registerStubFn, lookupStubFn) where
+module Test.MockCat.Internal.Registry (attachVerifierToFn, lookupVerifierForFn) where
 
 import Data.Dynamic
 import System.Mem.StableName (StableName, eqStableName, hashStableName, makeStableName)
@@ -53,7 +53,7 @@ attachVerifierToFn ::
   fn -> 
   (Maybe MockName, Verifier params) -> 
   IO ()
-attachVerifierToFn fn (name, payload) = registerDynamic fn (name, toDyn payload)
+attachVerifierToFn fn (name, payload) = attachDynamicVerifierToFn fn (name, toDyn payload)
 
 lookupVerifierForFn ::
   forall fn.
@@ -67,8 +67,8 @@ lookupVerifierForFn fn = do
   store <- readIORef registry
   pure $ lookup key store >>= findMatch stableFn
 
-registerDynamic :: forall fn. fn -> (Maybe MockName, Dynamic) -> IO ()
-registerDynamic fn (name, payload) = do
+attachDynamicVerifierToFn :: forall fn. fn -> (Maybe MockName, Dynamic) -> IO ()
+attachDynamicVerifierToFn fn (name, payload) = do
   stable <- makeStableName fn
   let
     stableFn = toFnStable stable
@@ -92,18 +92,3 @@ findMatch _ [] = Nothing
 findMatch target  (entry : rest)
   | sameFnStable target (stableFnName entry) = Just (mockName entry, entryPayload entry)
   | otherwise = findMatch target rest
-
--- Compatibility aliases (old names)
-registerStubFn ::
-  forall fn params.
-  (Typeable (Verifier params)) =>
-  fn ->
-  (Maybe MockName, Verifier params) ->
-  IO ()
-registerStubFn = attachVerifierToFn
-
-lookupStubFn ::
-  forall fn.
-  fn ->
-  IO (Maybe (Maybe MockName, Dynamic))
-lookupStubFn = lookupVerifierForFn
