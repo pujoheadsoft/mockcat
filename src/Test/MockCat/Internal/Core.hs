@@ -29,19 +29,19 @@ class IsMock m where
 instance IsMock (Mock fn params) where
   type MockFn (Mock fn params) = fn
   type MockParams (Mock fn params) = params
-  mockName (Mock _ _) = Nothing
-  mockName (NamedMock name _ _) = Just name
-  mockStubFn (Mock f _) = f
-  mockStubFn (NamedMock _ f _) = f
-  mockVerifier (Mock _ v) = v
-  mockVerifier (NamedMock _ _ v) = v
+  mockName (Mock _ _ _) = Nothing
+  mockName (NamedMock name _ _ _) = Just name
+  mockStubFn (Mock f _ _) = f
+  mockStubFn (NamedMock _ f _ _) = f
+  mockVerifier (Mock _ v _) = v
+  mockVerifier (NamedMock _ _ v _) = v
 
 instance IsMock (MockIO m fn params) where
   type MockFn (MockIO m fn params) = fn
   type MockParams (MockIO m fn params) = params
-  mockName (MockIO _ _) = Nothing
-  mockName (NamedMockIO name _ _) = Just name
-  mockStubFn (MockIO f _) = f
-  mockStubFn (NamedMockIO _ f _) = f
-  mockVerifier (MockIO _ v) = v
-  mockVerifier (NamedMockIO _ _ v) = v
+  mockName (MockIO _ _ _) = Nothing
+  mockName (NamedMockIO name _ _ _) = Just name
+  mockStubFn (MockIO f _ _) = f
+  mockStubFn (NamedMockIO _ f _ _) = f
+  mockVerifier (MockIO _ v _) = v
+  mockVerifier (NamedMockIO _ _ v _) = v

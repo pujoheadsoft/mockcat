@@ -74,6 +74,8 @@ import Test.MockCat.Internal.Core
 import Test.MockCat.Internal.Message
 import Test.MockCat.Internal.Builder
 import Test.MockCat.Verify
+import Data.Typeable (Typeable)
+import Data.Dynamic (toDyn)
 
 {- | Create a mock.
 From this mock, you can generate stub functions and verify the functions.
@@ -145,8 +147,8 @@ stubFn :: forall m fn. (IsMock m, MockFn m ~ fn) => m -> fn
 stubFn = mockStubFn
 
 stubFnMock :: Mock fn v -> fn
-stubFnMock (Mock f _) = f
-stubFnMock (NamedMock _ f _) = f
+stubFnMock (Mock f _ _) = f
+stubFnMock (NamedMock _ f _ _) = f
 
 {- | Create a stub function.
   @
@@ -277,8 +279,8 @@ createMockIO params = do
   pure $ widenMock mockIO
 
 stubFnMockIO :: MockIO m fn params -> fn
-stubFnMockIO (MockIO f _) = f
-stubFnMockIO (NamedMockIO _ f _) = f
+stubFnMockIO (MockIO f _ _) = f
+stubFnMockIO (NamedMockIO _ f _ _) = f
 
 createStubFnIO ::
   forall params fn verifyParams m fnM.
@@ -301,10 +303,11 @@ instance LiftFunTo restIO restM m => LiftFunTo (a -> restIO) (a -> restM) m wher
 
 widenMock ::
   forall m funIO funM params.
-  LiftFunTo funIO funM m => 
+  ( LiftFunTo funIO funM m
+  , Typeable (Verifier params)) => 
   MockIO IO funIO params ->
   MockIO m funM params
-widenMock (MockIO f verifier) = MockIO (liftFunTo (Proxy :: Proxy m) f) verifier
-widenMock (NamedMockIO name f verifier) = NamedMockIO name (liftFunTo (Proxy :: Proxy m) f) verifier
+widenMock (MockIO f verifier _) = MockIO (liftFunTo (Proxy :: Proxy m) f) verifier (toDyn verifier)
+widenMock (NamedMockIO name f verifier _) = NamedMockIO name (liftFunTo (Proxy :: Proxy m) f) verifier (toDyn verifier)
 
 

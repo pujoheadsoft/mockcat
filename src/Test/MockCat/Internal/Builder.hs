@@ -16,26 +16,20 @@
 {-# LANGUAGE TypeApplications #-}
 module Test.MockCat.Internal.Builder where
 
-import Control.Monad (guard, when, ap)
-import Data.Function ((&))
 
 import Data.IORef (IORef, newIORef, readIORef, atomicModifyIORef')
-import Data.List (elemIndex, intercalate)
 import Data.Maybe
-
-import GHC.IO (unsafePerformIO)
 import Test.MockCat.Cons
 import Test.MockCat.Param
-import Test.MockCat.AssociationList (AssociationList, lookup, update, insert, empty, member)
+import Test.MockCat.AssociationList (lookup, update, insert, empty, member)
 import Prelude hiding (lookup)
-import GHC.Stack (HasCallStack)
 import Control.Monad.Trans
 import Control.Monad.State
 import Data.Kind (Type)
-import Data.Proxy (Proxy (..))
 import Test.MockCat.Internal.Types
-import Test.MockCat.Internal.Core
 import Test.MockCat.Internal.Message
+import Data.Typeable (Typeable)
+import Data.Dynamic (toDyn)
 
 -- ------------
 data Pure
@@ -123,9 +117,15 @@ instance
   where
   build name a = do
     s <- liftIO $ newIORef appliedRecord
-    makeMock name s (do
-      liftIO $ appendAppliedParams s ()
-      a)
+    let
+      fn = do
+        liftIO $ appendAppliedParams s ()
+        a
+      verifier = Verifier s
+      dynVerifier = toDyn verifier
+    pure $ case name of
+      Just name -> NamedMock name fn verifier dynVerifier
+      Nothing -> Mock fn verifier dynVerifier
 
 -- | Instance for building a mock for a function with a single parameter.
 instance
@@ -133,34 +133,46 @@ instance
   where
   build name params = do
     s <- liftIO $ newIORef appliedRecord
-    let v = value params
-    makeMock name s $ perform (do
-      liftIO $ appendAppliedParams s ()
-      pure v)
+    let
+      v = value params
+      fn = perform $ do
+        liftIO $ appendAppliedParams s ()
+        pure v
+      verifier = Verifier s
+      dynVerifier = toDyn verifier
+    pure $ case name of
+      Just name -> NamedMock name fn verifier dynVerifier
+      Nothing -> Mock fn verifier dynVerifier
 
 -- | Instance for building a mock for a function with multiple parameters.
 instance MockBuilder (Cases (IO a) ()) (IO a) () where
   build name cases = do
     let params = runCase cases
     s <- liftIO $ newIORef appliedRecord
-    makeMock name s (do
-      count <- readAppliedCount s ()
-      let index = min count (length params - 1)
-          r = safeIndex params index
-      appendAppliedParams s ()
-      incrementAppliedParamCount s ()
-      fromJust r)
+    let
+      fn = do
+        count <- readAppliedCount s ()
+        let index = min count (length params - 1)
+            r = safeIndex params index
+        appendAppliedParams s ()
+        incrementAppliedParamCount s ()
+        fromJust r
+      verifier = Verifier s
+      dynVerifier = toDyn verifier
+    pure $ case name of
+      Just name -> NamedMock name fn verifier dynVerifier
+      Nothing -> Mock fn verifier dynVerifier
 
 -- | Overlapping instance for building a mock for a function with multiple parameters.
 -- This instance is used when the parameter type is a 'Cases' type.
 instance {-# OVERLAPPABLE #-}
   ( ParamConstraints params args r
   , BuildCurried args r fn
+  , Typeable args
   ) => MockBuilder (Cases params ()) fn args where
   build name cases = do
     let paramsList = runCase cases
-    s <- liftIO $ newIORef appliedRecord
-    makeMock name s (buildCurried (\inputParams -> findReturnValueWithStore name paramsList inputParams s))
+    buildMockWith name (\ref inputParams -> executeInvocation ref (casesInvocationStep name paramsList inputParams))
 
 -- | Overlapping instance for building a mock for a function with multiple parameters.
 -- This instance is used when the parameter type is a 'Param a :> rest' type.
@@ -168,15 +180,13 @@ instance {-# OVERLAPPABLE #-}
   ( p ~ (Param a :> rest)
   , ParamConstraints p args r
   , BuildCurried args r fn
+  , Typeable args
   ) => MockBuilder (Param a :> rest) fn args where
   build name params = do
-    s <- liftIO $ newIORef appliedRecord
-    makeMock name s (buildCurried (\inputParams -> extractReturnValueWithValidate name params inputParams s))
+    buildMockWith name (\ref inputParams -> executeInvocation ref (singleInvocationStep name params inputParams))
 
 
-
-
-class MockIOBuilder params fn verifyParams | params -> fn, params -> verifyParams where
+class Typeable verifyParams => MockIOBuilder params fn verifyParams | params -> fn, params -> verifyParams where
   -- build a mock
   buildIO :: MonadIO m => Maybe MockName -> params -> m (MockIO m fn verifyParams)
 
@@ -184,26 +194,47 @@ instance {-# OVERLAPPABLE #-}
   ( p ~ (Param a :> rest)
   , ParamConstraints p args r
   , BuildCurriedIO args r fn
+  , Typeable args
   ) => MockIOBuilder (Param a :> rest) fn args where
   buildIO name params = do
-    s <- liftIO $ newIORef appliedRecord
-    makeMockIO name s (buildCurriedIO (\inputParams -> extractReturnValueWithValidate name params inputParams s))
+    buildMockIOWith name (\ref inputParams -> executeInvocation ref (singleInvocationStep name params inputParams))
 
 
 
+buildMockWith ::
+  ( MonadIO m
+  , BuildCurried args r fn
+  , Typeable (Verifier args)
+  ) =>
+  Maybe MockName ->
+  (IORef (AppliedRecord args) -> args -> IO r) ->
+  m (Mock fn args)
+buildMockWith name handler = do
+  ref <- liftIO $ newIORef appliedRecord
+  let
+    fn = buildCurried (handler ref)
+    verifier = Verifier ref
+    dynVerifier = toDyn verifier
+  pure $ case name of
+    Just name -> NamedMock name fn verifier dynVerifier
+    Nothing -> Mock fn verifier dynVerifier
 
-
-makeMock :: MonadIO m => Maybe MockName -> IORef (AppliedRecord params) -> fn -> m (Mock fn params)
-makeMock (Just name) l fn = pure $ NamedMock name fn (Verifier l)
-makeMock Nothing l fn = pure $ Mock fn (Verifier l)
-
-
-makeMockIO :: MonadIO m => Maybe MockName -> IORef (AppliedRecord params) -> fn -> m (MockIO m fn params)
-makeMockIO Nothing l fn = pure $ MockIO fn (Verifier l)
-makeMockIO (Just name) l fn = pure $ NamedMockIO name fn (Verifier l)
-
-
-
+buildMockIOWith ::
+  ( MonadIO m
+  , BuildCurriedIO args r fn
+  , Typeable (Verifier args)
+  ) =>
+  Maybe MockName ->
+  (IORef (AppliedRecord args) -> args -> IO r) ->
+  m (MockIO m fn args)
+buildMockIOWith name handler = do
+  ref <- liftIO $ newIORef appliedRecord
+  let fn = buildCurriedIO (handler ref)
+      verifier = Verifier ref
+      dynVerifier = toDyn verifier
+  pure $ case name of
+    Just n -> NamedMockIO n fn verifier dynVerifier
+    Nothing -> MockIO fn verifier dynVerifier
 
 appliedRecord :: AppliedRecord params
 appliedRecord = AppliedRecord {
@@ -407,3 +438,61 @@ findReturnValuePure paramsList inputParams = do
     [] -> Nothing
     _ -> do
       returnValue <$> safeIndex matchedParams 0
+
+type InvocationStep args r = AppliedRecord args -> (AppliedRecord args, Either Message r)
+
+executeInvocation ::
+  IORef (AppliedRecord args) ->
+  InvocationStep args r ->
+  IO r
+executeInvocation ref step = do
+  outcome <- atomicModifyIORef' ref $ \record -> step record
+  either errorWithoutStackTrace pure outcome
+
+singleInvocationStep ::
+  ParamConstraints params args r =>
+  Maybe MockName ->
+  params ->
+  args ->
+  InvocationStep args r
+singleInvocationStep name params inputParams record@AppliedRecord {appliedParamsList, appliedParamsCounter} = do
+  let expected = projArgs params
+  if expected == inputParams
+    then
+      (AppliedRecord {
+        appliedParamsList = appliedParamsList ++ [inputParams]
+      , appliedParamsCounter = appliedParamsCounter
+      }, Right (returnValue params))
+    else (record, Left $ message name expected inputParams)
+
+casesInvocationStep ::
+  ParamConstraints params args r =>
+  Maybe MockName ->
+  AppliedParamsList params ->
+  args ->
+  InvocationStep args r
+casesInvocationStep name paramsList inputParams AppliedRecord {appliedParamsList, appliedParamsCounter} = do
+  let newAppliedList = appliedParamsList ++ [inputParams]
+      matchedParams = filter (\params -> projArgs params == inputParams) paramsList
+      expectedArgs = projArgs <$> paramsList
+   in case matchedParams of
+        [] ->
+          ( AppliedRecord {appliedParamsList = newAppliedList, appliedParamsCounter},
+            Left (messageForMultiMock name expectedArgs inputParams)
+          )
+        _ ->
+          let appliedCount = fromMaybe 0 (lookup inputParams appliedParamsCounter)
+              index = min appliedCount (length matchedParams - 1)
+              nextCounter = incrementCount inputParams appliedParamsCounter
+              nextRecord =
+                AppliedRecord
+                  { appliedParamsList = newAppliedList,
+                    appliedParamsCounter = nextCounter
+                  }
+           in case safeIndex matchedParams index of
+                Nothing ->
+                  ( nextRecord,
+                    Left (messageForMultiMock name expectedArgs inputParams)
+                  )
+                Just selected ->
+                  (nextRecord, Right (returnValue selected))
