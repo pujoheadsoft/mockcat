@@ -53,6 +53,7 @@ library
       Test.MockCat.Internal.Builder
       Test.MockCat.Internal.Core
       Test.MockCat.Internal.Message
+      Test.MockCat.Internal.Registry
       Test.MockCat.Internal.Types
       Test.MockCat.Mock
       Test.MockCat.MockT
@@ -66,6 +67,7 @@ library
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -fprint-potential-instances -Wredundant-constraints
   build-depends:
       base >=4.7 && <5
+    , containers ==0.6.*
     , mtl >=2.3.1 && <2.4
     , template-haskell >=2.18 && <2.24
     , text >=2.0 && <2.2
@@ -96,6 +98,7 @@ test-suite mockcat-test
       Test.MockCat.Definition
       Test.MockCat.ExampleSpec
       Test.MockCat.Impl
+      Test.MockCat.Internal.RegistrySpec
       Test.MockCat.MockSpec
       Test.MockCat.ParamSpec
       Test.MockCat.PartialMockSpec
@@ -111,6 +114,7 @@ test-suite mockcat-test
       QuickCheck >=2.14 && <2.17
     , async >=2.2.4 && <2.3
     , base >=4.7 && <5
+    , containers ==0.6.*
     , hashable >=1.4 && <1.6
     , hspec >=2.11 && <2.13
     , mockcat

@@ -40,6 +40,7 @@ data AppliedRecord params = AppliedRecord {
   appliedParamsList :: AppliedParamsList params,
   appliedParamsCounter :: AppliedParamsCounter params
 }
+  deriving (Eq, Show)
 
 data CountVerifyMethod
   = Equal Int
