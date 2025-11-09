@@ -13,26 +13,21 @@
 module Test.MockCat.Verify where
 
 import Test.MockCat.Internal.Types
-import Control.Monad (guard, when, ap)
+import Control.Monad (guard, when)
 import Data.Function ((&))
-import Data.Char (isLower)
-import Data.IORef (IORef, newIORef, readIORef, atomicModifyIORef')
+import Data.IORef (IORef, readIORef)
 import Data.List (elemIndex, intercalate)
 import Data.Maybe
-import Data.Text (pack, replace, unpack)
-import GHC.IO (unsafePerformIO)
-import Test.MockCat.Cons
 import Test.MockCat.Param
-import Test.MockCat.AssociationList (AssociationList, lookup, update, insert, empty, member)
 import Prelude hiding (lookup)
 import GHC.Stack (HasCallStack)
-import Control.Monad.Trans
-import Control.Monad.State
-    ( execState, MonadState(put, get), State )
-import Data.Kind (Type)
-import Data.Proxy (Proxy (..))
 import Test.MockCat.Internal.Core
 import Test.MockCat.Internal.Message
+import Data.Kind (Type)
+import Test.MockCat.Cons ((:>))
+import Data.Typeable (Typeable)
+import Test.MockCat.Internal.Registry (lookupVerifierForFn)
+import Data.Dynamic (fromDynamic)
 
 -- | Class for verifying mock function.
 class Verify params input where
@@ -318,3 +313,40 @@ shouldApplyTimesToAnything m count = do
             "   but got: " <> show appliedCount
           ]
 
+type family PrependParam a rest where
+  PrependParam a () = Param a
+  PrependParam a rest = Param a :> rest
+
+type family FunctionParams fn where
+  FunctionParams (a -> fn) = PrependParam a (FunctionParams fn)
+  FunctionParams fn = ()
+
+class MockResolvable target where
+  type ResolvableParams target :: Type
+  resolveMock :: target -> IO (Maybe (Maybe MockName, Verifier (ResolvableParams target)))
+
+instance
+  {-# OVERLAPPING #-}
+  MockResolvable (Mock fn params) where
+  type ResolvableParams (Mock fn params) = params
+  resolveMock mock = pure $ Just (mockName mock, mockVerifier mock)
+
+instance
+  {-# OVERLAPPING #-}
+  MockResolvable (MockIO m fn params) where
+  type ResolvableParams (MockIO m fn params) = params
+  resolveMock mock = pure $ Just (mockName mock, mockVerifier mock)
+
+instance
+  {-# OVERLAPPABLE #-}
+  Typeable (Verifier (FunctionParams (a -> fn))) =>
+  MockResolvable (a -> fn) where
+  type ResolvableParams (a -> fn) = FunctionParams (a -> fn)
+  resolveMock fn = do
+    m <- lookupVerifierForFn fn
+    case m of
+      Nothing -> pure Nothing
+      Just (name, dynVerifier) ->
+        case fromDynamic dynVerifier of
+          Just verifier -> pure $ Just (name, verifier)
+          Nothing -> pure Nothing
