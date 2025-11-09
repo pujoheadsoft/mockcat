@@ -271,79 +271,11 @@ incrementCount key list =
   if member key list then update (+ 1) key list
   else insert key 1 list
 
-
-
-findReturnValueWithStore ::
-  ( ParamConstraints params args r
-  ) =>
-  Maybe MockName ->
-  AppliedParamsList params ->
-  args ->
-  IORef (AppliedRecord args) ->
-  IO r
-findReturnValueWithStore name paramsList inputParams ref = do
-  appendAppliedParams ref inputParams
-  let expectedArgs = projArgs <$>paramsList
-  r <- findReturnValue paramsList inputParams ref
-  maybe
-    (errorWithoutStackTrace $ messageForMultiMock name expectedArgs inputParams)
-    pure
-    r
-
-findReturnValue ::
-  ( ParamConstraints params args r
-  ) =>
-  AppliedParamsList params ->
-  args ->
-  IORef (AppliedRecord args) ->
-  IO (Maybe r)
-findReturnValue paramsList inputParams ref = do
-  let matchedParams = filter (\params -> projArgs params == inputParams) paramsList
-  case matchedParams of
-    [] -> pure Nothing
-    _ -> do
-      count <- readAppliedCount ref inputParams
-      let index = min count (length matchedParams - 1)
-      incrementAppliedParamCount ref inputParams
-      pure $ returnValue <$> safeIndex matchedParams index
-
-
-
-
-extractReturnValueWithValidate ::
-  ( ParamConstraints params args r
-  ) =>
-  Maybe MockName ->
-  params ->
-  args ->
-  IORef (AppliedRecord args) ->
-  IO r
-extractReturnValueWithValidate name params inputParams s = do
-  validateWithStoreParams name s (projArgs params) inputParams
-  pure $ returnValue params
-
-validateWithStoreParams :: (Eq a, Show a) => Maybe MockName -> IORef (AppliedRecord a) -> a -> a -> IO ()
-validateWithStoreParams name ref expected actual = do
-  validateParams name expected actual
-  appendAppliedParams ref actual
-
-validateParams :: (Eq a, Show a) => Maybe MockName -> a -> a -> IO ()
-validateParams name expected actual =
-  if expected == actual
-    then pure ()
-    else errorWithoutStackTrace $ message name expected actual
-
-
-
-
-
 runCase :: Cases a b -> [a]
 runCase (Cases s) = execState s []
 
 p :: a -> Param a
 p = param
-
-
 
 class StubBuilder params fn | params -> fn where
   buildStub :: Maybe MockName -> params -> fn
