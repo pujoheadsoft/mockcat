@@ -10,6 +10,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE LambdaCase #-}
 module Test.MockCat.Verify where
 
 import Test.MockCat.Internal.Types
@@ -34,7 +35,13 @@ class Verify params input where
   -- | Verifies that the function has been applied to the expected arguments.
   -- Generic over mock representation `m` which must satisfy `IsMock` and
   -- whose `MockParams m` match this class's `params`.
-  shouldApplyTo :: (IsMock m, MockParams m ~ params, HasCallStack) => m -> input -> IO ()
+  shouldApplyTo ::
+    ( MockResolvable m
+    , ResolvableParams m ~ params
+    , HasCallStack) =>
+    m ->
+    input ->
+    IO ()
 
 instance (Eq a, Show a) => Verify (Param a) a where
   shouldApplyTo v a = verify v (MatchAny (param a))
@@ -42,13 +49,19 @@ instance (Eq a, Show a) => Verify (Param a) a where
 instance (Eq a, Show a) => Verify a a where
   shouldApplyTo v a = verify v (MatchAny a)
 
-verify :: (IsMock m, Eq (MockParams m), Show (MockParams m)) => m -> VerifyMatchType (MockParams m) -> IO ()
+verify ::
+  ( MockResolvable m
+  , Eq (ResolvableParams m)
+  , Show (ResolvableParams m)
+  ) =>
+  m ->
+  VerifyMatchType (ResolvableParams m) ->
+  IO ()
 verify m matchType = do
-  let Verifier ref = mockVerifier m
+  ResolvedMock mockName (Verifier ref) <- requireResolved m
   appliedParamsList <- readAppliedParamsList ref
-  let result = doVerify (mockName m) appliedParamsList matchType
+  let result = doVerify mockName appliedParamsList matchType
   result & maybe (pure ()) (\(VerifyFailed msg) -> errorWithoutStackTrace msg)
-
 
 doVerify :: (Eq a, Show a) => Maybe MockName -> AppliedParamsList a -> VerifyMatchType a -> Maybe VerifyFailed
 doVerify name list (MatchAny a) = do
@@ -58,15 +71,10 @@ doVerify name list (MatchAll a) = do
   guard $ Prelude.any (a /=) list
   pure $ verifyFailedMessage name list a
 
-
 readAppliedParamsList :: IORef (AppliedRecord params) -> IO (AppliedParamsList params)
 readAppliedParamsList ref = do
   record <- readIORef ref
   pure $ appliedParamsList record
-
-
-
-
 
 class VerifyCount countType params a where
   -- | Verify the number of times a function has been applied to an argument.
@@ -82,7 +90,16 @@ class VerifyCount countType params a where
   --   m \`shouldApplyTimes\` (2 :: Int) \`to\` "value" 
   -- @
   --
-  shouldApplyTimes :: (IsMock m, MockParams m ~ params, HasCallStack, Eq params) => m -> countType -> a -> IO ()
+  shouldApplyTimes ::
+    ( MockResolvable m
+    , ResolvableParams m ~ params
+    , HasCallStack
+    , Eq params
+    ) =>
+    m ->
+    countType ->
+    a ->
+    IO ()
 
 instance VerifyCount CountVerifyMethod (Param a) a where
   shouldApplyTimes v count a = verifyCount v (param a) count
@@ -105,9 +122,15 @@ compareCount (LessThan e) a = a < e
 compareCount (GreaterThanEqual e) a = a >= e
 compareCount (GreaterThan e) a = a > e
 
-verifyCount :: (IsMock m, Eq (MockParams m)) => m -> MockParams m -> CountVerifyMethod -> IO ()
+verifyCount ::
+  ( MockResolvable m
+  , Eq (ResolvableParams m)) =>
+  m ->
+  ResolvableParams m ->
+  CountVerifyMethod ->
+  IO ()
 verifyCount m v method = do
-  let Verifier ref = mockVerifier m
+  ResolvedMock mockName (Verifier ref) <- requireResolved m
   appliedParamsList <- readAppliedParamsList ref
   let appliedCount = length (filter (v ==) appliedParamsList)
   if compareCount method appliedCount
@@ -116,7 +139,7 @@ verifyCount m v method = do
       errorWithoutStackTrace $
         intercalate
           "\n"
-          [ "function" <> mockNameLabel (mockName m) <> " was not applied the expected number of times to the expected arguments.",
+          [ "function" <> mockNameLabel mockName <> " was not applied the expected number of times to the expected arguments.",
             "  expected: " <> show method,
             "   but got: " <> show appliedCount
           ]
@@ -247,7 +270,12 @@ mapWithIndex f xs = [f i x | (i, x) <- zip [0 ..] xs]
 
 -- | Verify that the function has been applied to the expected arguments at least the expected number of times.
 shouldApplyTimesGreaterThanEqual ::
-  (VerifyCount CountVerifyMethod params a, Eq params, IsMock m, MockParams m ~ params) =>
+  ( VerifyCount CountVerifyMethod params a
+  , Eq params
+  , MockResolvable m
+  , ResolvableParams m ~ params
+  , HasCallStack
+  ) =>
   m ->
   Int ->
   a ->
@@ -256,7 +284,12 @@ shouldApplyTimesGreaterThanEqual m i = shouldApplyTimes m (GreaterThanEqual i)
 
 -- | Verify that the function is applied to the expected arguments less than or equal to the expected number of times.
 shouldApplyTimesLessThanEqual ::
-  (VerifyCount CountVerifyMethod params a, Eq params, IsMock m, MockParams m ~ params) =>
+  ( VerifyCount CountVerifyMethod params a
+  , Eq params
+  , MockResolvable m
+  , ResolvableParams m ~ params
+  , HasCallStack
+  ) =>
   m ->
   Int ->
   a ->
@@ -265,7 +298,12 @@ shouldApplyTimesLessThanEqual m i = shouldApplyTimes m (LessThanEqual i)
 
 -- | Verify that the function has been applied to the expected arguments a greater number of times than expected.
 shouldApplyTimesGreaterThan ::
-  (VerifyCount CountVerifyMethod params a, Eq params, IsMock m, MockParams m ~ params) =>
+  ( VerifyCount CountVerifyMethod params a
+  , Eq params
+  , MockResolvable m
+  , ResolvableParams m ~ params
+  , HasCallStack
+  ) =>
   m ->
   Int ->
   a ->
@@ -274,22 +312,17 @@ shouldApplyTimesGreaterThan m i = shouldApplyTimes m (GreaterThan i)
 
 -- | Verify that the function has been applied to the expected arguments less than the expected number of times.
 shouldApplyTimesLessThan ::
-  (VerifyCount CountVerifyMethod params a, Eq params, IsMock m, MockParams m ~ params) =>
+  ( VerifyCount CountVerifyMethod params a
+  , Eq params
+  , MockResolvable m
+  , ResolvableParams m ~ params
+  , HasCallStack
+  ) =>
   m ->
   Int ->
   a ->
   IO ()
 shouldApplyTimesLessThan m i = shouldApplyTimes m (LessThan i)
-
-
-
-
-
-
-
-
-
-
 
 -- | Verify that it was apply to anything.
 shouldApplyToAnything :: (IsMock m, MockParams m ~ params, HasCallStack) => m -> IO ()
@@ -350,3 +383,24 @@ instance
         case fromDynamic dynVerifier of
           Just verifier -> pure $ Just (name, verifier)
           Nothing -> pure Nothing
+
+data ResolvedMock params = ResolvedMock {
+  resolvedMockName :: Maybe MockName,
+  resolvedMockVerifier :: Verifier params
+}
+
+requireResolved ::
+  forall target.
+  MockResolvable target =>
+  target ->
+  IO (ResolvedMock (ResolvableParams target))
+requireResolved target = do
+  resolveMock target >>= \case
+    Just (name, verifier) -> pure $ ResolvedMock name verifier
+    Nothing ->
+      errorWithoutStackTrace $
+        intercalate
+          "\n"
+          [ "The provided stub cannot be verified.",
+            "Please create it via createStubFn/createNamedStubFn or createStubFnIO when verification is required."
+          ]
