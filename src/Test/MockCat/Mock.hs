@@ -59,7 +59,7 @@ import Data.IORef (IORef, newIORef, readIORef, atomicModifyIORef')
 import Data.List (elemIndex, intercalate)
 import Data.Maybe
 
-import GHC.IO (unsafePerformIO)
+import GHC.IO (unsafePerformIO, evaluate)
 import Test.MockCat.Cons
 import Test.MockCat.Param
 import Test.MockCat.AssociationList (AssociationList, lookup, update, insert, empty, member)
@@ -76,6 +76,7 @@ import Test.MockCat.Internal.Builder
 import Test.MockCat.Verify
 import Data.Typeable (Typeable)
 import Data.Dynamic (toDyn)
+import Test.MockCat.Internal.Registry (attachVerifierToFn)
 
 {- | Create a mock.
 From this mock, you can generate stub functions and verify the functions.
@@ -161,10 +162,12 @@ stubFnMock (NamedMock _ f _ _) = f
   @
 -}
 createStubFn ::
-  (MonadIO m, MockBuilder params fn verifyParams) =>
+  ( MonadIO m
+  , MockBuilder params fn verifyParams
+  , Typeable verifyParams) =>
   params ->
   m fn
-createStubFn params = stubFn <$> createMock params
+createStubFn params = registerAndReturn =<< createMock params
 
 createPureStubFn ::
   (StubBuilder params fn) =>
@@ -174,47 +177,17 @@ createPureStubFn params = buildStub Nothing params
 
 -- | Create a named stub function.
 createNamedStubFn ::
-  (MonadIO m, MockBuilder params fn verifyParams) =>
+  ( MonadIO m
+  , MockBuilder params fn verifyParams
+  , Typeable verifyParams) =>
   String ->
   params ->
   m fn
-createNamedStubFn name params = stubFn <$> createNamedMock name params
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+createNamedStubFn name params = registerAndReturn =<< createNamedMock name params
 
 
 to :: (a -> IO ()) -> a -> IO ()
 to f = f
-
-
-
-
 
 {- | Make a case for stub functions.  
 This can be used to create stub functions that return different values depending on their arguments.
@@ -290,7 +263,7 @@ createStubFnIO ::
   ) =>
   params ->
   m fnM
-createStubFnIO params = stubFnMockIO <$> createMockIO params
+createStubFnIO params = registerAndReturn =<< createMockIO params
 
 class LiftFunTo funIO funM (m :: Type -> Type) | funIO m -> funM where
   liftFunTo :: Proxy m -> funIO -> funM
@@ -311,3 +284,16 @@ widenMock (MockIO f verifier _) = MockIO (liftFunTo (Proxy :: Proxy m) f) verifi
 widenMock (NamedMockIO name f verifier _) = NamedMockIO name (liftFunTo (Proxy :: Proxy m) f) verifier (toDyn verifier)
 
 
+registerAndReturn ::
+  ( MonadIO m
+  , IsMock mock
+  , Typeable (Verifier (MockParams mock))) =>
+  mock ->
+  m (MockFn mock)
+registerAndReturn mock = do
+  fn <- liftIO $ evaluate (stubFn mock)
+  let
+    name = mockName mock
+    verifier = mockVerifier mock
+  liftIO $ attachVerifierToFn fn (name, verifier)
+  pure fn
