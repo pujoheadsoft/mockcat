@@ -343,10 +343,13 @@ shouldApplyToAnything m = do
 
 -- | Verify that it was apply to anything (times).
 shouldApplyTimesToAnything ::
- ( MockResolvable m
- , ResolvableParams m ~ params
- , HasCallStack
- ) => m -> Int -> IO ()
+  ( MockResolvable m
+  , ResolvableParams m ~ params
+  , HasCallStack
+  ) =>
+  m ->
+  Int ->
+  IO ()
 shouldApplyTimesToAnything m count = do
   ResolvedMock mockName (Verifier ref) <- requireResolved m
   appliedParamsList <- readAppliedParamsList ref
@@ -383,6 +386,20 @@ instance
   MockResolvable (MockIO m fn params) where
   type ResolvableParams (MockIO m fn params) = params
   resolveMock mock = pure $ Just (mockName mock, mockVerifier mock)
+
+instance
+  {-# OVERLAPPING #-}
+  Typeable (Verifier (FunctionParams (IO r))) =>
+  MockResolvable (IO r) where
+  type ResolvableParams (IO r) = FunctionParams (IO r)
+  resolveMock fn = do
+    m <- lookupVerifierForFn fn
+    case m of
+      Nothing -> pure Nothing
+      Just (name, dynVerifier) ->
+        case fromDynamic dynVerifier of
+          Just verifier -> pure $ Just (name, verifier)
+          Nothing -> pure Nothing
 
 instance
   {-# OVERLAPPABLE #-}

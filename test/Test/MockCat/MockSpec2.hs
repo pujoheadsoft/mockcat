@@ -14,7 +14,7 @@ module Test.MockCat.MockSpec2 (spec) where
 import qualified Control.Exception as E
 import Data.Function ((&))
 import Test.Hspec
-import Test.MockCat
+import Test.MockCat hiding (createMock, createMockIO)
 import Prelude hiding (any)
 
 spec :: Spec
@@ -865,22 +865,22 @@ spec = do
       shouldApplyToAnything m `shouldThrow` errorCall "It has never been applied function `constant`"
 
     it "verify constant IO mock" do
-      m <- createMock $ pure @IO "foo"
-      stubFn m `shouldReturn` "foo"
-      stubFn m `shouldReturn` "foo"
-      stubFn m `shouldReturn` "foo"
-      m `shouldApplyTimesToAnything` 3
+      f <- createStubFn $ pure @IO "foo"
+      f `shouldReturn` "foo"
+      f `shouldReturn` "foo"
+      f `shouldReturn` "foo"
+      f `shouldApplyTimesToAnything` 3
 
     it "verify constant multi IO mock" do
-      m <- createMock $ do
+      f <- createStubFn $ do
         onCase $ pure @IO "foo"
         onCase $ pure @IO "bar"
         onCase $ pure @IO "baz"
 
-      stubFn m `shouldReturn` "foo"
-      stubFn m `shouldReturn` "bar"
-      stubFn m `shouldReturn` "baz"
-      m `shouldApplyTimesToAnything` 3
+      f `shouldReturn` "foo"
+      f `shouldReturn` "bar"
+      f `shouldReturn` "baz"
+      f `shouldApplyTimesToAnything` 3
 
 data Fixture mock r = Fixture
   { name :: String,
