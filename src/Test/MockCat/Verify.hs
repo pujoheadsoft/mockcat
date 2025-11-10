@@ -160,14 +160,14 @@ class VerifyOrder params input where
   --   print $ stubFn m "b" True
   --   m \`shouldApplyInOrder\` ["a" |\> True, "b" |\> True]
   -- @
-  shouldApplyInOrder :: (IsMock m, MockParams m ~ params, HasCallStack) => m -> [input] -> IO ()
+  shouldApplyInOrder :: (MockResolvable m, ResolvableParams m ~ params, HasCallStack) => m -> [input] -> IO ()
 
   -- | Verify that functions are applied in the expected order.
   --
   -- Unlike @'shouldApplyInOrder'@, not all applications need to match exactly.
   --
   -- As long as the order matches, the verification succeeds.
-  shouldApplyInPartialOrder :: (IsMock m, MockParams m ~ params, HasCallStack) => m -> [input] -> IO ()
+  shouldApplyInPartialOrder :: (MockResolvable m, ResolvableParams m ~ params, HasCallStack) => m -> [input] -> IO ()
 
 instance (Eq a, Show a) => VerifyOrder (Param a) a where
   shouldApplyInOrder v a = verifyOrder ExactlySequence v $ param <$> a
@@ -178,15 +178,15 @@ instance {-# OVERLAPPABLE #-} (Eq a, Show a) => VerifyOrder a a where
   shouldApplyInPartialOrder = verifyOrder PartiallySequence
 
 verifyOrder ::
-  (IsMock m, Eq (MockParams m), Show (MockParams m)) =>
+  (MockResolvable m, Eq (ResolvableParams m), Show (ResolvableParams m)) =>
   VerifyOrderMethod ->
   m ->
-  [MockParams m] ->
+  [ResolvableParams m] ->
   IO ()
 verifyOrder method m matchers = do
-  let Verifier ref = mockVerifier m
+  ResolvedMock mockName (Verifier ref) <- requireResolved m
   appliedParamsList <- readAppliedParamsList ref
-  let result = doVerifyOrder method (mockName m) appliedParamsList matchers
+  let result = doVerifyOrder method mockName appliedParamsList matchers
   result & maybe (pure ()) (\(VerifyFailed msg) -> errorWithoutStackTrace msg)
 
 doVerifyOrder ::
@@ -325,23 +325,37 @@ shouldApplyTimesLessThan ::
 shouldApplyTimesLessThan m i = shouldApplyTimes m (LessThan i)
 
 -- | Verify that it was apply to anything.
-shouldApplyToAnything :: (IsMock m, MockParams m ~ params, HasCallStack) => m -> IO ()
+-- shouldApplyToAnything :: (IsMock m, MockParams m ~ params, HasCallStack) => m -> IO ()
+-- shouldApplyToAnything m = do
+--   let Verifier ref = mockVerifier m
+--   appliedParamsList <- readAppliedParamsList ref
+--   when (null appliedParamsList) $ error $ "It has never been applied function" <> mockNameLabel (mockName m)
+
+shouldApplyToAnything ::
+ ( MockResolvable m
+ , ResolvableParams m ~ params
+ , HasCallStack
+ ) => m -> IO ()
 shouldApplyToAnything m = do
-  let Verifier ref = mockVerifier m
+  ResolvedMock mockName (Verifier ref) <- requireResolved m
   appliedParamsList <- readAppliedParamsList ref
-  when (null appliedParamsList) $ error $ "It has never been applied function" <> mockNameLabel (mockName m)
+  when (null appliedParamsList) $ error $ "It has never been applied function" <> mockNameLabel mockName
 
 -- | Verify that it was apply to anything (times).
-shouldApplyTimesToAnything :: (IsMock m, MockParams m ~ params) => m -> Int -> IO ()
+shouldApplyTimesToAnything ::
+ ( MockResolvable m
+ , ResolvableParams m ~ params
+ , HasCallStack
+ ) => m -> Int -> IO ()
 shouldApplyTimesToAnything m count = do
-  let Verifier ref = mockVerifier m
+  ResolvedMock mockName (Verifier ref) <- requireResolved m
   appliedParamsList <- readAppliedParamsList ref
   let appliedCount = length appliedParamsList
   when (count /= appliedCount) $
         errorWithoutStackTrace $
         intercalate
           "\n"
-          [ "function" <> mockNameLabel (mockName m) <> " was not applied the expected number of times.",
+          [ "function" <> mockNameLabel mockName <> " was not applied the expected number of times.",
             "  expected: " <> show count,
             "   but got: " <> show appliedCount
           ]
