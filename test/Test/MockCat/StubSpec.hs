@@ -1,4 +1,5 @@
 {-# LANGUAGE BlockArguments #-}
+{-# OPTIONS_GHC -Wno-missing-export-lists #-}
 module Test.MockCat.StubSpec where
 
 import Test.Hspec

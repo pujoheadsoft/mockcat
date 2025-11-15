@@ -11,11 +11,7 @@
 
 module Test.MockCat.MockSpec (spec) where
 
-import qualified Control.Exception as E
-import Data.Function ((&))
-import Test.Hspec
-import Test.MockCat
-import Prelude hiding (any)
+import Test.Hspec (Spec)
 
 spec :: Spec
 spec = do

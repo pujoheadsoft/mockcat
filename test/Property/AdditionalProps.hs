@@ -2,6 +2,8 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeApplications #-}
 {-# OPTIONS_GHC -O0 #-}
+{-# OPTIONS_GHC -Wno-name-shadowing #-}
+{-# OPTIONS_GHC -Wno-type-defaults #-}
 module Property.AdditionalProps
   ( prop_predicate_param_match_counts
   , prop_multicase_progression
@@ -13,13 +15,11 @@ module Property.AdditionalProps
 import Test.QuickCheck
 import Test.QuickCheck.Monadic (monadicIO, run, assert)
 import Control.Exception (try, SomeException, evaluate)
-import Control.Monad (replicateM, replicateM_, forM, forM_)
+import Control.Monad (forM, forM_)
 import Data.List (nub)
 import Data.Proxy (Proxy(..))
 import Test.MockCat
 import Control.Monad.IO.Class (liftIO)
-import Test.MockCat.MockT (MockT(..), Definition(..), runMockT, MonadMockDefs(..))
-import Test.MockCat.Verify (shouldApplyTimesToAnything)
 
 --------------------------------------------------------------------------------
 -- 21. PredicateParam property

@@ -8,7 +8,7 @@ module Property.OrderProps
 
 import Test.QuickCheck
 import Test.QuickCheck.Monadic (monadicIO, run, assert)
-import Control.Exception (try, SomeException, evaluate)
+import Control.Exception (try, SomeException)
 import Data.Maybe (listToMaybe)
 import Data.List (nub)
 import Test.MockCat (shouldApplyInOrder, shouldApplyInPartialOrder)

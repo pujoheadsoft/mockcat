@@ -10,6 +10,7 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-# OPTIONS_GHC -Wno-simplifiable-class-constraints #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
+{-# OPTIONS_GHC -Wno-missing-export-lists #-}
 {-# LANGUAGE TypeApplications #-}
 
 module Test.MockCat.TypeClassTHSpec where

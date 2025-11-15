@@ -3,6 +3,8 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# OPTIONS_GHC -Wno-missing-export-lists #-}
+{-# OPTIONS_GHC -Wno-simplifiable-class-constraints #-}
 module Property.ReinforcementProps
   where
 
@@ -11,11 +13,7 @@ import Test.QuickCheck.Monadic (monadicIO, run, assert)
 import Control.Exception (try, SomeException, evaluate)
 import Control.Concurrent.Async (forConcurrently_)
 import UnliftIO (withRunInIO)
-import Control.Monad (forM_)
-import Control.Monad.IO.Class (liftIO)
-import Data.List (nub)
 import Test.MockCat hiding (any)
-import Test.MockCat (param)
 
 --------------------------------------------------------------------------------
 -- 1. Predicate negative: failing inputs raise & are not counted
