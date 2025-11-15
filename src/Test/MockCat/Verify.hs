@@ -343,15 +343,6 @@ shouldApplyToAnything m = do
   appliedParamsList <- readAppliedParamsList ref
   when (null appliedParamsList) $ error $ "It has never been applied function" <> mockNameLabel mockName
 
-shouldApplyToAnythingStub ::
-  ( Typeable fn
-  , Typeable (ResolvableParamsOf fn)
-  , Typeable (Verifier (ResolvableParamsOf fn))
-  ) =>
-  fn ->
-  IO ()
-shouldApplyToAnythingStub fn = shouldApplyToAnything (RegisteredStub fn)
-
 -- | Verify that it was apply to anything (times).
 shouldApplyTimesToAnything ::
   ( MockResolvable m
@@ -374,16 +365,6 @@ shouldApplyTimesToAnything m count = do
             "   but got: " <> show appliedCount
           ]
 
-shouldApplyTimesToAnythingStub ::
-  ( Typeable fn
-  , Typeable (ResolvableParamsOf fn)
-  , Typeable (Verifier (ResolvableParamsOf fn))
-  ) =>
-  fn ->
-  Int ->
-  IO ()
-shouldApplyTimesToAnythingStub fn count = shouldApplyTimesToAnything (RegisteredStub fn) count
-
 type family PrependParam a rest where
   PrependParam a () = Param a
   PrependParam a rest = Param a :> rest
@@ -404,10 +385,7 @@ type family IsIO target :: Bool where
 type family ResolvableParamsOf target :: Type where
   ResolvableParamsOf (IO r) = FunctionParams (IO r)
   ResolvableParamsOf (a -> fn) = FunctionParams (a -> fn)
-  ResolvableParamsOf (RegisteredStub fn) = ResolvableParamsOf fn
   ResolvableParamsOf target = ()
-
-newtype RegisteredStub fn = RegisteredStub fn
 
 class MockResolvable target where
   type ResolvableParams target :: Type
@@ -416,29 +394,19 @@ class MockResolvable target where
 
 instance
   {-# OVERLAPPING #-}
-  Typeable (Verifier (FunctionParams (a -> fn))) =>
+  ( Typeable (Verifier (FunctionParams (a -> fn)))
+  , Typeable (FunctionParams (a -> fn))
+  ) =>
   MockResolvable (a -> fn) where
-  resolveMock fn = do
-    m <- lookupVerifierForFn fn
-    case m of
-      Nothing -> pure Nothing
-      Just (name, dynVerifier) ->
-        case fromDynamic dynVerifier of
-          Just verifier -> pure $ Just (name, verifier)
-          Nothing -> pure Nothing
+  resolveMock = resolveForVerification
 
 instance
   {-# OVERLAPPING #-}
-  Typeable (Verifier (FunctionParams (IO r))) =>
+  ( Typeable (Verifier (FunctionParams (IO r)))
+  , Typeable (FunctionParams (IO r))
+  ) =>
   MockResolvable (IO r) where
-  resolveMock fn = do
-    m <- lookupVerifierForFn fn
-    case m of
-      Nothing -> pure Nothing
-      Just (name, dynVerifier) ->
-        case fromDynamic dynVerifier of
-          Just verifier -> pure $ Just (name, verifier)
-          Nothing -> pure Nothing
+  resolveMock = resolveForVerification
 
 instance
   {-# OVERLAPPABLE #-}
@@ -451,34 +419,54 @@ instance
   ) =>
   MockResolvable value where
   type ResolvableParams value = ResolvableParamsOf value
-  resolveMock value = do
-    m <- withAllUnitGuards $ lookupVerifierForFn value
-    case m of
-      Nothing -> pure Nothing
-      Just (name, dynVerifier) ->
-        case fromDynamic dynVerifier of
-          Just verifier -> pure $ Just (name, verifier)
-          Nothing -> pure Nothing
+  resolveMock = resolveForVerification
 
-instance
-  ( Typeable fn
-  , Typeable (ResolvableParamsOf fn)
-  , Typeable (Verifier (ResolvableParamsOf fn))
+resolveForVerification ::
+  forall target params.
+  ( params ~ ResolvableParamsOf target
+  , Typeable params
+  , Typeable (Verifier params)
   ) =>
-  MockResolvable (RegisteredStub fn) where
-  resolveMock (RegisteredStub fn) = do
-    let fetch = lookupVerifierForFn fn
-    result <-
-      case eqT :: Maybe (ResolvableParamsOf fn :~: ()) of
-        Just Refl -> withAllUnitGuards fetch
-        Nothing -> fetch
-    case result of
-      Nothing -> pure Nothing
-      Just (name, dynVerifier) ->
-        case fromDynamic dynVerifier of
-          Just verifier -> pure $ Just (name, verifier)
-          Nothing -> pure Nothing
+  target ->
+  IO (Maybe (Maybe MockName, Verifier params))
+resolveForVerification target = do
+  let fetch = lookupVerifierForFn target
+  result <-
+    case eqT :: Maybe (params :~: ()) of
+      Just Refl -> withAllUnitGuards fetch
+      Nothing -> fetch
+  case result of
+    Nothing -> pure Nothing
+    Just (name, dynVerifier) ->
+      case fromDynamic dynVerifier of
+        Just verifier -> pure $ Just (name, verifier)
+        Nothing -> pure Nothing
 
+verifyAppliedCount ::
+  Maybe MockName ->
+  Verifier params ->
+  Int ->
+  IO ()
+verifyAppliedCount maybeName (Verifier ref) expected = do
+  appliedParamsList <- readAppliedParamsList ref
+  let appliedCount = length appliedParamsList
+  when (expected /= appliedCount) $
+    errorWithoutStackTrace $
+      intercalate
+        "\n"
+        [ "function" <> mockNameLabel maybeName <> " was not applied the expected number of times.",
+          "  expected: " <> show expected,
+          "   but got: " <> show appliedCount
+        ]
+
+verificationFailure :: IO a
+verificationFailure =
+  errorWithoutStackTrace $
+    intercalate
+      "\n"
+      [ "The provided stub cannot be verified.",
+        "Please create it via createStubFn/createNamedStubFn or createStubFnIO when verification is required."
+      ]
 
 data ResolvedMock params = ResolvedMock {
   resolvedMockName :: Maybe MockName,

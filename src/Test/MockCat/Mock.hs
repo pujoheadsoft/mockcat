@@ -36,6 +36,7 @@ module Test.MockCat.Mock
   , shouldApplyTimesLessThanEqual
   , shouldApplyTimesGreaterThan
   , shouldApplyTimesLessThan
+  , MockResolvable (ResolvableParams)
   , shouldApplyToAnything
   , shouldApplyTimesToAnything
   , to

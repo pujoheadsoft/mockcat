@@ -5,6 +5,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 {-# LANGUAGE TypeOperators #-}
 module Test.MockCat.MockT (
@@ -24,8 +25,8 @@ import Data.Data (Proxy, Typeable)
 import Data.Foldable (for_)
 import UnliftIO (MonadUnliftIO(..))
 import Data.IORef (IORef, newIORef, readIORef, atomicModifyIORef')
-import Test.MockCat.Verify (MockResolvable (ResolvableParams), ResolvableParamsOf, shouldApplyToAnythingStub, shouldApplyTimesToAnythingStub)
 import Test.MockCat.Internal.Types (Verifier)
+import Test.MockCat.Verify (ResolvableParamsOf, resolveForVerification, verificationFailure, verifyAppliedCount)
 
 {- | MockT is a thin wrapper over @ReaderT (IORef [Definition])@ providing
      mock/stub registration and post-run verification.
@@ -166,7 +167,7 @@ applyTimesIs (MockT inner) a = MockT $ ReaderT $ \ref -> do
   tmp <- liftIO $ newIORef []
   _ <- runReaderT inner tmp
   defs <- liftIO $ readIORef tmp
-  let patched = map (\(Definition s fn _) -> Definition s fn (\m' -> shouldApplyTimesToAnythingStub m' a)) defs
+  let patched = map (\(Definition s fn _) -> Definition s fn (\m' -> verifyApplyCount m' a)) defs
   liftIO $ atomicModifyIORef' ref (\xs -> (xs ++ patched, ()))
   pure ()
 
@@ -179,7 +180,7 @@ neverApply (MockT inner) = MockT $ ReaderT $ \ref -> do
   tmp <- liftIO $ newIORef []
   _ <- runReaderT inner tmp
   defs <- liftIO $ readIORef tmp
-  let patched = map (\(Definition s m _) -> Definition s m (\m' -> shouldApplyTimesToAnythingStub m' 0)) defs
+  let patched = map (\(Definition s m _) -> Definition s m (\m' -> verifyApplyCount m' 0)) defs
   liftIO $ atomicModifyIORef' ref (\xs -> (xs ++ patched, ()))
   pure ()
 
@@ -194,3 +195,20 @@ instance MonadIO m => MonadMockDefs (MockT m) where
 instance MonadIO m => MonadMockDefs (ReaderT (IORef [Definition]) m) where
   addDefinition d = ReaderT $ \ref -> liftIO $ atomicModifyIORef' ref (\xs -> (xs ++ [d], ()))
   getDefinitions = ReaderT $ \ref -> liftIO $ readIORef ref
+
+verifyApplyCount ::
+  forall f params.
+  ( Typeable params
+  , params ~ ResolvableParamsOf f
+  , Typeable (Verifier params)
+  ) =>
+  f ->
+  Int ->
+  IO ()
+verifyApplyCount stub expected = do
+  result <- resolveForVerification stub
+  case result of
+    Just (maybeName, verifier) ->
+      verifyAppliedCount maybeName verifier expected
+    Nothing ->
+      verificationFailure

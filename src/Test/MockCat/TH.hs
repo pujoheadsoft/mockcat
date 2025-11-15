@@ -59,7 +59,7 @@ import Language.Haskell.TH.Syntax (nameBase)
 import Test.MockCat.Cons
 import Test.MockCat.Mock
 import Test.MockCat.MockT
-import Test.MockCat.Verify (ResolvableParams, shouldApplyToAnythingStub)
+import Test.MockCat.Verify (MockResolvable (ResolvableParams), shouldApplyToAnything)
 import Test.MockCat.Internal.Types (Verifier)
 import Test.MockCat.Param
 import Unsafe.Coerce (unsafeCoerce)
@@ -483,6 +483,7 @@ doCreateMockFnDecs funNameStr mockFunName params funType monadVarName updatedTyp
     let verifyParams = createMockBuilderVerifyParams updatedType
         ctx =
           [ AppT (AppT (AppT (ConT ''MockBuilder) (VarT params)) funType) verifyParams
+          , AppT (ConT ''MockResolvable) funType
           , AppT (ConT ''Typeable) funType
           , AppT (ConT ''Typeable) verifyParams
           , AppT (ConT ''Typeable) (AppT (ConT ''Verifier) verifyParams)
@@ -505,7 +506,8 @@ doCreateMockFnDecs funNameStr mockFunName params funType monadVarName updatedTyp
 doCreateConstantMockFnDecs :: (Quote m) => String -> Name -> Type -> Name -> m [Dec]
 doCreateConstantMockFnDecs funNameStr mockFunName ty monadVarName = do
   let ctx =
-        [ AppT (ConT ''Typeable) ty
+        [ AppT (ConT ''MockResolvable) ty
+        , AppT (ConT ''Typeable) ty
         , AppT (ConT ''Typeable) (AppT (ConT ''ResolvableParams) ty)
         , AppT (ConT ''Typeable) (AppT (ConT ''Verifier) (AppT (ConT ''ResolvableParams) ty))
         , AppT (ConT ''MonadIO) (VarT monadVarName)
@@ -527,6 +529,7 @@ doCreateEmptyVerifyParamMockFnDecs funNameStr mockFunName params funType monadVa
     let verifyParams = createMockBuilderVerifyParams updatedType
         ctx =
           [ AppT (AppT (AppT (ConT ''MockBuilder) (VarT params)) funType) verifyParams
+          , AppT (ConT ''MockResolvable) funType
           , AppT (ConT ''Typeable) funType
           , AppT (ConT ''Typeable) verifyParams
           , AppT (ConT ''Typeable) (AppT (ConT ''Verifier) verifyParams)
@@ -555,7 +558,7 @@ createMockBody funNameStr createMockFn =
         ( Definition
             (Proxy :: Proxy $(litT (strTyLit funNameStr)))
             mockInstance
-            shouldApplyToAnythingStub
+            shouldApplyToAnything
         )
     |]
 

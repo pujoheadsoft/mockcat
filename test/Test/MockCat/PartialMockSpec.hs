@@ -29,7 +29,7 @@ import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Maybe (MaybeT (..))
 import Control.Monad.Trans.Reader hiding (ask)
-import Test.MockCat.Verify (ResolvableParamsOf, shouldApplyToAnythingStub)
+import Test.MockCat.Verify (MockResolvable, ResolvableParamsOf)
 import Test.MockCat.Internal.Types (Verifier)
 
 instance (MonadIO m, FileOperation m) => FileOperation (MockT m) where
@@ -49,15 +49,27 @@ instance (MonadIO m, FileOperation m) => FileOperation (MockT m) where
         pure result
       Nothing -> lift $ writeFile path content
 
-_readFile :: (MockBuilder params (FilePath -> Text) (Param FilePath), MonadIO m) => params -> MockT m ()
+_readFile ::
+  ( MockBuilder params (FilePath -> Text) (Param FilePath)
+  , MockResolvable (FilePath -> Text)
+  , MonadIO m
+  ) =>
+  params ->
+  MockT m ()
 _readFile p = MockT $ do
   mockInstance <- liftIO $ createNamedStubFn "readFile" p
-  addDefinition (Definition (Proxy :: Proxy "readFile") mockInstance shouldApplyToAnythingStub)
+  addDefinition (Definition (Proxy :: Proxy "readFile") mockInstance shouldApplyToAnything)
 
-_writeFile :: (MockBuilder params (FilePath -> Text -> ()) (Param FilePath :> Param Text), MonadIO m) => params -> MockT m ()
+_writeFile ::
+  ( MockBuilder params (FilePath -> Text -> ()) (Param FilePath :> Param Text)
+  , MockResolvable (FilePath -> Text -> ())
+  , MonadIO m
+  ) =>
+  params ->
+  MockT m ()
 _writeFile p = MockT $ do
   mockInstance <- liftIO $ createNamedStubFn "writeFile" p
-  addDefinition (Definition (Proxy :: Proxy "writeFile") mockInstance shouldApplyToAnythingStub)
+  addDefinition (Definition (Proxy :: Proxy "writeFile") mockInstance shouldApplyToAnything)
 
 findParam :: KnownSymbol sym => Proxy sym -> [Definition] -> Maybe a
 findParam pa definitions = do
@@ -83,7 +95,8 @@ instance (MonadIO m, Finder a b m) => Finder a b (MockT m) where
       Nothing -> lift $ findById id
 
 _findIds ::
-  ( Typeable r
+  ( MockResolvable r
+  , Typeable r
   , Typeable (ResolvableParamsOf r)
   , Typeable (Verifier (ResolvableParamsOf r))
   , MonadIO m
@@ -96,7 +109,7 @@ _findIds p = MockT $ do
     ( Definition
         (Proxy :: Proxy "_findIds")
         mockInstance
-        shouldApplyToAnythingStub
+        shouldApplyToAnything
     )
 
 spec :: Spec

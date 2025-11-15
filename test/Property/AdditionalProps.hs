@@ -19,7 +19,7 @@ import Data.Proxy (Proxy(..))
 import Test.MockCat
 import Control.Monad.IO.Class (liftIO)
 import Test.MockCat.MockT (MockT(..), Definition(..), runMockT, MonadMockDefs(..))
-import Test.MockCat.Verify (shouldApplyTimesToAnythingStub)
+import Test.MockCat.Verify (shouldApplyTimesToAnything)
 
 --------------------------------------------------------------------------------
 -- 21. PredicateParam property
@@ -84,7 +84,7 @@ prop_runMockT_isolation = monadicIO $ do
   -- Run 1: expect one application
   r1 <- run $ try $ runMockT $ do
     f <- liftIO $ createStubFn (param (1 :: Int) |> True)
-    addDefinition Definition { symbol = Proxy @"iso", mock = f, verify = \m' -> shouldApplyTimesToAnythingStub m' 1 }
+    addDefinition Definition { symbol = Proxy @"iso", mock = f, verify = \m' -> shouldApplyTimesToAnything m' 1 }
     liftIO $ f 1 `seq` pure ()
   case r1 of
     Left (_ :: SomeException) -> assert False
@@ -92,7 +92,7 @@ prop_runMockT_isolation = monadicIO $ do
   -- Run 2: expect zero (if leaked, would see 1 and fail)
   r2 <- run $ try $ runMockT $ do
     f <- liftIO $ createStubFn (param (1 :: Int) |> True)
-    addDefinition Definition { symbol = Proxy @"iso", mock = f, verify = \m' -> shouldApplyTimesToAnythingStub m' 0 }
+    addDefinition Definition { symbol = Proxy @"iso", mock = f, verify = \m' -> shouldApplyTimesToAnything m' 0 }
     pure ()
   case r2 of
     Left (_ :: SomeException) -> assert False
@@ -108,10 +108,10 @@ prop_neverApply_unused = forAll (chooseInt (0,5)) $ \n -> monadicIO $ do
   r <- run $ try $ runMockT $ do
     -- used mock
     mUsed <- liftIO $ createStubFn (param (0 :: Int) |> True)
-    addDefinition Definition { symbol = Proxy @"used", mock = mUsed, verify = \m' -> shouldApplyTimesToAnythingStub m' n }
+    addDefinition Definition { symbol = Proxy @"used", mock = mUsed, verify = \m' -> shouldApplyTimesToAnything m' n }
     -- unused mock
     mUnused <- liftIO $ createStubFn (param (42 :: Int) |> True)
-    addDefinition Definition { symbol = Proxy @"unused", mock = mUnused, verify = \m' -> shouldApplyTimesToAnythingStub m' 0 }
+    addDefinition Definition { symbol = Proxy @"unused", mock = mUnused, verify = \m' -> shouldApplyTimesToAnything m' 0 }
     let f = mUsed
     -- See NOTE [GHC9.4 duplicate-call counting] above: make each application
     -- depend on the loop index to avoid sharing; case forces dependence.
