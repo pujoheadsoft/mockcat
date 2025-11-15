@@ -29,15 +29,14 @@ import Test.MockCat.MockT (MockT(..), Definition(..), runMockT, MonadMockDefs(..
 prop_predicate_param_match_counts :: Property
 prop_predicate_param_match_counts = forAll genVals $ \xs -> monadicIO $ do
   -- build predicate mock: (Int -> Bool) returning True for all evens
-  m <- run $ createMock (expect even "even" |> True)
-  let f = stubFn m
+  f <- run $ createStubFn (expect even "even" |> True)
   results <- run $ mapM (\x -> try (evaluate (f x)) :: IO (Either SomeException Bool)) xs
   let successes = length [ () | Right _ <- results ]
       expected  = length (filter even xs)
   -- sanity: every success came from an even value
   assert (all even [ x | (x, Right _) <- zip xs results ])
   -- counts should match
-  run $ m `shouldApplyTimesToAnything` expected
+  run $ f `shouldApplyTimesToAnything` expected
   assert (successes == expected)
   where
     genVals = resize 40 $ listOf (arbitrary :: Gen Int)
@@ -50,9 +49,8 @@ prop_predicate_param_match_counts = forAll genVals $ \xs -> monadicIO $ do
 -- saturate at the last value.
 prop_multicase_progression :: Property
 prop_multicase_progression = forAll genSeq $ \(arg, rs, extra) -> monadicIO $ do
-  m <- run $ createMock $ cases [ param arg |> r | r <- rs ]
-  let f = stubFn m
-      totalCalls = length rs + extra
+  f <- run $ createStubFn $ cases [ param arg |> r | r <- rs ]
+  let totalCalls = length rs + extra
   -- NOTE [GHC9.4 duplicate-call counting]
   -- On GHC 9.4 we observed that using @replicateM totalCalls (evaluate (f arg))@
   -- can result in only a single side‑effect (application recording) when all
@@ -64,7 +62,7 @@ prop_multicase_progression = forAll genSeq $ \(arg, rs, extra) -> monadicIO $ do
   let (prefix, suffix) = splitAt (length rs) vals
   assert (prefix == rs)
   assert (all (== last rs) suffix)
-  run $ m `shouldApplyTimesToAnything` totalCalls
+  run $ f `shouldApplyTimesToAnything` totalCalls
   where
     genSeq = do
       arg <- arbitrary :: Gen Int
@@ -84,17 +82,16 @@ prop_runMockT_isolation :: Property
 prop_runMockT_isolation = monadicIO $ do
   -- Run 1: expect one application
   r1 <- run $ try $ runMockT $ do
-    m <- liftIO $ createMock (param (1 :: Int) |> True)
-    addDefinition Definition { symbol = Proxy @"iso", mock = m, verify = \m' -> m' `shouldApplyTimesToAnything` 1 }
-    let f = stubFn m
+    f <- liftIO $ createStubFn (param (1 :: Int) |> True)
+    addDefinition Definition { symbol = Proxy @"iso", mock = f, verify = \m' -> m' `shouldApplyTimesToAnything` 1 }
     liftIO $ f 1 `seq` pure ()
   case r1 of
     Left (_ :: SomeException) -> assert False
     Right () -> assert True
   -- Run 2: expect zero (if leaked, would see 1 and fail)
   r2 <- run $ try $ runMockT $ do
-    m <- liftIO $ createMock (param (1 :: Int) |> True)
-    addDefinition Definition { symbol = Proxy @"iso", mock = m, verify = \m' -> m' `shouldApplyTimesToAnything` 0 }
+    f <- liftIO $ createStubFn (param (1 :: Int) |> True)
+    addDefinition Definition { symbol = Proxy @"iso", mock = f, verify = \m' -> m' `shouldApplyTimesToAnything` 0 }
     pure ()
   case r2 of
     Left (_ :: SomeException) -> assert False
@@ -109,12 +106,12 @@ prop_neverApply_unused :: Property
 prop_neverApply_unused = forAll (chooseInt (0,5)) $ \n -> monadicIO $ do
   r <- run $ try $ runMockT $ do
     -- used mock
-    mUsed <- liftIO $ createMock (param (0 :: Int) |> True)
+    mUsed <- liftIO $ createStubFn (param (0 :: Int) |> True)
     addDefinition Definition { symbol = Proxy @"used", mock = mUsed, verify = \m' -> m' `shouldApplyTimesToAnything` n }
     -- unused mock
-    mUnused <- liftIO $ createMock (param (42 :: Int) |> True)
+    mUnused <- liftIO $ createStubFn (param (42 :: Int) |> True)
     addDefinition Definition { symbol = Proxy @"unused", mock = mUnused, verify = \m' -> m' `shouldApplyTimesToAnything` 0 }
-    let f = stubFn mUsed
+    let f = mUsed
     -- See NOTE [GHC9.4 duplicate-call counting] above: make each application
     -- depend on the loop index to avoid sharing; case forces dependence.
     liftIO $ forM_ [1 .. n] $ \i -> evaluate (case i of { _ -> f 0 })
@@ -131,18 +128,17 @@ prop_neverApply_unused = forAll (chooseInt (0,5)) $ \n -> monadicIO $ do
 prop_partial_order_duplicates :: Property
 prop_partial_order_duplicates = forAll genDupScript $ \xs -> length xs >= 2 ==> monadicIO $ do
   -- build mock over sequence
-  m <- run $ createMock $ cases [ param x |> True | x <- xs ]
-  let f = stubFn m
+  f <- run $ createStubFn $ cases [ param x |> True | x <- xs ]
   run $ sequence_ [ f x `seq` pure () | x <- xs ]
   let uniques = nub xs
   -- success case
-  run $ m `shouldApplyInPartialOrder` (param <$> uniques)
+  run $ f `shouldApplyInPartialOrder` (param <$> uniques)
   assert True
   -- failure case (if we have at least two unique values)
   case uniques of
     (_:_:_) | isClusterOrdered uniques xs -> do
       let reversed = reverse uniques
-      e <- run $ (try (m `shouldApplyInPartialOrder` (param <$> reversed)) :: IO (Either SomeException ()))
+      e <- run $ (try (f `shouldApplyInPartialOrder` (param <$> reversed)) :: IO (Either SomeException ()))
       case e of
         Left _ -> assert True
         Right _ -> assert False

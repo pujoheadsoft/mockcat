@@ -1,16 +1,28 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MonoLocalBinds #-}
-module Test.MockCat.Internal.Registry (attachVerifierToFn, lookupVerifierForFn) where
+module Test.MockCat.Internal.Registry
+  ( attachVerifierToFn
+  , lookupVerifierForFn
+  , registerUnitMeta
+  , lookupUnitMeta
+  , UnitMeta
+  , withUnitGuard
+  , withAllUnitGuards
+  , markUnitUsed
+  , isGuardActive
+  ) where
 
 import Data.Dynamic
 import System.Mem.StableName (StableName, eqStableName, hashStableName, makeStableName)
 import Test.MockCat.Internal.Types (MockName, Verifier)
 import Unsafe.Coerce (unsafeCoerce)
-import Data.IntMap.Strict (IntMap, empty, alter, lookup)
-import Data.IORef (IORef, newIORef, atomicModifyIORef', readIORef)
+import Data.IntMap.Strict (IntMap, alter, empty, insert, lookup, elems)
+import Data.IORef (IORef, newIORef, atomicModifyIORef', readIORef, writeIORef)
 import System.IO.Unsafe (unsafePerformIO)
 import Prelude hiding (lookup)
+import Control.Exception (bracket_)
+import Control.Monad (forM_)
 
 data FnTag
 
@@ -92,3 +104,92 @@ findMatch _ [] = Nothing
 findMatch target  (entry : rest)
   | sameFnStable target (stableFnName entry) = Just (mockName entry, entryPayload entry)
   | otherwise = findMatch target rest
+
+data UnitTag
+
+type UnitStableName = StableName UnitTag
+
+data UnitMeta = UnitMeta
+  { unitGuardRef :: IORef Bool
+  , unitUsedRef :: IORef Bool
+  }
+
+data UnitEntry = UnitEntry !UnitStableName !UnitMeta
+
+unitEntryStable :: UnitEntry -> UnitStableName
+unitEntryStable (UnitEntry stable _) = stable
+
+unitEntryMeta :: UnitEntry -> UnitMeta
+unitEntryMeta (UnitEntry _ meta) = meta
+
+toUnitStable :: forall a. StableName a -> UnitStableName
+toUnitStable = unsafeCoerce
+
+fromUnitStable :: forall a. UnitStableName -> StableName a
+fromUnitStable = unsafeCoerce
+
+sameUnitStable :: UnitStableName -> UnitStableName -> Bool
+sameUnitStable a b = eqStableName (fromUnitStable a) (fromUnitStable b)
+
+type UnitRegistry = IntMap [UnitEntry]
+
+{-# NOINLINE unitRegistry #-}
+unitRegistry :: IORef UnitRegistry
+unitRegistry = unsafePerformIO $ newIORef empty
+
+registerUnitMeta :: IORef ref -> IO UnitMeta
+registerUnitMeta ref = do
+  stable <- makeStableName ref
+  let key = hashStableName stable
+      unitStable = toUnitStable stable
+  meta <- createUnitMeta
+  atomicModifyIORef' unitRegistry $ \store ->
+    case lookup key store of
+      Just entries ->
+        case findUnit unitStable entries of
+          Just existing -> (store, existing)
+          Nothing ->
+            let newEntries = UnitEntry unitStable meta : entries
+             in (insert key newEntries store, meta)
+      Nothing ->
+        (insert key [UnitEntry unitStable meta] store, meta)
+
+lookupUnitMeta :: IORef ref -> IO (Maybe UnitMeta)
+lookupUnitMeta ref = do
+  stable <- makeStableName ref
+  let key = hashStableName stable
+      unitStable = toUnitStable stable
+  store <- readIORef unitRegistry
+  pure $ lookup key store >>= findUnit unitStable
+
+withUnitGuard :: UnitMeta -> IO a -> IO a
+withUnitGuard meta action =
+  bracket_ (writeIORef (unitGuardRef meta) True) (writeIORef (unitGuardRef meta) False) action
+
+withAllUnitGuards :: IO a -> IO a
+withAllUnitGuards action =
+  bracket_ (setAllUnitGuards True) (setAllUnitGuards False) action
+
+markUnitUsed :: UnitMeta -> IO ()
+markUnitUsed meta = writeIORef (unitUsedRef meta) True
+
+isGuardActive :: UnitMeta -> IO Bool
+isGuardActive meta = readIORef (unitGuardRef meta)
+
+createUnitMeta :: IO UnitMeta
+createUnitMeta = do
+  guardRef <- newIORef False
+  usedRef <- newIORef False
+  pure UnitMeta {unitGuardRef = guardRef, unitUsedRef = usedRef}
+
+findUnit :: UnitStableName -> [UnitEntry] -> Maybe UnitMeta
+findUnit _ [] = Nothing
+findUnit target (entry : rest)
+  | sameUnitStable target (unitEntryStable entry) = Just (unitEntryMeta entry)
+  | otherwise = findUnit target rest
+
+setAllUnitGuards :: Bool -> IO ()
+setAllUnitGuards flag = do
+  store <- readIORef unitRegistry
+  forM_ (concat (elems store)) $ \entry ->
+    writeIORef (unitGuardRef (unitEntryMeta entry)) flag

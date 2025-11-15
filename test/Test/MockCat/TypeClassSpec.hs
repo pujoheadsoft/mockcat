@@ -1,3 +1,4 @@
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DataKinds #-}
@@ -13,7 +14,7 @@ module Test.MockCat.TypeClassSpec (spec) where
 
 import Data.Text (Text, pack)
 import Test.Hspec (Spec, it, shouldBe)
-import Test.MockCat
+import Test.MockCat hiding (createMock, createNamedMock, createConstantMock, createMockIO)
 import Prelude hiding (readFile, writeFile)
 import Data.Data
 import Data.List (find)
@@ -24,6 +25,7 @@ import Control.Monad.Reader (MonadReader)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Reader.Class (ask, MonadReader (local))
 import Control.Monad.Trans.Class (lift)
+import Test.MockCat.Verify (MockResolvable (ResolvableParams))
 
 class Monad m => FileOperation m where
   readFile :: FilePath -> m Text
@@ -49,23 +51,23 @@ instance MonadIO m => FileOperation (MockT m) where
   readFile path = MockT do
     defs <- getDefinitions
     let
-      mock = fromMaybe (error "no answer found stub function `readFile`.") $ findParam (Proxy :: Proxy "readFile") defs
-      !result = stubFnMock mock path
+      mockFn = fromMaybe (error "no answer found stub function `readFile`.") $ findParam (Proxy :: Proxy "readFile") defs
+      !result = mockFn path
     pure result
 
   writeFile path content = MockT do
     defs <- getDefinitions
     let
-      mock = fromMaybe (error "no answer found stub function `writeFile`.") $ findParam (Proxy :: Proxy "writeFile") defs
-      !result = stubFnMock mock path content
+      mockFn = fromMaybe (error "no answer found stub function `writeFile`.") $ findParam (Proxy :: Proxy "writeFile") defs
+      !result = mockFn path content
     pure result
 
 instance MonadIO m => ApiOperation (MockT m) where
   post content = MockT do
     defs <- getDefinitions
     let
-      mock = fromMaybe (error "no answer found stub function `post`.") $ findParam (Proxy :: Proxy "post") defs
-      !result = stubFnMock mock content
+      mockFn = fromMaybe (error "no answer found stub function `post`.") $ findParam (Proxy :: Proxy "post") defs
+      !result = mockFn content
     pure result
 
 instance MonadIO m => MonadReader String (MockT m) where
@@ -73,34 +75,34 @@ instance MonadIO m => MonadReader String (MockT m) where
     defs <- getDefinitions
     let
       mock = fromMaybe (error "no answer found stub function `ask`.") $ findParam (Proxy :: Proxy "ask") defs
-      !result = stubFnMock mock
+      !result = mock
     pure result
   local = undefined
 
-_ask :: MonadIO m => params -> MockT m ()
+_ask :: (MockResolvable env, Typeable env, Typeable (ResolvableParams env), MonadIO m) => env -> MockT m ()
 _ask p = MockT $ do
-  mockInstance <- liftIO $ createNamedConstantMock "ask" p
+  mockInstance <- liftIO $ createNamedConstantStubFn "ask" p
   addDefinition (Definition (Proxy :: Proxy "ask") mockInstance shouldApplyToAnything)
 
 _readFile :: (MockBuilder params (FilePath -> Text) (Param FilePath), MonadIO m) => params -> MockT m ()
 _readFile p = MockT $ do
-  mockInstance <- liftIO $ createNamedMock "readFile" p
+  mockInstance <- liftIO $ createNamedStubFn "readFile" p
   addDefinition (Definition (Proxy :: Proxy "readFile") mockInstance shouldApplyToAnything)
 
 _writeFile :: (MockBuilder params (FilePath -> Text -> ()) (Param FilePath :> Param Text), MonadIO m) => params -> MockT m ()
 _writeFile p = MockT $ do
-  mockInstance <- liftIO $ createNamedMock "writeFile" p
+  mockInstance <- liftIO $ createNamedStubFn "writeFile" p
   addDefinition (Definition (Proxy :: Proxy "writeFile") mockInstance shouldApplyToAnything)
 
 _post :: (MockBuilder params (Text -> ()) (Param Text), MonadIO m) => params -> MockT m ()
 _post p = MockT $ do
-  mockInstance <- liftIO $ createNamedMock "post" p
-  addDefinition (Definition (Proxy :: Proxy "post") mockInstance shouldApplyToAnything)
+  mockFn <- liftIO $ createNamedStubFn "post" p
+  addDefinition (Definition (Proxy :: Proxy "post") mockFn shouldApplyToAnything)
 
 findParam :: KnownSymbol sym => Proxy sym -> [Definition] -> Maybe a
 findParam pa definitions = do
   let definition = find (\(Definition s _ _) -> symbolVal s == symbolVal pa) definitions
-  fmap (\(Definition _ mock _) -> unsafeCoerce mock) definition
+  fmap (\(Definition _ f _) -> unsafeCoerce f) definition
 
 class Monad m => TestClass m where
   echo :: String -> m ()
@@ -127,14 +129,14 @@ instance MonadIO m => TestClass (MockT m) where
       !result = stubFnMock mock a
     lift result
 
-_getBy :: (MockBuilder params (String -> m Int) (Param String), MonadIO m) => params -> MockT m ()
+_getBy :: (MockBuilder params (String -> m Int) (Param String), MonadIO m, Typeable m, Typeable (ResolvableParams (String -> m Int))) => params -> MockT m ()
 _getBy p = MockT $ do
-  mockInstance <- liftIO $ createNamedMock "_getBy" p
+  mockInstance <- liftIO $ createNamedStubFn "_getBy" p
   addDefinition (Definition (Proxy :: Proxy "_getBy") mockInstance shouldApplyToAnything)
 
-_echo :: (MockBuilder params (String -> m ()) (Param String), MonadIO m) => params -> MockT m ()
+_echo :: (MockBuilder params (String -> m ()) (Param String), MonadIO m, Typeable m, Typeable (ResolvableParams (String -> m ()))) => params -> MockT m ()
 _echo p = MockT $ do
-  mockInstance <- liftIO $ createNamedMock "_echo" p
+  mockInstance <- liftIO $ createNamedStubFn "_echo" p
   addDefinition (Definition (Proxy :: Proxy "_echo") mockInstance shouldApplyToAnything)
 
 
@@ -153,25 +155,25 @@ instance MonadIO m => Teletype (MockT m) where
   readTTY = MockT do
     defs <- getDefinitions
     let
-      mock = fromMaybe (error "no answer found stub function `_readTTY`.") $ findParam (Proxy :: Proxy "_readTTY") defs
-      !result = stubFnMock mock
+      mockFn = fromMaybe (error "no answer found stub function `_readTTY`.") $ findParam (Proxy :: Proxy "_readTTY") defs
+      !result = mockFn
     lift result
 
   writeTTY a = MockT do
     defs <- getDefinitions
     let
-      mock = fromMaybe (error "no answer found stub function `_writeTTY`.") $ findParam (Proxy :: Proxy "_writeTTY") defs
-      !result = stubFnMock mock a
+      mockFn = fromMaybe (error "no answer found stub function `_writeTTY`.") $ findParam (Proxy :: Proxy "_writeTTY") defs
+      !result = mockFn a
     lift result
 
-_readTTY :: (MockBuilder params (m String) (), MonadIO m) => params -> MockT m ()
+_readTTY :: (MockBuilder params (m String) (), Typeable m, Typeable (ResolvableParams (m String)), MockResolvable (m String), MonadIO m) => params -> MockT m ()
 _readTTY p = MockT $ do
-  mockInstance <- liftIO $ createNamedMock "_readTTY" p
+  mockInstance <- liftIO $ createNamedStubFn "_readTTY" p
   addDefinition (Definition (Proxy :: Proxy "_readTTY") mockInstance shouldApplyToAnything)
 
-_writeTTY :: (MockBuilder params (String -> m ()) (Param String), MonadIO m) => params -> MockT m ()
+_writeTTY :: (MockBuilder params (String -> m ()) (Param String), Typeable m, Typeable (ResolvableParams (String -> m ())),   MonadIO m) => params -> MockT m ()
 _writeTTY p = MockT $ do
-  mockInstance <- liftIO $ createNamedMock "_writeTTY" p
+  mockInstance <- liftIO $ createNamedStubFn "_writeTTY" p
   addDefinition (Definition (Proxy :: Proxy "_writeTTY") mockInstance shouldApplyToAnything)
 
 spec :: Spec

@@ -10,6 +10,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
 
 {- | This module provides the following functions.
 
@@ -49,13 +50,15 @@ module Test.MockCat.Mock
   , stubFnMockIO
   , createStubFnIO
   , createPureStubFn
+  , createConstantStubFn
+  , createNamedConstantStubFn
   )
 where
 
 import Control.Monad (guard, when, ap)
 import Data.Function ((&))
 
-import Data.IORef (IORef, newIORef, readIORef, atomicModifyIORef')
+import Data.IORef (IORef, newIORef, readIORef, writeIORef, atomicModifyIORef')
 import Data.List (elemIndex, intercalate)
 import Data.Maybe
 
@@ -74,9 +77,18 @@ import Test.MockCat.Internal.Core
 import Test.MockCat.Internal.Message
 import Test.MockCat.Internal.Builder
 import Test.MockCat.Verify
-import Data.Typeable (Typeable)
+import Data.Typeable (Typeable, eqT)
+import Type.Reflection (typeRep, TyCon, typeRepTyCon, splitApps)
+import Data.Type.Equality ((:~:) (Refl))
 import Data.Dynamic (toDyn)
-import Test.MockCat.Internal.Registry (attachVerifierToFn)
+import Test.MockCat.Internal.Registry
+  ( attachVerifierToFn
+  , registerUnitMeta
+  , UnitMeta
+  , withUnitGuard
+  , markUnitUsed
+  , isGuardActive
+  )
 
 {- | Create a mock.
 From this mock, you can generate stub functions and verify the functions.
@@ -164,10 +176,15 @@ stubFnMock (NamedMock _ f _ _) = f
 createStubFn ::
   ( MonadIO m
   , MockBuilder params fn verifyParams
-  , Typeable verifyParams) =>
+  , Typeable verifyParams
+  , Typeable fn
+  ) =>
   params ->
   m fn
 createStubFn params = registerAndReturn =<< createMock params
+
+createConstantStubFn :: (MonadIO m, Typeable b) => b -> m b
+createConstantStubFn params = registerAndReturn =<< createConstantMock params
 
 createPureStubFn ::
   (StubBuilder params fn) =>
@@ -179,11 +196,16 @@ createPureStubFn params = buildStub Nothing params
 createNamedStubFn ::
   ( MonadIO m
   , MockBuilder params fn verifyParams
-  , Typeable verifyParams) =>
+  , Typeable verifyParams
+  , Typeable fn
+  ) =>
   String ->
   params ->
   m fn
 createNamedStubFn name params = registerAndReturn =<< createNamedMock name params
+
+createNamedConstantStubFn :: (MonadIO m, Typeable b) => String -> b -> m b
+createNamedConstantStubFn name params = registerAndReturn =<< createNamedConstantMock name params
 
 
 to :: (a -> IO ()) -> a -> IO ()
@@ -260,6 +282,7 @@ createStubFnIO ::
   ( MockIOBuilder params fn verifyParams
   , MonadIO m
   , LiftFunTo fn fnM m
+  , Typeable fnM
   ) =>
   params ->
   m fnM
@@ -285,15 +308,54 @@ widenMock (NamedMockIO name f verifier _) = NamedMockIO name (liftFunTo (Proxy :
 
 
 registerAndReturn ::
+  forall m mock.
   ( MonadIO m
   , IsMock mock
-  , Typeable (Verifier (MockParams mock))) =>
+  , Typeable (Verifier (MockParams mock))
+  , Typeable (MockParams mock)
+  , Typeable (MockFn mock)
+  ) =>
   mock ->
   m (MockFn mock)
 registerAndReturn mock = do
-  fn <- liftIO $ evaluate (stubFn mock)
-  let
-    name = mockName mock
-    verifier = mockVerifier mock
-  liftIO $ attachVerifierToFn fn (name, verifier)
-  pure fn
+  baseValue <- liftIO $ evaluate (stubFn mock)
+  let name = mockName mock
+      verifier@(Verifier ref) = mockVerifier mock
+  case eqT :: Maybe (MockParams mock :~: ()) of
+    Just Refl -> do
+      meta <- liftIO $ registerUnitMeta ref
+      liftIO $ writeIORef ref appliedRecord
+      let trackedValue = wrapUnitStub ref meta baseValue
+      liftIO $
+        withUnitGuard meta $ do
+          attachVerifierToFn trackedValue (name, verifier)
+          attachVerifierToFn baseValue (name, verifier)
+      pure trackedValue
+    Nothing -> do
+      liftIO $ attachVerifierToFn baseValue (name, verifier)
+      pure baseValue
+
+ioTyCon :: TyCon
+ioTyCon = typeRepTyCon (typeRep @(IO ()))
+
+wrapUnitStub ::
+  forall fn.
+  Typeable fn =>
+  IORef (AppliedRecord ()) ->
+  UnitMeta ->
+  fn ->
+  fn
+wrapUnitStub ref meta value =
+  perform $ do
+    guardActive <- isGuardActive meta
+    if guardActive || isIOType (Proxy :: Proxy fn)
+      then pure value
+      else do
+        markUnitUsed meta
+        appendAppliedParams ref ()
+        pure value
+
+isIOType :: forall a. Typeable a => Proxy a -> Bool
+isIOType _ =
+  case splitApps (typeRep @a) of
+    (tc, _) -> tc == ioTyCon

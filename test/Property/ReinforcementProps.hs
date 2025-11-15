@@ -26,8 +26,7 @@ import Test.MockCat (param)
 
 prop_predicate_negative_not_counted :: Property
 prop_predicate_negative_not_counted = forAll genVals $ \xs -> monadicIO $ do
-  m <- run $ createMock (expect even "even" |> True)
-  let f = stubFn m
+  f <- run $ createStubFn (expect even "even" |> True)
   outcomes <- run $ mapM (\x -> (try (evaluate (f x)) :: IO (Either SomeException Bool))) xs
   let evens = length (filter even xs)
       successes = length [ () | (x, Right _) <- zip xs outcomes, even x ]
@@ -41,7 +40,7 @@ prop_predicate_negative_not_counted = forAll genVals $ \xs -> monadicIO $ do
   -- Successes count equals even inputs
   assert (successes == evens)
   -- Applied count equals successes (only even)
-  run $ m `shouldApplyTimesToAnything` evens
+  run $ f `shouldApplyTimesToAnything` evens
   assert True
   where
     genVals = resize 60 $ listOf (arbitrary :: Gen Int)
@@ -85,13 +84,12 @@ prop_lazy_partial_force_concurrency = forAll genPlan $ \(arg, mask) -> monadicIO
 prop_partial_order_interleaved_duplicates :: Property
 prop_partial_order_interleaved_duplicates = forAll genPair $ \(a,b) -> a /= b ==> monadicIO $ do
   -- Pattern a a b : [a,b] subsequence succeeds, [b,a] fails.
-  m <- run $ createMock $ cases [ param a |> True
+  f <- run $ createStubFn $ cases [ param a |> True
                                 , param a |> True
                                 , param b |> True ]
-  let f = stubFn m
   run $ f a `seq` f a `seq` f b `seq` pure ()
-  run $ m `shouldApplyInPartialOrder` [param a, param b]
-  e <- run $ (try (m `shouldApplyInPartialOrder` [param b, param a]) :: IO (Either SomeException ()))
+  run $ f `shouldApplyInPartialOrder` [param a, param b]
+  e <- run $ (try (f `shouldApplyInPartialOrder` [param b, param a]) :: IO (Either SomeException ()))
   case e of
     Left _  -> assert True
     Right _ -> assert False

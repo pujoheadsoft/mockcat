@@ -18,10 +18,9 @@ import Test.MockCat (param)
 -- | Property: executing a non-empty script yields exact order success.
 prop_inorder_succeeds :: Property
 prop_inorder_succeeds = forAll scriptGen $ \scr@(Script xs) -> not (null xs) ==> monadicIO $ do
-  m <- run $ buildUnaryMock scr
-  let f = stubFn m
+  f <- run $ buildUnaryMock scr
   run $ runScript f scr
-  run $ m `shouldApplyInOrder` (param <$> xs)
+  run $ f `shouldApplyInOrder` (param <$> xs)
   assert True
 
 -- | Property: a single adjacent swap causes order verification failure.
@@ -33,10 +32,9 @@ prop_adjacent_swap_fails = forAll scriptGen $ \(Script xs) -> length xs >= 2 ==>
     else do
       i <- run $ generate $ chooseInt (0, length xs - 2)
       let swapped = take i xs ++ [xs !! (i+1), xs !! i] ++ drop (i+2) xs
-      m <- run $ buildUnaryMock (Script xs)
-      let f = stubFn m
+      f <- run $ buildUnaryMock (Script xs)
       run $ runScript f (Script xs)
-      e <- run $ (try (m `shouldApplyInOrder` (param <$> swapped)) :: IO (Either SomeException ()))
+      e <- run $ (try (f `shouldApplyInOrder` (param <$> swapped)) :: IO (Either SomeException ()))
       case e of
         Left _ -> assert True
         Right _ -> assert False
@@ -53,10 +51,9 @@ chooseSubsequence xs = do
 prop_partial_order_subset_succeeds :: Property
 prop_partial_order_subset_succeeds = forAll scriptGen $ \scr@(Script xs) -> not (null xs) ==> monadicIO $ do
   subset <- run $ generate $ chooseSubsequence xs
-  m <- run $ buildUnaryMock scr
-  let f = stubFn m
+  f <- run $ buildUnaryMock scr
   run $ runScript f scr
-  run $ m `shouldApplyInPartialOrder` (param <$> subset)
+  run $ f `shouldApplyInPartialOrder` (param <$> subset)
   assert True
 
 -- | Property: selecting two distinct values and reversing them causes partial order failure.
@@ -69,11 +66,10 @@ prop_partial_order_reversed_pair_fails = forAll scriptGen $ \scr@(Script xs) -> 
       case listToMaybe pairs of
         Nothing -> assert True
         Just (i,j) -> do
-          m <- run $ buildUnaryMock scr
-          let f = stubFn m
+          f <- run $ buildUnaryMock scr
           run $ runScript f scr
           let reversed = [xs!!j, xs!!i]
-          e <- run $ (try (m `shouldApplyInPartialOrder` (param <$> reversed)) :: IO (Either SomeException ()))
+          e <- run $ (try (f `shouldApplyInPartialOrder` (param <$> reversed)) :: IO (Either SomeException ()))
           case e of
             Left _ -> assert True
             Right _ -> assert False

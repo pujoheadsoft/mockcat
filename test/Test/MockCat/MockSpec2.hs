@@ -847,22 +847,22 @@ spec = do
 
   describe "constant" do
     it "createConstantMock" do
-      m <- createConstantMock "foo"
-      stubFn m `shouldBe` "foo"
-      shouldApplyToAnything m
+      f <- createConstantStubFn "foo"
+      f `shouldBe` "foo"
+      shouldApplyToAnything f
 
     it "createNamedConstantMock" do
-      m <- createNamedConstantMock "const" "foo"
-      stubFn m `shouldBe` "foo"
-      shouldApplyToAnything m
+      f <- createNamedConstantStubFn "const" "foo"
+      f `shouldBe` "foo"
+      shouldApplyToAnything f
 
     it "createConstantMock (error message)" do
-      m <- createConstantMock "foo"
-      shouldApplyToAnything m `shouldThrow` errorCall "It has never been applied function"
+      f <- createConstantStubFn "foo"
+      shouldApplyToAnything f `shouldThrow` errorCall "It has never been applied function"
 
     it "createNamedConstantMock (error message)" do
-      m <- createNamedConstantMock "constant" "foo"
-      shouldApplyToAnything m `shouldThrow` errorCall "It has never been applied function `constant`"
+      f <- createNamedConstantStubFn "constant" "foo"
+      shouldApplyToAnything f `shouldThrow` errorCall "It has never been applied function `constant`"
 
     it "verify constant IO mock" do
       f <- createStubFn $ pure @IO "foo"

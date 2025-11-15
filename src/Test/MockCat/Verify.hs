@@ -11,6 +11,7 @@
 {-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE DataKinds #-}
 module Test.MockCat.Verify where
 
 import Test.MockCat.Internal.Types
@@ -27,7 +28,7 @@ import Test.MockCat.Internal.Message
 import Data.Kind (Type)
 import Test.MockCat.Cons ((:>))
 import Data.Typeable (Typeable)
-import Test.MockCat.Internal.Registry (lookupVerifierForFn)
+import Test.MockCat.Internal.Registry (lookupVerifierForFn, withAllUnitGuards)
 import Data.Dynamic (fromDynamic)
 
 -- | Class for verifying mock function.
@@ -371,6 +372,20 @@ type family FunctionParams fn where
   FunctionParams (a -> fn) = PrependParam a (FunctionParams fn)
   FunctionParams fn = ()
 
+type family IsValueType target :: Bool where
+  IsValueType (Mock fn params) = 'False
+  IsValueType (MockIO m fn params) = 'False
+  IsValueType (IO r) = 'False
+  IsValueType (a -> fn) = 'False
+  IsValueType target = 'True
+
+type family ResolvableParamsOf target :: Type where
+  ResolvableParamsOf (Mock fn params) = params
+  ResolvableParamsOf (MockIO m fn params) = params
+  ResolvableParamsOf (IO r) = FunctionParams (IO r)
+  ResolvableParamsOf (a -> fn) = FunctionParams (a -> fn)
+  ResolvableParamsOf target = ()
+
 class MockResolvable target where
   type ResolvableParams target :: Type
   resolveMock :: target -> IO (Maybe (Maybe MockName, Verifier (ResolvableParams target)))
@@ -378,20 +393,34 @@ class MockResolvable target where
 instance
   {-# OVERLAPPING #-}
   MockResolvable (Mock fn params) where
-  type ResolvableParams (Mock fn params) = params
+  type ResolvableParams (Mock fn params) = ResolvableParamsOf (Mock fn params)
   resolveMock mock = pure $ Just (mockName mock, mockVerifier mock)
 
 instance
   {-# OVERLAPPING #-}
   MockResolvable (MockIO m fn params) where
-  type ResolvableParams (MockIO m fn params) = params
+  type ResolvableParams (MockIO m fn params) = ResolvableParamsOf (MockIO m fn params)
   resolveMock mock = pure $ Just (mockName mock, mockVerifier mock)
 
 instance
   {-# OVERLAPPING #-}
   Typeable (Verifier (FunctionParams (IO r))) =>
   MockResolvable (IO r) where
-  type ResolvableParams (IO r) = FunctionParams (IO r)
+  type ResolvableParams (IO r) = ResolvableParamsOf (IO r)
+  resolveMock fn = do
+    m <- lookupVerifierForFn fn
+    case m of
+      Nothing -> pure Nothing
+      Just (name, dynVerifier) ->
+        case fromDynamic dynVerifier of
+          Just verifier -> pure $ Just (name, verifier)
+          Nothing -> pure Nothing
+
+instance
+  {-# OVERLAPPING #-}
+  Typeable (Verifier (FunctionParams (a -> fn))) =>
+  MockResolvable (a -> fn) where
+  type ResolvableParams (a -> fn) = ResolvableParamsOf (a -> fn)
   resolveMock fn = do
     m <- lookupVerifierForFn fn
     case m of
@@ -403,11 +432,16 @@ instance
 
 instance
   {-# OVERLAPPABLE #-}
-  Typeable (Verifier (FunctionParams (a -> fn))) =>
-  MockResolvable (a -> fn) where
-  type ResolvableParams (a -> fn) = FunctionParams (a -> fn)
-  resolveMock fn = do
-    m <- lookupVerifierForFn fn
+  ( Typeable (Verifier ())
+  , FunctionParams value ~ ()
+  , ResolvableParamsOf value ~ ()
+  , IsValueType value ~ 'True
+  , Typeable (ResolvableParamsOf value)
+  ) =>
+  MockResolvable value where
+  type ResolvableParams value = ResolvableParamsOf value
+  resolveMock value = do
+    m <- withAllUnitGuards $ lookupVerifierForFn value
     case m of
       Nothing -> pure Nothing
       Just (name, dynVerifier) ->
