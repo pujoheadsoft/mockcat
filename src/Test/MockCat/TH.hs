@@ -28,7 +28,7 @@ import Data.Data (Proxy (..))
 import Data.Typeable (Typeable)
 import Data.Function ((&))
 import Data.List (elemIndex, find, nub)
-import Data.Maybe (fromMaybe, isJust)
+import Data.Maybe (catMaybes, fromMaybe, isJust)
 import Data.Text (pack, splitOn, unpack)
 import GHC.TypeLits (KnownSymbol, symbolVal)
 import Language.Haskell.TH
@@ -481,15 +481,23 @@ doCreateMockFnDecs :: (Quote m) => String -> Name -> Name -> Type -> Name -> Typ
 doCreateMockFnDecs funNameStr mockFunName params funType monadVarName updatedType = do
   newFunSig <- do
     let verifyParams = createMockBuilderVerifyParams updatedType
+        typeableTargets =
+          [ funType
+          , verifyParams
+          , AppT (ConT ''Verifier) verifyParams
+          , AppT (ConT ''ResolvableParams) funType
+          ]
+        typeablePreds =
+          [ AppT (ConT ''Typeable) target
+          | target <- typeableTargets
+          , needsTypeable target
+          ]
         ctx =
           [ AppT (AppT (AppT (ConT ''MockBuilder) (VarT params)) funType) verifyParams
           , AppT (ConT ''MockResolvable) funType
-          , AppT (ConT ''Typeable) funType
-          , AppT (ConT ''Typeable) verifyParams
-          , AppT (ConT ''Typeable) (AppT (ConT ''Verifier) verifyParams)
-          , AppT (ConT ''Typeable) (AppT (ConT ''ResolvableParams) funType)
           , AppT (ConT ''MonadIO) (VarT monadVarName)
           ]
+            ++ typeablePreds
         resultType =
           AppT
             (AppT ArrowT (VarT params))
@@ -505,13 +513,20 @@ doCreateMockFnDecs funNameStr mockFunName params funType monadVarName updatedTyp
 
 doCreateConstantMockFnDecs :: (Quote m) => String -> Name -> Type -> Name -> m [Dec]
 doCreateConstantMockFnDecs funNameStr mockFunName ty monadVarName = do
-  let ctx =
-        [ AppT (ConT ''MockResolvable) ty
-        , AppT (ConT ''Typeable) ty
-        , AppT (ConT ''Typeable) (AppT (ConT ''ResolvableParams) ty)
-        , AppT (ConT ''Typeable) (AppT (ConT ''Verifier) (AppT (ConT ''ResolvableParams) ty))
-        , AppT (ConT ''MonadIO) (VarT monadVarName)
+  let typeableTargets =
+        [ ty
+        , AppT (ConT ''ResolvableParams) ty
+        , AppT (ConT ''Verifier) (AppT (ConT ''ResolvableParams) ty)
         ]
+      typeablePreds =
+        [ AppT (ConT ''Typeable) target
+        | target <- typeableTargets
+        , needsTypeable target
+        ]
+      ctx =
+        [ AppT (ConT ''MockResolvable) ty
+        , AppT (ConT ''MonadIO) (VarT monadVarName)
+        ] ++ typeablePreds
       resultType =
         AppT
           (AppT ArrowT ty)
@@ -527,15 +542,23 @@ doCreateEmptyVerifyParamMockFnDecs :: (Quote m) => String -> Name -> Name -> Typ
 doCreateEmptyVerifyParamMockFnDecs funNameStr mockFunName params funType monadVarName updatedType = do
   newFunSig <- do
     let verifyParams = createMockBuilderVerifyParams updatedType
+        typeableTargets =
+          [ funType
+          , verifyParams
+          , AppT (ConT ''Verifier) verifyParams
+          , AppT (ConT ''ResolvableParams) funType
+          ]
+        typeablePreds =
+          [ AppT (ConT ''Typeable) target
+          | target <- typeableTargets
+          , needsTypeable target
+          ]
         ctx =
           [ AppT (AppT (AppT (ConT ''MockBuilder) (VarT params)) funType) verifyParams
           , AppT (ConT ''MockResolvable) funType
-          , AppT (ConT ''Typeable) funType
-          , AppT (ConT ''Typeable) verifyParams
-          , AppT (ConT ''Typeable) (AppT (ConT ''Verifier) verifyParams)
-          , AppT (ConT ''Typeable) (AppT (ConT ''ResolvableParams) funType)
           , AppT (ConT ''MonadIO) (VarT monadVarName)
           ]
+            ++ typeablePreds
         resultType =
           AppT
             (AppT ArrowT (VarT params))
@@ -608,6 +631,32 @@ createMockBuilderVerifyParams (ForallT _ _ ty) = createMockBuilderVerifyParams t
 createMockBuilderVerifyParams (VarT _) = TupleT 0
 createMockBuilderVerifyParams (ConT _) = TupleT 0
 createMockBuilderVerifyParams _ = TupleT 0
+
+needsTypeable :: Type -> Bool
+needsTypeable = go
+  where
+    go (ForallT _ _ t) = go t
+    go (AppT t1 t2) = go t1 || go t2
+    go (SigT t _) = go t
+    go (VarT _) = True
+    go (ParensT t) = go t
+    go (InfixT t1 _ t2) = go t1 || go t2
+    go (UInfixT t1 _ t2) = go t1 || go t2
+    go (ImplicitParamT _ t) = go t
+    go (ConT _) = False
+    go (PromotedT _) = False
+    go (PromotedTupleT _) = False
+    go PromotedConsT = False
+    go PromotedNilT = False
+    go (TupleT _) = False
+    go ListT = False
+    go (UnboxedTupleT _) = False
+    go (UnboxedSumT _) = False
+    go ArrowT = False
+    go EqualityT = False
+    go ConstraintT = False
+    go StarT = False
+    go _ = False
 
 findParam :: (KnownSymbol sym) => Proxy sym -> [Definition] -> Maybe a
 findParam pa definitions = do

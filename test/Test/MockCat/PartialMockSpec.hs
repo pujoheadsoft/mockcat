@@ -5,6 +5,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE GADTs #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 {-# LANGUAGE UndecidableInstances #-}
@@ -29,7 +30,7 @@ import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Maybe (MaybeT (..))
 import Control.Monad.Trans.Reader hiding (ask)
-import Test.MockCat.Verify (MockResolvable, ResolvableParamsOf)
+import qualified Test.MockCat.Verify as Verify
 import Test.MockCat.Internal.Types (Verifier)
 
 instance (MonadIO m, FileOperation m) => FileOperation (MockT m) where
@@ -51,7 +52,7 @@ instance (MonadIO m, FileOperation m) => FileOperation (MockT m) where
 
 _readFile ::
   ( MockBuilder params (FilePath -> Text) (Param FilePath)
-  , MockResolvable (FilePath -> Text)
+  , Verify.MockResolvable (FilePath -> Text)
   , MonadIO m
   ) =>
   params ->
@@ -62,7 +63,7 @@ _readFile p = MockT $ do
 
 _writeFile ::
   ( MockBuilder params (FilePath -> Text -> ()) (Param FilePath :> Param Text)
-  , MockResolvable (FilePath -> Text -> ())
+  , Verify.MockResolvable (FilePath -> Text -> ())
   , MonadIO m
   ) =>
   params ->
@@ -95,10 +96,10 @@ instance (MonadIO m, Finder a b m) => Finder a b (MockT m) where
       Nothing -> lift $ findById id
 
 _findIds ::
-  ( MockResolvable r
+  ( Verify.MockResolvable r
   , Typeable r
-  , Typeable (ResolvableParamsOf r)
-  , Typeable (Verifier (ResolvableParamsOf r))
+  , Typeable (Verify.ResolvableParams r)
+  , Typeable (Verifier (Verify.ResolvableParams r))
   , MonadIO m
   ) =>
   r ->

@@ -25,7 +25,7 @@ import Control.Monad.Reader (MonadReader)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Reader.Class (ask, MonadReader (local))
 import Control.Monad.Trans.Class (lift)
-import Test.MockCat.Verify (MockResolvable (ResolvableParams), shouldApplyToAnything, shouldApplyTimesToAnything)
+import Test.MockCat.Verify (MockResolvable (ResolvableParams))
 
 class Monad m => FileOperation m where
   readFile :: FilePath -> m Text
