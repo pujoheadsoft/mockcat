@@ -19,7 +19,7 @@ import Control.Monad.IO.Unlift (withRunInIO, MonadUnliftIO)
 class Monad m => ConcurrencyAction m where
   action :: Int -> m Int
 
--- makeMock [t|ConcurrencyAction|]
+makeMock [t|ConcurrencyAction|]
 
 -- -------------------------
 -- test target functions
@@ -47,36 +47,35 @@ parallelCallActionN n = withRunInIO \runInIO -> do
 
 spec :: Spec
 spec = do
-  pure ()
-  -- describe "Concurrency / applyTimesIs" do
-  --   it "counts calls across parallel async threads" do
-  --     result <- runMockT do
-  --       _action (any |> (1 :: Int)) `applyTimesIs` 10
+  describe "Concurrency / applyTimesIs" do
+    it "counts calls across parallel async threads" do
+      result <- runMockT do
+        _action (any |> (1 :: Int)) `applyTimesIs` 10
 
-  --       parallelActionSum 10
-  --     result `shouldBe` 10
+        parallelActionSum 10
+      result `shouldBe` 10
 
-  --   it "stress concurrent applyTimesIs with nested unlifts" do
-  --     let threads = 50 :: Int
-  --         callsPerThread = 20 :: Int
-  --         total = threads * callsPerThread :: Int
-  --     _ <- (runMockT $ do
-  --       _action (any |> (1 :: Int)) `applyTimesIs` total
-  --       parallelCallActionWithDelay threads callsPerThread
-  --       ) :: IO ()
-  --     pure ()
+    it "stress concurrent applyTimesIs with nested unlifts" do
+      let threads = 50 :: Int
+          callsPerThread = 20 :: Int
+          total = threads * callsPerThread :: Int
+      _ <- (runMockT $ do
+        _action (any |> (1 :: Int)) `applyTimesIs` total
+        parallelCallActionWithDelay threads callsPerThread
+        ) :: IO ()
+      pure ()
 
-  --   it "fails verification when calls are fewer than declared" do
-  --     runMockT (do
-  --       _action (any |> (1 :: Int)) `applyTimesIs` 10
-  --       parallelCallActionN 9
-  --       pure ()
-  --       ) `shouldThrow` anyErrorCall
+    it "fails verification when calls are fewer than declared" do
+      runMockT (do
+        _action (any |> (1 :: Int)) `applyTimesIs` 10
+        parallelCallActionN 9
+        pure ()
+        ) `shouldThrow` anyErrorCall
 
-  -- describe "Concurrency / neverApply" do
-  --   it "neverApply passes when stub not used in parallel context" do
-  --     r <- runMockT do
-  --       neverApply $ _action (any |> (99 :: Int))
+  describe "Concurrency / neverApply" do
+    it "neverApply passes when stub not used in parallel context" do
+      r <- runMockT do
+        neverApply $ _action (any |> (99 :: Int))
 
-  --       pure (123 :: Int)
-  --     r `shouldBe` 123
+        pure (123 :: Int)
+      r `shouldBe` 123
