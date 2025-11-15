@@ -343,6 +343,15 @@ shouldApplyToAnything m = do
   appliedParamsList <- readAppliedParamsList ref
   when (null appliedParamsList) $ error $ "It has never been applied function" <> mockNameLabel mockName
 
+shouldApplyToAnythingStub ::
+  ( Typeable fn
+  , Typeable (ResolvableParamsOf fn)
+  , Typeable (Verifier (ResolvableParamsOf fn))
+  ) =>
+  fn ->
+  IO ()
+shouldApplyToAnythingStub fn = shouldApplyToAnything (RegisteredStub fn)
+
 -- | Verify that it was apply to anything (times).
 shouldApplyTimesToAnything ::
   ( MockResolvable m
@@ -364,6 +373,16 @@ shouldApplyTimesToAnything m count = do
             "  expected: " <> show count,
             "   but got: " <> show appliedCount
           ]
+
+shouldApplyTimesToAnythingStub ::
+  ( Typeable fn
+  , Typeable (ResolvableParamsOf fn)
+  , Typeable (Verifier (ResolvableParamsOf fn))
+  ) =>
+  fn ->
+  Int ->
+  IO ()
+shouldApplyTimesToAnythingStub fn count = shouldApplyTimesToAnything (RegisteredStub fn) count
 
 type family PrependParam a rest where
   PrependParam a () = Param a
@@ -460,24 +479,6 @@ instance
           Just verifier -> pure $ Just (name, verifier)
           Nothing -> pure Nothing
 
-shouldApplyToAnythingStub ::
-  ( Typeable fn
-  , Typeable (ResolvableParamsOf fn)
-  , Typeable (Verifier (ResolvableParamsOf fn))
-  ) =>
-  fn ->
-  IO ()
-shouldApplyToAnythingStub fn = shouldApplyToAnything (RegisteredStub fn)
-
-shouldApplyTimesToAnythingStub ::
-  ( Typeable fn
-  , Typeable (ResolvableParamsOf fn)
-  , Typeable (Verifier (ResolvableParamsOf fn))
-  ) =>
-  fn ->
-  Int ->
-  IO ()
-shouldApplyTimesToAnythingStub fn count = shouldApplyTimesToAnything (RegisteredStub fn) count
 
 data ResolvedMock params = ResolvedMock {
   resolvedMockName :: Maybe MockName,
