@@ -19,7 +19,7 @@ class (Monad m) => FileOperation m where
   writeFile :: FilePath -> Text -> m ()
   readFile :: FilePath -> m Text
 
--- makeMock [t|FileOperation|]
+makeMock [t|FileOperation|]
 
 operationProgram ::
   FileOperation m =>
@@ -75,13 +75,13 @@ spec = do
   --     echo
   --   result `shouldBe` ()
 
-  -- it "read & write" do
-  --   result <- runMockT do
-  --     _readFile $ "input.txt" |> pack "Content"
-  --     _writeFile $ "output.text" |> pack "Content" |> ()
-  --     operationProgram "input.txt" "output.text"
+  it "read & write" do
+    result <- runMockT do
+      _readFile $ "input.txt" |> pack "Content"
+      _writeFile $ "output.text" |> pack "Content" |> ()
+      operationProgram "input.txt" "output.text"
 
-  --   result `shouldBe` ()
+    result `shouldBe` ()
 
   it "stub" do
     -- create a stub function

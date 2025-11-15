@@ -32,9 +32,9 @@ main = hspec $ do
     AssociationList.spec
     Example.spec
     TypeClass.spec
-    -- TypeClassTH.spec
+    TypeClassTH.spec
     PartialMock.spec
-    -- PartialMockTH.spec
+    PartialMockTH.spec
     Concurrency.spec
     Stub.spec
     Registry.spec

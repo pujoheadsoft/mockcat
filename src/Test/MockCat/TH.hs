@@ -25,6 +25,7 @@ import Control.Monad (guard, unless)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.Trans.Class (lift)
 import Data.Data (Proxy (..))
+import Data.Typeable (Typeable)
 import Data.Function ((&))
 import Data.List (elemIndex, find, nub)
 import Data.Maybe (fromMaybe, isJust)
@@ -58,6 +59,7 @@ import Language.Haskell.TH.Syntax (nameBase)
 import Test.MockCat.Cons
 import Test.MockCat.Mock
 import Test.MockCat.MockT
+import Test.MockCat.Verify (ResolvableParams)
 import Test.MockCat.Param
 import Unsafe.Coerce (unsafeCoerce)
 import Prelude as P
@@ -478,13 +480,18 @@ doCreateMockFnDecs :: (Quote m) => String -> Name -> Name -> Type -> Name -> Typ
 doCreateMockFnDecs funNameStr mockFunName params funType monadVarName updatedType = do
   newFunSig <- do
     let verifyParams = createMockBuilderVerifyParams updatedType
-    sigD
-      mockFunName
-      [t|
-        (MockBuilder $(varT params) ($(pure funType)) ($(pure verifyParams)), MonadIO $(varT monadVarName)) =>
-        $(varT params) ->
-        MockT $(varT monadVarName) ()
-        |]
+        ctx =
+          [ AppT (AppT (AppT (ConT ''MockBuilder) (VarT params)) funType) verifyParams
+          , AppT (ConT ''Typeable) funType
+          , AppT (ConT ''Typeable) verifyParams
+          , AppT (ConT ''Typeable) (AppT (ConT ''ResolvableParams) funType)
+          , AppT (ConT ''MonadIO) (VarT monadVarName)
+          ]
+        resultType =
+          AppT
+            (AppT ArrowT (VarT params))
+            (AppT (AppT (ConT ''MockT) (VarT monadVarName)) (TupleT 0))
+    sigD mockFunName (pure (ForallT [] ctx resultType))
 
   createMockFn <- [|createNamedStubFn|]
 
@@ -495,7 +502,16 @@ doCreateMockFnDecs funNameStr mockFunName params funType monadVarName updatedTyp
 
 doCreateConstantMockFnDecs :: (Quote m) => String -> Name -> Type -> Name -> m [Dec]
 doCreateConstantMockFnDecs funNameStr mockFunName ty monadVarName = do
-  newFunSig <- sigD mockFunName [t|(MonadIO $(varT monadVarName)) => $(pure ty) -> MockT $(varT monadVarName) ()|]
+  let ctx =
+        [ AppT (ConT ''Typeable) ty
+        , AppT (ConT ''Typeable) (AppT (ConT ''ResolvableParams) ty)
+        , AppT (ConT ''MonadIO) (VarT monadVarName)
+        ]
+      resultType =
+        AppT
+          (AppT ArrowT ty)
+          (AppT (AppT (ConT ''MockT) (VarT monadVarName)) (TupleT 0))
+  newFunSig <- sigD mockFunName (pure (ForallT [] ctx resultType))
   createMockFn <- [|createNamedConstantStubFn|]
   mockBody <- createMockBody funNameStr createMockFn
   newFun <- funD mockFunName [clause [varP $ mkName "p"] (normalB (pure mockBody)) []]
@@ -506,13 +522,18 @@ doCreateEmptyVerifyParamMockFnDecs :: (Quote m) => String -> Name -> Name -> Typ
 doCreateEmptyVerifyParamMockFnDecs funNameStr mockFunName params funType monadVarName updatedType = do
   newFunSig <- do
     let verifyParams = createMockBuilderVerifyParams updatedType
-    sigD
-      mockFunName
-      [t|
-        (MockBuilder $(varT params) ($(pure funType)) (), MonadIO $(varT monadVarName)) =>
-        $(varT params) ->
-        MockT $(varT monadVarName) ()
-        |]
+        ctx =
+          [ AppT (AppT (AppT (ConT ''MockBuilder) (VarT params)) funType) verifyParams
+          , AppT (ConT ''Typeable) funType
+          , AppT (ConT ''Typeable) verifyParams
+          , AppT (ConT ''Typeable) (AppT (ConT ''ResolvableParams) funType)
+          , AppT (ConT ''MonadIO) (VarT monadVarName)
+          ]
+        resultType =
+          AppT
+            (AppT ArrowT (VarT params))
+            (AppT (AppT (ConT ''MockT) (VarT monadVarName)) (TupleT 0))
+    sigD mockFunName (pure (ForallT [] ctx resultType))
 
   createMockFn <- [|createNamedStubFn|]
 
