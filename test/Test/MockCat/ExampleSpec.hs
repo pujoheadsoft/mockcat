@@ -19,7 +19,7 @@ class (Monad m) => FileOperation m where
   writeFile :: FilePath -> Text -> m ()
   readFile :: FilePath -> m Text
 
-makeMock [t|FileOperation|]
+-- makeMock [t|FileOperation|]
 
 operationProgram ::
   FileOperation m =>
@@ -91,13 +91,11 @@ spec = do
 
   it "stub & verify" do
     -- create a mock
-    mock <- createMock $ "value" |> True
-    -- stub function
-    let stubFunction = stubFn mock
+    mockFn <- createStubFn $ "value" |> True
     -- assert
-    stubFunction "value" `shouldBe` True
+    mockFn "value" `shouldBe` True
     -- verify
-    mock `shouldApplyTo` "value"
+    mockFn `shouldApplyTo` "value"
 
   it "how to use" do
     f <- createStubFn $ "param1" |> "param2" |> pure @IO ()
@@ -115,44 +113,43 @@ spec = do
   it "createMockIO returns monadic stub (MaybeT)" do
     mm <- runMaybeT do
       -- create a mock inside MaybeT
-      createMockIO $ True |> False
+      createStubFnIO $ True |> False
     case mm of
       Nothing -> expectationFailure "createNamedMock returned Nothing"
-      Just m -> do
-        let f = stubFnMockIO m
+      Just f -> do
         -- f :: Bool -> MaybeT IO Bool
         res <- runMaybeT $ f True
         res `shouldBe` Just False
 
   it "named mock" do
-    m <- createNamedMock "mock" $ "value" |> "a" |> True
-    stubFn m "value" "a" `shouldBe` True
+    f <- createNamedStubFn "mock" $ "value" |> "a" |> True
+    f "value" "a" `shouldBe` True
 
   it "stub function" do
     f <- createStubFn $ "value" |> True
     f "value" `shouldBe` True
 
   it "shouldApplyTimes" do
-    m <- createMock $ "value" |> True
-    print $ stubFn m "value"
-    print $ stubFn m "value"
-    m `shouldApplyTimes` (2 :: Int) `to` "value"
+    f <- createStubFn $ "value" |> True
+    print $ f "value"
+    print $ f "value"
+    f `shouldApplyTimes` (2 :: Int) `to` "value"
 
   it "shouldApplyInOrder" do
-    m <- createMock $ any |> True |> ()
-    print $ stubFn m "a" True
-    print $ stubFn m "b" True
-    m
+    f <- createStubFn $ any |> True |> ()
+    print $ f "a" True
+    print $ f "b" True
+    f
       `shouldApplyInOrder` [ "a" |> True,
                              "b" |> True
                            ]
 
   it "shouldApplyInPartialOrder" do
-    m <- createMock $ any |> True |> ()
-    print $ stubFn m "a" True
-    print $ stubFn m "b" True
-    print $ stubFn m "c" True
-    m
+    f <- createStubFn $ any |> True |> ()
+    print $ f "a" True
+    print $ f "b" True
+    print $ f "c" True
+    f
       `shouldApplyInPartialOrder` [ "a" |> True,
                                     "c" |> True
                                   ]
