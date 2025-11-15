@@ -50,49 +50,49 @@ prop_predicate_negative_not_counted = forAll genVals $ \xs -> monadicIO $ do
 class Monad m => ParLazyAction m where
   parLazy :: Int -> m Int
 
--- makeMock [t|ParLazyAction|]
+makeMock [t|ParLazyAction|]
 
--- prop_lazy_partial_force_concurrency :: Property
--- prop_lazy_partial_force_concurrency = forAll genPlan $ \(arg, mask) -> monadicIO $ do
---   let forcedCount = length (filter id mask)
---   run $ runMockT $ do
---     -- expectation: arg -> arg; count only forced executions
---     _parLazy (param arg |> arg) `applyTimesIs` forcedCount
---     -- prepare thunks (NOT executed yet)
---     let thunks = replicate (length mask) (parLazy arg)
---     withRunInIO $ \runIn -> do
---       forConcurrently_ (zip mask thunks) $ \(forceIt, action) ->
---         if forceIt then do
---           v <- runIn action
---           v `seq` pure ()
---         else pure () -- skip executing -> not counted
---   assert True
---   where
---     genPlan = do
---       size <- chooseInt (1,40)
---       arg <- arbitrary :: Gen Int
---       mask <- vectorOf size arbitrary
---       pure (arg, mask)
+prop_lazy_partial_force_concurrency :: Property
+prop_lazy_partial_force_concurrency = forAll genPlan $ \(arg, mask) -> monadicIO $ do
+  let forcedCount = length (filter id mask)
+  run $ runMockT $ do
+    -- expectation: arg -> arg; count only forced executions
+    _parLazy (param arg |> arg) `applyTimesIs` forcedCount
+    -- prepare thunks (NOT executed yet)
+    let thunks = replicate (length mask) (parLazy arg)
+    withRunInIO $ \runIn -> do
+      forConcurrently_ (zip mask thunks) $ \(forceIt, action) ->
+        if forceIt then do
+          v <- runIn action
+          v `seq` pure ()
+        else pure () -- skip executing -> not counted
+  assert True
+  where
+    genPlan = do
+      size <- chooseInt (1,40)
+      arg <- arbitrary :: Gen Int
+      mask <- vectorOf size arbitrary
+      pure (arg, mask)
 
--- --------------------------------------------------------------------------------
--- -- 3. Interleaved duplicate partial-order spec (A B A pattern)
--- --------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- 3. Interleaved duplicate partial-order spec (A B A pattern)
+--------------------------------------------------------------------------------
 
--- prop_partial_order_interleaved_duplicates :: Property
--- prop_partial_order_interleaved_duplicates = forAll genPair $ \(a,b) -> a /= b ==> monadicIO $ do
---   -- Pattern a a b : [a,b] subsequence succeeds, [b,a] fails.
---   f <- run $ createStubFn $ cases [ param a |> True
---                                 , param a |> True
---                                 , param b |> True ]
---   run $ f a `seq` f a `seq` f b `seq` pure ()
---   run $ f `shouldApplyInPartialOrder` [param a, param b]
---   e <- run $ (try (f `shouldApplyInPartialOrder` [param b, param a]) :: IO (Either SomeException ()))
---   case e of
---     Left _  -> assert True
---     Right _ -> assert False
---   assert True
---   where
---     genPair = do
---       a <- arbitrary :: Gen Int
---       b <- arbitrary :: Gen Int
---       pure (a,b)
+prop_partial_order_interleaved_duplicates :: Property
+prop_partial_order_interleaved_duplicates = forAll genPair $ \(a,b) -> a /= b ==> monadicIO $ do
+  -- Pattern a a b : [a,b] subsequence succeeds, [b,a] fails.
+  f <- run $ createStubFn $ cases [ param a |> True
+                                , param a |> True
+                                , param b |> True ]
+  run $ f a `seq` f a `seq` f b `seq` pure ()
+  run $ f `shouldApplyInPartialOrder` [param a, param b]
+  e <- run $ (try (f `shouldApplyInPartialOrder` [param b, param a]) :: IO (Either SomeException ()))
+  case e of
+    Left _  -> assert True
+    Right _ -> assert False
+  assert True
+  where
+    genPair = do
+      a <- arbitrary :: Gen Int
+      b <- arbitrary :: Gen Int
+      pure (a,b)
