@@ -5,7 +5,7 @@ module Property.ScriptProps
 
 import Test.QuickCheck
 import Test.QuickCheck.Monadic (monadicIO, run, assert)
-import Test.MockCat (shouldApplyTimesToAnything, stubFn)
+import Test.MockCat (shouldApplyTimesToAnything)
 import Property.Generators
 
 -- | Property: executing a generated script produces exactly that many recorded applications.

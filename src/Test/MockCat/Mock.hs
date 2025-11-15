@@ -24,14 +24,14 @@ module Test.MockCat.Mock
   ( Mock
   , MockBuilder
   , build
-  , createMock
-  , createNamedMock
-  , createConstantMock
-  , createNamedConstantMock
+  -- , createMock
+  -- , createNamedMock
+  -- , createConstantMock
+  -- , createNamedConstantMock
   , createStubFn
   , createNamedStubFn
-  , stubFn
-  , stubFnMock
+  -- , stubFn
+  -- , stubFnMock
   , shouldApplyTo
   , shouldApplyTimes
   , shouldApplyInOrder
@@ -46,7 +46,7 @@ module Test.MockCat.Mock
   , onCase
   , cases
   , casesIO
-  , createMockIO
+  -- , createMockIO
   , stubFnMockIO
   , createStubFnIO
   , createPureStubFn

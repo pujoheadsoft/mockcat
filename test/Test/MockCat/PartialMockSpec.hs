@@ -15,7 +15,7 @@ module Test.MockCat.PartialMockSpec where
 
 import Data.Text (Text, pack)
 import Test.Hspec (Spec, it, shouldBe, describe)
-import Test.MockCat hiding (createNamedMock, createConstantMock, createMock, createMockIO)
+import Test.MockCat
 import Test.MockCat.Definition
 import Test.MockCat.Impl ()
 import Prelude hiding (readFile, writeFile)

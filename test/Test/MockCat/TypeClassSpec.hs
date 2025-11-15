@@ -118,15 +118,15 @@ instance MonadIO m => TestClass (MockT m) where
   getBy a = MockT do
     defs <- getDefinitions
     let
-      mock = fromMaybe (error "no answer found stub function `_getBy`.") $ findParam (Proxy :: Proxy "_getBy") defs
-      !result = stubFnMock mock a
+      mockFn = fromMaybe (error "no answer found stub function `_getBy`.") $ findParam (Proxy :: Proxy "_getBy") defs
+      !result = mockFn a
     lift result
 
   echo a = MockT do
     defs <- getDefinitions
     let
-      mock = fromMaybe (error "no answer found stub function `_echo`.") $ findParam (Proxy :: Proxy "_echo") defs
-      !result = stubFnMock mock a
+      mockFn = fromMaybe (error "no answer found stub function `_echo`.") $ findParam (Proxy :: Proxy "_echo") defs
+      !result = mockFn a
     lift result
 
 _getBy :: (MockBuilder params (String -> m Int) (Param String), MonadIO m, Typeable m, Typeable (ResolvableParams (String -> m Int))) => params -> MockT m ()

@@ -11,7 +11,7 @@ import Test.QuickCheck.Monadic (monadicIO, run, assert)
 import Control.Exception (try, SomeException, evaluate)
 import Data.Maybe (listToMaybe)
 import Data.List (nub)
-import Test.MockCat (shouldApplyInOrder, shouldApplyInPartialOrder, stubFn)
+import Test.MockCat (shouldApplyInOrder, shouldApplyInPartialOrder)
 import Property.Generators
 import Test.MockCat (param)
 
