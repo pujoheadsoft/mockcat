@@ -8,6 +8,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 {-# OPTIONS_GHC -Wno-unused-local-binds #-}
+{-# LANGUAGE GADTs #-}
 
 module Test.MockCat.TH
   ( showExp,
@@ -28,7 +29,7 @@ import Data.Data (Proxy (..))
 import Data.Typeable (Typeable)
 import Data.Function ((&))
 import Data.List (elemIndex, find, nub)
-import Data.Maybe (catMaybes, fromMaybe, isJust)
+import Data.Maybe (fromMaybe, isJust)
 import Data.Text (pack, splitOn, unpack)
 import GHC.TypeLits (KnownSymbol, symbolVal)
 import Language.Haskell.TH
@@ -60,8 +61,7 @@ import Test.MockCat.Cons
 import Test.MockCat.Mock
 import Test.MockCat.MockT
 import Test.MockCat.Verify
-  ( MockResolvable (ResolvableParams),
-    requireResolved,
+  ( requireResolved,
     shouldApplyToAnythingResolved
   )
 import Test.MockCat.Internal.Types (Verifier)

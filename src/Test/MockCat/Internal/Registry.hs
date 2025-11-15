@@ -61,9 +61,9 @@ registry = unsafePerformIO $ newIORef empty
 
 attachVerifierToFn ::
   forall fn params.
-  (Typeable (Verifier params)) => 
-  fn -> 
-  (Maybe MockName, Verifier params) -> 
+  (Typeable (Verifier params)) =>
+  fn ->
+  (Maybe MockName, Verifier params) ->
   IO ()
 attachVerifierToFn fn (name, payload) = attachDynamicVerifierToFn fn (name, toDyn payload)
 
@@ -163,12 +163,10 @@ lookupUnitMeta ref = do
   pure $ lookup key store >>= findUnit unitStable
 
 withUnitGuard :: UnitMeta -> IO a -> IO a
-withUnitGuard meta action =
-  bracket_ (writeIORef (unitGuardRef meta) True) (writeIORef (unitGuardRef meta) False) action
+withUnitGuard meta = bracket_ (writeIORef (unitGuardRef meta) True) (writeIORef (unitGuardRef meta) False)
 
 withAllUnitGuards :: IO a -> IO a
-withAllUnitGuards action =
-  bracket_ (setAllUnitGuards True) (setAllUnitGuards False) action
+withAllUnitGuards = bracket_ (setAllUnitGuards True) (setAllUnitGuards False)
 
 markUnitUsed :: UnitMeta -> IO ()
 markUnitUsed meta = writeIORef (unitUsedRef meta) True

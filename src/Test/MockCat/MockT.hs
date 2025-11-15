@@ -8,6 +8,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE GADTs #-}
 module Test.MockCat.MockT (
   MockT(..), Definition(..),
   runMockT,
@@ -167,7 +168,7 @@ applyTimesIs (MockT inner) a = MockT $ ReaderT $ \ref -> do
   tmp <- liftIO $ newIORef []
   _ <- runReaderT inner tmp
   defs <- liftIO $ readIORef tmp
-  let patched = map (\(Definition s fn _) -> Definition s fn (\m' -> verifyApplyCount m' a)) defs
+  let patched = map (\(Definition s fn _) -> Definition s fn (`verifyApplyCount` a)) defs
   liftIO $ atomicModifyIORef' ref (\xs -> (xs ++ patched, ()))
   pure ()
 
@@ -180,7 +181,7 @@ neverApply (MockT inner) = MockT $ ReaderT $ \ref -> do
   tmp <- liftIO $ newIORef []
   _ <- runReaderT inner tmp
   defs <- liftIO $ readIORef tmp
-  let patched = map (\(Definition s m _) -> Definition s m (\m' -> verifyApplyCount m' 0)) defs
+  let patched = map (\(Definition s m _) -> Definition s m (`verifyApplyCount` 0)) defs
   liftIO $ atomicModifyIORef' ref (\xs -> (xs ++ patched, ()))
   pure ()
 

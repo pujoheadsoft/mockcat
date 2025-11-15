@@ -1,6 +1,5 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
@@ -9,10 +8,11 @@
 {-# HLINT ignore "Use null" #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 {-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
 module Test.MockCat.Verify where
 
 import Test.MockCat.Internal.Types
@@ -356,7 +356,6 @@ shouldApplyToAnythingResolved ResolvedMock {resolvedMockName = mockName, resolve
 shouldApplyTimesToAnything ::
   ( MockResolvable m
   , ResolvableParams m ~ params
-  , HasCallStack
   ) =>
   m ->
   Int ->
