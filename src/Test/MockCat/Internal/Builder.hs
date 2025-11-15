@@ -119,8 +119,9 @@ instance
   build _ action = do
     ref <- liftIO $ newIORef appliedRecord
     let fn = do
+          result <- action
           liftIO $ appendAppliedParams ref ()
-          action
+          pure result
         verifier = Verifier ref
     pure (fn, verifier)
 

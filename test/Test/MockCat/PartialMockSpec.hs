@@ -4,6 +4,7 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE LambdaCase #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 {-# LANGUAGE UndecidableInstances #-}
@@ -28,7 +29,8 @@ import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Maybe (MaybeT (..))
 import Control.Monad.Trans.Reader hiding (ask)
-import Test.MockCat.Verify (MockResolvable, ResolvableParamsOf)
+import Test.MockCat.Verify (ResolvableParamsOf, shouldApplyToAnythingStub)
+import Test.MockCat.Internal.Types (Verifier)
 
 instance (MonadIO m, FileOperation m) => FileOperation (MockT m) where
   readFile path = MockT do
@@ -50,12 +52,12 @@ instance (MonadIO m, FileOperation m) => FileOperation (MockT m) where
 _readFile :: (MockBuilder params (FilePath -> Text) (Param FilePath), MonadIO m) => params -> MockT m ()
 _readFile p = MockT $ do
   mockInstance <- liftIO $ createNamedStubFn "readFile" p
-  addDefinition (Definition (Proxy :: Proxy "readFile") mockInstance shouldApplyToAnything)
+  addDefinition (Definition (Proxy :: Proxy "readFile") mockInstance shouldApplyToAnythingStub)
 
 _writeFile :: (MockBuilder params (FilePath -> Text -> ()) (Param FilePath :> Param Text), MonadIO m) => params -> MockT m ()
 _writeFile p = MockT $ do
   mockInstance <- liftIO $ createNamedStubFn "writeFile" p
-  addDefinition (Definition (Proxy :: Proxy "writeFile") mockInstance shouldApplyToAnything)
+  addDefinition (Definition (Proxy :: Proxy "writeFile") mockInstance shouldApplyToAnythingStub)
 
 findParam :: KnownSymbol sym => Proxy sym -> [Definition] -> Maybe a
 findParam pa definitions = do
@@ -80,10 +82,22 @@ instance (MonadIO m, Finder a b m) => Finder a b (MockT m) where
         pure result
       Nothing -> lift $ findById id
 
-_findIds :: (MockResolvable r, Typeable r, Typeable (ResolvableParamsOf r), MonadIO m) => r -> MockT m ()
+_findIds ::
+  ( Typeable r
+  , Typeable (ResolvableParamsOf r)
+  , Typeable (Verifier (ResolvableParamsOf r))
+  , MonadIO m
+  ) =>
+  r ->
+  MockT m ()
 _findIds p = MockT $ do
   mockInstance <- liftIO $ createNamedConstantStubFn "_findIds" p
-  addDefinition (Definition (Proxy :: Proxy "_findIds") mockInstance shouldApplyToAnything)
+  addDefinition
+    ( Definition
+        (Proxy :: Proxy "_findIds")
+        mockInstance
+        shouldApplyToAnythingStub
+    )
 
 spec :: Spec
 spec = do

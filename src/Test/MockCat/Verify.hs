@@ -4,6 +4,7 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE IncoherentInstances #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Use null" #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
@@ -26,8 +27,9 @@ import GHC.Stack (HasCallStack)
 import Test.MockCat.Internal.Message
 import Data.Kind (Type)
 import Test.MockCat.Cons ((:>))
-import Data.Typeable (Typeable)
+import Data.Typeable (Typeable, eqT)
 import Test.MockCat.Internal.Registry (lookupVerifierForFn, withAllUnitGuards)
+import Data.Type.Equality ((:~:) (Refl))
 import Data.Dynamic (fromDynamic)
 
 -- | Class for verifying mock function.
@@ -376,20 +378,27 @@ type family IsValueType target :: Bool where
   IsValueType (a -> fn) = 'False
   IsValueType target = 'True
 
+type family IsIO target :: Bool where
+  IsIO (IO r) = 'True
+  IsIO target = 'False
+
 type family ResolvableParamsOf target :: Type where
   ResolvableParamsOf (IO r) = FunctionParams (IO r)
   ResolvableParamsOf (a -> fn) = FunctionParams (a -> fn)
+  ResolvableParamsOf (RegisteredStub fn) = ResolvableParamsOf fn
   ResolvableParamsOf target = ()
+
+newtype RegisteredStub fn = RegisteredStub fn
 
 class MockResolvable target where
   type ResolvableParams target :: Type
+  type ResolvableParams target = ResolvableParamsOf target
   resolveMock :: target -> IO (Maybe (Maybe MockName, Verifier (ResolvableParams target)))
 
 instance
   {-# OVERLAPPING #-}
-  Typeable (Verifier (FunctionParams (IO r))) =>
-  MockResolvable (IO r) where
-  type ResolvableParams (IO r) = ResolvableParamsOf (IO r)
+  Typeable (Verifier (FunctionParams (a -> fn))) =>
+  MockResolvable (a -> fn) where
   resolveMock fn = do
     m <- lookupVerifierForFn fn
     case m of
@@ -401,9 +410,8 @@ instance
 
 instance
   {-# OVERLAPPING #-}
-  Typeable (Verifier (FunctionParams (a -> fn))) =>
-  MockResolvable (a -> fn) where
-  type ResolvableParams (a -> fn) = ResolvableParamsOf (a -> fn)
+  Typeable (Verifier (FunctionParams (IO r))) =>
+  MockResolvable (IO r) where
   resolveMock fn = do
     m <- lookupVerifierForFn fn
     case m of
@@ -419,6 +427,7 @@ instance
   , FunctionParams value ~ ()
   , ResolvableParamsOf value ~ ()
   , IsValueType value ~ 'True
+  , IsIO value ~ 'False
   , Typeable (ResolvableParamsOf value)
   ) =>
   MockResolvable value where
@@ -431,6 +440,44 @@ instance
         case fromDynamic dynVerifier of
           Just verifier -> pure $ Just (name, verifier)
           Nothing -> pure Nothing
+
+instance
+  ( Typeable fn
+  , Typeable (ResolvableParamsOf fn)
+  , Typeable (Verifier (ResolvableParamsOf fn))
+  ) =>
+  MockResolvable (RegisteredStub fn) where
+  resolveMock (RegisteredStub fn) = do
+    let fetch = lookupVerifierForFn fn
+    result <-
+      case eqT :: Maybe (ResolvableParamsOf fn :~: ()) of
+        Just Refl -> withAllUnitGuards fetch
+        Nothing -> fetch
+    case result of
+      Nothing -> pure Nothing
+      Just (name, dynVerifier) ->
+        case fromDynamic dynVerifier of
+          Just verifier -> pure $ Just (name, verifier)
+          Nothing -> pure Nothing
+
+shouldApplyToAnythingStub ::
+  ( Typeable fn
+  , Typeable (ResolvableParamsOf fn)
+  , Typeable (Verifier (ResolvableParamsOf fn))
+  ) =>
+  fn ->
+  IO ()
+shouldApplyToAnythingStub fn = shouldApplyToAnything (RegisteredStub fn)
+
+shouldApplyTimesToAnythingStub ::
+  ( Typeable fn
+  , Typeable (ResolvableParamsOf fn)
+  , Typeable (Verifier (ResolvableParamsOf fn))
+  ) =>
+  fn ->
+  Int ->
+  IO ()
+shouldApplyTimesToAnythingStub fn count = shouldApplyTimesToAnything (RegisteredStub fn) count
 
 data ResolvedMock params = ResolvedMock {
   resolvedMockName :: Maybe MockName,

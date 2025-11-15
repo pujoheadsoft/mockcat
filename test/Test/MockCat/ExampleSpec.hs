@@ -41,39 +41,39 @@ echo = do
     "" -> pure ()
     _  -> writeTTY i >> echo
 
--- makeMockWithOptions [t|Teletype|] options { implicitMonadicReturn = False }
+makeMockWithOptions [t|Teletype|] options { implicitMonadicReturn = False }
 
 spec :: Spec
 spec = do
-  -- it "echo1" do
-  --   result <- runMockT do
-  --     _readTTY $ pure @IO ""
-  --     echo
-  --   result `shouldBe` ()
+  it "echo1" do
+    result <- runMockT do
+      _readTTY $ pure @IO ""
+      echo
+    result `shouldBe` ()
 
-  -- it "echo2" do
-  --   result <- runMockT do
-  --     _readTTY $ do
-  --       onCase $ pure @IO "a"
-  --       onCase $ pure @IO ""
+  it "echo2" do
+    result <- runMockT do
+      _readTTY $ do
+        onCase $ pure @IO "a"
+        onCase $ pure @IO ""
 
-  --     _writeTTY $ "a" |> pure @IO ()
-  --     echo
-  --   result `shouldBe` ()
+      _writeTTY $ "a" |> pure @IO ()
+      echo
+    result `shouldBe` ()
 
-  -- it "echo3" do
-  --   result <- runMockT do
-  --     _readTTY $ casesIO ["a", ""]
-  --     _writeTTY $ "a" |> pure @IO ()
-  --     echo
-  --   result `shouldBe` ()
+  it "echo3" do
+    result <- runMockT do
+      _readTTY $ casesIO ["a", ""]
+      _writeTTY $ "a" |> pure @IO ()
+      echo
+    result `shouldBe` ()
 
-  -- it "echo4" do
-  --   result <- runMockT do
-  --     _readTTY $ cases [ pure @IO "a", pure @IO "" ]
-  --     _writeTTY $ "a" |> pure @IO ()
-  --     echo
-  --   result `shouldBe` ()
+  it "echo4" do
+    result <- runMockT do
+      _readTTY $ cases [ pure @IO "a", pure @IO "" ]
+      _writeTTY $ "a" |> pure @IO ()
+      echo
+    result `shouldBe` ()
 
   it "read & write" do
     result <- runMockT do

@@ -25,7 +25,7 @@ import Control.Monad.Reader (MonadReader)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Reader.Class (ask, MonadReader (local))
 import Control.Monad.Trans.Class (lift)
-import Test.MockCat.Verify (MockResolvable (ResolvableParams))
+import Test.MockCat.Verify (MockResolvable (ResolvableParams), shouldApplyToAnythingStub, shouldApplyTimesToAnythingStub)
 
 class Monad m => FileOperation m where
   readFile :: FilePath -> m Text
@@ -82,22 +82,22 @@ instance MonadIO m => MonadReader String (MockT m) where
 _ask :: (MockResolvable env, Typeable env, Typeable (ResolvableParams env), MonadIO m) => env -> MockT m ()
 _ask p = MockT $ do
   mockInstance <- liftIO $ createNamedConstantStubFn "ask" p
-  addDefinition (Definition (Proxy :: Proxy "ask") mockInstance shouldApplyToAnything)
+  addDefinition (Definition (Proxy :: Proxy "ask") mockInstance shouldApplyToAnythingStub)
 
 _readFile :: (MockBuilder params (FilePath -> Text) (Param FilePath), MonadIO m) => params -> MockT m ()
 _readFile p = MockT $ do
   mockInstance <- liftIO $ createNamedStubFn "readFile" p
-  addDefinition (Definition (Proxy :: Proxy "readFile") mockInstance shouldApplyToAnything)
+  addDefinition (Definition (Proxy :: Proxy "readFile") mockInstance shouldApplyToAnythingStub)
 
 _writeFile :: (MockBuilder params (FilePath -> Text -> ()) (Param FilePath :> Param Text), MonadIO m) => params -> MockT m ()
 _writeFile p = MockT $ do
   mockInstance <- liftIO $ createNamedStubFn "writeFile" p
-  addDefinition (Definition (Proxy :: Proxy "writeFile") mockInstance shouldApplyToAnything)
+  addDefinition (Definition (Proxy :: Proxy "writeFile") mockInstance shouldApplyToAnythingStub)
 
 _post :: (MockBuilder params (Text -> ()) (Param Text), MonadIO m) => params -> MockT m ()
 _post p = MockT $ do
   mockFn <- liftIO $ createNamedStubFn "post" p
-  addDefinition (Definition (Proxy :: Proxy "post") mockFn shouldApplyToAnything)
+  addDefinition (Definition (Proxy :: Proxy "post") mockFn shouldApplyToAnythingStub)
 
 findParam :: KnownSymbol sym => Proxy sym -> [Definition] -> Maybe a
 findParam pa definitions = do
@@ -132,12 +132,12 @@ instance MonadIO m => TestClass (MockT m) where
 _getBy :: (MockBuilder params (String -> m Int) (Param String), MonadIO m, Typeable m, Typeable (ResolvableParams (String -> m Int))) => params -> MockT m ()
 _getBy p = MockT $ do
   mockInstance <- liftIO $ createNamedStubFn "_getBy" p
-  addDefinition (Definition (Proxy :: Proxy "_getBy") mockInstance shouldApplyToAnything)
+  addDefinition (Definition (Proxy :: Proxy "_getBy") mockInstance shouldApplyToAnythingStub)
 
 _echo :: (MockBuilder params (String -> m ()) (Param String), MonadIO m, Typeable m, Typeable (ResolvableParams (String -> m ()))) => params -> MockT m ()
 _echo p = MockT $ do
   mockInstance <- liftIO $ createNamedStubFn "_echo" p
-  addDefinition (Definition (Proxy :: Proxy "_echo") mockInstance shouldApplyToAnything)
+  addDefinition (Definition (Proxy :: Proxy "_echo") mockInstance shouldApplyToAnythingStub)
 
 
 class Monad m => Teletype m where
@@ -169,12 +169,12 @@ instance MonadIO m => Teletype (MockT m) where
 _readTTY :: (MockBuilder params (m String) (), Typeable m, Typeable (ResolvableParams (m String)), MockResolvable (m String), MonadIO m) => params -> MockT m ()
 _readTTY p = MockT $ do
   mockInstance <- liftIO $ createNamedStubFn "_readTTY" p
-  addDefinition (Definition (Proxy :: Proxy "_readTTY") mockInstance shouldApplyToAnything)
+  addDefinition (Definition (Proxy :: Proxy "_readTTY") mockInstance shouldApplyToAnythingStub)
 
 _writeTTY :: (MockBuilder params (String -> m ()) (Param String), Typeable m, Typeable (ResolvableParams (String -> m ())),   MonadIO m) => params -> MockT m ()
 _writeTTY p = MockT $ do
   mockInstance <- liftIO $ createNamedStubFn "_writeTTY" p
-  addDefinition (Definition (Proxy :: Proxy "_writeTTY") mockInstance shouldApplyToAnything)
+  addDefinition (Definition (Proxy :: Proxy "_writeTTY") mockInstance shouldApplyToAnythingStub)
 
 spec :: Spec
 spec = do

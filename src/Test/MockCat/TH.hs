@@ -59,7 +59,8 @@ import Language.Haskell.TH.Syntax (nameBase)
 import Test.MockCat.Cons
 import Test.MockCat.Mock
 import Test.MockCat.MockT
-import Test.MockCat.Verify (ResolvableParams)
+import Test.MockCat.Verify (ResolvableParams, shouldApplyToAnythingStub)
+import Test.MockCat.Internal.Types (Verifier)
 import Test.MockCat.Param
 import Unsafe.Coerce (unsafeCoerce)
 import Prelude as P
@@ -484,6 +485,7 @@ doCreateMockFnDecs funNameStr mockFunName params funType monadVarName updatedTyp
           [ AppT (AppT (AppT (ConT ''MockBuilder) (VarT params)) funType) verifyParams
           , AppT (ConT ''Typeable) funType
           , AppT (ConT ''Typeable) verifyParams
+          , AppT (ConT ''Typeable) (AppT (ConT ''Verifier) verifyParams)
           , AppT (ConT ''Typeable) (AppT (ConT ''ResolvableParams) funType)
           , AppT (ConT ''MonadIO) (VarT monadVarName)
           ]
@@ -505,6 +507,7 @@ doCreateConstantMockFnDecs funNameStr mockFunName ty monadVarName = do
   let ctx =
         [ AppT (ConT ''Typeable) ty
         , AppT (ConT ''Typeable) (AppT (ConT ''ResolvableParams) ty)
+        , AppT (ConT ''Typeable) (AppT (ConT ''Verifier) (AppT (ConT ''ResolvableParams) ty))
         , AppT (ConT ''MonadIO) (VarT monadVarName)
         ]
       resultType =
@@ -526,6 +529,7 @@ doCreateEmptyVerifyParamMockFnDecs funNameStr mockFunName params funType monadVa
           [ AppT (AppT (AppT (ConT ''MockBuilder) (VarT params)) funType) verifyParams
           , AppT (ConT ''Typeable) funType
           , AppT (ConT ''Typeable) verifyParams
+          , AppT (ConT ''Typeable) (AppT (ConT ''Verifier) verifyParams)
           , AppT (ConT ''Typeable) (AppT (ConT ''ResolvableParams) funType)
           , AppT (ConT ''MonadIO) (VarT monadVarName)
           ]
@@ -551,7 +555,7 @@ createMockBody funNameStr createMockFn =
         ( Definition
             (Proxy :: Proxy $(litT (strTyLit funNameStr)))
             mockInstance
-            shouldApplyToAnything
+            shouldApplyToAnythingStub
         )
     |]
 
@@ -591,12 +595,16 @@ createMockBuilderFnType monadVarName (ForallT _ _ ty) = createMockBuilderFnType 
 createMockBuilderFnType _ ty = ty
 
 createMockBuilderVerifyParams :: Type -> Type
-createMockBuilderVerifyParams (AppT (AppT ArrowT ty) (AppT (VarT _) _)) = AppT (ConT ''Param) ty
+createMockBuilderVerifyParams (AppT (AppT ArrowT ty) (AppT (VarT _) _)) =
+  AppT (ConT ''Param) ty
 createMockBuilderVerifyParams (AppT (AppT ArrowT ty) ty2) =
   AppT (AppT (ConT ''(:>)) (AppT (ConT ''Param) ty)) (createMockBuilderVerifyParams ty2)
-createMockBuilderVerifyParams (AppT (VarT _) (ConT c)) = AppT (ConT ''Param) (ConT c)
+createMockBuilderVerifyParams (AppT (VarT _) _) = TupleT 0
+createMockBuilderVerifyParams (AppT (ConT _) _) = TupleT 0
 createMockBuilderVerifyParams (ForallT _ _ ty) = createMockBuilderVerifyParams ty
-createMockBuilderVerifyParams a = a
+createMockBuilderVerifyParams (VarT _) = TupleT 0
+createMockBuilderVerifyParams (ConT _) = TupleT 0
+createMockBuilderVerifyParams _ = TupleT 0
 
 findParam :: (KnownSymbol sym) => Proxy sym -> [Definition] -> Maybe a
 findParam pa definitions = do
