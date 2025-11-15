@@ -334,14 +334,23 @@ shouldApplyTimesLessThan m i = shouldApplyTimes m (LessThan i)
 --   when (null appliedParamsList) $ error $ "It has never been applied function" <> mockNameLabel (mockName m)
 
 shouldApplyToAnything ::
- ( MockResolvable m
- , ResolvableParams m ~ params
- , HasCallStack
- ) => m -> IO ()
-shouldApplyToAnything m = do
-  ResolvedMock mockName (Verifier ref) <- requireResolved m
+  ( MockResolvable m
+  , ResolvableParams m ~ params
+  , HasCallStack
+  ) =>
+  m ->
+  IO ()
+shouldApplyToAnything m = requireResolved m >>= shouldApplyToAnythingResolved
+
+shouldApplyToAnythingResolved ::
+  HasCallStack =>
+  ResolvedMock params ->
+  IO ()
+shouldApplyToAnythingResolved ResolvedMock {resolvedMockName = mockName, resolvedMockVerifier = Verifier ref} = do
   appliedParamsList <- readAppliedParamsList ref
-  when (null appliedParamsList) $ error $ "It has never been applied function" <> mockNameLabel mockName
+  when (null appliedParamsList) $
+    error $
+      "It has never been applied function" <> mockNameLabel mockName
 
 -- | Verify that it was apply to anything (times).
 shouldApplyTimesToAnything ::

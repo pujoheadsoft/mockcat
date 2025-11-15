@@ -21,11 +21,21 @@ import Data.List (find)
 import GHC.TypeLits (KnownSymbol, symbolVal)
 import Unsafe.Coerce (unsafeCoerce)
 import Data.Maybe (fromMaybe)
+import Control.Monad (when)
 import Control.Monad.Reader (MonadReader)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Reader.Class (ask, MonadReader (local))
 import Control.Monad.Trans.Class (lift)
-import Test.MockCat.Verify (MockResolvable (ResolvableParams))
+import Test.MockCat.Verify (requireResolved)
+import qualified Test.MockCat.Verify as Verify
+import Test.MockCat.Internal.Types (Verifier (..))
+import Test.MockCat.Internal.Message (mockNameLabel)
+
+verifyResolvedAny :: Verify.ResolvedMock params -> IO ()
+verifyResolvedAny (Verify.ResolvedMock name (Verifier ref)) = do
+  appliedParamsList <- Verify.readAppliedParamsList ref
+  when (null appliedParamsList) $
+    error $ "It has never been applied function" <> mockNameLabel name
 
 class Monad m => FileOperation m where
   readFile :: FilePath -> m Text
@@ -82,7 +92,9 @@ instance MonadIO m => MonadReader String (MockT m) where
 _ask :: (MockResolvable env, Typeable env, Typeable (ResolvableParams env), MonadIO m) => env -> MockT m ()
 _ask p = MockT $ do
   mockInstance <- liftIO $ createNamedConstantStubFn "ask" p
-  addDefinition (Definition (Proxy :: Proxy "ask") mockInstance shouldApplyToAnything)
+  resolved <- liftIO $ requireResolved mockInstance
+  let verifyStub _ = verifyResolvedAny resolved
+  addDefinition (Definition (Proxy :: Proxy "ask") mockInstance verifyStub)
 
 _readFile ::
   ( MockBuilder params (FilePath -> Text) (Param FilePath)
@@ -93,7 +105,9 @@ _readFile ::
   MockT m ()
 _readFile p = MockT $ do
   mockInstance <- liftIO $ createNamedStubFn "readFile" p
-  addDefinition (Definition (Proxy :: Proxy "readFile") mockInstance shouldApplyToAnything)
+  resolved <- liftIO $ requireResolved mockInstance
+  let verifyStub _ = verifyResolvedAny resolved
+  addDefinition (Definition (Proxy :: Proxy "readFile") mockInstance verifyStub)
 
 _writeFile ::
   ( MockBuilder params (FilePath -> Text -> ()) (Param FilePath :> Param Text)
@@ -104,7 +118,9 @@ _writeFile ::
   MockT m ()
 _writeFile p = MockT $ do
   mockInstance <- liftIO $ createNamedStubFn "writeFile" p
-  addDefinition (Definition (Proxy :: Proxy "writeFile") mockInstance shouldApplyToAnything)
+  resolved <- liftIO $ requireResolved mockInstance
+  let verifyStub _ = verifyResolvedAny resolved
+  addDefinition (Definition (Proxy :: Proxy "writeFile") mockInstance verifyStub)
 
 _post ::
   ( MockBuilder params (Text -> ()) (Param Text)
@@ -115,7 +131,9 @@ _post ::
   MockT m ()
 _post p = MockT $ do
   mockFn <- liftIO $ createNamedStubFn "post" p
-  addDefinition (Definition (Proxy :: Proxy "post") mockFn shouldApplyToAnything)
+  resolved <- liftIO $ requireResolved mockFn
+  let verifyStub _ = verifyResolvedAny resolved
+  addDefinition (Definition (Proxy :: Proxy "post") mockFn verifyStub)
 
 findParam :: KnownSymbol sym => Proxy sym -> [Definition] -> Maybe a
 findParam pa definitions = do

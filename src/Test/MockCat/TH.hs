@@ -59,7 +59,11 @@ import Language.Haskell.TH.Syntax (nameBase)
 import Test.MockCat.Cons
 import Test.MockCat.Mock
 import Test.MockCat.MockT
-import Test.MockCat.Verify (MockResolvable (ResolvableParams), shouldApplyToAnything)
+import Test.MockCat.Verify
+  ( MockResolvable (ResolvableParams),
+    requireResolved,
+    shouldApplyToAnythingResolved
+  )
 import Test.MockCat.Internal.Types (Verifier)
 import Test.MockCat.Param
 import Unsafe.Coerce (unsafeCoerce)
@@ -577,11 +581,13 @@ createMockBody funNameStr createMockFn =
   [|
     MockT $ do
       mockInstance <- liftIO $ $(pure createMockFn) $(litE (stringL funNameStr)) p
+      resolved <- liftIO $ requireResolved mockInstance
+      let verifyStub _ = shouldApplyToAnythingResolved resolved
       addDefinition
         ( Definition
             (Proxy :: Proxy $(litT (strTyLit funNameStr)))
             mockInstance
-            shouldApplyToAnything
+            verifyStub
         )
     |]
 
