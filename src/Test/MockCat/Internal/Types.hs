@@ -30,7 +30,6 @@ import Control.Monad.State
     ( execState, MonadState(put, get), State )
 import Data.Kind (Type)
 import Data.Proxy (Proxy (..))
-import Data.Dynamic (Dynamic)
 
 newtype Verifier params = Verifier (IORef (AppliedRecord params))
 
@@ -90,15 +89,6 @@ type Message = String
 data VerifyMatchType a = MatchAny a | MatchAll a
 
 type MockName = String
-
-data Mock fn params =
-    Mock fn (Verifier params) Dynamic
-  | NamedMock MockName fn (Verifier params) Dynamic
-
--- MockIO
-data MockIO (m :: Type -> Type) fn params =
-   MockIO fn (Verifier params) Dynamic
- | NamedMockIO MockName fn (Verifier params) Dynamic
 
 safeIndex :: [a] -> Int -> Maybe a
 safeIndex xs n

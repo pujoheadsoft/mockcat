@@ -23,7 +23,6 @@ import Data.Maybe
 import Test.MockCat.Param
 import Prelude hiding (lookup)
 import GHC.Stack (HasCallStack)
-import Test.MockCat.Internal.Core
 import Test.MockCat.Internal.Message
 import Data.Kind (Type)
 import Test.MockCat.Cons ((:>))
@@ -373,15 +372,11 @@ type family FunctionParams fn where
   FunctionParams fn = ()
 
 type family IsValueType target :: Bool where
-  IsValueType (Mock fn params) = 'False
-  IsValueType (MockIO m fn params) = 'False
   IsValueType (IO r) = 'False
   IsValueType (a -> fn) = 'False
   IsValueType target = 'True
 
 type family ResolvableParamsOf target :: Type where
-  ResolvableParamsOf (Mock fn params) = params
-  ResolvableParamsOf (MockIO m fn params) = params
   ResolvableParamsOf (IO r) = FunctionParams (IO r)
   ResolvableParamsOf (a -> fn) = FunctionParams (a -> fn)
   ResolvableParamsOf target = ()
@@ -389,18 +384,6 @@ type family ResolvableParamsOf target :: Type where
 class MockResolvable target where
   type ResolvableParams target :: Type
   resolveMock :: target -> IO (Maybe (Maybe MockName, Verifier (ResolvableParams target)))
-
-instance
-  {-# OVERLAPPING #-}
-  MockResolvable (Mock fn params) where
-  type ResolvableParams (Mock fn params) = ResolvableParamsOf (Mock fn params)
-  resolveMock mock = pure $ Just (mockName mock, mockVerifier mock)
-
-instance
-  {-# OVERLAPPING #-}
-  MockResolvable (MockIO m fn params) where
-  type ResolvableParams (MockIO m fn params) = ResolvableParamsOf (MockIO m fn params)
-  resolveMock mock = pure $ Just (mockName mock, mockVerifier mock)
 
 instance
   {-# OVERLAPPING #-}

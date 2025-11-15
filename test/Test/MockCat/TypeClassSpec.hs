@@ -14,7 +14,7 @@ module Test.MockCat.TypeClassSpec (spec) where
 
 import Data.Text (Text, pack)
 import Test.Hspec (Spec, it, shouldBe)
-import Test.MockCat hiding (createMock, createNamedMock, createConstantMock, createMockIO)
+import Test.MockCat
 import Prelude hiding (readFile, writeFile)
 import Data.Data
 import Data.List (find)

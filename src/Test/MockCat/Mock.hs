@@ -12,26 +12,22 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 
-{- | This module provides the following functions.
+{- | Utilities for constructing verifiable stub functions.
 
-  - Create mocks that can be stubbed and verified.
-
-  - Create stub function.
-
-  - Verify applied mock function.
+Each stub produced by this module records argument applications and can be
+verified via helpers such as 'shouldApplyTo' and 'shouldApplyTimes'.
 -}
 module Test.MockCat.Mock
-  ( Mock
-  , MockBuilder
+  ( MockBuilder
   , build
-  -- , createMock
-  -- , createNamedMock
-  -- , createConstantMock
-  -- , createNamedConstantMock
+  , MockIOBuilder
+  , buildIO
   , createStubFn
   , createNamedStubFn
-  -- , stubFn
-  -- , stubFnMock
+  , createStubFnIO
+  , createPureStubFn
+  , createConstantStubFn
+  , createNamedConstantStubFn
   , shouldApplyTo
   , shouldApplyTimes
   , shouldApplyInOrder
@@ -46,133 +42,33 @@ module Test.MockCat.Mock
   , onCase
   , cases
   , casesIO
-  -- , createMockIO
-  , stubFnMockIO
-  , createStubFnIO
-  , createPureStubFn
-  , createConstantStubFn
-  , createNamedConstantStubFn
-  )
-where
+  , LiftFunTo(..)
+  ) where
 
-import Control.Monad (guard, when, ap)
-import Data.Function ((&))
-
-import Data.IORef (IORef, newIORef, readIORef, writeIORef, atomicModifyIORef')
-import Data.List (elemIndex, intercalate)
-import Data.Maybe
-
-import GHC.IO (unsafePerformIO, evaluate)
-import Test.MockCat.Cons
-import Test.MockCat.Param
-import Test.MockCat.AssociationList (AssociationList, lookup, update, insert, empty, member)
-import Prelude hiding (lookup)
-import GHC.Stack (HasCallStack)
-import Control.Monad.Trans
-import Control.Monad.State
+import Control.Monad.IO.Class (MonadIO(..))
+import Control.Monad.State (get, put)
+import Data.IORef (IORef, writeIORef)
 import Data.Kind (Type)
-import Data.Proxy (Proxy (..))
-import Test.MockCat.Internal.Types
-import Test.MockCat.Internal.Core
-import Test.MockCat.Internal.Message
-import Test.MockCat.Internal.Builder
-import Test.MockCat.Verify
-import Data.Typeable (Typeable, eqT)
-import Type.Reflection (typeRep, TyCon, typeRepTyCon, splitApps)
+import Data.Proxy (Proxy(..))
 import Data.Type.Equality ((:~:) (Refl))
-import Data.Dynamic (toDyn)
+import Data.Typeable (Typeable, eqT)
+import GHC.IO (evaluate)
+import Prelude hiding (lookup)
+import Test.MockCat.Internal.Builder
 import Test.MockCat.Internal.Registry
-  ( attachVerifierToFn
-  , registerUnitMeta
-  , UnitMeta
-  , withUnitGuard
-  , markUnitUsed
+  ( UnitMeta
+  , attachVerifierToFn
   , isGuardActive
+  , markUnitUsed
+  , registerUnitMeta
+  , withUnitGuard
   )
+import Test.MockCat.Internal.Types
+import Test.MockCat.Param
+import Test.MockCat.Verify
+import Type.Reflection (TyCon, splitApps, typeRep, typeRepTyCon)
 
-{- | Create a mock.
-From this mock, you can generate stub functions and verify the functions.
-
-  @
-  import Test.Hspec
-  import Test.MockCat
-  ...
-  it "stub & verify" do
-    -- create a mock
-    m \<- createMock $ "value" |\> True
-    -- stub function
-    let f = stubFn m
-    -- assert
-    f "value" \`shouldBe\` True
-    -- verify
-    m \`shouldApplyTo\` "value"
-  @
-
-  If you do not need verification and only need stub functions, you can use @'mockFun'@.
-
--}
-createMock ::
-  (MonadIO m, MockBuilder params fn verifyParams) =>
-  params ->
-  m (Mock fn verifyParams)
-createMock params = liftIO $ build Nothing params
-
-{- | Create a constant mock.
-From this mock, you can generate constant functions and verify the functions.
-
-  @
-  import Test.Hspec
-  import Test.MockCat
-  ...
-  it "stub & verify" do
-    m \<- createConstantMock "foo"
-    stubFn m \`shouldBe\` "foo"
-    shouldApplyToAnything m
-  @
--}
-createConstantMock :: MonadIO m => a -> m (Mock a ())
-createConstantMock a = liftIO $ build Nothing $ param a
-
-{- | Create a named mock. If the test fails, this name is used. This may be useful if you have multiple mocks.
-
-  @
-  import Test.Hspec
-  import Test.MockCat
-  ...
-  it "named mock" do
-    m \<- createNamedMock "mock" $ "value" |\> True
-    stubFn m "value" \`shouldBe\` True
-  @
--}
-createNamedMock ::
-  (MonadIO m, MockBuilder params fn verifyParams) =>
-  MockName ->
-  params ->
-  m (Mock fn verifyParams)
-createNamedMock name params = liftIO $ build (Just name) params
-
--- | Create a named constant mock.
-createNamedConstantMock :: MonadIO m => MockName -> fn -> m (Mock fn ())
-createNamedConstantMock name a = liftIO $ build (Just name) (param a)
-
--- | Extract the stub function from the mock.
-stubFn :: forall m fn. (IsMock m, MockFn m ~ fn) => m -> fn
-stubFn = mockStubFn
-
-stubFnMock :: Mock fn v -> fn
-stubFnMock (Mock f _ _) = f
-stubFnMock (NamedMock _ f _ _) = f
-
-{- | Create a stub function.
-  @
-  import Test.Hspec
-  import Test.MockCat
-  ...
-  it "stub function" do
-    f \<- createStubFn $ "value" |\> True
-    f "value" \`shouldBe\` True
-  @
--}
+{- | Create a stub function with verification hooks attached. -}
 createStubFn ::
   ( MonadIO m
   , MockBuilder params fn verifyParams
@@ -181,112 +77,83 @@ createStubFn ::
   ) =>
   params ->
   m fn
-createStubFn params = registerAndReturn =<< createMock params
+createStubFn params = do
+  (fn, verifier) <- build Nothing params
+  registerStub Nothing verifier fn
 
-createConstantStubFn :: (MonadIO m, Typeable b) => b -> m b
-createConstantStubFn params = registerAndReturn =<< createConstantMock params
-
-createPureStubFn ::
-  (StubBuilder params fn) =>
-  params ->
-  fn
-createPureStubFn params = buildStub Nothing params
-
--- | Create a named stub function.
+{- | Create a named stub function. The provided name is used in failure messages. -}
 createNamedStubFn ::
   ( MonadIO m
   , MockBuilder params fn verifyParams
   , Typeable verifyParams
   , Typeable fn
   ) =>
-  String ->
+  MockName ->
   params ->
   m fn
-createNamedStubFn name params = registerAndReturn =<< createNamedMock name params
+createNamedStubFn name params = do
+  (fn, verifier) <- build (Just name) params
+  registerStub (Just name) verifier fn
 
-createNamedConstantStubFn :: (MonadIO m, Typeable b) => String -> b -> m b
-createNamedConstantStubFn name params = registerAndReturn =<< createNamedConstantMock name params
-
-
-to :: (a -> IO ()) -> a -> IO ()
-to f = f
-
-{- | Make a case for stub functions.  
-This can be used to create stub functions that return different values depending on their arguments.
-
-  @
-  it "test" do
-    f <-
-      createStubFn $ do
-        onCase $ "a" |> "return x"
-        onCase $ "b" |> "return y"
-
-    f "a" `shouldBe` "return x"
-    f "b" `shouldBe` "return y"
-  @
--}
-onCase :: a -> Cases a ()
-onCase a = Cases $ do
-  st <- get
-  put (st ++ [a])
-
-{- | Make a list of patterns of arguments and returned values.  
-This can be used to create stub functions that return different values depending on their arguments.
-
-  @
-  it "test" do
-    f <-
-      createStubFn $ cases [
-        "a" |> "return x",
-        "b" |> "return y"
-      ]
-
-    f "a" `shouldBe` "return x"
-    f "b" `shouldBe` "return y"
-  @
--}
-cases :: [a] -> Cases a ()
-cases a = Cases $ put a
-
-{- | IO version of @'cases'@.  
-@casesIO ["a", ""]@ has the same meaning as @cases [ pure \@IO "a", pure \@IO ""]@.
--}
-casesIO :: [a] -> Cases (IO a) ()
-casesIO = Cases . (put . map pure)
-
-
-
--- ------------------
-
-
-
-
-createMockIO ::
-  forall params fn fnM verifyParams m.
+{- | Create a constant stub function. -}
+createConstantStubFn ::
   ( MonadIO m
-  , MockIOBuilder params fn verifyParams
-  , LiftFunTo fn fnM m
+  , MockBuilder (Param b) b ()
+  , Typeable b
   ) =>
-  params ->
-  m (MockIO m fnM verifyParams)
-createMockIO params = do
-  mockIO <- liftIO (buildIO Nothing params)
-  pure $ widenMock mockIO
+  b ->
+  m b
+createConstantStubFn value = createStubFn (param value)
 
-stubFnMockIO :: MockIO m fn params -> fn
-stubFnMockIO (MockIO f _ _) = f
-stubFnMockIO (NamedMockIO _ f _ _) = f
+{- | Create a named constant stub function. -}
+createNamedConstantStubFn ::
+  ( MonadIO m
+  , MockBuilder (Param b) b ()
+  , Typeable b
+  ) =>
+  MockName ->
+  b ->
+  m b
+createNamedConstantStubFn name value = createNamedStubFn name (param value)
 
+{- | Create a stub function whose result lives in another monad. -}
 createStubFnIO ::
   forall params fn verifyParams m fnM.
   ( MockIOBuilder params fn verifyParams
   , MonadIO m
   , LiftFunTo fn fnM m
+  , Typeable verifyParams
   , Typeable fnM
   ) =>
   params ->
   m fnM
-createStubFnIO params = registerAndReturn =<< createMockIO params
+createStubFnIO params = do
+  (fnIO, verifier) <- liftIO $ buildIO Nothing params
+  let lifted = liftFunTo (Proxy :: Proxy m) fnIO
+  registerStub Nothing verifier lifted
+
+createPureStubFn ::
+  StubBuilder params fn =>
+  params ->
+  fn
+createPureStubFn params = buildStub Nothing params
+
+to :: (a -> IO ()) -> a -> IO ()
+to f = f
+
+{- | Register a stub case within a 'Cases' builder. -}
+onCase :: a -> Cases a ()
+onCase a = Cases $ do
+  st <- get
+  put (st ++ [a])
+
+{- | Define stub cases from a list of patterns. -}
+cases :: [a] -> Cases a ()
+cases a = Cases $ put a
+
+{- | IO variant of 'cases'. -}
+casesIO :: [a] -> Cases (IO a) ()
+casesIO = Cases . (put . map pure)
 
 class LiftFunTo funIO funM (m :: Type -> Type) | funIO m -> funM where
   liftFunTo :: Proxy m -> funIO -> funM
@@ -297,31 +164,20 @@ instance MonadIO m => LiftFunTo (IO r) (m r) m where
 instance LiftFunTo restIO restM m => LiftFunTo (a -> restIO) (a -> restM) m where
   liftFunTo p f a = liftFunTo p (f a)
 
-widenMock ::
-  forall m funIO funM params.
-  ( LiftFunTo funIO funM m
-  , Typeable (Verifier params)) => 
-  MockIO IO funIO params ->
-  MockIO m funM params
-widenMock (MockIO f verifier _) = MockIO (liftFunTo (Proxy :: Proxy m) f) verifier (toDyn verifier)
-widenMock (NamedMockIO name f verifier _) = NamedMockIO name (liftFunTo (Proxy :: Proxy m) f) verifier (toDyn verifier)
-
-
-registerAndReturn ::
-  forall m mock.
+registerStub ::
+  forall m params fn.
   ( MonadIO m
-  , IsMock mock
-  , Typeable (Verifier (MockParams mock))
-  , Typeable (MockParams mock)
-  , Typeable (MockFn mock)
+  , Typeable params
+  , Typeable (Verifier params)
+  , Typeable fn
   ) =>
-  mock ->
-  m (MockFn mock)
-registerAndReturn mock = do
-  baseValue <- liftIO $ evaluate (stubFn mock)
-  let name = mockName mock
-      verifier@(Verifier ref) = mockVerifier mock
-  case eqT :: Maybe (MockParams mock :~: ()) of
+  Maybe MockName ->
+  Verifier params ->
+  fn ->
+  m fn
+registerStub name verifier@(Verifier ref) fn = do
+  baseValue <- liftIO $ evaluate fn
+  case eqT :: Maybe (params :~: ()) of
     Just Refl -> do
       meta <- liftIO $ registerUnitMeta ref
       liftIO $ writeIORef ref appliedRecord

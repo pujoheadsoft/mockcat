@@ -51,7 +51,6 @@ library
       Test.MockCat.AssociationList
       Test.MockCat.Cons
       Test.MockCat.Internal.Builder
-      Test.MockCat.Internal.Core
       Test.MockCat.Internal.Message
       Test.MockCat.Internal.Registry
       Test.MockCat.Internal.Types

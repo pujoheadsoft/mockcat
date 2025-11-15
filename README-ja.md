@@ -42,7 +42,7 @@ mockcat は Haskell 向けの小さなモック / スタブ DSL です。
 * 侵襲的なアーキテクチャ変更を要求しない。既存テストへ差し込める。
 
 #### 導入 (手書きスタブから段階的移行) 手順例
-1. 既存の手書きスタブを `createMock` + `stubFn` に置換 (同じ型シグネチャ温存)。
+1. 既存の手書きスタブを `createStubFn` に置換 (同じ型シグネチャ温存)。
 2. 必要なテストだけ `shouldApplyTo` / `shouldApplyTimes` を追加 (全部に付けない)。
 3. 重複呼び出し判定や順序がテスト意図なら `shouldApplyInOrder` を追加。
 4. 将来さらに fuzz / property を盛りたい場合は PoC モジュール (ParamSpec/Scenario) を検討。
@@ -95,14 +95,12 @@ stubFn "value" `shouldBe` True
 ```
 適用の検証
 ```haskell
--- create a mock
-mock <- createMock $ "value" |> True
--- stub function
-let stubFunction = stubFn mock
+-- create a verifiable stub
+stubFunction <- createStubFn $ "value" |> True
 -- assert
 stubFunction "value" `shouldBe` True
 -- verify
-mock `shouldApplyTo` "value"
+stubFunction `shouldApplyTo` "value"
 ```
 型クラス
 ```haskell
@@ -146,33 +144,28 @@ createStubFn do
   onCase $ "arg" |> "y"
 ```
 ## 検証の概要
-スタブ関数の適用を検証するには、まず`createMock`関数でモックを作ります。
-スタブ関数はモックから`stubFn`関数で取り出して使います。
-検証はモックに対して行います。
+スタブ関数の適用を検証するには、`createStubFn` で生成したスタブ関数に対して直接検証関数を適用します。
 ```haskell
--- create a mock
-mock <- createMock $ "value" |> True
--- stub function
-let stubFunction = stubFn mock
+stubFunction <- createStubFn $ "value" |> True
 -- assert
 stubFunction "value" `shouldBe` True
 -- verify
-mock `shouldApplyTo` "value"
+stubFunction `shouldApplyTo` "value"
 ```
 スタブ関数と同様に検証の場合も条件を指定することができます。
 ```haskell
-mock `shouldApplyTo` any @String
-mock `shouldApplyTo` expect_ (/= "not value")
-mock `shouldApplyTo` $(expectByExpr [|(/= "not value")|])
+stubFunction `shouldApplyTo` any @String
+stubFunction `shouldApplyTo` expect_ (/= "not value")
+stubFunction `shouldApplyTo` $(expectByExpr [|(/= "not value")|])
 ```
 また適用された回数を検証することもできます。
 ```haskell
-mock `shouldApplyTimes` (1 :: Int) `to` "value"
-mock `shouldApplyTimesGreaterThan` (0 :: Int) `to` "value"
-mock `shouldApplyTimesGreaterThanEqual` (1 :: Int) `to` "value"
-mock `shouldApplyTimesLessThan` (2 :: Int) `to` "value"
-mock `shouldApplyTimesLessThanEqual` (1 :: Int) `to` "value"
-mock `shouldApplyTimesToAnything` (1 :: Int)
+stubFunction `shouldApplyTimes` (1 :: Int) `to` "value"
+stubFunction `shouldApplyTimesGreaterThan` (0 :: Int) `to` "value"
+stubFunction `shouldApplyTimesGreaterThanEqual` (1 :: Int) `to` "value"
+stubFunction `shouldApplyTimesLessThan` (2 :: Int) `to` "value"
+stubFunction `shouldApplyTimesLessThanEqual` (1 :: Int) `to` "value"
+stubFunction `shouldApplyTimesToAnything` (1 :: Int)
 ```
 型クラスのモックの場合は、`runMockT`を適用した際、用意したスタブ関数の適用が行われたかの検証が自動で行われます。
 ```haskell
@@ -441,17 +434,14 @@ import Test.MockCat
 spec :: Spec
 spec = do
   it "使い方の例" do
-    -- モックの生成("value"を適用すると、純粋な値Trueを返す)
-    mock <- createMock $ "value" |> True
-
-    -- モックからスタブ関数を取り出す
-    let stubFunction = stubFn mock
+    -- スタブの生成("value"を適用すると、純粋な値Trueを返す)
+    stubFunction <- createStubFn $ "value" |> True
 
     -- 関数の適用結果を検証
     stubFunction "value" `shouldBe` True
 
     -- 期待される値("value")が適用されたかを検証
-    mock `shouldApplyTo` "value"
+    stubFunction `shouldApplyTo` "value"
 
 ```
 
@@ -656,8 +646,7 @@ f "b" `shouldBe` "return y"
 ## 検証
 ### 期待される引数に適用されたか検証する
 期待される引数に適用されたかは `shouldApplyTo` 関数で検証することができます。  
-検証を行う場合は、`createStubFn` 関数ではなく `createMock` 関数でモックを作る必要があります。
-この場合スタブ関数は `stubFn` 関数でモックから取り出して使います。
+`createStubFn` で生成したスタブ関数に対して直接検証を行います。
 ```haskell
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE TypeApplications #-}
@@ -667,14 +656,13 @@ import Test.MockCat
 spec :: Spec
 spec = do
   it "stub & verify" do
-    -- create a mock
-    mock <- createMock $ "value" |> True
-    -- stub function
-    let stubFunction = stubFn mock
+    -- create a verifiable stub
+    let args = "value" |> True
+    stubFunction <- createStubFn args
     -- assert
     stubFunction "value" `shouldBe` True
     -- verify
-    mock `shouldApplyTo` "value"
+    stubFunction `shouldApplyTo` "value"
 ```
 ### 注
 適用されたという記録は、スタブ関数の返り値が評価される時点で行われます。  
@@ -688,10 +676,10 @@ import Test.MockCat
 spec :: Spec
 spec = do
   it "Verification does not work" do
-    mock <- createMock $ "expect arg" |> "return value"
+    f <- createStubFn $ "expect arg" |> "return value"
     -- 引数の適用は行うが返り値は評価しない
-    let _ = stubFn mock "expect arg"
-    mock `shouldApplyTo` "expect arg"
+    let _ = f "expect arg"
+    f `shouldApplyTo` "expect arg"
 ```
 ```console
 uncaught exception: ErrorCall
@@ -711,10 +699,10 @@ import Test.MockCat
 spec :: Spec
 spec = do
   it "shouldApplyTimes" do
-    m <- createMock $ "value" |> True
-    print $ stubFn m "value"
-    print $ stubFn m "value"
-    m `shouldApplyTimes` (2 :: Int) `to` "value"
+    f <- createStubFn $ "value" |> True
+    print $ f "value"
+    print $ f "value"
+    f `shouldApplyTimes` (2 :: Int) `to` "value"
 ```
 
 ### 何かしらに適用されたかを検証する
@@ -734,10 +722,10 @@ import Test.MockCat
 spec :: Spec
 spec = do
   it "shouldApplyInOrder" do
-    m <- createMock $ any |> True |> ()
-    print $ stubFn m "a" True
-    print $ stubFn m "b" True
-    m
+    f <- createStubFn $ any |> True |> ()
+    print $ f "a" True
+    print $ f "b" True
+    f
       `shouldApplyInOrder` [ "a" |> True,
                              "b" |> True
                            ]
@@ -755,11 +743,11 @@ import Test.MockCat
 spec :: Spec
 spec = do
   it "shouldApplyInPartialOrder" do
-    m <- createMock $ any |> True |> ()
-    print $ stubFn m "a" True
-    print $ stubFn m "b" True
-    print $ stubFn m "c" True
-    m
+    f <- createStubFn $ any |> True |> ()
+    print $ f "a" True
+    print $ f "b" True
+    print $ f "c" True
+    f
       `shouldApplyInPartialOrder` [ "a" |> True,
                                     "c" |> True
                                   ]

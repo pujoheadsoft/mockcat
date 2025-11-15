@@ -447,14 +447,8 @@ generateInstanceRealFnBody fnName fnNameStr args r options = do
     |]
 
 generateStubFn :: [Q Exp] -> Q Exp -> Q Exp
-generateStubFn [] = $([|generateConstantStubFn|])
-generateStubFn args = $([|generateNotConstantsStubFn args|])
-
-generateNotConstantsStubFn :: [Q Exp] -> Q Exp -> Q Exp
-generateNotConstantsStubFn args mock = foldl appE [|stubFnMock $(mock)|] args
-
-generateConstantStubFn :: Q Exp -> Q Exp
-generateConstantStubFn mock = [|stubFnMock $(mock)|]
+generateStubFn [] mock = mock
+generateStubFn args mock = foldl appE mock args
 
 createMockFnDec :: Name -> [VarAppliedType] -> MockOptions -> Dec -> Q [Dec]
 createMockFnDec monadVarName varAppliedTypes options (SigD sigFnName ty) = do
@@ -492,7 +486,7 @@ doCreateMockFnDecs funNameStr mockFunName params funType monadVarName updatedTyp
         MockT $(varT monadVarName) ()
         |]
 
-  createMockFn <- [|createNamedMock|]
+  createMockFn <- [|createNamedStubFn|]
 
   mockBody <- createMockBody funNameStr createMockFn
   newFun <- funD mockFunName [clause [varP $ mkName "p"] (normalB (pure mockBody)) []]
@@ -502,7 +496,7 @@ doCreateMockFnDecs funNameStr mockFunName params funType monadVarName updatedTyp
 doCreateConstantMockFnDecs :: (Quote m) => String -> Name -> Type -> Name -> m [Dec]
 doCreateConstantMockFnDecs funNameStr mockFunName ty monadVarName = do
   newFunSig <- sigD mockFunName [t|(MonadIO $(varT monadVarName)) => $(pure ty) -> MockT $(varT monadVarName) ()|]
-  createMockFn <- [|createNamedConstantMock|]
+  createMockFn <- [|createNamedConstantStubFn|]
   mockBody <- createMockBody funNameStr createMockFn
   newFun <- funD mockFunName [clause [varP $ mkName "p"] (normalB (pure mockBody)) []]
   pure $ newFunSig : [newFun]
@@ -520,7 +514,7 @@ doCreateEmptyVerifyParamMockFnDecs funNameStr mockFunName params funType monadVa
         MockT $(varT monadVarName) ()
         |]
 
-  createMockFn <- [|createNamedMock|]
+  createMockFn <- [|createNamedStubFn|]
 
   mockBody <- createMockBody funNameStr createMockFn
   newFun <- funD mockFunName [clause [varP $ mkName "p"] (normalB (pure mockBody)) []]

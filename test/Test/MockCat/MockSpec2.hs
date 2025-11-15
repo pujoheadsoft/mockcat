@@ -14,7 +14,7 @@ module Test.MockCat.MockSpec2 (spec) where
 import qualified Control.Exception as E
 import Data.Function ((&))
 import Test.Hspec
-import Test.MockCat hiding (createMock, createMockIO)
+import Test.MockCat
 import Prelude hiding (any)
 
 spec :: Spec

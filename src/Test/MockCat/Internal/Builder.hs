@@ -28,8 +28,6 @@ import Control.Monad.State
 import Data.Kind (Type)
 import Test.MockCat.Internal.Types
 import Test.MockCat.Internal.Message
-import Data.Typeable (Typeable)
-import Data.Dynamic (toDyn)
 
 -- ------------
 data Pure
@@ -106,135 +104,109 @@ buildCurriedIO :: forall args r fn. BuildCurriedIO args r fn => (args -> IO r) -
 buildCurriedIO = buildGeneric @InIO @args @r
 
 
--- | Class for creating a mock corresponding to the parameter.
+-- | Class for creating a stub corresponding to the parameter description.
 class MockBuilder params fn verifyParams | params -> fn, params -> verifyParams where
-  -- build a mock
-  build :: MonadIO m => Maybe MockName -> params -> m (Mock fn verifyParams)
+  build ::
+    MonadIO m =>
+    Maybe MockName ->
+    params ->
+    m (fn, Verifier verifyParams)
 
--- | Instance for building a mock for a constant function.
+-- | Instance for building a stub for a constant IO action.
 instance
   MockBuilder (IO r) (IO r) ()
   where
-  build name a = do
-    s <- liftIO $ newIORef appliedRecord
-    let
-      fn = do
-        liftIO $ appendAppliedParams s ()
-        a
-      verifier = Verifier s
-      dynVerifier = toDyn verifier
-    pure $ case name of
-      Just name -> NamedMock name fn verifier dynVerifier
-      Nothing -> Mock fn verifier dynVerifier
+  build _ action = do
+    ref <- liftIO $ newIORef appliedRecord
+    let fn = do
+          liftIO $ appendAppliedParams ref ()
+          action
+        verifier = Verifier ref
+    pure (fn, verifier)
 
--- | Instance for building a mock for a function with a single parameter.
+-- | Instance for building a stub for a value.
 instance
   MockBuilder (Param r) r ()
   where
-  build name params = do
-    s <- liftIO $ newIORef appliedRecord
-    let
-      v = value params
-      fn = perform $ do
-        liftIO $ appendAppliedParams s ()
-        pure v
-      verifier = Verifier s
-      dynVerifier = toDyn verifier
-    pure $ case name of
-      Just name -> NamedMock name fn verifier dynVerifier
-      Nothing -> Mock fn verifier dynVerifier
+  build _ params = do
+    ref <- liftIO $ newIORef appliedRecord
+    let v = value params
+        fn = perform $ do
+          liftIO $ appendAppliedParams ref ()
+          pure v
+        verifier = Verifier ref
+    pure (fn, verifier)
 
--- | Instance for building a mock for a function with multiple parameters.
+-- | Instance for building a stub for `Cases (IO a) ()`.
 instance MockBuilder (Cases (IO a) ()) (IO a) () where
-  build name cases = do
+  build _ cases = do
     let params = runCase cases
-    s <- liftIO $ newIORef appliedRecord
-    let
-      fn = do
-        count <- readAppliedCount s ()
-        let index = min count (length params - 1)
-            r = safeIndex params index
-        appendAppliedParams s ()
-        incrementAppliedParamCount s ()
-        fromJust r
-      verifier = Verifier s
-      dynVerifier = toDyn verifier
-    pure $ case name of
-      Just name -> NamedMock name fn verifier dynVerifier
-      Nothing -> Mock fn verifier dynVerifier
+    ref <- liftIO $ newIORef appliedRecord
+    let fn = do
+          count <- readAppliedCount ref ()
+          let index = min count (length params - 1)
+              r = safeIndex params index
+          appendAppliedParams ref ()
+          incrementAppliedParamCount ref ()
+          fromJust r
+        verifier = Verifier ref
+    pure (fn, verifier)
 
--- | Overlapping instance for building a mock for a function with multiple parameters.
--- This instance is used when the parameter type is a 'Cases' type.
+-- | Overlapping instance for building a stub when parameters are provided as 'Cases'.
 instance {-# OVERLAPPABLE #-}
   ( ParamConstraints params args r
   , BuildCurried args r fn
-  , Typeable args
   ) => MockBuilder (Cases params ()) fn args where
   build name cases = do
     let paramsList = runCase cases
-    buildMockWith name (\ref inputParams -> executeInvocation ref (casesInvocationStep name paramsList inputParams))
+    buildWithRecorder (\ref inputParams -> executeInvocation ref (casesInvocationStep name paramsList inputParams))
 
--- | Overlapping instance for building a mock for a function with multiple parameters.
--- This instance is used when the parameter type is a 'Param a :> rest' type.
+-- | Overlapping instance for building a stub defined via chained 'Param'.
 instance {-# OVERLAPPABLE #-}
   ( p ~ (Param a :> rest)
   , ParamConstraints p args r
   , BuildCurried args r fn
-  , Typeable args
   ) => MockBuilder (Param a :> rest) fn args where
-  build name params = do
-    buildMockWith name (\ref inputParams -> executeInvocation ref (singleInvocationStep name params inputParams))
+  build name params =
+    buildWithRecorder (\ref inputParams -> executeInvocation ref (singleInvocationStep name params inputParams))
 
 
-class Typeable verifyParams => MockIOBuilder params fn verifyParams | params -> fn, params -> verifyParams where
-  -- build a mock
-  buildIO :: MonadIO m => Maybe MockName -> params -> m (MockIO m fn verifyParams)
+class MockIOBuilder params fn verifyParams | params -> fn, params -> verifyParams where
+  buildIO ::
+    Maybe MockName ->
+    params ->
+    IO (fn, Verifier verifyParams)
 
 instance {-# OVERLAPPABLE #-}
   ( p ~ (Param a :> rest)
   , ParamConstraints p args r
   , BuildCurriedIO args r fn
-  , Typeable args
   ) => MockIOBuilder (Param a :> rest) fn args where
-  buildIO name params = do
-    buildMockIOWith name (\ref inputParams -> executeInvocation ref (singleInvocationStep name params inputParams))
+  buildIO name params =
+    buildIOWithRecorder (\ref inputParams -> executeInvocation ref (singleInvocationStep name params inputParams))
 
 
-
-buildMockWith ::
+buildWithRecorder ::
   ( MonadIO m
   , BuildCurried args r fn
-  , Typeable (Verifier args)
   ) =>
-  Maybe MockName ->
   (IORef (AppliedRecord args) -> args -> IO r) ->
-  m (Mock fn args)
-buildMockWith name handler = do
+  m (fn, Verifier args)
+buildWithRecorder handler = do
   ref <- liftIO $ newIORef appliedRecord
-  let
-    fn = buildCurried (handler ref)
-    verifier = Verifier ref
-    dynVerifier = toDyn verifier
-  pure $ case name of
-    Just name -> NamedMock name fn verifier dynVerifier
-    Nothing -> Mock fn verifier dynVerifier
+  let fn = buildCurried (handler ref)
+      verifier = Verifier ref
+  pure (fn, verifier)
 
-buildMockIOWith ::
-  ( MonadIO m
-  , BuildCurriedIO args r fn
-  , Typeable (Verifier args)
-  ) =>
-  Maybe MockName ->
+buildIOWithRecorder ::
+  BuildCurriedIO args r fn =>
   (IORef (AppliedRecord args) -> args -> IO r) ->
-  m (MockIO m fn args)
-buildMockIOWith name handler = do
-  ref <- liftIO $ newIORef appliedRecord
+  IO (fn, Verifier args)
+buildIOWithRecorder handler = do
+  ref <- newIORef appliedRecord
   let fn = buildCurriedIO (handler ref)
       verifier = Verifier ref
-      dynVerifier = toDyn verifier
-  pure $ case name of
-    Just n -> NamedMockIO n fn verifier dynVerifier
-    Nothing -> MockIO fn verifier dynVerifier
+  pure (fn, verifier)
 
 appliedRecord :: AppliedRecord params
 appliedRecord = AppliedRecord {

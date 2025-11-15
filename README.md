@@ -82,8 +82,8 @@ Consider alternatives if:
 
 ### Migrating from handwritten stubs
 If you already write tiny handmade stubs:
-1. Replace the stub body with `createMock` + `stubFn`.
-2. Inline expectation in the test (keep original type signature).
+1. Replace the stub body with `createStubFn`.
+2. Inline expectation in the test (keep the original type signature).
 3. Add verification only where it increases confidence (don’t verify everything by habit).
 
 ### Interoperability notes
@@ -114,16 +114,16 @@ Failure message lists expected vs actual (or sequence diff). Add labels via `exp
 
 ### Quick Start
 
-Function mock:
+Function stub:
 ```haskell
 import Test.Hspec
 import Test.MockCat
 
 spec :: Spec
-spec = it "simple function mock" do
-  m <- createMock $ "input" |> 42
-  stubFn m "input" `shouldBe` 42
-  m `shouldApplyTo` "input"
+spec = it "simple function stub" do
+  f <- createStubFn $ "input" |> 42
+  f "input" `shouldBe` 42
+  f `shouldApplyTo` "input"
 ```
 
 Typeclass mock:
@@ -214,14 +214,12 @@ stubFn "value" `shouldBe` True
 ```
 Verification
 ```haskell
--- create a mock
-mock <- createMock $ "value" |> True
--- stub function
-let stubFunction = stubFn mock
+-- create a verifiable stub
+stubFunction <- createStubFn $ "value" |> True
 -- assert
 stubFunction "value" `shouldBe` True
 -- verify
-mock `shouldApplyTo` "value"
+stubFunction `shouldApplyTo` "value"
 ```
 Mock of Type Class
 ```haskell
@@ -265,33 +263,27 @@ createStubFn do
   onCase $ "arg" |> "y"
 ```
 ## Verification Overview
-To verify the application of a stub function, first create a mock with the `createMock` function.  
-Stub functions are retrieved from the mock with the `stubFn` function and used.  
-Verification is performed on the mock.
+Stub functions created via `createStubFn` (or the Template Haskell helpers) carry verification metadata.  
+You can apply verification combinators directly to the returned stub.
 ```haskell
--- create a mock
-mock <- createMock $ "value" |> True
--- stub function
-let stubFunction = stubFn mock
--- assert
+stubFunction <- createStubFn $ "value" |> True
 stubFunction "value" `shouldBe` True
--- verify
-mock `shouldApplyTo` "value"
+stubFunction `shouldApplyTo` "value"
 ```
 As with stub functions, conditions can be specified in the case of verification.
 ```haskell
-mock `shouldApplyTo` any @String
-mock `shouldApplyTo` expect_ (/= "not value")
-mock `shouldApplyTo` $(expectByExpr [|(/= "not value")|])
+stubFunction `shouldApplyTo` any @String
+stubFunction `shouldApplyTo` expect_ (/= "not value")
+stubFunction `shouldApplyTo` $(expectByExpr [|(/= "not value")|])
 ```
 You can also verify the number of times it has been applied.
 ```haskell
-mock `shouldApplyTimes` (1 :: Int) `to` "value"
-mock `shouldApplyTimesGreaterThan` (0 :: Int) `to` "value"
-mock `shouldApplyTimesGreaterThanEqual` (1 :: Int) `to` "value"
-mock `shouldApplyTimesLessThan` (2 :: Int) `to` "value"
-mock `shouldApplyTimesLessThanEqual` (1 :: Int) `to` "value"
-mock `shouldApplyTimesToAnything` (1 :: Int)
+stubFunction `shouldApplyTimes` (1 :: Int) `to` "value"
+stubFunction `shouldApplyTimesGreaterThan` (0 :: Int) `to` "value"
+stubFunction `shouldApplyTimesGreaterThanEqual` (1 :: Int) `to` "value"
+stubFunction `shouldApplyTimesLessThan` (2 :: Int) `to` "value"
+stubFunction `shouldApplyTimesLessThanEqual` (1 :: Int) `to` "value"
+stubFunction `shouldApplyTimesToAnything` (1 :: Int)
 ```
 In the case of typeclass mocks, when `runMockT` is applied, verification that the prepared stub functions have been applied is performed automatically.
 ```haskell
@@ -549,14 +541,12 @@ import Test.MockCat
 spec :: Spec
 spec = do
   it "usage example" do
-    -- create a mock (applying "value" returns the pure value True)
-    mock <- createMock $ "value" |> True
-    -- extract a stub function from a mock
-    let stubFunction = stubFn mock
+    -- create a stub (applying "value" returns the pure value True)
+    stubFunction <- createStubFn $ "value" |> True
     -- verify the result of applying the function
     stubFunction "value" `shouldBe` True
     -- verify that the expected value ("value") has been applied
-    mock `shouldApplyTo` "value"
+    stubFunction `shouldApplyTo` "value"
 ```
 ## Stub functions
 To create a stub function directly, use the `createStubFn` function.  
@@ -608,18 +598,18 @@ Expected arguments were not applied to the function `named stub`.
   but got: "x","z"
 ```
 ### Constant stub functions
-To create a stub function that returns a constant, use the `createConstantMock` or `createNamedConstantMock` function.  
+To create a stub function that returns a constant, use the `createConstantStubFn` or `createNamedConstantStubFn` function.  
 ```haskell
 spec :: Spec
 spec = do
-  it "createConstantMock" do
-    m <- createConstantMock "foo"
-    stubFn m `shouldBe` "foo"
-    shouldApplyToAnything m
-  it "createNamedConstantMock" do
-    m <- createNamedConstantMock "const" "foo"
-    stubFn m `shouldBe` "foo"
-    shouldApplyToAnything m
+  it "createConstantStubFn" do
+    v <- createConstantStubFn "foo"
+    v `shouldBe` "foo"
+    shouldApplyToAnything v
+  it "createNamedConstantStubFn" do
+    v <- createNamedConstantStubFn "const" "foo"
+    v `shouldBe` "foo"
+    shouldApplyToAnything v
 ```
 ### Flexible stub functions
 Flexible stub functions can be generated by giving the `createStubFn` function a conditional expression rather than a concrete value.  
@@ -741,8 +731,6 @@ spec = do
 ```
 ### Verify that expected arguments are applied
 The `shouldApplyTo` function can be used to verify that a stub function has been applied to the expected arguments.  
-If you want to verify this, you need to create a mock with the `createMock` function instead of the `createStubFn` function.  
-In this case, stub functions are taken from the mock with the `stubFn` function.
 ```haskell
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE TypeApplications #-}
@@ -752,10 +740,9 @@ import Test.MockCat
 spec :: Spec
 spec = do
   it "stub & verify" do
-    mock <- createMock $ "value" |> True
-    let stubFunction = stubFn mock
+    stubFunction <- createStubFn $ "value" |> True
     stubFunction "value" `shouldBe` True
-    mock `shouldApplyTo` "value"
+    stubFunction `shouldApplyTo` "value"
 ```
 ### Note
 The record that it has been applied is made at the time the return value of the stub function is evaluated.  
@@ -769,9 +756,9 @@ import Test.MockCat
 spec :: Spec
 spec = do
   it "Verification does not work" do
-    mock <- createMock $ "expect arg" |> "return value"
-    let _ = stubFn mock "expect arg"
-    mock `shouldApplyTo` "expect arg"
+    f <- createStubFn $ "expect arg" |> "return value"
+    let _ = f "expect arg"
+    f `shouldApplyTo` "expect arg"
 ```
 ```console
 uncaught exception: ErrorCall
@@ -790,10 +777,10 @@ import Test.MockCat
 spec :: Spec
 spec = do
   it "shouldApplyTimes" do
-    m <- createMock $ "value" |> True
-    print $ stubFn m "value"
-    print $ stubFn m "value"
-    m `shouldApplyTimes` (2 :: Int) `to` "value"
+    f <- createStubFn $ "value" |> True
+    print $ f "value"
+    print $ f "value"
+    f `shouldApplyTimes` (2 :: Int) `to` "value"
 ```
 ### Verify that a function has been applied to something
 You can verify that a function has been applied to something with the `shouldApplyToAnything` function.
@@ -810,10 +797,10 @@ import Test.MockCat
 spec :: Spec
 spec = do
   it "shouldApplyInOrder" do
-    m <- createMock $ any |> True |> ()
-    print $ stubFn m "a" True
-    print $ stubFn m "b" True
-    m
+    f <- createStubFn $ any |> True |> ()
+    print $ f "a" True
+    print $ f "b" True
+    f
       `shouldApplyInOrder` [ "a" |> True,
                              "b" |> True
                            ]
@@ -830,11 +817,11 @@ import Test.MockCat
 spec :: Spec
 spec = do
   it "shouldApplyInPartialOrder" do
-    m <- createMock $ any |> True |> ()
-    print $ stubFn m "a" True
-    print $ stubFn m "b" True
-    print $ stubFn m "c" True
-    m
+    f <- createStubFn $ any |> True |> ()
+    print $ f "a" True
+    print $ f "b" True
+    print $ f "c" True
+    f
       `shouldApplyInPartialOrder` [ "a" |> True,
                                     "c" |> True
                                   ]
