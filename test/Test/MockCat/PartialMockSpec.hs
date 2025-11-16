@@ -4,13 +4,10 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE GADTs #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 {-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE InstanceSigs #-}
-{-# OPTIONS_GHC -Wno-redundant-constraints #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 
 module Test.MockCat.PartialMockSpec (spec) where
@@ -31,7 +28,6 @@ import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Maybe (MaybeT (..))
 import Control.Monad.Trans.Reader hiding (ask)
-import Test.MockCat.Verify (requireResolved)
 import qualified Test.MockCat.Verify as Verify
 import Test.MockCat.Internal.Message (mockNameLabel)
 import Test.MockCat.Internal.Types (Verifier (..))
@@ -61,27 +57,33 @@ instance (MonadIO m, FileOperation m) => FileOperation (MockT m) where
 
 _readFile ::
   ( MockBuilder params (FilePath -> Text) (Param FilePath)
-  , MockResolvable (FilePath -> Text)
   , MonadIO m
   ) =>
   params ->
   MockT m ()
 _readFile p = MockT $ do
   mockInstance <- liftIO $ createNamedStubFn "readFile" p
-  resolved <- liftIO $ requireResolved mockInstance
+  resolved <- liftIO $ do
+    result <- Verify.resolveForVerification mockInstance
+    case result of
+      Just (maybeName, verifier) -> pure $ Verify.ResolvedMock maybeName verifier
+      Nothing -> Verify.verificationFailure
   let verifyStub _ = verifyResolvedAny resolved
   addDefinition (Definition (Proxy :: Proxy "readFile") mockInstance verifyStub)
 
 _writeFile ::
   ( MockBuilder params (FilePath -> Text -> ()) (Param FilePath :> Param Text)
-  , MockResolvable (FilePath -> Text -> ())
   , MonadIO m
   ) =>
   params ->
   MockT m ()
 _writeFile p = MockT $ do
   mockInstance <- liftIO $ createNamedStubFn "writeFile" p
-  resolved <- liftIO $ requireResolved mockInstance
+  resolved <- liftIO $ do
+    result <- Verify.resolveForVerification mockInstance
+    case result of
+      Just (maybeName, verifier) -> pure $ Verify.ResolvedMock maybeName verifier
+      Nothing -> Verify.verificationFailure
   let verifyStub _ = verifyResolvedAny resolved
   addDefinition (Definition (Proxy :: Proxy "writeFile") mockInstance verifyStub)
 
@@ -91,7 +93,7 @@ findParam pa definitions = do
   fmap (\(Definition _ mockFn _) -> unsafeCoerce mockFn) definition
 
 instance (MonadIO m, Finder a b m) => Finder a b (MockT m) where
-  findIds :: (Finder a b m) => MockT m [a]
+
   findIds = MockT do
     defs <- getDefinitions
     case findParam (Proxy :: Proxy "_findIds") defs of
@@ -99,7 +101,7 @@ instance (MonadIO m, Finder a b m) => Finder a b (MockT m) where
         let !result = mockFn
         pure result
       Nothing -> lift findIds
-  findById :: (Finder a b m) => a -> MockT m b
+
   findById id = MockT do
     defs <- getDefinitions
     case findParam (Proxy :: Proxy "_findById") defs of
@@ -109,17 +111,19 @@ instance (MonadIO m, Finder a b m) => Finder a b (MockT m) where
       Nothing -> lift $ findById id
 
 _findIds ::
-  ( MockResolvable r
-  , Typeable r
-  , Typeable (ResolvableParams r)
-  , Typeable (Verifier (ResolvableParams r))
+  ( Typeable r
+  , Verify.ResolvableParamsOf r ~ ()
   , MonadIO m
   ) =>
   r ->
   MockT m ()
 _findIds p = MockT $ do
   mockInstance <- liftIO $ createNamedConstantStubFn "_findIds" p
-  resolved <- liftIO $ requireResolved mockInstance
+  resolved <- liftIO $ do
+    result <- Verify.resolveForVerification mockInstance
+    case result of
+      Just (maybeName, verifier) -> pure $ Verify.ResolvedMock maybeName verifier
+      Nothing -> Verify.verificationFailure
   let verifyStub _ = verifyResolvedAny resolved
   addDefinition
     ( Definition

@@ -1,4 +1,3 @@
-{-# LANGUAGE GADTs #-}
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DataKinds #-}
@@ -6,6 +5,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE GADTs #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 {-# LANGUAGE TypeApplications #-}
@@ -26,7 +26,6 @@ import Control.Monad.Reader (MonadReader)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Reader.Class (ask, MonadReader (local))
 import Control.Monad.Trans.Class (lift)
-import Test.MockCat.Verify (requireResolved)
 import qualified Test.MockCat.Verify as Verify
 import Test.MockCat.Internal.Types (Verifier (..))
 import Test.MockCat.Internal.Message (mockNameLabel)
@@ -89,49 +88,67 @@ instance MonadIO m => MonadReader String (MockT m) where
     pure result
   local = undefined
 
-_ask :: (MockResolvable env, Typeable env, Typeable (ResolvableParams env), MonadIO m) => env -> MockT m ()
+_ask ::
+  ( Typeable env
+  , Verify.ResolvableParamsOf env ~ ()
+  , MonadIO m
+  ) =>
+  env -> MockT m ()
 _ask p = MockT $ do
   mockInstance <- liftIO $ createNamedConstantStubFn "ask" p
-  resolved <- liftIO $ requireResolved mockInstance
+  resolved <- liftIO $ do
+    result <- Verify.resolveForVerification mockInstance
+    case result of
+      Just (maybeName, verifier) -> pure $ Verify.ResolvedMock maybeName verifier
+      Nothing -> Verify.verificationFailure
   let verifyStub _ = verifyResolvedAny resolved
   addDefinition (Definition (Proxy :: Proxy "ask") mockInstance verifyStub)
 
 _readFile ::
   ( MockBuilder params (FilePath -> Text) (Param FilePath)
-  , MockResolvable (FilePath -> Text)
   , MonadIO m
   ) =>
   params ->
   MockT m ()
 _readFile p = MockT $ do
   mockInstance <- liftIO $ createNamedStubFn "readFile" p
-  resolved <- liftIO $ requireResolved mockInstance
+  resolved <- liftIO $ do
+    result <- Verify.resolveForVerification mockInstance
+    case result of
+      Just (maybeName, verifier) -> pure $ Verify.ResolvedMock maybeName verifier
+      Nothing -> Verify.verificationFailure
   let verifyStub _ = verifyResolvedAny resolved
   addDefinition (Definition (Proxy :: Proxy "readFile") mockInstance verifyStub)
 
 _writeFile ::
   ( MockBuilder params (FilePath -> Text -> ()) (Param FilePath :> Param Text)
-  , MockResolvable (FilePath -> Text -> ())
   , MonadIO m
   ) =>
   params ->
   MockT m ()
 _writeFile p = MockT $ do
   mockInstance <- liftIO $ createNamedStubFn "writeFile" p
-  resolved <- liftIO $ requireResolved mockInstance
+  resolved <- liftIO $ do
+    result <- Verify.resolveForVerification mockInstance
+    case result of
+      Just (maybeName, verifier) -> pure $ Verify.ResolvedMock maybeName verifier
+      Nothing -> Verify.verificationFailure
   let verifyStub _ = verifyResolvedAny resolved
   addDefinition (Definition (Proxy :: Proxy "writeFile") mockInstance verifyStub)
 
 _post ::
   ( MockBuilder params (Text -> ()) (Param Text)
-  , MockResolvable (Text -> ())
   , MonadIO m
   ) =>
   params ->
   MockT m ()
 _post p = MockT $ do
   mockFn <- liftIO $ createNamedStubFn "post" p
-  resolved <- liftIO $ requireResolved mockFn
+  resolved <- liftIO $ do
+    result <- Verify.resolveForVerification mockFn
+    case result of
+      Just (maybeName, verifier) -> pure $ Verify.ResolvedMock maybeName verifier
+      Nothing -> Verify.verificationFailure
   let verifyStub _ = verifyResolvedAny resolved
   addDefinition (Definition (Proxy :: Proxy "post") mockFn verifyStub)
 
@@ -169,27 +186,37 @@ _getBy ::
   ( MockBuilder params (String -> m Int) (Param String)
   , MonadIO m
   , Typeable m
-  , Typeable (ResolvableParams (String -> m Int))
-  , MockResolvable (String -> m Int)
+  , Verify.ResolvableParamsOf (String -> m Int) ~ Param String
   ) =>
   params ->
   MockT m ()
 _getBy p = MockT $ do
   mockInstance <- liftIO $ createNamedStubFn "_getBy" p
-  addDefinition (Definition (Proxy :: Proxy "_getBy") mockInstance shouldApplyToAnything)
+  resolved <- liftIO $ do
+    result <- Verify.resolveForVerification mockInstance
+    case result of
+      Just (maybeName, verifier) -> pure $ Verify.ResolvedMock maybeName verifier
+      Nothing -> Verify.verificationFailure
+  let verifyStub _ = Verify.shouldApplyToAnythingResolved resolved
+  addDefinition (Definition (Proxy :: Proxy "_getBy") mockInstance verifyStub)
 
 _echo ::
   ( MockBuilder params (String -> m ()) (Param String)
   , MonadIO m
   , Typeable m
-  , Typeable (ResolvableParams (String -> m ()))
-  , MockResolvable (String -> m ())
+  , Verify.ResolvableParamsOf (String -> m ()) ~ Param String
   ) =>
   params ->
   MockT m ()
 _echo p = MockT $ do
   mockInstance <- liftIO $ createNamedStubFn "_echo" p
-  addDefinition (Definition (Proxy :: Proxy "_echo") mockInstance shouldApplyToAnything)
+  resolved <- liftIO $ do
+    result <- Verify.resolveForVerification mockInstance
+    case result of
+      Just (maybeName, verifier) -> pure $ Verify.ResolvedMock maybeName verifier
+      Nothing -> Verify.verificationFailure
+  let verifyStub _ = Verify.shouldApplyToAnythingResolved resolved
+  addDefinition (Definition (Proxy :: Proxy "_echo") mockInstance verifyStub)
 
 
 class Monad m => Teletype m where
@@ -220,29 +247,39 @@ instance MonadIO m => Teletype (MockT m) where
 
 _readTTY ::
   ( MockBuilder params (m String) ()
-  , Typeable m
-  , Typeable (ResolvableParams (m String))
-  , MockResolvable (m String)
   , MonadIO m
+  , Typeable m
+  , Verify.ResolvableParamsOf (m String) ~ ()
   ) =>
   params ->
   MockT m ()
 _readTTY p = MockT $ do
   mockInstance <- liftIO $ createNamedStubFn "_readTTY" p
-  addDefinition (Definition (Proxy :: Proxy "_readTTY") mockInstance shouldApplyToAnything)
+  resolved <- liftIO $ do
+    result <- Verify.resolveForVerification mockInstance
+    case result of
+      Just (maybeName, verifier) -> pure $ Verify.ResolvedMock maybeName verifier
+      Nothing -> Verify.verificationFailure
+  let verifyStub _ = Verify.shouldApplyToAnythingResolved resolved
+  addDefinition (Definition (Proxy :: Proxy "_readTTY") mockInstance verifyStub)
 
 _writeTTY ::
   ( MockBuilder params (String -> m ()) (Param String)
-  , Typeable m
-  , Typeable (ResolvableParams (String -> m ()))
-  , MockResolvable (String -> m ())
   , MonadIO m
+  , Typeable m
+  , Verify.ResolvableParamsOf (String -> m ()) ~ Param String
   ) =>
   params ->
   MockT m ()
 _writeTTY p = MockT $ do
   mockInstance <- liftIO $ createNamedStubFn "_writeTTY" p
-  addDefinition (Definition (Proxy :: Proxy "_writeTTY") mockInstance shouldApplyToAnything)
+  resolved <- liftIO $ do
+    result <- Verify.resolveForVerification mockInstance
+    case result of
+      Just (maybeName, verifier) -> pure $ Verify.ResolvedMock maybeName verifier
+      Nothing -> Verify.verificationFailure
+  let verifyStub _ = Verify.shouldApplyToAnythingResolved resolved
+  addDefinition (Definition (Proxy :: Proxy "_writeTTY") mockInstance verifyStub)
 
 spec :: Spec
 spec = do
