@@ -9,6 +9,7 @@
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE TypeApplications #-}
 
 module Test.MockCat.PartialMockSpec (spec) where
 
@@ -38,6 +39,35 @@ verifyResolvedAny (Verify.ResolvedMock name (Verifier ref)) = do
   when (null appliedParamsList) $
     error $ "It has never been applied function" <> mockNameLabel name
 
+newtype UserInput = UserInput String deriving (Show, Eq)
+
+class Monad m => UserInputGetter m where
+  getInput :: m String
+  toUserInput :: String -> m (Maybe UserInput)
+
+getUserInput :: UserInputGetter m => m (Maybe UserInput)
+getUserInput = do
+  i <- getInput
+  toUserInput i
+
+instance UserInputGetter IO where
+  getInput = getLine
+  toUserInput "" = pure Nothing
+  toUserInput a = pure . Just . UserInput $ a
+
+class Monad m => ExplicitlyReturnMonadicValuesPartialTest m where
+  echo :: String -> m ()
+  getBy :: String -> m Int
+
+instance ExplicitlyReturnMonadicValuesPartialTest IO where
+  echo _ = pure ()
+  getBy s = pure (length s)
+
+echoProgramPartial :: ExplicitlyReturnMonadicValuesPartialTest m => String -> m ()
+echoProgramPartial s = do
+  v <- getBy s
+  echo (show v)
+
 instance (MonadIO m, FileOperation m) => FileOperation (MockT m) where
   readFile path = MockT do
     defs <- getDefinitions
@@ -54,6 +84,44 @@ instance (MonadIO m, FileOperation m) => FileOperation (MockT m) where
         let !result = mockFn path content
         pure result
       Nothing -> lift $ writeFile path content
+
+instance (MonadIO m, UserInputGetter m) => UserInputGetter (MockT m) where
+  getInput = MockT do
+    defs <- getDefinitions
+    case findParam (Proxy :: Proxy "getInput") defs of
+      Just mockFn -> do
+        let !result = mockFn
+        pure result
+      Nothing -> lift getInput
+
+  toUserInput str = MockT do
+    defs <- getDefinitions
+    case findParam (Proxy :: Proxy "toUserInput") defs of
+      Just mockFn -> do
+        let !result = mockFn str
+        lift result
+      Nothing -> lift $ toUserInput str
+
+instance
+  ( MonadIO m
+  , ExplicitlyReturnMonadicValuesPartialTest m
+  ) =>
+  ExplicitlyReturnMonadicValuesPartialTest (MockT m) where
+  getBy label = MockT do
+    defs <- getDefinitions
+    case findParam (Proxy :: Proxy "getBy") defs of
+      Just mockFn -> do
+        let !result = mockFn label
+        lift result
+      Nothing -> lift $ getBy label
+
+  echo label = MockT do
+    defs <- getDefinitions
+    case findParam (Proxy :: Proxy "echo") defs of
+      Just mockFn -> do
+        let !result = mockFn label
+        lift result
+      Nothing -> lift $ echo label
 
 _readFile ::
   ( MockBuilder params (FilePath -> Text) (Param FilePath)
@@ -86,6 +154,77 @@ _writeFile p = MockT $ do
       Nothing -> Verify.verificationFailure
   let verifyStub _ = verifyResolvedAny resolved
   addDefinition (Definition (Proxy :: Proxy "writeFile") mockInstance verifyStub)
+
+_getInput ::
+  ( Typeable r
+  , Verify.ResolvableParamsOf r ~ ()
+  , MonadIO m
+  ) =>
+  r ->
+  MockT m ()
+_getInput value = MockT $ do
+  mockInstance <- liftIO $ createNamedConstantStubFn "getInput" value
+  resolved <- liftIO $ do
+    result <- Verify.resolveForVerification mockInstance
+    case result of
+      Just (maybeName, verifier) -> pure $ Verify.ResolvedMock maybeName verifier
+      Nothing -> Verify.verificationFailure
+  let verifyStub _ = verifyResolvedAny resolved
+  addDefinition (Definition (Proxy :: Proxy "getInput") mockInstance verifyStub)
+
+_toUserInput ::
+  ( MockBuilder params (String -> m (Maybe UserInput)) (Param String)
+  , MonadIO m
+  , Typeable m
+  , Verify.ResolvableParamsOf (String -> m (Maybe UserInput)) ~ Param String
+  ) =>
+  params ->
+  MockT m ()
+_toUserInput p = MockT $ do
+  mockInstance <- liftIO $ createNamedStubFn "toUserInput" p
+  resolved <- liftIO $ do
+    result <- Verify.resolveForVerification mockInstance
+    case result of
+      Just (maybeName, verifier) -> pure $ Verify.ResolvedMock maybeName verifier
+      Nothing -> Verify.verificationFailure
+  let verifyStub _ = Verify.shouldApplyToAnythingResolved resolved
+  addDefinition (Definition (Proxy :: Proxy "toUserInput") mockInstance verifyStub)
+
+_getByPartial ::
+  ( MockBuilder params (String -> m Int) (Param String)
+  , MonadIO m
+  , Typeable m
+  , Verify.ResolvableParamsOf (String -> m Int) ~ Param String
+  ) =>
+  params ->
+  MockT m ()
+_getByPartial p = MockT $ do
+  mockInstance <- liftIO $ createNamedStubFn "getBy" p
+  resolved <- liftIO $ do
+    result <- Verify.resolveForVerification mockInstance
+    case result of
+      Just (maybeName, verifier) -> pure $ Verify.ResolvedMock maybeName verifier
+      Nothing -> Verify.verificationFailure
+  let verifyStub _ = Verify.shouldApplyToAnythingResolved resolved
+  addDefinition (Definition (Proxy :: Proxy "getBy") mockInstance verifyStub)
+
+_echoPartial ::
+  ( MockBuilder params (String -> m ()) (Param String)
+  , MonadIO m
+  , Typeable m
+  , Verify.ResolvableParamsOf (String -> m ()) ~ Param String
+  ) =>
+  params ->
+  MockT m ()
+_echoPartial p = MockT $ do
+  mockInstance <- liftIO $ createNamedStubFn "echo" p
+  resolved <- liftIO $ do
+    result <- Verify.resolveForVerification mockInstance
+    case result of
+      Just (maybeName, verifier) -> pure $ Verify.ResolvedMock maybeName verifier
+      Nothing -> Verify.verificationFailure
+  let verifyStub _ = Verify.shouldApplyToAnythingResolved resolved
+  addDefinition (Definition (Proxy :: Proxy "echo") mockInstance verifyStub)
 
 findParam :: KnownSymbol sym => Proxy sym -> [Definition] -> Maybe a
 findParam pa definitions = do
@@ -134,6 +273,30 @@ _findIds p = MockT $ do
 
 spec :: Spec
 spec = do
+  it "Get user input (has input)" do
+    result <- runMockT do
+      _getInput "value"
+      getUserInput
+    result `shouldBe` Just (UserInput "value")
+
+  it "Get user input (no input)" do
+    result <- runMockT do
+      _getInput ""
+      getUserInput
+    result `shouldBe` Nothing
+
+  it "Return monadic value test (partial)" do
+    result <- runMockT do
+      _echoPartial $ "3" |> pure @IO ()
+      echoProgramPartial "abc"
+    result `shouldBe` ()
+
+  it "Override getBy via stub" do
+    result <- runMockT do
+      _getByPartial $ "abc" |> pure @IO 123
+      getBy "abc"
+    result `shouldBe` 123
+
   describe "Partial Mock Test" do
     it "MaybeT" do
       result <- runMaybeT do
