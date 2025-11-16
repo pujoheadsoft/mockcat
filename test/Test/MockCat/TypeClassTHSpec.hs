@@ -25,10 +25,7 @@ import Control.Monad (unless)
 import Control.Monad.IO.Unlift (withRunInIO, MonadUnliftIO)
 import Control.Concurrent.Async (async, wait)
 import Data.Kind (Type)
-
-class Monad m => FileOperation m where
-  writeFile :: FilePath -> Text -> m ()
-  readFile :: FilePath -> m Text
+import Test.MockCat.SharedSpecDefs
 
 class Monad m => ApiOperation m where
   post :: Text -> m ()
