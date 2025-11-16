@@ -61,8 +61,10 @@ import Test.MockCat.Cons
 import Test.MockCat.Mock
 import Test.MockCat.MockT
 import Test.MockCat.Verify
-  ( requireResolved,
-    shouldApplyToAnythingResolved
+  ( ResolvedMock (..),
+    resolveForVerification,
+    shouldApplyToAnythingResolved,
+    verificationFailure
   )
 import Test.MockCat.Param
 import Unsafe.Coerce (unsafeCoerce)
@@ -496,7 +498,6 @@ doCreateMockFnDecs funNameStr mockFunName params funType monadVarName updatedTyp
           ]
         ctx =
           [ AppT (AppT (AppT (ConT ''MockBuilder) (VarT params)) funType) verifyParams
-          , AppT (ConT ''MockResolvable) funType
           , AppT (ConT ''MonadIO) (VarT monadVarName)
           ]
             ++ typeablePreds
@@ -525,8 +526,7 @@ doCreateConstantMockFnDecs funNameStr mockFunName ty monadVarName = do
         , needsTypeable target
         ]
       ctx =
-        [ AppT (ConT ''MockResolvable) ty
-        , AppT (ConT ''MonadIO) (VarT monadVarName)
+        [ AppT (ConT ''MonadIO) (VarT monadVarName)
         ] ++ typeablePreds
       resultType =
         AppT
@@ -555,7 +555,6 @@ doCreateEmptyVerifyParamMockFnDecs funNameStr mockFunName params funType monadVa
           ]
         ctx =
           [ AppT (AppT (AppT (ConT ''MockBuilder) (VarT params)) funType) verifyParams
-          , AppT (ConT ''MockResolvable) funType
           , AppT (ConT ''MonadIO) (VarT monadVarName)
           ]
             ++ typeablePreds
@@ -577,7 +576,10 @@ createMockBody funNameStr createMockFn =
   [|
     MockT $ do
       mockInstance <- liftIO $ $(pure createMockFn) $(litE (stringL funNameStr)) p
-      resolved <- liftIO $ requireResolved mockInstance
+      resolved <- liftIO do
+        resolveForVerification mockInstance >>= \case
+          Just (maybeName, verifier) -> pure $ ResolvedMock maybeName verifier
+          Nothing -> verificationFailure
       let verifyStub _ = shouldApplyToAnythingResolved resolved
       addDefinition
         ( Definition
