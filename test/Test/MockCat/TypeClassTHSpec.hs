@@ -124,7 +124,12 @@ echoProgram s = do
   v <- getBy s
   echo $ show v
 
+class Monad m => DefaultMethodTest m where
+  defaultAction :: m Int
+  defaultAction = pure 0
+
 makeMockWithOptions [t|ExplicitlyReturnMonadicValuesTest|] options { implicitMonadicReturn = False }
+makeMock [t|DefaultMethodTest|]
 
 class MonadUnliftIO m => MonadAsync m where
   mapConcurrently :: Traversable t => (a -> m b) -> t a -> m (t b)
@@ -198,6 +203,12 @@ spec = do
       echoProgram "s"
 
     result `shouldBe` ()
+
+  it "Default method can be stubbed" do
+    result <- runMockT do
+      _defaultAction (99 :: Int)
+      defaultAction
+    result `shouldBe` 99
 
   it "MonadUnliftIO instance works correctly" do
     result <- runMockT do

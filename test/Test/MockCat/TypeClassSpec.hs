@@ -212,6 +212,10 @@ class Monad m => ExplicitlyReturnMonadicValuesTest m where
   echoExplicit :: String -> m ()
   getByExplicit :: String -> m Int
 
+class Monad m => DefaultMethodTest m where
+  defaultAction :: m Int
+  defaultAction = pure 0
+
 class Monad m => ParamThreeMonad a b m | m -> a, m -> b where
   fnParam3_1 :: a -> b -> m String
   fnParam3_2 :: m a
@@ -329,6 +333,14 @@ instance MonadIO m => ExplicitlyReturnMonadicValuesTest (MockT m) where
       mockFn = fromMaybe (error "no answer found stub function `_echoExplicit`.") $ findParam (Proxy :: Proxy "_echoExplicit") defs
       !result = mockFn label
     lift result
+
+instance MonadIO m => DefaultMethodTest (MockT m) where
+  defaultAction = MockT do
+    defs <- getDefinitions
+    let
+      mockFn = fromMaybe (error "no answer found stub function `_defaultAction`.") $ findParam (Proxy :: Proxy "_defaultAction") defs
+      !result = mockFn
+    pure result
 
 instance MonadIO m => ParamThreeMonad Int Bool (MockT m) where
   fnParam3_1 a b = MockT do
@@ -614,6 +626,23 @@ _echoExplicit p = MockT $ do
   let verifyStub _ = Verify.shouldApplyToAnythingResolved resolved
   addDefinition (Definition (Proxy :: Proxy "_echoExplicit") mockInstance verifyStub)
 
+_defaultAction ::
+  ( MonadIO m
+  , Typeable a
+  , Verify.ResolvableParamsOf a ~ ()
+  ) =>
+  a ->
+  MockT m ()
+_defaultAction value = MockT $ do
+  mockInstance <- liftIO $ createNamedConstantStubFn "_defaultAction" value
+  resolved <- liftIO $ do
+    result <- Verify.resolveForVerification mockInstance
+    case result of
+      Just (maybeName, verifier) -> pure $ Verify.ResolvedMock maybeName verifier
+      Nothing -> Verify.verificationFailure
+  let verifyStub _ = Verify.shouldApplyToAnythingResolved resolved
+  addDefinition (Definition (Proxy :: Proxy "_defaultAction") mockInstance verifyStub)
+
 stubPostFn ::
   ( MockBuilder params (Text -> ()) (Param Text)
   , MonadIO m
@@ -803,6 +832,12 @@ spec = do
       echoExplicit "value"
       pure v
     result `shouldBe` 42
+
+  it "supports DefaultMethodTest pattern" do
+    result <- runMockT $ do
+      _defaultAction (99 :: Int)
+      defaultAction
+    result `shouldBe` 99
 
   it "supports makeMockWithOptions prefix and suffix" do
     result <- runMockT $ do

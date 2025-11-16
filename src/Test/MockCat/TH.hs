@@ -267,14 +267,15 @@ makeMockDecs ty mockType className monadVarName cxt typeVars decs options = do
   let classParamNames = filter (className /=) (getClassNames ty)
       newTypeVars = drop (length classParamNames) typeVars
       varAppliedTypes = zipWith (\t i -> VarAppliedType t (safeIndex classParamNames i)) (getTypeVarNames typeVars) [0 ..]
+      sigDecs = [dec | dec@(SigD _ _) <- decs]
 
   instanceDec <-
     instanceD
       (createCxt cxt mockType className monadVarName newTypeVars varAppliedTypes)
       (createInstanceType ty monadVarName newTypeVars)
-      (map (createInstanceFnDec mockType options) decs)
+      (map (createInstanceFnDec mockType options) sigDecs)
 
-  mockFnDecs <- concat <$> mapM (createMockFnDec monadVarName varAppliedTypes options) decs
+  mockFnDecs <- concat <$> mapM (createMockFnDec monadVarName varAppliedTypes options) sigDecs
 
   pure $ instanceDec : mockFnDecs
 
