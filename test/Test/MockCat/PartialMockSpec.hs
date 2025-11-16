@@ -55,18 +55,15 @@ instance UserInputGetter IO where
   toUserInput "" = pure Nothing
   toUserInput a = pure . Just . UserInput $ a
 
-class Monad m => ExplicitlyReturnMonadicValuesPartialTest m where
-  echo :: String -> m ()
-  getBy :: String -> m Int
 
 instance ExplicitlyReturnMonadicValuesPartialTest IO where
-  echo _ = pure ()
-  getBy s = pure (length s)
+  echoExplicitPartial _ = pure ()
+  getByExplicitPartial s = pure (length s)
 
 echoProgramPartial :: ExplicitlyReturnMonadicValuesPartialTest m => String -> m ()
 echoProgramPartial s = do
-  v <- getBy s
-  echo (show v)
+  v <- getByExplicitPartial s
+  echoExplicitPartial (show v)
 
 instance (MonadIO m, FileOperation m) => FileOperation (MockT m) where
   readFile path = MockT do
@@ -107,21 +104,21 @@ instance
   , ExplicitlyReturnMonadicValuesPartialTest m
   ) =>
   ExplicitlyReturnMonadicValuesPartialTest (MockT m) where
-  getBy label = MockT do
+  getByExplicitPartial label = MockT do
     defs <- getDefinitions
     case findParam (Proxy :: Proxy "getBy") defs of
       Just mockFn -> do
         let !result = mockFn label
         lift result
-      Nothing -> lift $ getBy label
+      Nothing -> lift $ getByExplicitPartial label
 
-  echo label = MockT do
+  echoExplicitPartial label = MockT do
     defs <- getDefinitions
     case findParam (Proxy :: Proxy "echo") defs of
       Just mockFn -> do
         let !result = mockFn label
         lift result
-      Nothing -> lift $ echo label
+      Nothing -> lift $ echoExplicitPartial label
 
 _readFile ::
   ( MockBuilder params (FilePath -> Text) (Param FilePath)
@@ -294,7 +291,7 @@ spec = do
   it "Override getBy via stub" do
     result <- runMockT do
       _getByPartial $ "abc" |> pure @IO 123
-      getBy "abc"
+      getByExplicitPartial "abc"
     result `shouldBe` 123
 
   describe "Partial Mock Test" do

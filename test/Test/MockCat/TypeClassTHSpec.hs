@@ -27,9 +27,6 @@ import Control.Concurrent.Async (async, wait)
 import Data.Kind (Type)
 import Test.MockCat.SharedSpecDefs
 
-class Monad m => ApiOperation m where
-  post :: Text -> m ()
-
 operationProgram ::
   FileOperation m =>
   FilePath ->
@@ -63,31 +60,6 @@ operationProgram3 = do
   content <- readFile inputPath
   writeFile outputPath content
 
-class (Eq s, Show s, MonadState s m) => MonadStateSub s m where
-  fn_state :: Maybe s -> m s
-
-class (MonadState String m) => MonadStateSub2 s m where
-  fn_state2 :: String -> m ()
-
-class Monad m => MonadVar2_1 m a where
-class MonadVar2_1 m a => MonadVar2_1Sub m a where
-  fn2_1Sub :: String -> m ()
-
-class Monad m => MonadVar2_2 a m where
-class MonadVar2_2 a m => MonadVar2_2Sub a m where
-  fn2_2Sub :: String -> m ()
-
-class MonadIO m => MonadVar3_1 m a b where
-class MonadVar3_1 m a b => MonadVar3_1Sub m a b where
-  fn3_1Sub :: String -> m ()
-
-class MonadIO m => MonadVar3_2 a m b where
-class MonadVar3_2 a m b => MonadVar3_2Sub a m b where
-  fn3_2Sub :: String -> m ()
-
-class MonadIO m => MonadVar3_3 a b m where
-class MonadVar3_3 a b m => MonadVar3_3Sub a b m where
-  fn3_3Sub :: String -> m ()
 
 --makeMock [t|MonadReader Bool|]
 makeMock [t|MonadReader Environment|]
@@ -105,38 +77,16 @@ class Monad m => ParamThreeMonad a b m | m -> a, m -> b where
   fnParam3_3 :: m b
 
 
-
-class Monad m => MultiApplyTest m where
-  getValueBy :: String -> m String
-
-getValues :: MultiApplyTest m => [String] -> m [String]
-getValues = mapM getValueBy
-
 makeMock [t|MultiApplyTest|]
-
-class Monad m => ExplicitlyReturnMonadicValuesTest m where
-  echo :: String -> m ()
-  getBy :: String -> m Int
   
 echoProgram :: ExplicitlyReturnMonadicValuesTest m => String -> m ()
 echoProgram s = do
-  v <- getBy s
-  echo $ show v
-
-class Monad m => DefaultMethodTest m where
-  defaultAction :: m Int
-  defaultAction = pure 0
-
-class Monad m => AssocTypeTest m where
-  type ResultType m :: Type
-  produce :: m (ResultType m)
+  v <- getByExplicit s
+  echoExplicit $ show v
 
 makeMockWithOptions [t|ExplicitlyReturnMonadicValuesTest|] options { implicitMonadicReturn = False }
 makeMock [t|DefaultMethodTest|]
 makeMock [t|AssocTypeTest|]
-
-class MonadUnliftIO m => MonadAsync m where
-  mapConcurrently :: Traversable t => (a -> m b) -> t a -> m (t b)
 
 instance (MonadUnliftIO m) => MonadAsync (MockT m) where
   mapConcurrently = traverse
@@ -206,8 +156,8 @@ spec = do
 
   it "Return monadic value test" do
     result <- runMockT do
-      _getBy $ "s" |> pure @IO (10 :: Int)
-      _echo $ "10" |> pure @IO ()
+      _getByExplicit $ "s" |> pure @IO (10 :: Int)
+      _echoExplicit $ "10" |> pure @IO ()
       echoProgram "s"
 
     result `shouldBe` ()

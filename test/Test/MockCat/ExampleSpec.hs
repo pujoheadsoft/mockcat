@@ -28,16 +28,12 @@ operationProgram inputPath outputPath = do
   content <- readFile inputPath
   writeFile outputPath content
 
-class Monad m => Teletype m where
-  readTTY :: m String
-  writeTTY :: String -> m ()
-
-echo :: Teletype m => m ()
-echo = do
+echoProgram :: Teletype m => m ()
+echoProgram = do
   i <- readTTY
   case i of
     "" -> pure ()
-    _  -> writeTTY i >> echo
+    _  -> writeTTY i >> echoProgram
 
 makeMockWithOptions [t|Teletype|] options { implicitMonadicReturn = False }
 
@@ -46,7 +42,7 @@ spec = do
   it "echo1" do
     result <- runMockT do
       _readTTY $ pure @IO ""
-      echo
+      echoProgram
     result `shouldBe` ()
 
   it "echo2" do
@@ -56,21 +52,21 @@ spec = do
         onCase $ pure @IO ""
 
       _writeTTY $ "a" |> pure @IO ()
-      echo
+      echoProgram
     result `shouldBe` ()
 
   it "echo3" do
     result <- runMockT do
       _readTTY $ casesIO ["a", ""]
       _writeTTY $ "a" |> pure @IO ()
-      echo
+      echoProgram
     result `shouldBe` ()
 
   it "echo4" do
     result <- runMockT do
       _readTTY $ cases [ pure @IO "a", pure @IO "" ]
       _writeTTY $ "a" |> pure @IO ()
-      echo
+      echoProgram
     result `shouldBe` ()
 
   it "read & write" do

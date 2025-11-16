@@ -41,18 +41,16 @@ instance UserInputGetter IO where
   toUserInput "" = pure Nothing
   toUserInput a = (pure . Just . UserInput) a
 
-class Monad m => ExplicitlyReturnMonadicValuesPartialTest m where
-  echo :: String -> m ()
-  getBy :: String -> m Int
+
 
 instance ExplicitlyReturnMonadicValuesPartialTest IO where
-  echo _ = pure () 
-  getBy s = pure $ length s
+  echoExplicitPartial _ = pure () 
+  getByExplicitPartial s = pure $ length s
   
 echoProgram :: ExplicitlyReturnMonadicValuesPartialTest m => String -> m ()
 echoProgram s = do
-  v <- getBy s
-  echo $ show v
+  v <- getByExplicitPartial s
+  echoExplicitPartial $ show v
 
 makePartialMock [t|UserInputGetter|]
 makePartialMock [t|Finder|]
@@ -119,7 +117,7 @@ spec = do
 
     it "Return monadic value test" do
       result <- runMockT do
-        _echo $ "3" |> pure @IO ()
+        _echoExplicitPartial $ "3" |> pure @IO ()
         echoProgram "abc"
 
       result `shouldBe` ()

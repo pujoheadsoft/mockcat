@@ -43,9 +43,6 @@ verifyResolvedAny (Verify.ResolvedMock name (Verifier ref)) = do
   when (null appliedParamsList) $
     error $ "It has never been applied function" <> mockNameLabel name
 
-class Monad m => ApiOperation m where
-  post :: Text -> m ()
-
 apiFileOperationProgram ::
   (MonadReader String m, FileOperation m, ApiOperation m) =>
   FilePath ->
@@ -165,67 +162,11 @@ findParam pa definitions = do
   let definition = find (\(Definition s _ _) -> symbolVal s == symbolVal pa) definitions
   fmap (\(Definition _ f _) -> unsafeCoerce f) definition
 
-class Monad m => TestClass m where
-  echo :: String -> m ()
-  getBy :: String -> m Int
-
 echoProgram :: MonadIO m => TestClass m => String -> m ()
 echoProgram s = do
   v <- getBy s
   liftIO $ print v
   echo $ show v
-
-class (Eq s, Show s, MonadState s m) => MonadStateSub s m where
-  fnState :: Maybe s -> m s
-
-class (MonadState String m) => MonadStateSub2 s m where
-  fnState2 :: String -> m ()
-
-class Monad m => MonadVar2_1 m a where
-class MonadVar2_1 m a => MonadVar2_1Sub m a where
-  fn2_1Sub :: String -> m ()
-
-class Monad m => MonadVar2_2 a m where
-class MonadVar2_2 a m => MonadVar2_2Sub a m where
-  fn2_2Sub :: String -> m ()
-
-class MonadIO m => MonadVar3_1 m a b where
-class MonadVar3_1 m a b => MonadVar3_1Sub m a b where
-  fn3_1Sub :: String -> m ()
-
-class MonadIO m => MonadVar3_2 a m b where
-class MonadVar3_2 a m b => MonadVar3_2Sub a m b where
-  fn3_2Sub :: String -> m ()
-
-class MonadIO m => MonadVar3_3 a b m where
-class MonadVar3_3 a b m => MonadVar3_3Sub a b m where
-  fn3_3Sub :: String -> m ()
-
-class Monad m => MultiApplyTest m where
-  getValueBy :: String -> m String
-
-getValues :: MultiApplyTest m => [String] -> m [String]
-getValues = mapM getValueBy
-
-class Monad m => ExplicitlyReturnMonadicValuesTest m where
-  echoExplicit :: String -> m ()
-  getByExplicit :: String -> m Int
-
-class Monad m => AssocTypeTest m where
-  type ResultType m :: Type
-  produce :: m (ResultType m)
-
-class Monad m => DefaultMethodTest m where
-  defaultAction :: m Int
-  defaultAction = pure 0
-
-class Monad m => ParamThreeMonad a b m | m -> a, m -> b where
-  fnParam3_1 :: a -> b -> m String
-  fnParam3_2 :: m a
-  fnParam3_3 :: m b
-
-class MonadUnliftIO m => MonadAsync m where
-  mapConcurrently :: Traversable t => (a -> m b) -> t a -> m (t b)
 
 instance AssocTypeTest IO where
   type ResultType IO = Int
@@ -695,10 +636,6 @@ stubPostFn p = MockT $ do
 processFiles :: (MonadAsync m, FileOperation m) => [FilePath] -> m [Text]
 processFiles = mapConcurrently readFile
 
-
-class Monad m => Teletype m where
-  readTTY :: m String
-  writeTTY :: String -> m ()
 
 echo2 :: Teletype m => m ()
 echo2 = do

@@ -33,7 +33,7 @@ generatedFileOpStr = $(do decs <- makeMock [t|FileOperation|]; litE (stringL (co
 generatedTestClassStr :: String
 generatedTestClassStr = $(
   do
-    m <- lookupTypeName "Test.MockCat.TypeClassSpec.TestClass"
+    m <- lookupTypeName "Test.MockCat.SharedSpecDefs.TestClass"
     case m of
       Nothing -> fail "TestClass not found"
       Just n -> do decs <- makeMock (conT n); litE (stringL (concatMap pprint decs))
@@ -42,7 +42,7 @@ generatedTestClassStr = $(
 generatedMultiApplyStr :: String
 generatedMultiApplyStr = $(
   do
-    m <- lookupTypeName "Test.MockCat.TypeClassSpec.MultiApplyTest"
+    m <- lookupTypeName "Test.MockCat.SharedSpecDefs.MultiApplyTest"
     case m of
       Nothing -> fail "MultiApplyTest not found"
       Just n -> do decs <- makeMock (conT n); litE (stringL (concatMap pprint decs))
@@ -52,7 +52,7 @@ generatedExplicitStr :: String
 generatedExplicitStr = $(
   do
     let opts = options { implicitMonadicReturn = False }
-    m <- lookupTypeName "Test.MockCat.TypeClassSpec.ExplicitlyReturnMonadicValuesTest"
+    m <- lookupTypeName "Test.MockCat.SharedSpecDefs.ExplicitlyReturnMonadicValuesTest"
     case m of
       Nothing -> fail "ExplicitlyReturnMonadicValuesTest not found"
       Just n -> do decs <- makeMockWithOptions (conT n) opts; litE (stringL (concatMap pprint decs))
@@ -61,7 +61,7 @@ generatedExplicitStr = $(
 generatedDefaultMethodStr :: String
 generatedDefaultMethodStr = $(
   do
-    m <- lookupTypeName "Test.MockCat.TypeClassSpec.DefaultMethodTest"
+    m <- lookupTypeName "Test.MockCat.SharedSpecDefs.DefaultMethodTest"
     case m of
       Nothing -> fail "DefaultMethodTest not found"
       Just n -> do decs <- makeMock (conT n); litE (stringL (concatMap pprint decs))
@@ -70,7 +70,7 @@ generatedDefaultMethodStr = $(
 generatedAssocTypeStr :: String
 generatedAssocTypeStr = $(
   do
-    m <- lookupTypeName "Test.MockCat.TypeClassSpec.AssocTypeTest"
+    m <- lookupTypeName "Test.MockCat.SharedSpecDefs.AssocTypeTest"
     case m of
       Nothing -> fail "AssocTypeTest not found"
       Just n -> do decs <- makeMock (conT n); litE (stringL (concatMap pprint decs))
@@ -79,7 +79,7 @@ generatedAssocTypeStr = $(
 generatedParamThreeStr :: String
 generatedParamThreeStr = $(
   do
-    m <- lookupTypeName "Test.MockCat.TypeClassSpec.ParamThreeMonad"
+    m <- lookupTypeName "Test.MockCat.SharedSpecDefs.ParamThreeMonad"
     case m of
       Nothing -> fail "ParamThreeMonad not found"
       Just n -> do decs <- makeMock (conT n); litE (stringL (concatMap pprint decs))
@@ -98,7 +98,7 @@ generatedExplicitPartialStr :: String
 generatedExplicitPartialStr = $(
   do
     let opts = options { implicitMonadicReturn = False }
-    m <- lookupTypeName "Test.MockCat.PartialMockSpec.ExplicitlyReturnMonadicValuesPartialTest"
+    m <- lookupTypeName "Test.MockCat.SharedSpecDefs.ExplicitlyReturnMonadicValuesPartialTest"
     case m of
       Nothing -> fail "ExplicitlyReturnMonadicValuesPartialTest not found"
       Just n -> do decs <- makePartialMockWithOptions (conT n) opts; litE (stringL (concatMap pprint decs))
