@@ -7,6 +7,7 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE GADTs #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
@@ -30,6 +31,7 @@ import Control.Monad.Reader.Class (ask, MonadReader (local))
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.State (MonadState (..), StateT, evalStateT)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
+import Data.Kind (Type)
 import qualified Test.MockCat.Verify as Verify
 import Test.MockCat.Internal.Types (Verifier (..))
 import Test.MockCat.Internal.Message (mockNameLabel)
@@ -212,6 +214,10 @@ class Monad m => ExplicitlyReturnMonadicValuesTest m where
   echoExplicit :: String -> m ()
   getByExplicit :: String -> m Int
 
+class Monad m => AssocTypeTest m where
+  type ResultType m :: Type
+  produce :: m (ResultType m)
+
 class Monad m => DefaultMethodTest m where
   defaultAction :: m Int
   defaultAction = pure 0
@@ -223,6 +229,10 @@ class Monad m => ParamThreeMonad a b m | m -> a, m -> b where
 
 class MonadUnliftIO m => MonadAsync m where
   mapConcurrently :: Traversable t => (a -> m b) -> t a -> m (t b)
+
+instance AssocTypeTest IO where
+  type ResultType IO = Int
+  produce = pure 0
 
 instance MonadIO m => TestClass (MockT m) where
   getBy a = MockT do
@@ -339,6 +349,15 @@ instance MonadIO m => DefaultMethodTest (MockT m) where
     defs <- getDefinitions
     let
       mockFn = fromMaybe (error "no answer found stub function `_defaultAction`.") $ findParam (Proxy :: Proxy "_defaultAction") defs
+      !result = mockFn
+    pure result
+
+instance MonadIO m => AssocTypeTest (MockT m) where
+  type ResultType (MockT m) = ResultType m
+  produce = MockT do
+    defs <- getDefinitions
+    let
+      mockFn = fromMaybe (error "no answer found stub function `_produce`.") $ findParam (Proxy :: Proxy "_produce") defs
       !result = mockFn
     pure result
 
@@ -643,6 +662,23 @@ _defaultAction value = MockT $ do
   let verifyStub _ = Verify.shouldApplyToAnythingResolved resolved
   addDefinition (Definition (Proxy :: Proxy "_defaultAction") mockInstance verifyStub)
 
+_produce ::
+  ( MonadIO m
+  , Typeable a
+  , Verify.ResolvableParamsOf a ~ ()
+  ) =>
+  a ->
+  MockT m ()
+_produce value = MockT $ do
+  mockInstance <- liftIO $ createNamedConstantStubFn "_produce" value
+  resolved <- liftIO $ do
+    result <- Verify.resolveForVerification mockInstance
+    case result of
+      Just (maybeName, verifier) -> pure $ Verify.ResolvedMock maybeName verifier
+      Nothing -> Verify.verificationFailure
+  let verifyStub _ = Verify.shouldApplyToAnythingResolved resolved
+  addDefinition (Definition (Proxy :: Proxy "_produce") mockInstance verifyStub)
+
 stubPostFn ::
   ( MockBuilder params (Text -> ()) (Param Text)
   , MonadIO m
@@ -838,6 +874,12 @@ spec = do
       _defaultAction (99 :: Int)
       defaultAction
     result `shouldBe` 99
+
+  it "supports AssocTypeTest pattern" do
+    value <- runMockT $ do
+      _produce (321 :: Int)
+      produce
+    value `shouldBe` 321
 
   it "supports makeMockWithOptions prefix and suffix" do
     result <- runMockT $ do

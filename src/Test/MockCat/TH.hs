@@ -45,6 +45,8 @@ import Language.Haskell.TH
     Q,
     Quote (newName),
     TyVarBndr (..),
+    TySynEqn (..),
+    TypeFamilyHead (..),
     Type (..),
     isExtEnabled,
     mkName,
@@ -268,13 +270,17 @@ makeMockDecs ty mockType className monadVarName cxt typeVars decs options = do
       newTypeVars = drop (length classParamNames) typeVars
       varAppliedTypes = zipWith (\t i -> VarAppliedType t (safeIndex classParamNames i)) (getTypeVarNames typeVars) [0 ..]
       sigDecs = [dec | dec@(SigD _ _) <- decs]
+      typeFamilyHeads =
+        [head | OpenTypeFamilyD head <- decs] ++
+        [head | ClosedTypeFamilyD head _ <- decs]
 
+  let typeInstDecs = map (createTypeInstanceDec monadVarName) typeFamilyHeads
+      instanceBodyDecs = map (createInstanceFnDec mockType options) sigDecs ++ typeInstDecs
   instanceDec <-
     instanceD
       (createCxt cxt mockType className monadVarName newTypeVars varAppliedTypes)
       (createInstanceType ty monadVarName newTypeVars)
-      (map (createInstanceFnDec mockType options) sigDecs)
-
+      instanceBodyDecs
   mockFnDecs <- concat <$> mapM (createMockFnDec monadVarName varAppliedTypes options) sigDecs
 
   pure $ instanceDec : mockFnDecs
@@ -399,6 +405,25 @@ createInstanceType :: Type -> Name -> [TyVarBndr a] -> Q Type
 createInstanceType className monadName tvbs = do
   types <- mapM (tyVarBndrToType monadName) tvbs
   pure $ foldl AppT className types
+
+createTypeInstanceDec :: Name -> TypeFamilyHead -> Q Dec
+createTypeInstanceDec monadVarName (TypeFamilyHead familyName tfVars _ _) = do
+  let lhsArgs = map (applyFamilyArg monadVarName) tfVars
+      rhsArgs = map (VarT . getTFVarName) tfVars
+      lhsType = foldl AppT (ConT familyName) lhsArgs
+      rhsType = foldl AppT (ConT familyName) rhsArgs
+  pure $ TySynInstD (TySynEqn Nothing lhsType rhsType)
+
+applyFamilyArg :: Name -> TyVarBndr a -> Type
+applyFamilyArg monadVarName bndr =
+  let varName = getTFVarName bndr
+   in if varName == monadVarName
+        then AppT (ConT ''MockT) (VarT monadVarName)
+        else VarT varName
+
+getTFVarName :: TyVarBndr a -> Name
+getTFVarName (PlainTV name _) = name
+getTFVarName (KindedTV name _ _) = name
 
 tyVarBndrToType :: Name -> TyVarBndr a -> Q Type
 tyVarBndrToType monadName (PlainTV name _)

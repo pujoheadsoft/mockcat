@@ -6,6 +6,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# OPTIONS_GHC -Wno-unused-top-binds #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
@@ -23,6 +24,7 @@ import Control.Monad.Reader (MonadReader, ask)
 import Control.Monad (unless)
 import Control.Monad.IO.Unlift (withRunInIO, MonadUnliftIO)
 import Control.Concurrent.Async (async, wait)
+import Data.Kind (Type)
 
 class Monad m => FileOperation m where
   writeFile :: FilePath -> Text -> m ()
@@ -128,14 +130,23 @@ class Monad m => DefaultMethodTest m where
   defaultAction :: m Int
   defaultAction = pure 0
 
+class Monad m => AssocTypeTest m where
+  type ResultType m :: Type
+  produce :: m (ResultType m)
+
 makeMockWithOptions [t|ExplicitlyReturnMonadicValuesTest|] options { implicitMonadicReturn = False }
 makeMock [t|DefaultMethodTest|]
+makeMock [t|AssocTypeTest|]
 
 class MonadUnliftIO m => MonadAsync m where
   mapConcurrently :: Traversable t => (a -> m b) -> t a -> m (t b)
 
 instance (MonadUnliftIO m) => MonadAsync (MockT m) where
   mapConcurrently = traverse
+
+instance AssocTypeTest IO where
+  type ResultType IO = Int
+  produce = pure 0
 
 processFiles :: MonadAsync m => FileOperation m => [FilePath] -> m [Text]
 processFiles = mapConcurrently readFile
@@ -209,6 +220,12 @@ spec = do
       _defaultAction (99 :: Int)
       defaultAction
     result `shouldBe` 99
+
+  it "Associated type can be stubbed" do
+    result <- runMockT do
+      _produce (321 :: Int)
+      produce
+    result `shouldBe` 321
 
   it "MonadUnliftIO instance works correctly" do
     result <- runMockT do
