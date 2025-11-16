@@ -94,7 +94,6 @@ test-suite mockcat-test
       Test.MockCat.AssociationListSpec
       Test.MockCat.ConcurrencySpec
       Test.MockCat.ConsSpec
-      Test.MockCat.Definition
       Test.MockCat.ExampleSpec
       Test.MockCat.Impl
       Test.MockCat.Internal.RegistrySpec
@@ -103,7 +102,9 @@ test-suite mockcat-test
       Test.MockCat.ParamSpec
       Test.MockCat.PartialMockSpec
       Test.MockCat.PartialMockTHSpec
+      Test.MockCat.SharedSpecDefs
       Test.MockCat.StubSpec
+      Test.MockCat.THCompareSpec
       Test.MockCat.TypeClassSpec
       Test.MockCat.TypeClassTHSpec
       Paths_mockcat

@@ -19,7 +19,7 @@ import Data.Text (pack)
 import Test.Hspec (Spec, it, shouldBe, describe)
 import Test.MockCat
 
-import Test.MockCat.Definition
+import Test.MockCat.SharedSpecDefs
 import Test.MockCat.Impl ()
 import Prelude hiding (readFile, writeFile)
 import Control.Monad.Trans.Maybe (MaybeT (..))

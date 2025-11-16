@@ -15,10 +15,7 @@ import Prelude hiding (writeFile, readFile, and, any, not, or)
 import GHC.IO (evaluate)
 import Data.Text hiding (any)
 import Control.Monad.Trans.Maybe (runMaybeT)
-
-class (Monad m) => FileOperation m where
-  writeFile :: FilePath -> Text -> m ()
-  readFile :: FilePath -> m Text
+import Test.MockCat.SharedSpecDefs
 
 makeMock [t|FileOperation|]
 

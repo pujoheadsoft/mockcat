@@ -13,7 +13,7 @@
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 {-# LANGUAGE TypeApplications #-}
 
-module Test.MockCat.TypeClassSpec (spec) where
+module Test.MockCat.TypeClassSpec  where
 
 import Data.Text (Text, pack)
 import Test.Hspec (Spec, it, shouldBe)
@@ -35,6 +35,7 @@ import Data.Kind (Type)
 import qualified Test.MockCat.Verify as Verify
 import Test.MockCat.Internal.Types (Verifier (..))
 import Test.MockCat.Internal.Message (mockNameLabel)
+import Test.MockCat.SharedSpecDefs
 
 verifyResolvedAny :: Verify.ResolvedMock params -> IO ()
 verifyResolvedAny (Verify.ResolvedMock name (Verifier ref)) = do
@@ -42,20 +43,16 @@ verifyResolvedAny (Verify.ResolvedMock name (Verifier ref)) = do
   when (null appliedParamsList) $
     error $ "It has never been applied function" <> mockNameLabel name
 
-class Monad m => FileOperation m where
-  readFile :: FilePath -> m Text
-  writeFile :: FilePath -> Text -> m ()
-
 class Monad m => ApiOperation m where
   post :: Text -> m ()
 
-program ::
+apiFileOperationProgram ::
   (MonadReader String m, FileOperation m, ApiOperation m) =>
   FilePath ->
   FilePath ->
   (Text -> Text) ->
   m ()
-program inputPath outputPath modifyText = do
+apiFileOperationProgram inputPath outputPath modifyText = do
   e <- ask
   content <- readFile inputPath
   let modifiedContent = modifyText content
@@ -781,7 +778,7 @@ spec = do
       _readFile ("input.txt" |> pack "content")
       _writeFile $ "output.text" |> pack "modifiedContent" |> ()
       _post $ pack "modifiedContent+environment" |> ()
-      program "input.txt" "output.text" modifyContentStub
+      apiFileOperationProgram "input.txt" "output.text" modifyContentStub
 
     result `shouldBe` ()
 

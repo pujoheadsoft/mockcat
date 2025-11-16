@@ -11,12 +11,12 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeApplications #-}
 
-module Test.MockCat.PartialMockSpec (spec) where
+module Test.MockCat.PartialMockSpec where
 
 import Data.Text (Text, pack)
 import Test.Hspec (Spec, it, shouldBe, describe)
 import Test.MockCat
-import Test.MockCat.Definition
+import Test.MockCat.SharedSpecDefs
 import Test.MockCat.Impl ()
 import Prelude hiding (readFile, writeFile)
 import Data.Data
