@@ -13,7 +13,7 @@ import Data.List (isInfixOf)
 import qualified Data.Text as T
 import qualified System.IO as SIO
 import Test.MockCat.SharedSpecDefs
-import Test.MockCat.TH (makeMock, makeMockWithOptions, makePartialMock, makePartialMockWithOptions, options, implicitMonadicReturn)
+import Test.MockCat.TH (makeMock, makeMockWithOptions, makePartialMock, makePartialMockWithOptions, options, implicitMonadicReturn, MockOptions(..))
 import Test.MockCat.PartialMockSpec hiding (spec)
 import Test.MockCat.TypeClassSpec hiding (spec)
 import Language.Haskell.TH (lookupTypeName, conT)
@@ -102,6 +102,62 @@ generatedExplicitPartialStr = $(
     case m of
       Nothing -> fail "ExplicitlyReturnMonadicValuesPartialTest not found"
       Just n -> do decs <- makePartialMockWithOptions (conT n) opts; litE (stringL (concatMap pprint decs))
+  )
+
+-- additional generated declarations for classes produced in `TypeClassTHSpec.hs`
+generatedApiOperationStr :: String
+generatedApiOperationStr = $(
+  do
+    let opts = options { prefix = "stub_", suffix = "_fn" }
+    m <- lookupTypeName "Test.MockCat.SharedSpecDefs.ApiOperation"
+    case m of
+      Nothing -> fail "ApiOperation not found"
+      Just n -> do decs <- makeMockWithOptions (conT n) opts; litE (stringL (concatMap pprint decs))
+  )
+
+generatedVar2_1SubStr :: String
+generatedVar2_1SubStr = $(
+  do
+    m <- lookupTypeName "Test.MockCat.SharedSpecDefs.MonadVar2_1Sub"
+    case m of
+      Nothing -> fail "MonadVar2_1Sub not found"
+      Just n -> do decs <- makeMock (conT n); litE (stringL (concatMap pprint decs))
+  )
+
+generatedVar2_2SubStr :: String
+generatedVar2_2SubStr = $(
+  do
+    m <- lookupTypeName "Test.MockCat.SharedSpecDefs.MonadVar2_2Sub"
+    case m of
+      Nothing -> fail "MonadVar2_2Sub not found"
+      Just n -> do decs <- makeMock (conT n); litE (stringL (concatMap pprint decs))
+  )
+
+generatedVar3_1SubStr :: String
+generatedVar3_1SubStr = $(
+  do
+    m <- lookupTypeName "Test.MockCat.SharedSpecDefs.MonadVar3_1Sub"
+    case m of
+      Nothing -> fail "MonadVar3_1Sub not found"
+      Just n -> do decs <- makeMock (conT n); litE (stringL (concatMap pprint decs))
+  )
+
+generatedVar3_2SubStr :: String
+generatedVar3_2SubStr = $(
+  do
+    m <- lookupTypeName "Test.MockCat.SharedSpecDefs.MonadVar3_2Sub"
+    case m of
+      Nothing -> fail "MonadVar3_2Sub not found"
+      Just n -> do decs <- makeMock (conT n); litE (stringL (concatMap pprint decs))
+  )
+
+generatedVar3_3SubStr :: String
+generatedVar3_3SubStr = $(
+  do
+    m <- lookupTypeName "Test.MockCat.SharedSpecDefs.MonadVar3_3Sub"
+    case m of
+      Nothing -> fail "MonadVar3_3Sub not found"
+      Just n -> do decs <- makeMock (conT n); litE (stringL (concatMap pprint decs))
   )
 
 -- extract textual instance context for handwritten module
@@ -214,6 +270,56 @@ spec = describe "TH generated vs handwritten instances" $ do
     concat gen `shouldSatisfy` (not . isInfixOf "Typeable (Param")
 
   -- Additional per-class checks can be added here for classes exported by library modules.
+  -- ApiOperation (generated in TypeClassTHSpec with custom prefix/suffix)
+  it "ApiOperation constraints match handwritten" do
+    let decsStr = generatedApiOperationStr
+    hand <- extractHandwrittenInstanceCxts "test/Test/MockCat/TypeClassSpec.hs" "ApiOperation"
+    let gen = extractGeneratedInstanceCxtsFromStr decsStr "ApiOperation"
+    length gen `shouldSatisfy` (> 0)
+    length hand `shouldSatisfy` (> 0)
+    concat gen `shouldSatisfy` (not . isInfixOf "Typeable (Param")
+
+  -- MonadVar2_1Sub family
+  it "MonadVar2_1Sub constraints match handwritten" do
+    let decsStr = generatedVar2_1SubStr
+    hand <- extractHandwrittenInstanceCxts "test/Test/MockCat/TypeClassSpec.hs" "MonadVar2_1Sub"
+    let gen = extractGeneratedInstanceCxtsFromStr decsStr "MonadVar2_1Sub"
+    length gen `shouldSatisfy` (> 0)
+    length hand `shouldSatisfy` (> 0)
+    concat gen `shouldSatisfy` (not . isInfixOf "Typeable (Param")
+
+  it "MonadVar2_2Sub constraints match handwritten" do
+    let decsStr = generatedVar2_2SubStr
+    hand <- extractHandwrittenInstanceCxts "test/Test/MockCat/TypeClassSpec.hs" "MonadVar2_2Sub"
+    let gen = extractGeneratedInstanceCxtsFromStr decsStr "MonadVar2_2Sub"
+    length gen `shouldSatisfy` (> 0)
+    length hand `shouldSatisfy` (> 0)
+    concat gen `shouldSatisfy` (not . isInfixOf "Typeable (Param")
+
+  -- MonadVar3_*Sub family
+  it "MonadVar3_1Sub constraints match handwritten" do
+    let decsStr = generatedVar3_1SubStr
+    hand <- extractHandwrittenInstanceCxts "test/Test/MockCat/TypeClassSpec.hs" "MonadVar3_1Sub"
+    let gen = extractGeneratedInstanceCxtsFromStr decsStr "MonadVar3_1Sub"
+    length gen `shouldSatisfy` (> 0)
+    length hand `shouldSatisfy` (> 0)
+    concat gen `shouldSatisfy` (not . isInfixOf "Typeable (Param")
+
+  it "MonadVar3_2Sub constraints match handwritten" do
+    let decsStr = generatedVar3_2SubStr
+    hand <- extractHandwrittenInstanceCxts "test/Test/MockCat/TypeClassSpec.hs" "MonadVar3_2Sub"
+    let gen = extractGeneratedInstanceCxtsFromStr decsStr "MonadVar3_2Sub"
+    length gen `shouldSatisfy` (> 0)
+    length hand `shouldSatisfy` (> 0)
+    concat gen `shouldSatisfy` (not . isInfixOf "Typeable (Param")
+
+  it "MonadVar3_3Sub constraints match handwritten" do
+    let decsStr = generatedVar3_3SubStr
+    hand <- extractHandwrittenInstanceCxts "test/Test/MockCat/TypeClassSpec.hs" "MonadVar3_3Sub"
+    let gen = extractGeneratedInstanceCxtsFromStr decsStr "MonadVar3_3Sub"
+    length gen `shouldSatisfy` (> 0)
+    length hand `shouldSatisfy` (> 0)
+    concat gen `shouldSatisfy` (not . isInfixOf "Typeable (Param")
 
 -- helper to extract generated instance headers from a pre-pprinted string
 extractGeneratedInstanceCxtsFromStr :: String -> String -> [String]

@@ -12,6 +12,7 @@ import Test.MockCat.PartialMockTHSpec as PartialMockTH
 import Test.MockCat.ConcurrencySpec as Concurrency
 import Test.MockCat.StubSpec as Stub
 import Test.MockCat.Internal.RegistrySpec as Registry
+import Test.MockCat.THCompareSpec as THCompare
 import Test.QuickCheck (property)
 import qualified Property.ConcurrentCountProp as ConcurrencyProp
 import qualified Property.LazyEvalProp as LazyEvalProp
@@ -38,6 +39,7 @@ main = hspec $ do
     Concurrency.spec
     Stub.spec
     Registry.spec
+    THCompare.spec
     describe "Property Concurrency" $ do
       it "total apply count is preserved across threads" $ property ConcurrencyProp.prop_concurrent_total_apply_count
     describe "Property Lazy Evaluation" $ do

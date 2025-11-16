@@ -13,7 +13,7 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
 
-module Test.MockCat.PartialMockTHSpec where
+module Test.MockCat.PartialMockTHSpec (spec) where
 
 import Data.Text (pack)
 import Test.Hspec (Spec, it, shouldBe, describe)

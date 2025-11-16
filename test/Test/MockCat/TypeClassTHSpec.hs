@@ -10,10 +10,9 @@
 {-# OPTIONS_GHC -Wno-unused-top-binds #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
-{-# OPTIONS_GHC -Wno-missing-export-lists #-}
 {-# LANGUAGE TypeApplications #-}
 
-module Test.MockCat.TypeClassTHSpec where
+module Test.MockCat.TypeClassTHSpec (spec) where
 
 import Prelude hiding (readFile, writeFile, any)
 import Data.Text (Text, pack, isInfixOf)
@@ -24,7 +23,6 @@ import Control.Monad.Reader (MonadReader, ask)
 import Control.Monad (unless)
 import Control.Monad.IO.Unlift (withRunInIO, MonadUnliftIO)
 import Control.Concurrent.Async (async, wait)
-import Data.Kind (Type)
 import Test.MockCat.SharedSpecDefs
 
 operationProgram ::
