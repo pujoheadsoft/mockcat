@@ -176,6 +176,10 @@ class Monad m => MonadVar2_2 a m where
 class MonadVar2_2 a m => MonadVar2_2Sub a m where
   fn2_2Sub :: String -> m ()
 
+class MonadIO m => MonadVar3_1 m a b where
+class MonadVar3_1 m a b => MonadVar3_1Sub m a b where
+  fn3_1Sub :: String -> m ()
+
 class Monad m => MultiApplyTest m where
   getValueBy :: String -> m String
 
@@ -212,6 +216,15 @@ instance MonadIO m => MonadVar2_2Sub a (MockT m) where
     defs <- getDefinitions
     let
       mockFn = fromMaybe (error "no answer found stub function `_fn2_2Sub`.") $ findParam (Proxy :: Proxy "_fn2_2Sub") defs
+      !result = mockFn tag
+    lift result
+
+instance MonadIO m => MonadVar3_1 (MockT m) a b
+instance MonadIO m => MonadVar3_1Sub (MockT m) a b where
+  fn3_1Sub tag = MockT do
+    defs <- getDefinitions
+    let
+      mockFn = fromMaybe (error "no answer found stub function `_fn3_1Sub`.") $ findParam (Proxy :: Proxy "_fn3_1Sub") defs
       !result = mockFn tag
     lift result
 
@@ -294,6 +307,24 @@ _fn2_2Sub p = MockT $ do
       Nothing -> Verify.verificationFailure
   let verifyStub _ = Verify.shouldApplyToAnythingResolved resolved
   addDefinition (Definition (Proxy :: Proxy "_fn2_2Sub") mockInstance verifyStub)
+
+_fn3_1Sub ::
+  ( MockBuilder params (String -> m ()) (Param String)
+  , MonadIO m
+  , Typeable m
+  , Verify.ResolvableParamsOf (String -> m ()) ~ Param String
+  ) =>
+  params ->
+  MockT m ()
+_fn3_1Sub p = MockT $ do
+  mockInstance <- liftIO $ createNamedStubFn "_fn3_1Sub" p
+  resolved <- liftIO $ do
+    result <- Verify.resolveForVerification mockInstance
+    case result of
+      Just (maybeName, verifier) -> pure $ Verify.ResolvedMock maybeName verifier
+      Nothing -> Verify.verificationFailure
+  let verifyStub _ = Verify.shouldApplyToAnythingResolved resolved
+  addDefinition (Definition (Proxy :: Proxy "_fn3_1Sub") mockInstance verifyStub)
 
 _getValueBy ::
   ( MockBuilder params (String -> m String) (Param String)
@@ -427,4 +458,10 @@ spec = do
     result <- runMockT do
       _fn2_2Sub $ "beta" |> pure @IO ()
       fn2_2Sub "beta"
+    result `shouldBe` ()
+
+  it "supports MonadVar3_1Sub pattern" do
+    result <- runMockT do
+      _fn3_1Sub $ "gamma" |> pure @IO ()
+      fn3_1Sub "gamma"
     result `shouldBe` ()
