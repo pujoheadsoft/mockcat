@@ -167,6 +167,12 @@ echoProgram s = do
   liftIO $ print v
   echo $ show v
 
+class Monad m => MultiApplyTest m where
+  getValueBy :: String -> m String
+
+getValues :: MultiApplyTest m => [String] -> m [String]
+getValues = mapM getValueBy
+
 instance MonadIO m => TestClass (MockT m) where
   getBy a = MockT do
     defs <- getDefinitions
@@ -180,6 +186,14 @@ instance MonadIO m => TestClass (MockT m) where
     let
       mockFn = fromMaybe (error "no answer found stub function `_echo`.") $ findParam (Proxy :: Proxy "_echo") defs
       !result = mockFn a
+    lift result
+
+instance MonadIO m => MultiApplyTest (MockT m) where
+  getValueBy key = MockT do
+    defs <- getDefinitions
+    let
+      mockFn = fromMaybe (error "no answer found stub function `_getValueBy`.") $ findParam (Proxy :: Proxy "_getValueBy") defs
+      !result = mockFn key
     lift result
 
 _getBy ::
@@ -217,6 +231,24 @@ _echo p = MockT $ do
       Nothing -> Verify.verificationFailure
   let verifyStub _ = Verify.shouldApplyToAnythingResolved resolved
   addDefinition (Definition (Proxy :: Proxy "_echo") mockInstance verifyStub)
+
+_getValueBy ::
+  ( MockBuilder params (String -> m String) (Param String)
+  , MonadIO m
+  , Typeable m
+  , Verify.ResolvableParamsOf (String -> m String) ~ Param String
+  ) =>
+  params ->
+  MockT m ()
+_getValueBy p = MockT $ do
+  mockInstance <- liftIO $ createNamedStubFn "_getValueBy" p
+  resolved <- liftIO $ do
+    result <- Verify.resolveForVerification mockInstance
+    case result of
+      Just (maybeName, verifier) -> pure $ Verify.ResolvedMock maybeName verifier
+      Nothing -> Verify.verificationFailure
+  let verifyStub _ = Verify.shouldApplyToAnythingResolved resolved
+  addDefinition (Definition (Proxy :: Proxy "_getValueBy") mockInstance verifyStub)
 
 
 class Monad m => Teletype m where
@@ -312,3 +344,12 @@ spec = do
       echoProgram "s"
 
     result `shouldBe` ()
+
+  it "multi apply collects all results" do
+    result <- runMockT do
+      _getValueBy $ do
+        onCase $ "a" |> pure @IO "ax"
+        onCase $ "b" |> pure @IO "bx"
+        onCase $ "c" |> pure @IO "cx"
+      getValues ["a", "b", "c"]
+    result `shouldBe` ["ax", "bx", "cx"]
