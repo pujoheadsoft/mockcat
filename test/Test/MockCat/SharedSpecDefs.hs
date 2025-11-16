@@ -120,3 +120,9 @@ class Monad m => TestClass m where
 class Monad m => Teletype m where
   readTTY :: m String
   writeTTY :: String -> m ()
+
+newtype UserInput = UserInput String deriving (Show, Eq)
+
+class Monad m => UserInputGetter m where
+  getInput :: m String
+  toUserInput :: String -> m (Maybe UserInput)

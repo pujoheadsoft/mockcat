@@ -88,7 +88,7 @@ generatedParamThreeStr = $(
 generatedUserInputStr :: String
 generatedUserInputStr = $(
   do
-    m <- lookupTypeName "Test.MockCat.PartialMockSpec.UserInputGetter"
+    m <- lookupTypeName "Test.MockCat.SharedSpecDefs.UserInputGetter"
     case m of
       Nothing -> fail "UserInputGetter not found"
       Just n -> do decs <- makePartialMock (conT n); litE (stringL (concatMap pprint decs))

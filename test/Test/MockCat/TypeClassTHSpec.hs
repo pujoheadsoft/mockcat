@@ -71,12 +71,6 @@ makeMock [t|MonadVar3_3Sub|]
 makeMock [t|FileOperation|]
 makeMockWithOptions [t|ApiOperation|] options { prefix = "stub_", suffix = "_fn" }
 
-class Monad m => ParamThreeMonad a b m | m -> a, m -> b where
-  fnParam3_1 :: a -> b -> m String
-  fnParam3_2 :: m a
-  fnParam3_3 :: m b
-
-
 makeMock [t|MultiApplyTest|]
   
 echoProgram :: ExplicitlyReturnMonadicValuesTest m => String -> m ()

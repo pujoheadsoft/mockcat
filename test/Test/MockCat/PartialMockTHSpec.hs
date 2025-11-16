@@ -25,12 +25,6 @@ import Prelude hiding (readFile, writeFile)
 import Control.Monad.Trans.Maybe (MaybeT (..))
 import Control.Monad.Reader (ReaderT(..))
 
-newtype UserInput = UserInput String deriving (Show, Eq)
-
-class Monad m => UserInputGetter m where
-  getInput :: m String
-  toUserInput :: String -> m (Maybe UserInput)
-
 getUserInput :: UserInputGetter m => m (Maybe UserInput)
 getUserInput = do
   i <- getInput
@@ -40,8 +34,6 @@ instance UserInputGetter IO where
   getInput = getLine
   toUserInput "" = pure Nothing
   toUserInput a = (pure . Just . UserInput) a
-
-
 
 instance ExplicitlyReturnMonadicValuesPartialTest IO where
   echoExplicitPartial _ = pure () 

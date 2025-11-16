@@ -39,12 +39,6 @@ verifyResolvedAny (Verify.ResolvedMock name (Verifier ref)) = do
   when (null appliedParamsList) $
     error $ "It has never been applied function" <> mockNameLabel name
 
-newtype UserInput = UserInput String deriving (Show, Eq)
-
-class Monad m => UserInputGetter m where
-  getInput :: m String
-  toUserInput :: String -> m (Maybe UserInput)
-
 getUserInput :: UserInputGetter m => m (Maybe UserInput)
 getUserInput = do
   i <- getInput
@@ -54,7 +48,6 @@ instance UserInputGetter IO where
   getInput = getLine
   toUserInput "" = pure Nothing
   toUserInput a = pure . Just . UserInput $ a
-
 
 instance ExplicitlyReturnMonadicValuesPartialTest IO where
   echoExplicitPartial _ = pure ()
