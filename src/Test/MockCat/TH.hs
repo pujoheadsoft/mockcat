@@ -64,7 +64,6 @@ import Test.MockCat.Verify
   ( requireResolved,
     shouldApplyToAnythingResolved
   )
-import Test.MockCat.Internal.Types (Verifier)
 import Test.MockCat.Param
 import Unsafe.Coerce (unsafeCoerce)
 import Prelude as P
@@ -488,7 +487,6 @@ doCreateMockFnDecs funNameStr mockFunName params funType monadVarName updatedTyp
         typeableTargets =
           [ funType
           , verifyParams
-          , AppT (ConT ''Verifier) verifyParams
           , AppT (ConT ''ResolvableParams) funType
           ]
         typeablePreds =
@@ -520,7 +518,6 @@ doCreateConstantMockFnDecs funNameStr mockFunName ty monadVarName = do
   let typeableTargets =
         [ ty
         , AppT (ConT ''ResolvableParams) ty
-        , AppT (ConT ''Verifier) (AppT (ConT ''ResolvableParams) ty)
         ]
       typeablePreds =
         [ AppT (ConT ''Typeable) target
@@ -549,7 +546,6 @@ doCreateEmptyVerifyParamMockFnDecs funNameStr mockFunName params funType monadVa
         typeableTargets =
           [ funType
           , verifyParams
-          , AppT (ConT ''Verifier) verifyParams
           , AppT (ConT ''ResolvableParams) funType
           ]
         typeablePreds =
