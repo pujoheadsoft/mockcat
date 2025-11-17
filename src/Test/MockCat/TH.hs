@@ -22,14 +22,14 @@ module Test.MockCat.TH
   )
 where
 
-import Control.Monad (guard, unless)
+import Control.Monad (unless)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.Trans.Class (lift)
 import Data.Data (Proxy (..))
 import Data.Typeable (Typeable)
 import Data.Function ((&))
 import Data.List (elemIndex, find, nub)
-import Data.Maybe (catMaybes, fromMaybe, isJust)
+import Data.Maybe (catMaybes, fromMaybe)
 import qualified Data.Map.Strict as Map
 import Data.Text (pack, splitOn, unpack)
 import GHC.TypeLits (KnownSymbol, symbolVal)
@@ -60,9 +60,21 @@ import Language.Haskell.TH
 import Language.Haskell.TH.Lib
 import Language.Haskell.TH.PprLib (Doc, hcat, parens, text)
 import Language.Haskell.TH.Syntax (nameBase, Specificity (SpecifiedSpec))
-import Test.MockCat.Cons
 import Test.MockCat.Mock
 import Test.MockCat.MockT
+import Test.MockCat.TH.MockBuilder
+  ( createMockBuilderFnType,
+    createMockBuilderVerifyParams
+  )
+import Test.MockCat.TH.MockFnContext
+  ( needsTypeable,
+    partialAdditionalPredicates
+  )
+import Test.MockCat.TH.VarApplied
+  ( VarAppliedType (..),
+    applyVarAppliedTypes,
+    updateType
+  )
 import Test.MockCat.Verify
   ( ResolvedMock (..),
     resolveForVerification,
@@ -364,26 +376,6 @@ splitApps ty = go ty []
     go (AppT t1 t2) acc = go t1 (t2 : acc)
     go t acc = (t, acc)
 
-applyVarAppliedTypes :: [VarAppliedType] -> Type -> Type
-applyVarAppliedTypes varAppliedTypes = transform
-  where
-    mapping =
-      Map.fromList
-        [ (varName, className)
-        | VarAppliedType varName (Just className) <- varAppliedTypes
-        ]
-    transform (VarT name) =
-      case Map.lookup name mapping of
-        Just className -> ConT className
-        Nothing -> VarT name
-    transform (AppT t1 t2) = AppT (transform t1) (transform t2)
-    transform (SigT t k) = SigT (transform t) k
-    transform (ParensT t) = ParensT (transform t)
-    transform (InfixT t1 n t2) = InfixT (transform t1) n (transform t2)
-    transform (UInfixT t1 n t2) = UInfixT (transform t1) n (transform t2)
-    transform (ForallT tvs ctx t) = ForallT tvs (map transform ctx) (transform t)
-    transform t = t
-
 substituteType :: Map.Map Name Type -> Type -> Type
 substituteType subMap = go
   where
@@ -630,17 +622,7 @@ doCreateMockFnDecs mockType funNameStr mockFunName params funType monadVarName u
           ]
         ctx = case mockType of
           Partial ->
-            let typeableVarPreds =
-                  [ AppT (ConT ''Typeable) (VarT v)
-                  | v <- nub (collectTypeVars verifyParams ++ collectTypeVars funType)
-                  ]
-                eqConstraint =
-                  AppT
-                    (AppT EqualityT (AppT (ConT ''ResolvableParamsOf) funType))
-                    verifyParams
-                eqConstraints =
-                  [eqConstraint | not (null (collectTypeVars funType))]
-             in baseCtx ++ typeableVarPreds ++ eqConstraints
+            baseCtx ++ partialAdditionalPredicates funType verifyParams
           Total ->
             let typeableTargets =
                   [ funType
@@ -777,82 +759,9 @@ isNotConstantFunctionType (TupleT _) = False
 isNotConstantFunctionType (ForallT _ _ t) = isNotConstantFunctionType t
 isNotConstantFunctionType _ = False
 
-updateType :: Type -> [VarAppliedType] -> Type
-updateType (AppT (VarT v1) (VarT v2)) varAppliedTypes = do
-  let x = maybe (VarT v1) ConT (findClass v1 varAppliedTypes)
-      y = maybe (VarT v2) ConT (findClass v2 varAppliedTypes)
-  AppT x y
-updateType ty _ = ty
-
-hasClass :: Name -> [VarAppliedType] -> Bool
-hasClass varName = P.any (\(VarAppliedType v c) -> (v == varName) && isJust c)
-
-findClass :: Name -> [VarAppliedType] -> Maybe Name
-findClass varName types = do
-  guard $ hasClass varName types
-  (VarAppliedType _ c) <- find (\(VarAppliedType v _) -> v == varName) types
-  c
-
 createFnName :: Name -> MockOptions -> String
 createFnName funName options = do
   options.prefix <> nameBase funName <> options.suffix
-
-createMockBuilderFnType :: Name -> Type -> Type
-createMockBuilderFnType monadVarName a@(AppT (VarT var) ty)
-  | monadVarName == var = ty
-  | otherwise = a
-createMockBuilderFnType monadVarName (AppT ty ty2) = AppT ty (createMockBuilderFnType monadVarName ty2)
-createMockBuilderFnType monadVarName (ForallT _ _ ty) = createMockBuilderFnType monadVarName ty
-createMockBuilderFnType _ ty = ty
-
-createMockBuilderVerifyParams :: Type -> Type
-createMockBuilderVerifyParams (AppT (AppT ArrowT ty) (AppT (VarT _) _)) =
-  AppT (ConT ''Param) ty
-createMockBuilderVerifyParams (AppT (AppT ArrowT ty) ty2) =
-  AppT (AppT (ConT ''(:>)) (AppT (ConT ''Param) ty)) (createMockBuilderVerifyParams ty2)
-createMockBuilderVerifyParams (AppT (VarT _) _) = TupleT 0
-createMockBuilderVerifyParams (AppT (ConT _) _) = TupleT 0
-createMockBuilderVerifyParams (ForallT _ _ ty) = createMockBuilderVerifyParams ty
-createMockBuilderVerifyParams (VarT _) = TupleT 0
-createMockBuilderVerifyParams (ConT _) = TupleT 0
-createMockBuilderVerifyParams _ = TupleT 0
-
-needsTypeable :: Type -> Bool
-needsTypeable = go
-  where
-    go (ForallT _ _ t) = go t
-    go (AppT t1 t2) = go t1 || go t2
-    go (SigT t _) = go t
-    go (VarT _) = True
-    go (ParensT t) = go t
-    go (InfixT t1 _ t2) = go t1 || go t2
-    go (UInfixT t1 _ t2) = go t1 || go t2
-    go (ImplicitParamT _ t) = go t
-    go (ConT _) = False
-    go (PromotedT _) = False
-    go (PromotedTupleT _) = False
-    go PromotedConsT = False
-    go PromotedNilT = False
-    go (TupleT _) = False
-    go ListT = False
-    go (UnboxedTupleT _) = False
-    go (UnboxedSumT _) = False
-    go ArrowT = False
-    go EqualityT = False
-    go ConstraintT = False
-    go StarT = False
-    go _ = False
-
-collectTypeVars :: Type -> [Name]
-collectTypeVars (VarT name) = [name]
-collectTypeVars (AppT t1 t2) = collectTypeVars t1 ++ collectTypeVars t2
-collectTypeVars (SigT t _) = collectTypeVars t
-collectTypeVars (ParensT t) = collectTypeVars t
-collectTypeVars (InfixT t1 _ t2) = collectTypeVars t1 ++ collectTypeVars t2
-collectTypeVars (UInfixT t1 _ t2) = collectTypeVars t1 ++ collectTypeVars t2
-collectTypeVars (ForallT _ _ t) = collectTypeVars t
-collectTypeVars (ImplicitParamT _ t) = collectTypeVars t
-collectTypeVars _ = []
 
 findParam :: (KnownSymbol sym) => Proxy sym -> [Definition] -> Maybe a
 findParam pa definitions = do
@@ -884,9 +793,6 @@ data VarName2ClassNames = VarName2ClassNames Name [Name]
 
 instance Show VarName2ClassNames where
   show (VarName2ClassNames varName classNames) = show varName <> " class is " <> unwords (showClassName <$> classNames)
-
-data VarAppliedType = VarAppliedType {name :: Name, appliedClassName :: Maybe Name}
-  deriving (Show)
 
 showClassName :: Name -> String
 showClassName n = splitLast "." $ show n

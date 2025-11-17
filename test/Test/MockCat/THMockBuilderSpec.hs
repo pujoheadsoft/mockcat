@@ -1,0 +1,53 @@
+{-# LANGUAGE TemplateHaskell #-}
+
+module Test.MockCat.THMockBuilderSpec (spec) where
+
+import Language.Haskell.TH
+import Test.Hspec
+import Test.MockCat.Cons ((:>))
+import Test.MockCat.Param (Param)
+import Test.MockCat.TH.MockBuilder
+
+spec :: Spec
+spec = do
+  describe "createMockBuilderVerifyParams" $ do
+    it "単一引数の関数では Param が1つだけ付く" $ do
+      let m = mkName "m"
+          funType = AppT (AppT ArrowT (ConT ''String)) (AppT (VarT m) (TupleT 0))
+      createMockBuilderVerifyParams funType
+        `shouldBe` AppT (ConT ''Param) (ConT ''String)
+
+    it "複数引数の関数では Param が :> で連結される" $ do
+      let m = mkName "m"
+          rest = AppT (AppT ArrowT (ConT ''Int)) (AppT (VarT m) (TupleT 0))
+          funType = AppT (AppT ArrowT (ConT ''String)) rest
+          expected =
+            AppT
+              (AppT (ConT ''(:>)) (AppT (ConT ''Param) (ConT ''String)))
+              (AppT (ConT ''Param) (ConT ''Int))
+      createMockBuilderVerifyParams funType `shouldBe` expected
+
+    it "引数が無い場合は () を返す" $ do
+      let m = mkName "m"
+      createMockBuilderVerifyParams (AppT (VarT m) (TupleT 0))
+        `shouldBe` TupleT 0
+
+  describe "createMockBuilderFnType" $ do
+    it "モナド引数を取り除き純粋な関数型にする" $ do
+      let m = mkName "m"
+          funType = AppT (AppT ArrowT (ConT ''String)) (AppT (VarT m) (ConT ''Int))
+          expected = AppT (AppT ArrowT (ConT ''String)) (ConT ''Int)
+      createMockBuilderFnType m funType `shouldBe` expected
+
+    it "モナド変数以外の戻り値は変更しない" $ do
+      let m = mkName "m"
+          funType = AppT (AppT ArrowT (ConT ''String)) (AppT (ConT ''IO) (ConT ''Int))
+      createMockBuilderFnType m funType `shouldBe` funType
+
+    it "forall を含む型でもモナド変数を取り除く" $ do
+      let m = mkName "m"
+          a = mkName "a"
+          body = AppT (VarT m) (VarT a)
+          funType = ForallT [PlainTV a SpecifiedSpec] [] body
+      createMockBuilderFnType m funType `shouldBe` VarT a
+

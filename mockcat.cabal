@@ -58,6 +58,9 @@ library
       Test.MockCat.MockT
       Test.MockCat.Param
       Test.MockCat.TH
+      Test.MockCat.TH.MockBuilder
+      Test.MockCat.TH.MockFnContext
+      Test.MockCat.TH.VarApplied
       Test.MockCat.Verify
   other-modules:
       Paths_mockcat
@@ -105,6 +108,9 @@ test-suite mockcat-test
       Test.MockCat.SharedSpecDefs
       Test.MockCat.StubSpec
       Test.MockCat.THCompareSpec
+      Test.MockCat.THMockBuilderSpec
+      Test.MockCat.THMockFnContextSpec
+      Test.MockCat.THVarAppliedSpec
       Test.MockCat.TypeClassSpec
       Test.MockCat.TypeClassTHSpec
       Paths_mockcat
