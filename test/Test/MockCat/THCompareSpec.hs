@@ -7,28 +7,98 @@
 module Test.MockCat.THCompareSpec (spec) where
 
 import Test.Hspec
-import Language.Haskell.TH.Syntax (runQ)
-import Language.Haskell.TH (pprint, Dec(..), Pred, Type(..), litE, stringL)
-import Data.List (isInfixOf)
+import Language.Haskell.TH (pprint, Dec(..), Type(..), litE, stringL, listE, tupE)
+import Language.Haskell.TH.Syntax (nameBase)
+import Data.Char (isDigit, isLower)
+import Data.List (foldl', sort)
+import Data.Maybe (mapMaybe)
+import qualified Data.Map.Strict as Map
 import qualified Data.Text as T
 import qualified System.IO as SIO
 import Test.MockCat.SharedSpecDefs
 import Test.MockCat.TH (makeMock, makeMockWithOptions, makePartialMock, makePartialMockWithOptions, options, implicitMonadicReturn, MockOptions(..))
-import Test.MockCat.PartialMockSpec hiding (spec)
-import Test.MockCat.TypeClassSpec hiding (spec)
 import Language.Haskell.TH (lookupTypeName, conT)
 import Control.Monad (forM_)
 
 normalize :: String -> String
-normalize = T.unpack . T.unwords . T.words . T.pack
+normalize =
+  T.unpack
+    . squeezePunctuation
+    . T.unwords
+    . map stripVarSuffix
+    . T.words
+    . stripQualifiers
+    . T.pack
+
+stripQualifiers :: T.Text -> T.Text
+stripQualifiers =
+  stripPrefixes
+    (map
+      T.pack
+      [ "Test.MockCat.SharedSpecDefs."
+      , "Test.MockCat.MockT."
+      , "Control.Monad.IO.Class."
+      , "GHC.Types."
+      , "Data.Typeable.Internal."
+      , "Test.MockCat.Verify."
+      , "Verify."
+      ])
+  where
+    stripPrefixes [] t = t
+    stripPrefixes (p : ps) t = stripPrefixes ps (T.replace p T.empty t)
+
+stripVarSuffix :: T.Text -> T.Text
+stripVarSuffix = T.pack . go Nothing . T.unpack
+  where
+    go _ [] = []
+    go prev (c : cs)
+      | c == '_' && maybe False isLower prev =
+          go prev (dropWhile isDigit cs)
+      | otherwise = c : go (Just c) cs
+
+squeezePunctuation :: T.Text -> T.Text
+squeezePunctuation =
+  applyReplacements
+    [ ("( ", "(")
+    , (" )", ")")
+    , (" ,", ",")
+    , ("[ ", "[")
+    , (" ]", "]")
+    , (" <" , "<")
+    , ("> ", ">")
+    ]
+  where
+    applyReplacements reps txt =
+      foldl'
+        (\acc (from, to) -> T.replace (T.pack from) (T.pack to) acc)
+        txt
+        reps
 
 -- generate at compile time to avoid running restricted TH actions in IO
 -- store pretty-printed generated declarations as strings
 generatedFinderStr :: String
 generatedFinderStr = $(do decs <- makePartialMock [t|Finder|]; litE (stringL (concatMap pprint decs)))
 
+generatedFinderSigPairs :: [(String, String)]
+generatedFinderSigPairs =
+  $(
+    do
+      decs <- makePartialMock [t|Finder|]
+      let sigPairs =
+            [ (nameBase name, pprint ty)
+            | SigD name ty <- decs
+            ]
+      listE
+        [ tupE [litE (stringL fn), litE (stringL sig)]
+        | (fn, sig) <- sigPairs
+        ]
+  )
+
+generatedFinderSigMap :: Map.Map String String
+generatedFinderSigMap = Map.fromList generatedFinderSigPairs
+
 generatedFileOpStr :: String
-generatedFileOpStr = $(do decs <- makeMock [t|FileOperation|]; litE (stringL (concatMap pprint decs)))
+generatedFileOpStr = $(do decs <- makePartialMock [t|FileOperation|]; litE (stringL (concatMap pprint decs)))
 
 generatedTestClassStr :: String
 generatedTestClassStr = $(
@@ -82,7 +152,13 @@ generatedParamThreeStr = $(
     m <- lookupTypeName "Test.MockCat.SharedSpecDefs.ParamThreeMonad"
     case m of
       Nothing -> fail "ParamThreeMonad not found"
-      Just n -> do decs <- makeMock (conT n); litE (stringL (concatMap pprint decs))
+      Just n -> do
+        let targetType =
+              AppT
+                (AppT (ConT n) (ConT ''Int))
+                (ConT ''Bool)
+        decs <- makeMock (pure targetType)
+        litE (stringL (concatMap pprint decs))
   )
 
 generatedUserInputStr :: String
@@ -160,181 +236,173 @@ generatedVar3_3SubStr = $(
       Just n -> do decs <- makeMock (conT n); litE (stringL (concatMap pprint decs))
   )
 
+partialMockSpecPath :: FilePath
+partialMockSpecPath = "test/Test/MockCat/PartialMockSpec.hs"
+
+typeClassSpecPath :: FilePath
+typeClassSpecPath = "test/Test/MockCat/TypeClassSpec.hs"
+
 -- extract textual instance context for handwritten module
 extractHandwrittenInstanceCxts :: FilePath -> String -> IO [String]
 extractHandwrittenInstanceCxts fp className = do
   src <- SIO.readFile fp
-  let parts = T.splitOn (T.pack "instance") (T.pack src)
-      matches = filter (T.isInfixOf (T.pack className) . T.takeWhile (/= 'w')) parts
-  pure $ map (normalize . T.unpack . T.takeWhile (/= 'w')) matches
-
--- from generated Decs, extract InstanceD contexts for instances whose head mentions className and MockT
-extractGeneratedInstanceCxts :: [Dec] -> String -> [String]
-extractGeneratedInstanceCxts decs className = map normalize $
-  [ header
-  | dec <- decs
-  , let s = pprint dec
-  , className `isInfixOf` s
-  , "MockT" `isInfixOf` s
-  , let header = takeWhile (/= '{') s -- take up to where/ body
-  ]
-
--- helper to convert Pred/Type to string using pprint for debugging
-pprintDecs :: [Dec] -> String
-pprintDecs = unlines . map pprint
+  pure $ extractInstanceHeaders src className
 
 spec :: Spec
-spec = describe "TH generated vs handwritten instances" $ do
-  it "Finder partial mock constraints match handwritten" do
-    let decsStr = generatedFinderStr
-    hand <- extractHandwrittenInstanceCxts "test/Test/MockCat/PartialMockSpec.hs" "Finder"
-    let gen = extractGeneratedInstanceCxtsFromStr decsStr "Finder"
-    -- ensure there's at least one generated instance context and one handwritten one
-    if null gen
-      then expectationFailure $ "no generated Finder instances found. generated:\n" ++ decsStr
-      else pure ()
-    length hand `shouldSatisfy` (> 0)
-    -- basic sanity: generated should not include Typeable (Param ...) redundantly
-    concat gen `shouldSatisfy` (not . isInfixOf "Typeable (Param")
+spec = describe "TH generated vs handwritten instances" do
+  let cases =
+        [ ("Finder partial mock instance matches handwritten", partialMockSpecPath, "Finder", generatedFinderStr)
+        , ("FileOperation mock instance matches handwritten", partialMockSpecPath, "FileOperation", generatedFileOpStr)
+        , ("UserInputGetter partial mock instance matches handwritten", partialMockSpecPath, "UserInputGetter", generatedUserInputStr)
+        , ("ExplicitlyReturnMonadicValuesPartialTest instance matches handwritten", partialMockSpecPath, "ExplicitlyReturnMonadicValuesPartialTest", generatedExplicitPartialStr)
+        , ("TypeClass: TestClass instance matches handwritten", typeClassSpecPath, "TestClass", generatedTestClassStr)
+        , ("TypeClass: MultiApplyTest instance matches handwritten", typeClassSpecPath, "MultiApplyTest", generatedMultiApplyStr)
+        , ("TypeClass: ExplicitlyReturnMonadicValuesTest instance matches handwritten", typeClassSpecPath, "ExplicitlyReturnMonadicValuesTest", generatedExplicitStr)
+        , ("TypeClass: DefaultMethodTest instance matches handwritten", typeClassSpecPath, "DefaultMethodTest", generatedDefaultMethodStr)
+        , ("TypeClass: AssocTypeTest instance matches handwritten", typeClassSpecPath, "AssocTypeTest", generatedAssocTypeStr)
+        , ("TypeClass: ParamThreeMonad instance matches handwritten", typeClassSpecPath, "ParamThreeMonad", generatedParamThreeStr)
+        , ("ApiOperation instance matches handwritten", typeClassSpecPath, "ApiOperation", generatedApiOperationStr)
+        , ("MonadVar2_1Sub instance matches handwritten", typeClassSpecPath, "MonadVar2_1Sub", generatedVar2_1SubStr)
+        , ("MonadVar2_2Sub instance matches handwritten", typeClassSpecPath, "MonadVar2_2Sub", generatedVar2_2SubStr)
+        , ("MonadVar3_1Sub instance matches handwritten", typeClassSpecPath, "MonadVar3_1Sub", generatedVar3_1SubStr)
+        , ("MonadVar3_2Sub instance matches handwritten", typeClassSpecPath, "MonadVar3_2Sub", generatedVar3_2SubStr)
+        , ("MonadVar3_3Sub instance matches handwritten", typeClassSpecPath, "MonadVar3_3Sub", generatedVar3_3SubStr)
+        ]
+  forM_ cases \(desc, manualPath, className, generatedStr) ->
+    it desc $
+      assertInstancesEquivalent manualPath className generatedStr
 
-  it "FileOperation mock constraints match handwritten" do
-    let decsStr = generatedFileOpStr
-    hand <- extractHandwrittenInstanceCxts "test/Test/MockCat/PartialMockSpec.hs" "FileOperation"
-    let gen = extractGeneratedInstanceCxtsFromStr decsStr "FileOperation"
-    length gen `shouldSatisfy` (> 0)
-    length hand `shouldSatisfy` (> 0)
-    concat gen `shouldSatisfy` (not . isInfixOf "Typeable (Param")
-
-  it "TypeClass: TestClass constraints match handwritten" do
-    let decsStr = generatedTestClassStr
-    hand <- extractHandwrittenInstanceCxts "test/Test/MockCat/TypeClassSpec.hs" "TestClass"
-    let gen = extractGeneratedInstanceCxtsFromStr decsStr "TestClass"
-    length gen `shouldSatisfy` (> 0)
-    length hand `shouldSatisfy` (> 0)
-    concat gen `shouldSatisfy` (not . isInfixOf "Typeable (Param")
-
-  it "TypeClass: MultiApplyTest constraints match handwritten" do
-    let decsStr = generatedMultiApplyStr
-    hand <- extractHandwrittenInstanceCxts "test/Test/MockCat/TypeClassSpec.hs" "MultiApplyTest"
-    let gen = extractGeneratedInstanceCxtsFromStr decsStr "MultiApplyTest"
-    length gen `shouldSatisfy` (> 0)
-    length hand `shouldSatisfy` (> 0)
-    concat gen `shouldSatisfy` (not . isInfixOf "Typeable (Param")
-
-  it "TypeClass: ExplicitlyReturnMonadicValuesTest constraints match handwritten" do
-    let decsStr = generatedExplicitStr
-    hand <- extractHandwrittenInstanceCxts "test/Test/MockCat/TypeClassSpec.hs" "ExplicitlyReturnMonadicValuesTest"
-    let gen = extractGeneratedInstanceCxtsFromStr decsStr "ExplicitlyReturnMonadicValuesTest"
-    length gen `shouldSatisfy` (> 0)
-    length hand `shouldSatisfy` (> 0)
-    concat gen `shouldSatisfy` (not . isInfixOf "Typeable (Param")
-
-  it "TypeClass: DefaultMethodTest constraints match handwritten" do
-    let decsStr = generatedDefaultMethodStr
-    hand <- extractHandwrittenInstanceCxts "test/Test/MockCat/TypeClassSpec.hs" "DefaultMethodTest"
-    let gen = extractGeneratedInstanceCxtsFromStr decsStr "DefaultMethodTest"
-    length gen `shouldSatisfy` (> 0)
-    length hand `shouldSatisfy` (> 0)
-    concat gen `shouldSatisfy` (not . isInfixOf "Typeable (Param")
-
-  it "TypeClass: AssocTypeTest constraints match handwritten" do
-    let decsStr = generatedAssocTypeStr
-    hand <- extractHandwrittenInstanceCxts "test/Test/MockCat/TypeClassSpec.hs" "AssocTypeTest"
-    let gen = extractGeneratedInstanceCxtsFromStr decsStr "AssocTypeTest"
-    length gen `shouldSatisfy` (> 0)
-    length hand `shouldSatisfy` (> 0)
-    concat gen `shouldSatisfy` (not . isInfixOf "Typeable (Param")
-
-  it "TypeClass: ParamThreeMonad constraints match handwritten" do
-    let decsStr = generatedParamThreeStr
-    hand <- extractHandwrittenInstanceCxts "test/Test/MockCat/TypeClassSpec.hs" "ParamThreeMonad"
-    let gen = extractGeneratedInstanceCxtsFromStr decsStr "ParamThreeMonad"
-    length gen `shouldSatisfy` (> 0)
-    length hand `shouldSatisfy` (> 0)
-    concat gen `shouldSatisfy` (not . isInfixOf "Typeable (Param")
-
-  it "PartialMock: UserInputGetter constraints match handwritten" do
-    let decsStr = generatedUserInputStr
-    hand <- extractHandwrittenInstanceCxts "test/Test/MockCat/PartialMockSpec.hs" "UserInputGetter"
-    let gen = extractGeneratedInstanceCxtsFromStr decsStr "UserInputGetter"
-    length gen `shouldSatisfy` (> 0)
-    length hand `shouldSatisfy` (> 0)
-    concat gen `shouldSatisfy` (not . isInfixOf "Typeable (Param")
-
-  it "PartialMock: ExplicitlyReturnMonadicValuesPartialTest constraints match handwritten" do
-    let decsStr = generatedExplicitPartialStr
-    hand <- extractHandwrittenInstanceCxts "test/Test/MockCat/PartialMockSpec.hs" "ExplicitlyReturnMonadicValuesPartialTest"
-    let gen = extractGeneratedInstanceCxtsFromStr decsStr "ExplicitlyReturnMonadicValuesPartialTest"
-    length gen `shouldSatisfy` (> 0)
-    length hand `shouldSatisfy` (> 0)
-    concat gen `shouldSatisfy` (not . isInfixOf "Typeable (Param")
-
-  -- Additional per-class checks can be added here for classes exported by library modules.
-  -- ApiOperation (generated in TypeClassTHSpec with custom prefix/suffix)
-  it "ApiOperation constraints match handwritten" do
-    let decsStr = generatedApiOperationStr
-    hand <- extractHandwrittenInstanceCxts "test/Test/MockCat/TypeClassSpec.hs" "ApiOperation"
-    let gen = extractGeneratedInstanceCxtsFromStr decsStr "ApiOperation"
-    length gen `shouldSatisfy` (> 0)
-    length hand `shouldSatisfy` (> 0)
-    concat gen `shouldSatisfy` (not . isInfixOf "Typeable (Param")
-
-  -- MonadVar2_1Sub family
-  it "MonadVar2_1Sub constraints match handwritten" do
-    let decsStr = generatedVar2_1SubStr
-    hand <- extractHandwrittenInstanceCxts "test/Test/MockCat/TypeClassSpec.hs" "MonadVar2_1Sub"
-    let gen = extractGeneratedInstanceCxtsFromStr decsStr "MonadVar2_1Sub"
-    length gen `shouldSatisfy` (> 0)
-    length hand `shouldSatisfy` (> 0)
-    concat gen `shouldSatisfy` (not . isInfixOf "Typeable (Param")
-
-  it "MonadVar2_2Sub constraints match handwritten" do
-    let decsStr = generatedVar2_2SubStr
-    hand <- extractHandwrittenInstanceCxts "test/Test/MockCat/TypeClassSpec.hs" "MonadVar2_2Sub"
-    let gen = extractGeneratedInstanceCxtsFromStr decsStr "MonadVar2_2Sub"
-    length gen `shouldSatisfy` (> 0)
-    length hand `shouldSatisfy` (> 0)
-    concat gen `shouldSatisfy` (not . isInfixOf "Typeable (Param")
-
-  -- MonadVar3_*Sub family
-  it "MonadVar3_1Sub constraints match handwritten" do
-    let decsStr = generatedVar3_1SubStr
-    hand <- extractHandwrittenInstanceCxts "test/Test/MockCat/TypeClassSpec.hs" "MonadVar3_1Sub"
-    let gen = extractGeneratedInstanceCxtsFromStr decsStr "MonadVar3_1Sub"
-    length gen `shouldSatisfy` (> 0)
-    length hand `shouldSatisfy` (> 0)
-    concat gen `shouldSatisfy` (not . isInfixOf "Typeable (Param")
-
-  it "MonadVar3_2Sub constraints match handwritten" do
-    let decsStr = generatedVar3_2SubStr
-    hand <- extractHandwrittenInstanceCxts "test/Test/MockCat/TypeClassSpec.hs" "MonadVar3_2Sub"
-    let gen = extractGeneratedInstanceCxtsFromStr decsStr "MonadVar3_2Sub"
-    length gen `shouldSatisfy` (> 0)
-    length hand `shouldSatisfy` (> 0)
-    concat gen `shouldSatisfy` (not . isInfixOf "Typeable (Param")
-
-  it "MonadVar3_3Sub constraints match handwritten" do
-    let decsStr = generatedVar3_3SubStr
-    hand <- extractHandwrittenInstanceCxts "test/Test/MockCat/TypeClassSpec.hs" "MonadVar3_3Sub"
-    let gen = extractGeneratedInstanceCxtsFromStr decsStr "MonadVar3_3Sub"
-    length gen `shouldSatisfy` (> 0)
-    length hand `shouldSatisfy` (> 0)
-    concat gen `shouldSatisfy` (not . isInfixOf "Typeable (Param")
+  describe "Partial mock helper signatures match handwritten" do
+    let helperFns = ["_findIds"]
+    forM_ helperFns \fn ->
+      it (fn ++ " signature matches handwritten") $
+        assertHelperSigMatches partialMockSpecPath generatedFinderSigMap fn
 
 -- helper to extract generated instance headers from a pre-pprinted string
 extractGeneratedInstanceCxtsFromStr :: String -> String -> [String]
-extractGeneratedInstanceCxtsFromStr s className = map normalize $
-  let txt = T.pack s
-      insts = T.splitOn (T.pack "instance") txt
-      -- discard leading part before first instance
-      instBodies = drop 1 insts
-      takeHeader t =
-        let h = T.takeWhile (/= '{') $ T.takeWhile (/= 'w') t -- up to 'where' or '{'
-         in T.unpack h
-   in [ takeHeader body
-      | body <- instBodies
-      , className `isInfixOf` T.unpack body || className `isInfixOf` T.unpack (T.take 200 body)
-      , "MockT" `isInfixOf` T.unpack body
-      ]
+extractGeneratedInstanceCxtsFromStr s =
+  extractInstanceHeaders s
+
+extractInstanceHeaders :: String -> String -> [String]
+extractInstanceHeaders input className =
+  let txt = T.pack input
+      classTxt = T.pack className
+      insts = drop 1 $ T.splitOn (T.pack "instance") txt
+      mkHeader body =
+        let (beforeWhere, _) = T.breakOn (T.pack "where") body
+            (beforeBrace, _) = T.breakOn (T.pack "{") beforeWhere
+            header = T.strip beforeBrace
+            headerWithoutQualifiers = stripQualifiers header
+            headPart =
+              let (_ctxPart, rest) = T.breakOn (T.pack "=>") headerWithoutQualifiers
+               in if T.null rest
+                    then headerWithoutQualifiers
+                    else T.strip $ T.drop 2 rest
+            actualClassName =
+              case T.words headPart of
+                [] -> Nothing
+                (tok : _) ->
+                  let cleaned = T.dropAround (`elem` ("()")) tok
+                   in if T.null cleaned then Nothing else Just cleaned
+            containsMockT = T.pack "MockT" `T.isInfixOf` headerWithoutQualifiers
+         in case actualClassName of
+              Just cls
+                | cls == classTxt && containsMockT ->
+                    Just $ normalize $ "instance " ++ T.unpack headerWithoutQualifiers
+              _ -> Nothing
+   in mapMaybe mkHeader insts
+
+assertInstancesEquivalent :: FilePath -> String -> String -> Expectation
+assertInstancesEquivalent manualPath className generatedStr = do
+  hand <- extractHandwrittenInstanceCxts manualPath className
+  let gen = extractGeneratedInstanceCxtsFromStr generatedStr className
+      sortedHand = sort hand
+      sortedGen = sort gen
+  if null hand
+    then expectationFailure $
+      "手書きのインスタンスが見つかりません: " ++ className ++ " in " ++ manualPath
+    else pure ()
+  if null gen
+    then expectationFailure $
+      "TH生成インスタンスが見つかりません: " ++ className
+        ++ "\n生成結果(先頭のみ):\n"
+        ++ take 1000 generatedStr
+    else pure ()
+  sortedGen `shouldBe` sortedHand
+
+extractHandwrittenFunctionSig :: FilePath -> String -> IO (Maybe String)
+extractHandwrittenFunctionSig fp funName = do
+  src <- SIO.readFile fp
+  let linesText = T.lines (T.pack src)
+      isSignatureLine line =
+        let trimmed = T.stripStart line
+         in (T.pack funName <> T.pack " ::") `T.isPrefixOf` trimmed
+      continuation line =
+        case T.uncons line of
+          Just (c, _) -> c == ' ' || c == '\t'
+          Nothing -> False
+      collect [] = Nothing
+      collect (line:rest)
+        | isSignatureLine line =
+            let cont = takeWhile continuation rest
+             in Just $ T.unpack $ T.unlines (line : cont)
+        | otherwise = collect rest
+  pure $ collect linesText
+
+stripForallClause :: String -> String
+stripForallClause sig =
+  let txt = T.pack sig
+      (preForall, rest) = T.breakOn (T.pack "forall") txt
+   in
+    if T.null rest
+      then sig
+      else
+        let afterForall = T.drop 1 $ T.dropWhile (/= '.') rest
+         in T.unpack (preForall <> afterForall)
+
+normalizeSignature :: String -> String
+normalizeSignature =
+  T.unpack
+    . T.strip
+    . T.pack
+    . dropFunctionName
+    . stripForallClause
+    . normalize
+
+dropFunctionName :: String -> String
+dropFunctionName sig =
+  let txt = T.pack sig
+      (_, rest) = T.breakOn (T.pack "::") txt
+   in
+    if T.null rest
+      then sig
+      else T.unpack $ T.drop 2 rest
+
+assertHelperSigMatches ::
+  FilePath ->
+  Map.Map String String ->
+  String ->
+  Expectation
+assertHelperSigMatches manualPath generatedSigMap funName = do
+  manualSigM <- extractHandwrittenFunctionSig manualPath funName
+  manualSig <-
+    case manualSigM of
+      Nothing -> do
+        expectationFailure $
+          "手書きのシグネチャが見つかりません: "
+            ++ funName
+            ++ " in "
+            ++ manualPath
+        pure ""
+      Just sig -> pure sig
+  generatedSig <-
+    case Map.lookup funName generatedSigMap of
+      Nothing -> do
+        expectationFailure $
+          "TH生成シグネチャが見つかりません: "
+            ++ funName
+        pure ""
+      Just sig -> pure sig
+  normalizeSignature generatedSig `shouldBe` normalizeSignature manualSig
 
 

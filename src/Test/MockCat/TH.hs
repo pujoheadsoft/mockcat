@@ -29,7 +29,8 @@ import Data.Data (Proxy (..))
 import Data.Typeable (Typeable)
 import Data.Function ((&))
 import Data.List (elemIndex, find, nub)
-import Data.Maybe (fromMaybe, isJust)
+import Data.Maybe (catMaybes, fromMaybe, isJust)
+import qualified Data.Map.Strict as Map
 import Data.Text (pack, splitOn, unpack)
 import GHC.TypeLits (KnownSymbol, symbolVal)
 import Language.Haskell.TH
@@ -58,7 +59,7 @@ import Language.Haskell.TH
   )
 import Language.Haskell.TH.Lib
 import Language.Haskell.TH.PprLib (Doc, hcat, parens, text)
-import Language.Haskell.TH.Syntax (nameBase)
+import Language.Haskell.TH.Syntax (nameBase, Specificity (SpecifiedSpec))
 import Test.MockCat.Cons
 import Test.MockCat.Mock
 import Test.MockCat.MockT
@@ -66,7 +67,8 @@ import Test.MockCat.Verify
   ( ResolvedMock (..),
     resolveForVerification,
     shouldApplyToAnythingResolved,
-    verificationFailure
+    verificationFailure,
+    ResolvableParamsOf
   )
 import Test.MockCat.Param
 import Unsafe.Coerce (unsafeCoerce)
@@ -276,14 +278,123 @@ makeMockDecs ty mockType className monadVarName cxt typeVars decs options = do
 
   let typeInstDecs = map (createTypeInstanceDec monadVarName) typeFamilyHeads
       instanceBodyDecs = map (createInstanceFnDec mockType options) sigDecs ++ typeInstDecs
+  fullCxt <- createCxt cxt mockType className monadVarName newTypeVars varAppliedTypes
+  (superClassDecs, predsToDrop) <-
+    deriveSuperClassInstances
+      mockType
+      monadVarName
+      newTypeVars
+      varAppliedTypes
+      options
+      cxt
+  let filteredCxt = filter (\predTy -> predTy `notElem` predsToDrop) fullCxt
   instanceDec <-
     instanceD
-      (createCxt cxt mockType className monadVarName newTypeVars varAppliedTypes)
+      (pure filteredCxt)
       (createInstanceType ty monadVarName newTypeVars)
       instanceBodyDecs
-  mockFnDecs <- concat <$> mapM (createMockFnDec monadVarName varAppliedTypes options) sigDecs
+  mockFnDecs <- concat <$> mapM (createMockFnDec mockType monadVarName varAppliedTypes options) sigDecs
 
-  pure $ instanceDec : mockFnDecs
+  pure $ superClassDecs ++ (instanceDec : mockFnDecs)
+
+deriveSuperClassInstances ::
+  MockType ->
+  Name ->
+  [TyVarBndr a] ->
+  [VarAppliedType] ->
+  MockOptions ->
+  Cxt ->
+  Q ([Dec], [Pred])
+deriveSuperClassInstances mockType _ _ _ _ _
+  | mockType /= Total = pure ([], [])
+deriveSuperClassInstances _ monadVarName typeVars varAppliedTypes _ cxt = do
+  results <- mapM (deriveSuperClassInstance monadVarName typeVars varAppliedTypes) cxt
+  let valid = catMaybes results
+  pure (map fst valid, map snd valid)
+
+deriveSuperClassInstance ::
+  Name ->
+  [TyVarBndr a] ->
+  [VarAppliedType] ->
+  Pred ->
+  Q (Maybe (Dec, Pred))
+deriveSuperClassInstance _ _ varAppliedTypes pred =
+  case splitApps pred of
+    (ConT superName, args) -> do
+      info <- reify superName
+      case info of
+        ClassI (ClassD superCxt _ superTypeVars _ superDecs) _ -> do
+          let hasMethods = P.any isSignature superDecs
+          if hasMethods
+            then pure Nothing
+            else do
+              superMonadVars <- getMonadVarNames superCxt superTypeVars
+              case superMonadVars of
+                [superMonadVar] -> do
+                  let superVarNames = map getTypeVarName superTypeVars
+                  if length superVarNames /= length args
+                    then pure Nothing
+                    else do
+                      let substitutedArgs = map (applyVarAppliedTypes varAppliedTypes) args
+                          subMap = Map.fromList (zip superVarNames substitutedArgs)
+                          instanceArgs =
+                            [ if var == superMonadVar
+                                then AppT (ConT ''MockT) (applyVarAppliedTypes varAppliedTypes (lookupType subMap var))
+                                else applyVarAppliedTypes varAppliedTypes (lookupType subMap var)
+                            | var <- superVarNames
+                            ]
+                          instanceType = foldl AppT (ConT superName) instanceArgs
+                          contextPreds =
+                            map
+                              (applyVarAppliedTypes varAppliedTypes . substituteType subMap)
+                              superCxt
+                      instanceDec <- instanceD (pure contextPreds) (pure instanceType) []
+                      pure $ Just (instanceDec, instanceType)
+                _ -> pure Nothing
+        _ -> pure Nothing
+    _ -> pure Nothing
+  where
+    lookupType subMap key = Map.findWithDefault (VarT key) key subMap
+    isSignature (SigD _ _) = True
+    isSignature _ = False
+
+splitApps :: Type -> (Type, [Type])
+splitApps ty = go ty []
+  where
+    go (AppT t1 t2) acc = go t1 (t2 : acc)
+    go t acc = (t, acc)
+
+applyVarAppliedTypes :: [VarAppliedType] -> Type -> Type
+applyVarAppliedTypes varAppliedTypes = transform
+  where
+    mapping =
+      Map.fromList
+        [ (varName, className)
+        | VarAppliedType varName (Just className) <- varAppliedTypes
+        ]
+    transform (VarT name) =
+      case Map.lookup name mapping of
+        Just className -> ConT className
+        Nothing -> VarT name
+    transform (AppT t1 t2) = AppT (transform t1) (transform t2)
+    transform (SigT t k) = SigT (transform t) k
+    transform (ParensT t) = ParensT (transform t)
+    transform (InfixT t1 n t2) = InfixT (transform t1) n (transform t2)
+    transform (UInfixT t1 n t2) = UInfixT (transform t1) n (transform t2)
+    transform (ForallT tvs ctx t) = ForallT tvs (map transform ctx) (transform t)
+    transform t = t
+
+substituteType :: Map.Map Name Type -> Type -> Type
+substituteType subMap = go
+  where
+    go (VarT name) = Map.findWithDefault (VarT name) name subMap
+    go (AppT t1 t2) = AppT (go t1) (go t2)
+    go (SigT t k) = SigT (go t) k
+    go (ParensT t) = ParensT (go t)
+    go (InfixT t1 n t2) = InfixT (go t1) n (go t2)
+    go (UInfixT t1 n t2) = UInfixT (go t1) n (go t2)
+    go (ForallT tvs ctx t) = ForallT tvs (map go ctx) (go t)
+    go t = t
 
 getMonadVarNames :: Cxt -> [TyVarBndr a] -> Q [Name]
 getMonadVarNames cxt typeVars = do
@@ -484,8 +595,8 @@ generateStubFn :: [Q Exp] -> Q Exp -> Q Exp
 generateStubFn [] mock = mock
 generateStubFn args mock = foldl appE mock args
 
-createMockFnDec :: Name -> [VarAppliedType] -> MockOptions -> Dec -> Q [Dec]
-createMockFnDec monadVarName varAppliedTypes options (SigD sigFnName ty) = do
+createMockFnDec :: MockType -> Name -> [VarAppliedType] -> MockOptions -> Dec -> Q [Dec]
+createMockFnDec mockType monadVarName varAppliedTypes options (SigD sigFnName ty) = do
   let fnName = createFnName sigFnName options
       mockFnName = mkName fnName
       params = mkName "p"
@@ -495,10 +606,10 @@ createMockFnDec monadVarName varAppliedTypes options (SigD sigFnName ty) = do
         else updatedType
 
   fnDecs <- if isNotConstantFunctionType ty then
-    doCreateMockFnDecs fnName mockFnName params fnType monadVarName updatedType
+    doCreateMockFnDecs mockType fnName mockFnName params fnType monadVarName updatedType
   else
     if options.implicitMonadicReturn then
-      doCreateConstantMockFnDecs fnName mockFnName fnType monadVarName
+      doCreateConstantMockFnDecs mockType fnName mockFnName fnType monadVarName
     else
       doCreateEmptyVerifyParamMockFnDecs fnName mockFnName params fnType monadVarName updatedType
 
@@ -506,27 +617,40 @@ createMockFnDec monadVarName varAppliedTypes options (SigD sigFnName ty) = do
 
   pure $ pragmaDec : fnDecs
 
-createMockFnDec _ _ _ dec = fail $ "unsupport dec: " <> pprint dec
+createMockFnDec _ _ _ _ dec = fail $ "unsupport dec: " <> pprint dec
 
-doCreateMockFnDecs :: (Quote m) => String -> Name -> Name -> Type -> Name -> Type -> m [Dec]
-doCreateMockFnDecs funNameStr mockFunName params funType monadVarName updatedType = do
+doCreateMockFnDecs :: (Quote m) => MockType -> String -> Name -> Name -> Type -> Name -> Type -> m [Dec]
+doCreateMockFnDecs mockType funNameStr mockFunName params funType monadVarName updatedType = do
   newFunSig <- do
     let verifyParams = createMockBuilderVerifyParams updatedType
-        typeableTargets =
-          [ funType
-          , verifyParams
-          , AppT (ConT ''ResolvableParams) funType
-          ]
-        typeablePreds =
-          [ AppT (ConT ''Typeable) target
-          | target <- typeableTargets
-          , needsTypeable target
-          ]
-        ctx =
+        baseCtx =
           [ AppT (AppT (AppT (ConT ''MockBuilder) (VarT params)) funType) verifyParams
           , AppT (ConT ''MonadIO) (VarT monadVarName)
           ]
-            ++ typeablePreds
+        ctx = case mockType of
+          Partial ->
+            let typeableVarPreds =
+                  [ AppT (ConT ''Typeable) (VarT v)
+                  | v <- nub (collectTypeVars verifyParams ++ collectTypeVars funType)
+                  ]
+             in baseCtx
+                  ++ typeableVarPreds
+                  ++ [ AppT
+                          (AppT EqualityT (AppT (ConT ''ResolvableParamsOf) funType))
+                          verifyParams
+                     ]
+          Total ->
+            let typeableTargets =
+                  [ funType
+                  , verifyParams
+                  , AppT (ConT ''ResolvableParams) funType
+                  ]
+                typeablePreds =
+                  [ AppT (ConT ''Typeable) target
+                  | target <- typeableTargets
+                  , needsTypeable target
+                  ]
+             in baseCtx ++ typeablePreds
         resultType =
           AppT
             (AppT ArrowT (VarT params))
@@ -540,8 +664,37 @@ doCreateMockFnDecs funNameStr mockFunName params funType monadVarName updatedTyp
 
   pure $ newFunSig : [newFun]
 
-doCreateConstantMockFnDecs :: (Quote m) => String -> Name -> Type -> Name -> m [Dec]
-doCreateConstantMockFnDecs funNameStr mockFunName ty monadVarName = do
+doCreateConstantMockFnDecs :: (Quote m) => MockType -> String -> Name -> Type -> Name -> m [Dec]
+doCreateConstantMockFnDecs Partial funNameStr mockFunName _ monadVarName = do
+  stubVar <- newName "r"
+  let ctx =
+        [ AppT (ConT ''Typeable) (VarT stubVar)
+        , AppT
+            (AppT EqualityT (AppT (ConT ''ResolvableParamsOf) (VarT stubVar)))
+            (TupleT 0)
+        , AppT (ConT ''MonadIO) (VarT monadVarName)
+        ]
+      resultType =
+        AppT
+          (AppT ArrowT (VarT stubVar))
+          (AppT (AppT (ConT ''MockT) (VarT monadVarName)) (TupleT 0))
+  newFunSig <-
+    sigD
+      mockFunName
+      ( pure
+          (ForallT
+              [ PlainTV stubVar SpecifiedSpec
+              , PlainTV monadVarName SpecifiedSpec
+              ]
+              ctx
+              resultType
+          )
+      )
+  createMockFn <- [|createNamedConstantStubFn|]
+  mockBody <- createMockBody funNameStr createMockFn
+  newFun <- funD mockFunName [clause [varP $ mkName "p"] (normalB (pure mockBody)) []]
+  pure $ newFunSig : [newFun]
+doCreateConstantMockFnDecs Total funNameStr mockFunName ty monadVarName = do
   let typeableTargets =
         [ ty
         , AppT (ConT ''ResolvableParams) ty
@@ -687,6 +840,17 @@ needsTypeable = go
     go ConstraintT = False
     go StarT = False
     go _ = False
+
+collectTypeVars :: Type -> [Name]
+collectTypeVars (VarT name) = [name]
+collectTypeVars (AppT t1 t2) = collectTypeVars t1 ++ collectTypeVars t2
+collectTypeVars (SigT t _) = collectTypeVars t
+collectTypeVars (ParensT t) = collectTypeVars t
+collectTypeVars (InfixT t1 _ t2) = collectTypeVars t1 ++ collectTypeVars t2
+collectTypeVars (UInfixT t1 _ t2) = collectTypeVars t1 ++ collectTypeVars t2
+collectTypeVars (ForallT _ _ t) = collectTypeVars t
+collectTypeVars (ImplicitParamT _ t) = collectTypeVars t
+collectTypeVars _ = []
 
 findParam :: (KnownSymbol sym) => Proxy sym -> [Definition] -> Maybe a
 findParam pa definitions = do
