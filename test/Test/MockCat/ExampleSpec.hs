@@ -6,6 +6,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# OPTIONS_GHC -Wno-simplifiable-class-constraints #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 module Test.MockCat.ExampleSpec (spec) where
 
