@@ -601,9 +601,10 @@ createMockFnDec mockType monadVarName varAppliedTypes options (SigD sigFnName ty
       mockFnName = mkName fnName
       params = mkName "p"
       updatedType = updateType ty varAppliedTypes
-      fnType = if options.implicitMonadicReturn
-        then createMockBuilderFnType monadVarName updatedType
-        else updatedType
+      fnType =
+        if options.implicitMonadicReturn
+          then createMockBuilderFnType monadVarName updatedType
+          else updatedType
 
   fnDecs <- if isNotConstantFunctionType ty then
     doCreateMockFnDecs mockType fnName mockFnName params fnType monadVarName updatedType
@@ -633,12 +634,13 @@ doCreateMockFnDecs mockType funNameStr mockFunName params funType monadVarName u
                   [ AppT (ConT ''Typeable) (VarT v)
                   | v <- nub (collectTypeVars verifyParams ++ collectTypeVars funType)
                   ]
-             in baseCtx
-                  ++ typeableVarPreds
-                  ++ [ AppT
-                          (AppT EqualityT (AppT (ConT ''ResolvableParamsOf) funType))
-                          verifyParams
-                     ]
+                eqConstraint =
+                  AppT
+                    (AppT EqualityT (AppT (ConT ''ResolvableParamsOf) funType))
+                    verifyParams
+                eqConstraints =
+                  [eqConstraint | not (null (collectTypeVars funType))]
+             in baseCtx ++ typeableVarPreds ++ eqConstraints
           Total ->
             let typeableTargets =
                   [ funType

@@ -97,6 +97,24 @@ generatedFinderSigPairs =
 generatedFinderSigMap :: Map.Map String String
 generatedFinderSigMap = Map.fromList generatedFinderSigPairs
 
+generatedUserInputSigPairs :: [(String, String)]
+generatedUserInputSigPairs =
+  $(
+    do
+      decs <- makePartialMock [t|UserInputGetter|]
+      let sigPairs =
+            [ (nameBase name, pprint ty)
+            | SigD name ty <- decs
+            ]
+      listE
+        [ tupE [litE (stringL fn), litE (stringL sig)]
+        | (fn, sig) <- sigPairs
+        ]
+  )
+
+generatedUserInputSigMap :: Map.Map String String
+generatedUserInputSigMap = Map.fromList generatedUserInputSigPairs
+
 generatedFileOpStr :: String
 generatedFileOpStr = $(do decs <- makePartialMock [t|FileOperation|]; litE (stringL (concatMap pprint decs)))
 
@@ -273,10 +291,18 @@ spec = describe "TH generated vs handwritten instances" do
       assertInstancesEquivalent manualPath className generatedStr
 
   describe "Partial mock helper signatures match handwritten" do
-    let helperFns = ["_findIds"]
-    forM_ helperFns \fn ->
-      it (fn ++ " signature matches handwritten") $
-        assertHelperSigMatches partialMockSpecPath generatedFinderSigMap fn
+    it "_findIds signature matches handwritten" $
+      assertHelperSigMatches partialMockSpecPath generatedFinderSigMap "_findIds"
+
+    it "_toUserInput signature omits redundant ResolvableParamsOf constraint" do
+      let genSig =
+            Map.lookup "_toUserInput" generatedUserInputSigMap
+      case genSig of
+        Nothing ->
+          expectationFailure "TH生成シグネチャが見つかりません: _toUserInput"
+        Just sig ->
+          normalizeSignature sig
+            `shouldSatisfy` not . T.isInfixOf (T.pack "ResolvableParamsOf") . T.pack
 
 -- helper to extract generated instance headers from a pre-pprinted string
 extractGeneratedInstanceCxtsFromStr :: String -> String -> [String]
