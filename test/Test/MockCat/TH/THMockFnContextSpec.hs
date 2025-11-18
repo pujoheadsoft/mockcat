@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Test.MockCat.THMockFnContextSpec (spec) where
+module Test.MockCat.TH.THMockFnContextSpec (spec) where
 
 import qualified Data.Text as T
 import Language.Haskell.TH

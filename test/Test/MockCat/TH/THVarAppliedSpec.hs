@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Test.MockCat.THVarAppliedSpec (spec) where
+module Test.MockCat.TH.THVarAppliedSpec (spec) where
 
 import Language.Haskell.TH
 import Test.Hspec

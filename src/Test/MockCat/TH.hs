@@ -31,7 +31,6 @@ import Data.Function ((&))
 import Data.List (elemIndex, find, nub)
 import Data.Maybe (catMaybes, fromMaybe)
 import qualified Data.Map.Strict as Map
-import Data.Text (pack, splitOn, unpack)
 import GHC.TypeLits (KnownSymbol, symbolVal)
 import Language.Haskell.TH
   ( Cxt,
@@ -66,9 +65,33 @@ import Test.MockCat.TH.MockBuilder
   ( createMockBuilderFnType,
     createMockBuilderVerifyParams
   )
+import Test.MockCat.TH.ClassInfo
+  ( ClassName2VarNames (..),
+    VarName2ClassNames (..),
+    filterClassInfo,
+    filterMonadicVarInfos,
+    getClassName,
+    getClassNames,
+    toClassInfos
+  )
+import Test.MockCat.TH.Context
+  ( MockType (..),
+    buildContext,
+    getTypeVarName,
+    getTypeVarNames
+  )
+import Test.MockCat.TH.FunctionType (isNotConstantFunctionType)
+import Test.MockCat.TH.MonadVar
+  ( applyFamilyArg,
+    tyVarBndrToType
+  )
 import Test.MockCat.TH.MockFnContext
   ( needsTypeable,
     partialAdditionalPredicates
+  )
+import Test.MockCat.TH.TypeUtils
+  ( splitApps,
+    substituteType
   )
 import Test.MockCat.TH.VarApplied
   ( VarAppliedType (..),
@@ -135,8 +158,6 @@ expectByExpr :: Q Exp -> Q Exp
 expectByExpr qf = do
   str <- showExp qf
   [|ExpectCondition $qf str|]
-
-data MockType = Total | Partial deriving (Eq)
 
 -- | Options for generating mocks.
 --
@@ -290,7 +311,7 @@ makeMockDecs ty mockType className monadVarName cxt typeVars decs options = do
 
   let typeInstDecs = map (createTypeInstanceDec monadVarName) typeFamilyHeads
       instanceBodyDecs = map (createInstanceFnDec mockType options) sigDecs ++ typeInstDecs
-  fullCxt <- createCxt cxt mockType className monadVarName newTypeVars varAppliedTypes
+      fullCxt = buildContext cxt mockType className monadVarName newTypeVars varAppliedTypes
   (superClassDecs, predsToDrop) <-
     deriveSuperClassInstances
       mockType
@@ -370,24 +391,6 @@ deriveSuperClassInstance _ _ varAppliedTypes pred =
     isSignature (SigD _ _) = True
     isSignature _ = False
 
-splitApps :: Type -> (Type, [Type])
-splitApps ty = go ty []
-  where
-    go (AppT t1 t2) acc = go t1 (t2 : acc)
-    go t acc = (t, acc)
-
-substituteType :: Map.Map Name Type -> Type -> Type
-substituteType subMap = go
-  where
-    go (VarT name) = Map.findWithDefault (VarT name) name subMap
-    go (AppT t1 t2) = AppT (go t1) (go t2)
-    go (SigT t k) = SigT (go t) k
-    go (ParensT t) = ParensT (go t)
-    go (InfixT t1 n t2) = InfixT (go t1) n (go t2)
-    go (UInfixT t1 n t2) = UInfixT (go t1) n (go t2)
-    go (ForallT tvs ctx t) = ForallT tvs (map go ctx) (go t)
-    go t = t
-
 getMonadVarNames :: Cxt -> [TyVarBndr a] -> Q [Name]
 getMonadVarNames cxt typeVars = do
   let parentClassInfos = toClassInfos cxt
@@ -399,28 +402,6 @@ getMonadVarNames cxt typeVars = do
   varInfos <- collectVarInfos parentClassInfos emptyClassVarInfos
 
   pure $ (\(VarName2ClassNames n _) -> n) <$> filterMonadicVarInfos varInfos
-
-getTypeVarNames :: [TyVarBndr a] -> [Name]
-getTypeVarNames = map getTypeVarName
-
-getTypeVarName :: TyVarBndr a -> Name
-getTypeVarName (PlainTV name _) = name
-getTypeVarName (KindedTV name _ _) = name
-
-toClassInfos :: Cxt -> [ClassName2VarNames]
-toClassInfos = map toClassInfo
-
-toClassInfo :: Pred -> ClassName2VarNames
-toClassInfo (AppT t1 t2) = do
-  let (ClassName2VarNames name vars) = toClassInfo t1
-  ClassName2VarNames name (vars ++ getTypeNames t2)
-toClassInfo (ConT name) = ClassName2VarNames name []
-toClassInfo _ = error "Unsupported Type structure"
-
-getTypeNames :: Pred -> [Name]
-getTypeNames (VarT name) = [name]
-getTypeNames (ConT name) = [name]
-getTypeNames _ = []
 
 collectVarInfos :: [ClassName2VarNames] -> [VarName2ClassNames] -> Q [VarName2ClassNames]
 collectVarInfos classInfos = mapM (collectVarInfo classInfos)
@@ -454,87 +435,18 @@ collectVarClassNames_ name (ClassName2VarNames cName vNames) = do
           result <- concat <$> mapM (collectVarClassNames_ typeVarName) parentClassInfos
           pure $ cName : result
 
-filterClassInfo :: Name -> [ClassName2VarNames] -> [ClassName2VarNames]
-filterClassInfo name = filter (hasVarName name)
-  where
-    hasVarName :: Name -> ClassName2VarNames -> Bool
-    hasVarName name (ClassName2VarNames _ varNames) = name `elem` varNames
-
-filterMonadicVarInfos :: [VarName2ClassNames] -> [VarName2ClassNames]
-filterMonadicVarInfos = filter hasMonadInVarInfo
-
-hasMonadInVarInfo :: VarName2ClassNames -> Bool
-hasMonadInVarInfo (VarName2ClassNames _ classNames) = ''Monad `elem` classNames
-
-createCxt :: [Pred] -> MockType -> Name -> Name -> [TyVarBndr a] -> [VarAppliedType] -> Q [Pred]
-createCxt cxt mockType className monadVarName tyVars varAppliedTypes = do
-  newCxtRaw <- mapM (createPred monadVarName) cxt
-
-  let isRedundantMonad (AppT (ConT m) (VarT v)) = m == ''Monad && v == monadVarName
-      isRedundantMonad _ = False
-      newCxt = filter (not . isRedundantMonad) newCxtRaw
-
-  monadIOAppT <- appT (conT ''MonadIO) (varT monadVarName)
-
-  let classInfos = toClassInfos newCxt
-      hasMonadIO = P.any (\(ClassName2VarNames c _) -> c == ''MonadIO) classInfos
-      addedMonads = [monadIOAppT | not hasMonadIO]
-
-  pure $ case mockType of
-    Total -> newCxt ++ addedMonads
-    Partial -> do
-      let classAppT = constructClassAppT className $ toVarTs tyVars
-          varAppliedClassAppT = updateType classAppT varAppliedTypes
-      newCxt ++ addedMonads ++ [varAppliedClassAppT]
-
-toVarTs :: [TyVarBndr a] -> [Type]
-toVarTs tyVars = VarT <$> getTypeVarNames tyVars
-
-constructClassAppT :: Name -> [Type] -> Type
-constructClassAppT className = foldl AppT (ConT className)
-
-createPred :: Name -> Pred -> Q Pred
-createPred monadVarName a@(AppT t@(ConT ty) b@(VarT varName))
-  | monadVarName == varName && ty == ''Monad = pure a
-  | monadVarName == varName && ty /= ''Monad = appT (pure t) (appT (conT ''MockT) (varT varName))
-  | otherwise = appT (createPred monadVarName t) (pure b)
-createPred monadVarName (AppT ty a@(VarT varName))
-  | monadVarName == varName = appT (pure ty) (appT (conT ''MockT) (varT varName))
-  | otherwise = appT (createPred monadVarName ty) (pure a)
-createPred monadVarName (AppT ty1 ty2) = appT (createPred monadVarName ty1) (createPred monadVarName ty2)
-createPred _ ty = pure ty
-
 createInstanceType :: Type -> Name -> [TyVarBndr a] -> Q Type
 createInstanceType className monadName tvbs = do
-  types <- mapM (tyVarBndrToType monadName) tvbs
+  let types = fmap (tyVarBndrToType monadName) tvbs
   pure $ foldl AppT className types
 
 createTypeInstanceDec :: Name -> TypeFamilyHead -> Q Dec
 createTypeInstanceDec monadVarName (TypeFamilyHead familyName tfVars _ _) = do
   let lhsArgs = map (applyFamilyArg monadVarName) tfVars
-      rhsArgs = map (VarT . getTFVarName) tfVars
+      rhsArgs = map (VarT . getTypeVarName) tfVars
       lhsType = foldl AppT (ConT familyName) lhsArgs
       rhsType = foldl AppT (ConT familyName) rhsArgs
   pure $ TySynInstD (TySynEqn Nothing lhsType rhsType)
-
-applyFamilyArg :: Name -> TyVarBndr a -> Type
-applyFamilyArg monadVarName bndr =
-  let varName = getTFVarName bndr
-   in if varName == monadVarName
-        then AppT (ConT ''MockT) (VarT monadVarName)
-        else VarT varName
-
-getTFVarName :: TyVarBndr a -> Name
-getTFVarName (PlainTV name _) = name
-getTFVarName (KindedTV name _ _) = name
-
-tyVarBndrToType :: Name -> TyVarBndr a -> Q Type
-tyVarBndrToType monadName (PlainTV name _)
-  | monadName == name = appT (conT ''MockT) (varT monadName)
-  | otherwise = varT name
-tyVarBndrToType monadName (KindedTV name _ _)
-  | monadName == name = appT (conT ''MockT) (varT monadName)
-  | otherwise = varT name
 
 createInstanceFnDec :: MockType -> MockOptions -> Dec -> Q Dec
 createInstanceFnDec mockType options (SigD fnName funType) = do
@@ -752,13 +664,6 @@ createMockBody funNameStr createMockFn =
         )
     |]
 
-isNotConstantFunctionType :: Type -> Bool
-isNotConstantFunctionType (AppT (AppT ArrowT _) _) = True
-isNotConstantFunctionType (AppT t1 t2) = isNotConstantFunctionType t1 || isNotConstantFunctionType t2
-isNotConstantFunctionType (TupleT _) = False
-isNotConstantFunctionType (ForallT _ _ t) = isNotConstantFunctionType t
-isNotConstantFunctionType _ = False
-
 createFnName :: Name -> MockOptions -> String
 createFnName funName options = do
   options.prefix <> nameBase funName <> options.suffix
@@ -772,39 +677,6 @@ typeToNames :: Type -> [Q Name]
 typeToNames (AppT (AppT ArrowT _) t2) = newName "a" : typeToNames t2
 typeToNames (ForallT _ _ ty) = typeToNames ty
 typeToNames _ = []
-
-getClassName :: Type -> Name
-getClassName (ConT name) = name
-getClassName (AppT ty _) = getClassName ty
-getClassName d = error $ "unsupported class definition: " <> show d
-
-getClassNames :: Type -> [Name]
-getClassNames (AppT (ConT name1) (ConT name2)) = [name1, name2]
-getClassNames (AppT ty (ConT name)) = getClassNames ty ++ [name]
-getClassNames (AppT ty1 ty2) = getClassNames ty1 ++ getClassNames ty2
-getClassNames _ = []
-
-data ClassName2VarNames = ClassName2VarNames Name [Name]
-
-instance Show ClassName2VarNames where
-  show (ClassName2VarNames cName varNames) = showClassDef cName varNames
-
-data VarName2ClassNames = VarName2ClassNames Name [Name]
-
-instance Show VarName2ClassNames where
-  show (VarName2ClassNames varName classNames) = show varName <> " class is " <> unwords (showClassName <$> classNames)
-
-showClassName :: Name -> String
-showClassName n = splitLast "." $ show n
-
-showClassDef :: Name -> [Name] -> String
-showClassDef className varNames = showClassName className <> " " <> unwords (show <$> varNames)
-
-splitLast :: String -> String -> String
-splitLast delimiter = last . split delimiter
-
-split :: String -> String -> [String]
-split delimiter str = unpack <$> splitOn (pack delimiter) (pack str)
 
 safeIndex :: [a] -> Int -> Maybe a
 safeIndex [] _ = Nothing

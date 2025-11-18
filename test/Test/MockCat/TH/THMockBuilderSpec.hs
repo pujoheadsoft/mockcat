@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Test.MockCat.THMockBuilderSpec (spec) where
+module Test.MockCat.TH.THMockBuilderSpec (spec) where
 
 import Language.Haskell.TH
 import Test.Hspec
