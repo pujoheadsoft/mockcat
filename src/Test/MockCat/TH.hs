@@ -109,6 +109,7 @@ import Test.MockCat.Verify
 import Test.MockCat.Param
 import Unsafe.Coerce (unsafeCoerce)
 import Prelude as P
+ 
 
 showExp :: Q Exp -> Q String
 showExp qexp = show . pprintExp <$> qexp
@@ -313,7 +314,7 @@ loadClassMetadata className = do
         ClassMetadata
           { cmName = className,
             cmContext = cxt,
-            cmTypeVars = typeVars,
+            cmTypeVars = unsafeCoerce typeVars,
             cmDecs = decs
           }
     other -> error $ "unsupported type: " <> show other
@@ -391,7 +392,7 @@ deriveSuperClassInstance _ _ varAppliedTypes pred = do
           pure $
             case info of
               ClassI (ClassD superCxt _ superTypeVars _ superDecs) _ ->
-                Just $ SuperClassInfo superName args superCxt superTypeVars superDecs
+                Just $ SuperClassInfo superName args superCxt (unsafeCoerce superTypeVars) superDecs
               _ -> Nothing
         _ -> pure Nothing
 
