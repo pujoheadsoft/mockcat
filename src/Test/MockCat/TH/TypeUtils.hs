@@ -1,5 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
-
+{-# LANGUAGE GADTs #-}
 module Test.MockCat.TH.TypeUtils
   ( splitApps,
     substituteType

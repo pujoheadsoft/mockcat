@@ -1,4 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE GADTs #-}
 
 module Test.MockCat.TH.VarApplied
   ( VarAppliedType (..),
