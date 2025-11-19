@@ -9,6 +9,7 @@
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 {-# OPTIONS_GHC -Wno-unused-local-binds #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE NamedFieldPuns #-}
 
 module Test.MockCat.TH
   ( showExp,
@@ -279,25 +280,52 @@ makePartialMockWithOptions :: Q Type -> MockOptions -> Q [Dec]
 makePartialMockWithOptions = flip doMakeMock Partial
 
 doMakeMock :: Q Type -> MockType -> MockOptions -> Q [Dec]
-doMakeMock t mockType options = do
-  verifyExtension DataKinds
-  verifyExtension FlexibleInstances
-  verifyExtension FlexibleContexts
+doMakeMock qType mockType options = do
+  verifyRequiredExtensions
+  ty <- qType
+  let className = getClassName ty
+  classMetadata <- loadClassMetadata className
+  monadVarName <- selectMonadVarName classMetadata
+  makeMockDecs
+    ty
+    mockType
+    className
+    monadVarName
+    (cmContext classMetadata)
+    (cmTypeVars classMetadata)
+    (cmDecs classMetadata)
+    options
 
-  ty <- t
-  className <- getClassName <$> t
+verifyRequiredExtensions :: Q ()
+verifyRequiredExtensions =
+  mapM_
+    verifyExtension
+    [DataKinds, FlexibleInstances, FlexibleContexts]
 
-  reify className >>= \case
+loadClassMetadata :: Name -> Q ClassMetadata
+loadClassMetadata className = do
+  info <- reify className
+  case info of
     ClassI (ClassD _ _ [] _ _) _ ->
       fail $ "A type parameter is required for class " <> show className
-    ClassI (ClassD cxt _ typeVars _ decs) _ -> do
-      monadVarNames <- getMonadVarNames cxt typeVars
-      case nub monadVarNames of
-        [] -> fail "Monad parameter not found."
-        (monadVarName : rest)
-          | length rest > 1 -> fail "Monad parameter must be unique."
-          | otherwise -> makeMockDecs ty mockType className monadVarName cxt typeVars decs options
-    t -> error $ "unsupported type: " <> show t
+    ClassI (ClassD cxt _ typeVars _ decs) _ ->
+      pure $
+        ClassMetadata
+          { cmName = className,
+            cmContext = cxt,
+            cmTypeVars = typeVars,
+            cmDecs = decs
+          }
+    other -> error $ "unsupported type: " <> show other
+
+selectMonadVarName :: ClassMetadata -> Q Name
+selectMonadVarName metadata = do
+  monadVarNames <- getMonadVarNames (cmContext metadata) (cmTypeVars metadata)
+  case nub monadVarNames of
+    [] -> fail "Monad parameter not found."
+    (monadVarName : rest)
+      | length rest > 1 -> fail "Monad parameter must be unique."
+      | otherwise -> pure monadVarName
 
 makeMockDecs :: Type -> MockType -> Name -> Name -> Cxt -> [TyVarBndr a] -> [Dec] -> MockOptions -> Q [Dec]
 makeMockDecs ty mockType className monadVarName cxt typeVars decs options = do
@@ -351,45 +379,105 @@ deriveSuperClassInstance ::
   [VarAppliedType] ->
   Pred ->
   Q (Maybe (Dec, Pred))
-deriveSuperClassInstance _ _ varAppliedTypes pred =
-  case splitApps pred of
-    (ConT superName, args) -> do
-      info <- reify superName
-      case info of
-        ClassI (ClassD superCxt _ superTypeVars _ superDecs) _ -> do
-          let hasMethods = P.any isSignature superDecs
-          if hasMethods
-            then pure Nothing
-            else do
-              superMonadVars <- getMonadVarNames superCxt superTypeVars
-              case superMonadVars of
-                [superMonadVar] -> do
-                  let superVarNames = map getTypeVarName superTypeVars
-                  if length superVarNames /= length args
-                    then pure Nothing
-                    else do
-                      let substitutedArgs = map (applyVarAppliedTypes varAppliedTypes) args
-                          subMap = Map.fromList (zip superVarNames substitutedArgs)
-                          instanceArgs =
-                            [ if var == superMonadVar
-                                then AppT (ConT ''MockT) (applyVarAppliedTypes varAppliedTypes (lookupType subMap var))
-                                else applyVarAppliedTypes varAppliedTypes (lookupType subMap var)
-                            | var <- superVarNames
-                            ]
-                          instanceType = foldl AppT (ConT superName) instanceArgs
-                          contextPreds =
-                            map
-                              (applyVarAppliedTypes varAppliedTypes . substituteType subMap)
-                              superCxt
-                      instanceDec <- instanceD (pure contextPreds) (pure instanceType) []
-                      pure $ Just (instanceDec, instanceType)
-                _ -> pure Nothing
-        _ -> pure Nothing
-    _ -> pure Nothing
+deriveSuperClassInstance _ _ varAppliedTypes pred = do
+  superInfo <- resolveSuperClassInfo pred
+  maybe (pure Nothing) (buildSuperClassDerivation varAppliedTypes) superInfo
   where
+    resolveSuperClassInfo :: Pred -> Q (Maybe SuperClassInfo)
+    resolveSuperClassInfo target =
+      case splitApps target of
+        (ConT superName, args) -> do
+          info <- reify superName
+          pure $
+            case info of
+              ClassI (ClassD superCxt _ superTypeVars _ superDecs) _ ->
+                Just $ SuperClassInfo superName args superCxt superTypeVars superDecs
+              _ -> Nothing
+        _ -> pure Nothing
+
+    buildSuperClassDerivation ::
+      [VarAppliedType] ->
+      SuperClassInfo ->
+      Q (Maybe (Dec, Pred))
+    buildSuperClassDerivation appliedTypes info
+      | superClassHasMethods info = pure Nothing
+      | otherwise = do
+          superMonadVars <- getMonadVarNames (scContext info) (scTypeVars info)
+          case superMonadVars of
+            [superMonadVar] -> buildMockInstance appliedTypes info superMonadVar
+            _ -> pure Nothing
+
+    buildMockInstance ::
+      [VarAppliedType] ->
+      SuperClassInfo ->
+      Name ->
+      Q (Maybe (Dec, Pred))
+    buildMockInstance appliedTypes info superMonadVar = do
+      let superVarNames = map getTypeVarName (scTypeVars info)
+      if length superVarNames /= length (scArgs info)
+        then pure Nothing
+        else do
+          let (contextPreds, instanceType) =
+                buildInstancePieces appliedTypes info superMonadVar superVarNames
+          instanceDec <- instanceD (pure contextPreds) (pure instanceType) []
+          pure $ Just (instanceDec, instanceType)
+
+    buildInstancePieces ::
+      [VarAppliedType] ->
+      SuperClassInfo ->
+      Name ->
+      [Name] ->
+      ([Pred], Pred)
+    buildInstancePieces appliedTypes info superMonadVar superVarNames =
+      let substitutedArgs = map (applyVarAppliedTypes appliedTypes) (scArgs info)
+          subMap = Map.fromList (zip superVarNames substitutedArgs)
+          instanceArgs =
+            map
+              (buildInstanceArg appliedTypes superMonadVar subMap)
+              superVarNames
+          instanceType = foldl AppT (ConT (scName info)) instanceArgs
+          contextPreds =
+            map
+              (applyVarAppliedTypes appliedTypes . substituteType subMap)
+              (scContext info)
+       in (contextPreds, instanceType)
+
+    buildInstanceArg ::
+      [VarAppliedType] ->
+      Name ->
+      Map.Map Name Type ->
+      Name ->
+      Type
+    buildInstanceArg appliedTypes superMonadVar subMap var =
+      let applied = applyVarAppliedTypes appliedTypes (lookupType subMap var)
+       in if var == superMonadVar
+            then AppT (ConT ''MockT) applied
+            else applied
+
+    lookupType :: Map.Map Name Type -> Name -> Type
     lookupType subMap key = Map.findWithDefault (VarT key) key subMap
+
+    superClassHasMethods :: SuperClassInfo -> Bool
+    superClassHasMethods = P.any isSignature . scDecs
+
     isSignature (SigD _ _) = True
     isSignature _ = False
+
+
+data SuperClassInfo = SuperClassInfo
+  { scName :: Name,
+    scArgs :: [Type],
+    scContext :: Cxt,
+    scTypeVars :: [TyVarBndr ()],
+    scDecs :: [Dec]
+  }
+
+data ClassMetadata = ClassMetadata
+  { cmName :: Name,
+    cmContext :: Cxt,
+    cmTypeVars :: [TyVarBndr ()],
+    cmDecs :: [Dec]
+  }
 
 getMonadVarNames :: Cxt -> [TyVarBndr a] -> Q [Name]
 getMonadVarNames cxt typeVars = do
@@ -501,28 +589,76 @@ generateStubFn args mock = foldl appE mock args
 
 createMockFnDec :: MockType -> Name -> [VarAppliedType] -> MockOptions -> Dec -> Q [Dec]
 createMockFnDec mockType monadVarName varAppliedTypes options (SigD sigFnName ty) = do
-  let fnName = createFnName sigFnName options
-      mockFnName = mkName fnName
+  let ctx = buildMockFnContext mockType monadVarName varAppliedTypes options sigFnName ty
+  fnDecs <- buildMockFnDeclarations ctx
+  pragmaDec <- createNoInlinePragma (mockFnName ctx)
+  pure $ pragmaDec : fnDecs
+createMockFnDec _ _ _ _ dec = fail $ "unsupport dec: " <> pprint dec
+
+data MockFnContext = MockFnContext
+  { mockType :: MockType,
+    monadVarName :: Name,
+    mockOptions :: MockOptions,
+    originalType :: Type,
+    fnNameStr :: String,
+    mockFnName :: Name,
+    paramsName :: Name,
+    updatedType :: Type,
+    fnType :: Type
+  }
+
+data MockFnBuilder
+  = VariadicBuilder
+  | ConstantImplicitBuilder
+  | ConstantExplicitBuilder
+
+buildMockFnContext ::
+  MockType ->
+  Name ->
+  [VarAppliedType] ->
+  MockOptions ->
+  Name ->
+  Type ->
+  MockFnContext
+buildMockFnContext mockType monadVarName varAppliedTypes mockOptions sigFnName ty =
+  let fnNameStr = createFnName sigFnName mockOptions
+      mockFnName = mkName fnNameStr
       params = mkName "p"
       updatedType = updateType ty varAppliedTypes
       fnType =
-        if options.implicitMonadicReturn
+        if mockOptions.implicitMonadicReturn
           then createMockBuilderFnType monadVarName updatedType
           else updatedType
+   in MockFnContext
+        { mockType,
+          monadVarName,
+          mockOptions,
+          originalType = ty,
+          fnNameStr,
+          mockFnName,
+          paramsName = params,
+          updatedType,
+          fnType
+        }
 
-  fnDecs <- if isNotConstantFunctionType ty then
-    doCreateMockFnDecs mockType fnName mockFnName params fnType monadVarName updatedType
-  else
-    if options.implicitMonadicReturn then
-      doCreateConstantMockFnDecs mockType fnName mockFnName fnType monadVarName
-    else
-      doCreateEmptyVerifyParamMockFnDecs fnName mockFnName params fnType monadVarName updatedType
+buildMockFnDeclarations :: MockFnContext -> Q [Dec]
+buildMockFnDeclarations ctx@MockFnContext{mockType, fnNameStr, mockFnName, paramsName, fnType, monadVarName, updatedType} =
+  case determineMockFnBuilder ctx of
+    VariadicBuilder ->
+      doCreateMockFnDecs mockType fnNameStr mockFnName paramsName fnType monadVarName updatedType
+    ConstantImplicitBuilder ->
+      doCreateConstantMockFnDecs mockType fnNameStr mockFnName fnType monadVarName
+    ConstantExplicitBuilder ->
+      doCreateEmptyVerifyParamMockFnDecs fnNameStr mockFnName paramsName fnType monadVarName updatedType
 
-  pragmaDec <- pragInlD mockFnName NoInline FunLike AllPhases
+determineMockFnBuilder :: MockFnContext -> MockFnBuilder
+determineMockFnBuilder ctx
+  | isNotConstantFunctionType (originalType ctx) = VariadicBuilder
+  | (mockOptions ctx).implicitMonadicReturn = ConstantImplicitBuilder
+  | otherwise = ConstantExplicitBuilder
 
-  pure $ pragmaDec : fnDecs
-
-createMockFnDec _ _ _ _ dec = fail $ "unsupport dec: " <> pprint dec
+createNoInlinePragma :: Name -> Q Dec
+createNoInlinePragma name = pragInlD name NoInline FunLike AllPhases
 
 doCreateMockFnDecs :: (Quote m) => MockType -> String -> Name -> Name -> Type -> Name -> Type -> m [Dec]
 doCreateMockFnDecs mockType funNameStr mockFunName params funType monadVarName updatedType = do
