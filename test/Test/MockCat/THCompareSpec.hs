@@ -3,6 +3,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE TypeFamilies #-}
 
 module Test.MockCat.THCompareSpec (spec) where
 
@@ -40,6 +41,7 @@ stripQualifiers =
       , "Control.Monad.IO.Class."
       , "GHC.Types."
       , "Data.Typeable.Internal."
+      , "GHC.Internal."
       , "Test.MockCat.Verify."
       , "Verify."
       ])

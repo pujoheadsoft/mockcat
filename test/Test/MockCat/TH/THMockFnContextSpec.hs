@@ -49,5 +49,6 @@ normalize = fmap cleanup . fmap pprint
       T.unpack
         . T.replace (T.pack "\n") (T.pack " ")
         . T.replace (T.pack "Data.Typeable.Internal.") (T.pack "")
+        . T.replace (T.pack "GHC.Internal.") (T.pack "")
         . T.pack
 

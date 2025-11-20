@@ -9,6 +9,7 @@
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 {-# OPTIONS_GHC -Wno-unused-local-binds #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE NamedFieldPuns #-}
 
 module Test.MockCat.TH
@@ -301,7 +302,7 @@ verifyRequiredExtensions :: Q ()
 verifyRequiredExtensions =
   mapM_
     verifyExtension
-    [DataKinds, FlexibleInstances, FlexibleContexts]
+    [DataKinds, FlexibleInstances, FlexibleContexts, TypeFamilies]
 
 loadClassMetadata :: Name -> Q ClassMetadata
 loadClassMetadata className = do
