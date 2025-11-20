@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Test.MockCat.TH.THTypeUtilsSpec (spec) where
+module Test.MockCat.TH.TypeUtilsSpec (spec) where
 
 import qualified Data.Map.Strict as Map
 import Language.Haskell.TH
@@ -66,4 +66,19 @@ spec = do
       let a = mkName "a"
           ty = VarT a
       substituteType Map.empty ty `shouldBe` VarT a
+
+  describe "isNotConstantFunctionType" $ do
+    it "矢印を含む型は True" $ do
+      let ty = AppT (AppT ArrowT (ConT ''Int)) (ConT ''Bool)
+      isNotConstantFunctionType ty `shouldBe` True
+
+    it "タプルは False" $ do
+      isNotConstantFunctionType (TupleT 0) `shouldBe` False
+
+    it "forall で包まれていても判定できる" $ do
+      let a = mkName "a"
+          body = AppT (AppT ArrowT (VarT a)) (ConT ''Int)
+          ty = ForallT [PlainTV a SpecifiedSpec] [] body
+      isNotConstantFunctionType ty `shouldBe` True
+
 

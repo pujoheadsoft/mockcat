@@ -25,15 +25,14 @@ module Test.MockCat.TH
 where
 
 import Control.Monad (unless)
-import Control.Monad.IO.Class (MonadIO, liftIO)
+import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.Trans.Class (lift)
 import Data.Data (Proxy (..))
-import Data.Typeable (Typeable)
 import Data.Function ((&))
-import Data.List (elemIndex, find, nub)
+import Data.List (elemIndex, nub)
 import Data.Maybe (catMaybes, fromMaybe)
 import qualified Data.Map.Strict as Map
-import GHC.TypeLits (KnownSymbol, symbolVal)
+ 
 import Language.Haskell.TH
   ( Cxt,
     Dec (..),
@@ -63,11 +62,7 @@ import Language.Haskell.TH.PprLib (Doc, hcat, parens, text)
 import Language.Haskell.TH.Syntax (nameBase, Specificity (SpecifiedSpec))
 import Test.MockCat.Mock
 import Test.MockCat.MockT
-import Test.MockCat.TH.MockBuilder
-  ( createMockBuilderFnType,
-    createMockBuilderVerifyParams
-  )
-import Test.MockCat.TH.ClassInfo
+import Test.MockCat.TH.ClassAnalysis
   ( ClassName2VarNames (..),
     VarName2ClassNames (..),
     filterClassInfo,
@@ -76,30 +71,44 @@ import Test.MockCat.TH.ClassInfo
     getClassNames,
     toClassInfos
   )
-import Test.MockCat.TH.Context
+import Test.MockCat.TH.ContextBuilder
   ( MockType (..),
     buildContext,
     getTypeVarName,
-    getTypeVarNames
-  )
-import Test.MockCat.TH.FunctionType (isNotConstantFunctionType)
-import Test.MockCat.TH.MonadVar
-  ( applyFamilyArg,
-    tyVarBndrToType
-  )
-import Test.MockCat.TH.MockFnContext
-  ( needsTypeable,
-    partialAdditionalPredicates
+    getTypeVarNames,
+    mockTType,
+    tyVarBndrToType,
+    applyFamilyArg
   )
 import Test.MockCat.TH.TypeUtils
   ( splitApps,
-    substituteType
+    substituteType,
+    isNotConstantFunctionType,
+    needsTypeable
   )
-import Test.MockCat.TH.VarApplied
+import Test.MockCat.TH.FunctionBuilder
+  ( createMockBuilderVerifyParams,
+    createMockBuilderFnType,
+    createMockBody,
+    createFnName,
+    findParam,
+    typeToNames,
+    safeIndex,
+    generateStubFn,
+    partialAdditionalPredicates
+    , MockFnContext(..)
+    , buildMockFnContext
+    , buildMockFnDeclarations
+    , createNoInlinePragma
+    , determineMockFnBuilder
+  )
+import Test.MockCat.TH.ClassAnalysis
   ( VarAppliedType (..),
     applyVarAppliedTypes,
     updateType
   )
+-- Function generation utilities remain defined locally in this module.
+import Test.MockCat.TH.Types (MockOptions(..), options)
 import Test.MockCat.Verify
   ( ResolvedMock (..),
     resolveForVerification,
@@ -168,13 +177,6 @@ expectByExpr qf = do
 --  - suffix: stub function suffix
 --  - implicitMonadicReturn: If True, the return value of the stub function is wrapped in a monad automatically.
 --                           If Else, the return value of stub function is not wrapped in a monad,  so required explicitly return monadic values.
-data MockOptions = MockOptions {prefix :: String, suffix :: String, implicitMonadicReturn :: Bool}
-
--- | Default Options.
---
---  Stub function names are prefixed with “_”.
-options :: MockOptions
-options = MockOptions {prefix = "_", suffix = "", implicitMonadicReturn = True}
 
 -- | Create a mock of the typeclasses that returns a monad according to the `MockOptions`.
 --
@@ -585,9 +587,7 @@ generateInstanceRealFnBody fnName fnNameStr args r options = do
         Nothing -> lift $ $(foldl appE (varE fnName) args)
     |]
 
-generateStubFn :: [Q Exp] -> Q Exp -> Q Exp
-generateStubFn [] mock = mock
-generateStubFn args mock = foldl appE mock args
+ 
 
 createMockFnDec :: MockType -> Name -> [VarAppliedType] -> MockOptions -> Dec -> Q [Dec]
 createMockFnDec mockType monadVarName varAppliedTypes options (SigD sigFnName ty) = do
@@ -597,231 +597,7 @@ createMockFnDec mockType monadVarName varAppliedTypes options (SigD sigFnName ty
   pure $ pragmaDec : fnDecs
 createMockFnDec _ _ _ _ dec = fail $ "unsupport dec: " <> pprint dec
 
-data MockFnContext = MockFnContext
-  { mockType :: MockType,
-    monadVarName :: Name,
-    mockOptions :: MockOptions,
-    originalType :: Type,
-    fnNameStr :: String,
-    mockFnName :: Name,
-    paramsName :: Name,
-    updatedType :: Type,
-    fnType :: Type
-  }
-
-data MockFnBuilder
-  = VariadicBuilder
-  | ConstantImplicitBuilder
-  | ConstantExplicitBuilder
-
-buildMockFnContext ::
-  MockType ->
-  Name ->
-  [VarAppliedType] ->
-  MockOptions ->
-  Name ->
-  Type ->
-  MockFnContext
-buildMockFnContext mockType monadVarName varAppliedTypes mockOptions sigFnName ty =
-  let fnNameStr = createFnName sigFnName mockOptions
-      mockFnName = mkName fnNameStr
-      params = mkName "p"
-      updatedType = updateType ty varAppliedTypes
-      fnType =
-        if mockOptions.implicitMonadicReturn
-          then createMockBuilderFnType monadVarName updatedType
-          else updatedType
-   in MockFnContext
-        { mockType,
-          monadVarName,
-          mockOptions,
-          originalType = ty,
-          fnNameStr,
-          mockFnName,
-          paramsName = params,
-          updatedType,
-          fnType
-        }
-
-buildMockFnDeclarations :: MockFnContext -> Q [Dec]
-buildMockFnDeclarations ctx@MockFnContext{mockType, fnNameStr, mockFnName, paramsName, fnType, monadVarName, updatedType} =
-  case determineMockFnBuilder ctx of
-    VariadicBuilder ->
-      doCreateMockFnDecs mockType fnNameStr mockFnName paramsName fnType monadVarName updatedType
-    ConstantImplicitBuilder ->
-      doCreateConstantMockFnDecs mockType fnNameStr mockFnName fnType monadVarName
-    ConstantExplicitBuilder ->
-      doCreateEmptyVerifyParamMockFnDecs fnNameStr mockFnName paramsName fnType monadVarName updatedType
-
-determineMockFnBuilder :: MockFnContext -> MockFnBuilder
-determineMockFnBuilder ctx
-  | isNotConstantFunctionType (originalType ctx) = VariadicBuilder
-  | (mockOptions ctx).implicitMonadicReturn = ConstantImplicitBuilder
-  | otherwise = ConstantExplicitBuilder
-
-createNoInlinePragma :: Name -> Q Dec
-createNoInlinePragma name = pragInlD name NoInline FunLike AllPhases
-
-doCreateMockFnDecs :: (Quote m) => MockType -> String -> Name -> Name -> Type -> Name -> Type -> m [Dec]
-doCreateMockFnDecs mockType funNameStr mockFunName params funType monadVarName updatedType = do
-  newFunSig <- do
-    let verifyParams = createMockBuilderVerifyParams updatedType
-        baseCtx =
-          [ AppT (AppT (AppT (ConT ''MockBuilder) (VarT params)) funType) verifyParams
-          , AppT (ConT ''MonadIO) (VarT monadVarName)
-          ]
-        ctx = case mockType of
-          Partial ->
-            baseCtx ++ partialAdditionalPredicates funType verifyParams
-          Total ->
-            let typeableTargets =
-                  [ funType
-                  , verifyParams
-                  , AppT (ConT ''ResolvableParams) funType
-                  ]
-                typeablePreds =
-                  [ AppT (ConT ''Typeable) target
-                  | target <- typeableTargets
-                  , needsTypeable target
-                  ]
-             in baseCtx ++ typeablePreds
-        resultType =
-          AppT
-            (AppT ArrowT (VarT params))
-            (AppT (AppT (ConT ''MockT) (VarT monadVarName)) (TupleT 0))
-    sigD mockFunName (pure (ForallT [] ctx resultType))
-
-  createMockFn <- [|createNamedStubFn|]
-
-  mockBody <- createMockBody funNameStr createMockFn
-  newFun <- funD mockFunName [clause [varP $ mkName "p"] (normalB (pure mockBody)) []]
-
-  pure $ newFunSig : [newFun]
-
-doCreateConstantMockFnDecs :: (Quote m) => MockType -> String -> Name -> Type -> Name -> m [Dec]
-doCreateConstantMockFnDecs Partial funNameStr mockFunName _ monadVarName = do
-  stubVar <- newName "r"
-  let ctx =
-        [ AppT (ConT ''Typeable) (VarT stubVar)
-        , AppT
-            (AppT EqualityT (AppT (ConT ''ResolvableParamsOf) (VarT stubVar)))
-            (TupleT 0)
-        , AppT (ConT ''MonadIO) (VarT monadVarName)
-        ]
-      resultType =
-        AppT
-          (AppT ArrowT (VarT stubVar))
-          (AppT (AppT (ConT ''MockT) (VarT monadVarName)) (TupleT 0))
-  newFunSig <-
-    sigD
-      mockFunName
-      ( pure
-          (ForallT
-              [ PlainTV stubVar SpecifiedSpec
-              , PlainTV monadVarName SpecifiedSpec
-              ]
-              ctx
-              resultType
-          )
-      )
-  createMockFn <- [|createNamedConstantStubFn|]
-  mockBody <- createMockBody funNameStr createMockFn
-  newFun <- funD mockFunName [clause [varP $ mkName "p"] (normalB (pure mockBody)) []]
-  pure $ newFunSig : [newFun]
-doCreateConstantMockFnDecs Total funNameStr mockFunName ty monadVarName = do
-  let typeableTargets =
-        [ ty
-        , AppT (ConT ''ResolvableParams) ty
-        ]
-      typeablePreds =
-        [ AppT (ConT ''Typeable) target
-        | target <- typeableTargets
-        , needsTypeable target
-        ]
-      ctx =
-        [ AppT (ConT ''MonadIO) (VarT monadVarName)
-        ] ++ typeablePreds
-      resultType =
-        AppT
-          (AppT ArrowT ty)
-          (AppT (AppT (ConT ''MockT) (VarT monadVarName)) (TupleT 0))
-  newFunSig <- sigD mockFunName (pure (ForallT [] ctx resultType))
-  createMockFn <- [|createNamedConstantStubFn|]
-  mockBody <- createMockBody funNameStr createMockFn
-  newFun <- funD mockFunName [clause [varP $ mkName "p"] (normalB (pure mockBody)) []]
-  pure $ newFunSig : [newFun]
-
--- MockBuilder constraints, but verifyParams are empty.
-doCreateEmptyVerifyParamMockFnDecs :: (Quote m) => String -> Name -> Name -> Type -> Name -> Type -> m [Dec]
-doCreateEmptyVerifyParamMockFnDecs funNameStr mockFunName params funType monadVarName updatedType = do
-  newFunSig <- do
-    let verifyParams = createMockBuilderVerifyParams updatedType
-        typeableTargets =
-          [ funType
-          , verifyParams
-          , AppT (ConT ''ResolvableParams) funType
-          ]
-        typeablePreds =
-          [ AppT (ConT ''Typeable) target
-          | target <- typeableTargets
-          , needsTypeable target
-          ]
-        ctx =
-          [ AppT (AppT (AppT (ConT ''MockBuilder) (VarT params)) funType) verifyParams
-          , AppT (ConT ''MonadIO) (VarT monadVarName)
-          ]
-            ++ typeablePreds
-        resultType =
-          AppT
-            (AppT ArrowT (VarT params))
-            (AppT (AppT (ConT ''MockT) (VarT monadVarName)) (TupleT 0))
-    sigD mockFunName (pure (ForallT [] ctx resultType))
-
-  createMockFn <- [|createNamedStubFn|]
-
-  mockBody <- createMockBody funNameStr createMockFn
-  newFun <- funD mockFunName [clause [varP $ mkName "p"] (normalB (pure mockBody)) []]
-
-  pure $ newFunSig : [newFun]
-
-createMockBody :: (Quote m) => String -> Exp -> m Exp
-createMockBody funNameStr createMockFn =
-  [|
-    MockT $ do
-      mockInstance <- liftIO $ $(pure createMockFn) $(litE (stringL funNameStr)) p
-      resolved <- liftIO do
-        resolveForVerification mockInstance >>= \case
-          Just (maybeName, verifier) -> pure $ ResolvedMock maybeName verifier
-          Nothing -> verificationFailure
-      let verifyStub _ = shouldApplyToAnythingResolved resolved
-      addDefinition
-        ( Definition
-            (Proxy :: Proxy $(litT (strTyLit funNameStr)))
-            mockInstance
-            verifyStub
-        )
-    |]
-
-createFnName :: Name -> MockOptions -> String
-createFnName funName options = do
-  options.prefix <> nameBase funName <> options.suffix
-
-findParam :: (KnownSymbol sym) => Proxy sym -> [Definition] -> Maybe a
-findParam pa definitions = do
-  let definition = find (\(Definition s _ _) -> symbolVal s == symbolVal pa) definitions
-  fmap (\(Definition _ mock _) -> unsafeCoerce mock) definition
-
-typeToNames :: Type -> [Q Name]
-typeToNames (AppT (AppT ArrowT _) t2) = newName "a" : typeToNames t2
-typeToNames (ForallT _ _ ty) = typeToNames ty
-typeToNames _ = []
-
-safeIndex :: [a] -> Int -> Maybe a
-safeIndex [] _ = Nothing
-safeIndex (x : _) 0 = Just x
-safeIndex (_ : xs) n
-  | n < 0 = Nothing
-  | otherwise = safeIndex xs (n - 1)
+ 
 
 verifyExtension :: Extension -> Q ()
 verifyExtension e = isExtEnabled e >>= flip unless (fail $ "Language extensions `" ++ show e ++ "` is required.")

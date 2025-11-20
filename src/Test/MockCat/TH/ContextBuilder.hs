@@ -1,8 +1,16 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE TypeFamilies #-}
 
-module Test.MockCat.TH.Context
-  ( MockType (..),
+module Test.MockCat.TH.ContextBuilder
+  ( -- Constraint rewrite
+    liftConstraint,
+    -- MonadVar helpers
+    mockTType,
+    tyVarBndrToType,
+    applyFamilyArg,
+    -- Context builder
+    MockType (..),
     buildContext,
     toVarTs,
     constructClassAppT,
@@ -10,25 +18,47 @@ module Test.MockCat.TH.Context
     getTypeVarName
   )
 where
-
-import Control.Monad.IO.Class (MonadIO)
-
 import Language.Haskell.TH
   ( Name,
-    Pred,
     TyVarBndr (..),
     Type (..),
+    Pred
   )
-import Test.MockCat.TH.ClassInfo
-  ( ClassName2VarNames (..),
-    toClassInfos
-  )
-import Test.MockCat.TH.Constraint (liftConstraint)
-import Test.MockCat.TH.VarApplied
-  ( VarAppliedType (..),
-    updateType
-  )
+import Control.Monad.IO.Class (MonadIO)
+import Test.MockCat.MockT (MockT)
+import Test.MockCat.TH.ClassAnalysis (ClassName2VarNames (..), toClassInfos, VarAppliedType (..), updateType)
 
+-- | Rewrite constraint types to use 'MockT' for the monad variable where needed.
+liftConstraint :: Name -> Type -> Type
+liftConstraint monadVarName = go
+  where
+    go predTy@(AppT (ConT ty) (VarT varName))
+      | monadVarName == varName && ty == ''Monad = predTy
+      | monadVarName == varName =
+          AppT (ConT ty) (AppT (ConT ''MockT) (VarT varName))
+    go (AppT ty (VarT varName))
+      | monadVarName == varName =
+          AppT ty (AppT (ConT ''MockT) (VarT varName))
+    go (AppT t1 t2) = AppT (go t1) (go t2)
+    go ty = ty
+
+-- MonadVar helpers
+mockTType :: Name -> Type
+mockTType monadVarName = AppT (ConT ''MockT) (VarT monadVarName)
+
+liftTyVar :: Name -> Name -> Type
+liftTyVar monadVarName varName
+  | monadVarName == varName = mockTType monadVarName
+  | otherwise = VarT varName
+
+tyVarBndrToType :: Name -> TyVarBndr a -> Type
+tyVarBndrToType monadVarName (PlainTV binderName _) = liftTyVar monadVarName binderName
+tyVarBndrToType monadVarName (KindedTV binderName _ _) = liftTyVar monadVarName binderName
+
+applyFamilyArg :: Name -> TyVarBndr a -> Type
+applyFamilyArg = tyVarBndrToType
+
+-- Context builder
 data MockType = Total | Partial
   deriving (Eq)
 
@@ -71,4 +101,5 @@ getTypeVarNames = map getTypeVarName
 getTypeVarName :: TyVarBndr a -> Name
 getTypeVarName (PlainTV varName _) = varName
 getTypeVarName (KindedTV varName _ _) = varName
+
 

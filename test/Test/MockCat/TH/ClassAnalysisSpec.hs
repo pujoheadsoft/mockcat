@@ -1,16 +1,16 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Test.MockCat.TH.THClassInfoSpec (spec) where
+module Test.MockCat.TH.ClassAnalysisSpec (spec) where
 
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.Reader.Class (MonadReader)
-import Data.List (isInfixOf)
 import Language.Haskell.TH
 import Test.Hspec
-import Test.MockCat.TH.ClassInfo
+import Test.MockCat.TH.ClassAnalysis
+import Test.MockCat.MockT (MockT)
 
 spec :: Spec
-spec = describe "ClassInfo helpers" $ do
+spec = describe "ClassAnalysis helpers" $ do
   describe "toClassInfo" $ do
     it "単一引数のクラス制約から変数名を収集する" $ do
       let a = mkName "a"
@@ -56,12 +56,27 @@ spec = describe "ClassInfo helpers" $ do
           ty = AppT (AppT (ConT ''Either) (ConT ''String)) (VarT a)
       getClassNames ty `shouldBe` [''Either, ''String]
 
-  describe "Show instances" $ do
-    it "ClassName2VarNames の表示にクラス名が含まれる" $ do
-      show (ClassName2VarNames ''Monad [mkName "m"])
-        `shouldSatisfy` ("Monad" `isInfixOf`)
+  describe "VarApplied helpers" $ do
+    it "applyVarAppliedTypes は型変数をクラス名に置き換える" $ do
+      let m = mkName "m"
+          a = mkName "a"
+          mapping =
+            [ VarAppliedType m (Just ''Maybe)
+            , VarAppliedType a Nothing
+            ]
+          ty = AppT (AppT ArrowT (VarT m)) (VarT a)
+          expected = AppT (AppT ArrowT (ConT ''Maybe)) (VarT a)
+      applyVarAppliedTypes mapping ty `shouldBe` expected
 
-    it "VarName2ClassNames の表示にクラス名一覧が含まれる" $ do
-      show (VarName2ClassNames (mkName "m") [''Monad, ''MonadIO])
-        `shouldSatisfy` ("Monad" `isInfixOf`)
+    it "updateType は VarT の組み合わせをクラス名へ差し替える" $ do
+      let m = mkName "m"
+          a = mkName "a"
+          mapping =
+            [ VarAppliedType m (Just ''MockT)
+            , VarAppliedType a (Just ''Int)
+            ]
+          ty = AppT (VarT m) (VarT a)
+          expected = AppT (ConT ''MockT) (ConT ''Int)
+      updateType ty mapping `shouldBe` expected
+
 

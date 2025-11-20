@@ -13,15 +13,10 @@ import Test.MockCat.ConcurrencySpec as Concurrency
 import Test.MockCat.StubSpec as Stub
 import Test.MockCat.Internal.RegistrySpec as Registry
 import Test.MockCat.THCompareSpec as THCompare
-import Test.MockCat.TH.THMockFnContextSpec as THMockFnContext
-import Test.MockCat.TH.THMockBuilderSpec as THMockBuilder
-import Test.MockCat.TH.THVarAppliedSpec as THVarApplied
-import Test.MockCat.TH.THTypeUtilsSpec as THTypeUtils
-import Test.MockCat.TH.THConstraintSpec as THConstraint
-import Test.MockCat.TH.THMonadVarSpec as THMonadVar
-import Test.MockCat.TH.THClassInfoSpec as THClassInfo
-import Test.MockCat.TH.THContextSpec as THContext
-import Test.MockCat.TH.THFunctionTypeSpec as THFunctionType
+import Test.MockCat.TH.TypeUtilsSpec as THTypeUtils
+import Test.MockCat.TH.ContextBuilderSpec as THContextBuilder
+import Test.MockCat.TH.ClassAnalysisSpec as THClassAnalysis
+import Test.MockCat.TH.FunctionBuilderSpec as THFunctionBuilder
 import Test.QuickCheck (property)
 import qualified Property.ConcurrentCountProp as ConcurrencyProp
 import qualified Property.LazyEvalProp as LazyEvalProp
@@ -49,15 +44,10 @@ main = hspec $ do
     Stub.spec
     Registry.spec
     THCompare.spec
-    THMockFnContext.spec
-    THMockBuilder.spec
-    THVarApplied.spec
     THTypeUtils.spec
-    THConstraint.spec
-    THMonadVar.spec
-    THClassInfo.spec
-    THContext.spec
-    THFunctionType.spec
+    THContextBuilder.spec
+    THClassAnalysis.spec
+    THFunctionBuilder.spec
     describe "Property Concurrency" $ do
       it "total apply count is preserved across threads" $ property ConcurrencyProp.prop_concurrent_total_apply_count
     describe "Property Lazy Evaluation" $ do
