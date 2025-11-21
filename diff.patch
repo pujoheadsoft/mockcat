@@ -1,0 +1,207 @@
+diff --git a/src/Test/MockCat/Internal/Builder.hs b/src/Test/MockCat/Internal/Builder.hs
+index e0b905f..4709b36 100644
+--- a/src/Test/MockCat/Internal/Builder.hs
++++ b/src/Test/MockCat/Internal/Builder.hs
+@@ -69,11 +69,11 @@ type family CurriedFn (mode :: k) (args :: Type) (r :: Type) :: Type where
+ class ModeSpec mode => BuildCurriedGeneric mode args r fn | mode args r -> fn where
+   buildGeneric :: InputFn mode args r -> fn
+ 
+-instance (ModeSpec mode, fn ~ (a -> ApplyMode mode r))
++instance (ModeSpec mode, fn ~ (a -> ApplyMode mode r), ToParam a, Target a ~ a, Eq a)
+       => BuildCurriedGeneric mode (Param a) r fn where
+-  buildGeneric f a = finalize @mode @r (f (param a))
++  buildGeneric f = \a -> finalize @mode @r (f (param a))
+ 
+-instance (ModeSpec mode, BuildCurriedGeneric mode rest r fn, fn' ~ (a -> fn))
++instance (ModeSpec mode, BuildCurriedGeneric mode rest r fn, fn' ~ (a -> fn), ToParam a, Target a ~ a, Eq a)
+       => BuildCurriedGeneric mode (Param a :> rest) r fn' where
+   buildGeneric input a = buildGeneric @mode @rest @r (input . (\rest -> p a :> rest))
+ -- ------------
+@@ -248,7 +248,7 @@ incrementCount key list =
+ runCase :: Cases a b -> [a]
+ runCase (Cases s) = execState s []
+ 
+-p :: a -> Param a
++p :: (ToParam a, Target a ~ a) => a -> Param a
+ p = param
+ 
+ class StubBuilder params fn | params -> fn where
+diff --git a/src/Test/MockCat/Mock.hs b/src/Test/MockCat/Mock.hs
+index 6b4dc47..3d8f6de 100644
+--- a/src/Test/MockCat/Mock.hs
++++ b/src/Test/MockCat/Mock.hs
+@@ -100,6 +100,9 @@ createConstantStubFn ::
+   ( MonadIO m
+   , MockBuilder (Param b) b ()
+   , Typeable b
++  , ToParam b
++  , Target b ~ b
++  , Eq b
+   ) =>
+   b ->
+   m b
+@@ -110,6 +113,9 @@ createNamedConstantStubFn ::
+   ( MonadIO m
+   , MockBuilder (Param b) b ()
+   , Typeable b
++  , ToParam b
++  , Target b ~ b
++  , Eq b
+   ) =>
+   MockName ->
+   b ->
+diff --git a/src/Test/MockCat/Param.hs b/src/Test/MockCat/Param.hs
+index 7258594..7f83d91 100644
+--- a/src/Test/MockCat/Param.hs
++++ b/src/Test/MockCat/Param.hs
+@@ -7,6 +7,10 @@
+ {-# LANGUAGE TypeFamilyDependencies #-}
+ {-# LANGUAGE TypeOperators #-}
+ {-# LANGUAGE UndecidableInstances #-}
++{-# LANGUAGE GADTs #-}
++{-# LANGUAGE MagicHash #-}
++{-# LANGUAGE TypeFamilies #-}
++
+ {-# OPTIONS_GHC -Wno-redundant-constraints #-}
+ 
+ -- | This module is a parameter of the mock function.
+@@ -26,23 +30,54 @@ module Test.MockCat.Param
+     ReturnOf,
+     ProjectionReturn,
+     projReturn,
+-    returnValue
++    returnValue,
++    ToParam(..),
++    Target,
+   )
+ where
+ 
+ import Test.MockCat.Cons ((:>) (..))
+ import Unsafe.Coerce (unsafeCoerce)
+ import Prelude hiding (any)
++import GHC.Exts ( reallyUnsafePtrEquality#, Int(I#) )
++
++data Param v where
++  ExpectValue :: Eq v => v -> Param v
++  ExpectCondition :: (v -> Bool) -> String -> Param v
++  ExpectRef :: v -> Param v
++
++matchParam :: Param v -> v -> Bool
++matchParam (ExpectValue a) b = a == b
++matchParam (ExpectCondition f _) a = f a
++matchParam (ExpectRef e) a = pointerEq e a
++
++pointerEq :: a -> a -> Bool
++pointerEq a b = I# (reallyUnsafePtrEquality# (unsafeCoerce a) (unsafeCoerce b)) == 1
++
++type family Target a where
++  Target (Param a) = a
++  Target (a -> b) = a -> b
++  Target a = a
++
++class ToParam a where
++  toParam :: a -> Param (Target a)
++
++instance {-# OVERLAPPING #-} ToParam (Param a) where
++  toParam = id
++
++instance {-# OVERLAPPING #-} ToParam (a -> b) where
++  toParam = ExpectRef
++
++instance {-# OVERLAPPABLE #-} (Eq a, Target a ~ a) => ToParam a where
++  toParam = ExpectValue
++
+ 
+-data Param v
+-  = ExpectValue v
+-  | ExpectCondition (v -> Bool) String
+ 
+-instance (Eq a) => Eq (Param a) where
+-  (ExpectValue a) == (ExpectValue b) = a == b
+-  (ExpectValue a) == (ExpectCondition m2 _) = m2 a
+-  (ExpectCondition m1 _) == (ExpectValue b) = m1 b
+-  (ExpectCondition _ l1) == (ExpectCondition _ l2) = l1 == l2
++-- instance (Eq a) => Eq (Param a) where
++--   (ExpectValue a) == (ExpectValue b) = a == b
++--   (ExpectValue a) == (ExpectCondition m2 _) = m2 a
++--   (ExpectCondition m1 _) == (ExpectValue b) = m1 b
++--   (ExpectCondition _ l1) == (ExpectCondition _ l2) = l1 == l2
+ 
+ type family ShowResult a where
+   ShowResult String = String
+@@ -66,23 +101,23 @@ value :: Param v -> v
+ value (ExpectValue a) = a
+ value _ = error "not implement"
+ 
+-param :: v -> Param v
+-param = ExpectValue
++param :: (ToParam v, Target v ~ v) => v -> Param v
++param = toParam
+ 
+ class ConsGen a b r | a b -> r where
+   (|>) :: a -> b -> r
+ 
+-instance {-# OVERLAPPING #-} (Param a ~ a', (Param b :> c) ~ bc) => ConsGen a (Param b :> c) (a' :> bc) where
++instance {-# OVERLAPPING #-} (Param a ~ a', (Param b :> c) ~ bc, ToParam a, Target a ~ a, Eq a) => ConsGen a (Param b :> c) (a' :> bc) where
+   (|>) a = (:>) (param a)
+ instance {-# OVERLAPPING #-} ((Param b :> c) ~ bc) => ConsGen (Param a) (Param b :> c) (Param a :> bc) where
+   (|>) = (:>)
+ instance ConsGen (Param a) (Param b) (Param a :> Param b) where
+   (|>) = (:>)
+-instance {-# OVERLAPPABLE #-} ((Param b) ~ b') => ConsGen (Param a) b (Param a :> b') where
++instance {-# OVERLAPPABLE #-} ((Param b) ~ b', ToParam b, Target b ~ b, Eq b) => ConsGen (Param a) b (Param a :> b') where
+   (|>) a b = (:>) a (param b)
+-instance {-# OVERLAPPABLE #-} ((Param a) ~ a') => ConsGen a (Param b) (a' :> Param b) where
++instance {-# OVERLAPPABLE #-} ((Param a) ~ a', ToParam a, Target a ~ a, Eq a) => ConsGen a (Param b) (a' :> Param b) where
+   (|>) a = (:>) (param a)
+-instance {-# OVERLAPPABLE #-} (Param a ~ a', Param b ~ b') => ConsGen a b (a' :> b') where
++instance {-# OVERLAPPABLE #-} (Param a ~ a', Param b ~ b', ToParam a, Target a ~ a, Eq a, ToParam b, Target b ~ b, Eq b) => ConsGen a b (a' :> b') where
+   (|>) a b = (:>) (param a) (param b)
+ 
+ infixr 8 |>
+diff --git a/src/Test/MockCat/Verify.hs b/src/Test/MockCat/Verify.hs
+index ae1ba98..b201c73 100644
+--- a/src/Test/MockCat/Verify.hs
++++ b/src/Test/MockCat/Verify.hs
+@@ -13,6 +13,7 @@
+ {-# LANGUAGE DataKinds #-}
+ {-# LANGUAGE MultiParamTypeClasses #-}
+ {-# OPTIONS_GHC -Wno-redundant-constraints #-}
++{-# LANGUAGE InstanceSigs #-}
+ module Test.MockCat.Verify where
+ 
+ import Test.MockCat.Internal.Types
+@@ -45,7 +46,7 @@ class Verify params input where
+     input ->
+     IO ()
+ 
+-instance (Eq a, Show a) => Verify (Param a) a where
++instance (Eq a, Show a, ToParam a, Target a ~ a, Eq (Param a)) => Verify (Param a) a where
+   shouldApplyTo v a = verify v (MatchAny (param a))
+ 
+ instance (Eq a, Show a) => Verify a a where
+@@ -103,10 +104,13 @@ class VerifyCount countType params a where
+     a ->
+     IO ()
+ 
+-instance VerifyCount CountVerifyMethod (Param a) a where
++instance (ToParam a, Target a ~ a, Eq a) => VerifyCount CountVerifyMethod (Param a) a where
+   shouldApplyTimes v count a = verifyCount v (param a) count
+ 
+-instance VerifyCount Int (Param a) a where
++instance (ToParam a, Target a ~ a, Eq a) => VerifyCount Int (Param a) a where
++  shouldApplyTimes :: (MockResolvable m, ResolvableParams m ~ Param a, HasCallStack,
++    Eq (Param a)) =>
++    m -> Int -> a -> IO ()
+   shouldApplyTimes v count a = verifyCount v (param a) (Equal count)
+ 
+ instance {-# OVERLAPPABLE #-} VerifyCount CountVerifyMethod a a where
+@@ -171,7 +175,7 @@ class VerifyOrder params input where
+   -- As long as the order matches, the verification succeeds.
+   shouldApplyInPartialOrder :: (MockResolvable m, ResolvableParams m ~ params, HasCallStack) => m -> [input] -> IO ()
+ 
+-instance (Eq a, Show a) => VerifyOrder (Param a) a where
++instance (Eq a, Show a, ToParam a, Target a ~ a, Eq (Param a)) => VerifyOrder (Param a) a where
+   shouldApplyInOrder v a = verifyOrder ExactlySequence v $ param <$> a
+   shouldApplyInPartialOrder v a = verifyOrder PartiallySequence v $ param <$> a
+ 
