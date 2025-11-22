@@ -48,6 +48,22 @@ spec = do
     stub <- createStubFn $ "a" |> f |> True
     stub "a" f `shouldBe` True
 
+  it "function arg2" do
+    let
+      -- Do not allow optimization to remove duplicates.
+      {-# NOINLINE f #-}
+      f :: String -> String -> String
+      f a b = a <> b
+      
+      {-# NOINLINE g #-}
+      g :: String -> String -> String
+      g a b = a <> b
+
+    stub <- createStubFn $ "a" |> f |> g |> True
+
+    -- Verify that calling with wrong function order raises an error
+    evaluate (stub "a" g f) `shouldThrow` anyErrorCall
+
   it "echo1" do
     result <- runMockT do
       _readTTY $ pure @IO ""
