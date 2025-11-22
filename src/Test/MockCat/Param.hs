@@ -7,6 +7,10 @@
 {-# LANGUAGE TypeFamilyDependencies #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE MagicHash #-}
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
 -- | This module is a parameter of the mock function.
@@ -33,13 +37,41 @@ where
 import Test.MockCat.Cons ((:>) (..))
 import Unsafe.Coerce (unsafeCoerce)
 import Prelude hiding (any)
+import Data.Typeable (Typeable, typeOf)
+import GHC.Exts (Int(..), reallyUnsafePtrEquality#)
+import Foreign.Ptr (Ptr, ptrToIntPtr, castPtr)
 
 data Param v
   = ExpectValue v
   | ExpectCondition (v -> Bool) String
 
-instance (Eq a) => Eq (Param a) where
+-- | Helper function to compare function values using pointer equality
+-- Note: This only works for functions with the same definition,
+-- not for structurally equivalent functions
+ptrEq :: a -> a -> Bool
+ptrEq x y = I# (reallyUnsafePtrEquality# (unsafeCoerce x) (unsafeCoerce y)) == 1
+
+-- | Helper function to compare function values using pointer equality
+compareFunction :: forall a. a -> a -> Bool
+compareFunction = ptrEq
+
+-- | Show function using type information and a pointer hash
+showFunction :: forall a. Typeable a => a -> String
+showFunction x =
+  let typeStr = show (typeOf x)
+      -- Create a pseudo-address from the pointer for display purposes
+      ptrAddr = show (ptrToIntPtr (castPtr (unsafeCoerce x :: Ptr ())))
+   in typeStr ++ "@" ++ ptrAddr
+
+instance {-# OVERLAPPABLE #-} (Eq a) => Eq (Param a) where
   (ExpectValue a) == (ExpectValue b) = a == b
+  (ExpectValue a) == (ExpectCondition m2 _) = m2 a
+  (ExpectCondition m1 _) == (ExpectValue b) = m1 b
+  (ExpectCondition _ l1) == (ExpectCondition _ l2) = l1 == l2
+
+-- | Overlapping instance for function types
+instance {-# OVERLAPPING #-} (Typeable (a -> b)) => Eq (Param (a -> b)) where
+  (ExpectValue a) == (ExpectValue b) = compareFunction a b
   (ExpectValue a) == (ExpectCondition m2 _) = m2 a
   (ExpectCondition m1 _) == (ExpectValue b) = m1 b
   (ExpectCondition _ l1) == (ExpectCondition _ l2) = l1 == l2
@@ -58,6 +90,11 @@ instance {-# OVERLAPPING #-} ShowParam (Param String) where
 instance {-# INCOHERENT #-} (Show a) => ShowParam (Param a) where
   showParam (ExpectCondition _ l) = l
   showParam (ExpectValue a) = show a
+
+-- | Overlapping instance for function types
+instance {-# OVERLAPPING #-} (Typeable (a -> b)) => ShowParam (Param (a -> b)) where
+  showParam (ExpectCondition _ l) = l
+  showParam (ExpectValue a) = showFunction a
 
 instance (ShowParam (Param a)) => Show (Param a) where
   show = showParam

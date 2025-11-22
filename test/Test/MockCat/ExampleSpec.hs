@@ -41,6 +41,13 @@ makeMockWithOptions [t|Teletype|] options { implicitMonadicReturn = False }
 
 spec :: Spec
 spec = do
+  it "function arg" do
+    let
+      f :: String -> String -> String
+      f a b = a <> b
+    stub <- createStubFn $ "a" |> f |> True
+    stub "a" f `shouldBe` True
+
   it "echo1" do
     result <- runMockT do
       _readTTY $ pure @IO ""

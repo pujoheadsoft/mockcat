@@ -37,9 +37,9 @@ spec = do
 
     describe "Eq" do
       it "param (eq)" do
-        param 10 == param 10 `shouldBe` True
+        param (10 :: Int) == param (10 :: Int) `shouldBe` True
       it "param (not eq)" do
-        param 10 == param 11 `shouldBe` False
+        param (10 :: Int) == param (11 :: Int) `shouldBe` False
 
     describe "Returns True if the expected value condition is met." do
       it "any" do
@@ -67,14 +67,14 @@ spec = do
     
     describe "ProjectionArgs" do
       it "Param a :> Param r" do
-        projArgs (param 10 :> param "foo") `shouldBe` param 10
+        projArgs (param (10 :: Int) :> param "foo") `shouldBe` param (10 :: Int)
       it "Param a :> rest" do
-        projArgs (param 10 :> param "foo" :> param True) `shouldBe` (param 10 :> param "foo")
+        projArgs (param (10 :: Int) :> param "foo" :> param True) `shouldBe` (param (10 :: Int) :> param "foo")
     
     describe "ProjectionReturn" do
       it "Param a :> Param r" do
-        projReturn (param 10 :> param "foo") `shouldBe` param "foo"
+        projReturn (param (10 :: Int) :> param "foo") `shouldBe` param "foo"
       it "Param a :> rest" do
-        projReturn (param 10 :> param "foo" :> param True) `shouldBe` param True
+        projReturn (param (10 :: Int) :> param "foo" :> param True) `shouldBe` param True
 
 data TestData = Foo String | Bar deriving (Eq, Show)
