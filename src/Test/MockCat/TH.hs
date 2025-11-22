@@ -24,11 +24,8 @@ module Test.MockCat.TH
 where
 
 import Control.Monad (unless)
-import Control.Monad.Trans.Class (lift)
-import Data.Proxy (Proxy(..))
-import Data.Function ((&))
 import Data.List (elemIndex, nub)
-import Data.Maybe (catMaybes, fromMaybe)
+import Data.Maybe (catMaybes)
 import qualified Data.Map.Strict as Map
 
 import Language.Haskell.TH
@@ -80,16 +77,15 @@ import Test.MockCat.TH.TypeUtils
   )
 import Test.MockCat.TH.FunctionBuilder
   ( createFnName,
-    findParam,
     typeToNames,
     safeIndex,
-    generateStubFn,
     MockFnContext(..)
     , buildMockFnContext
     , buildMockFnDeclarations
     , createNoInlinePragma
+    , generateInstanceMockFnBody
+    , generateInstanceRealFnBody
   )
--- Function generation utilities remain defined locally in this module.
 import Test.MockCat.TH.Types (MockOptions(..), options)
 import Test.MockCat.Verify ()
 import Test.MockCat.Param
@@ -531,37 +527,6 @@ createInstanceFnDec mockType options (SigD fnName funType) = do
       fnClause = clause params (normalB fnBody) []
   funD fnName [fnClause]
 createInstanceFnDec _ _ dec = fail $ "unsuported dec: " <> pprint dec
-
-generateInstanceMockFnBody :: String -> [Q Exp] -> Name -> MockOptions -> Q Exp
-generateInstanceMockFnBody fnNameStr args r options = do
-  returnExp <- if options.implicitMonadicReturn
-    then [| pure $(varE r) |]
-    else [| lift $(varE r) |]
-  [|
-    MockT $ do
-      defs <- getDefinitions
-      let mock =
-            defs
-              & findParam (Proxy :: Proxy $(litT (strTyLit fnNameStr)))
-              & fromMaybe (error $ "no answer found stub function `" ++ fnNameStr ++ "`.")
-          $(bangP $ varP r) = $(generateStubFn args [|mock|])
-      $(pure returnExp)
-    |]
-
-generateInstanceRealFnBody :: Name -> String -> [Q Exp] -> Name -> MockOptions -> Q Exp
-generateInstanceRealFnBody fnName fnNameStr args r options = do
-  returnExp <- if options.implicitMonadicReturn
-    then [| pure $(varE r) |]
-    else [| lift $(varE r) |]
-  [|
-    MockT $ do
-      defs <- getDefinitions
-      case findParam (Proxy :: Proxy $(litT (strTyLit fnNameStr))) defs of
-        Just mock -> do
-          let $(bangP $ varP r) = $(generateStubFn args [|mock|])
-          $(pure returnExp)
-        Nothing -> lift $ $(foldl appE (varE fnName) args)
-    |]
 
 
 

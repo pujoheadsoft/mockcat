@@ -31,6 +31,7 @@ module Test.MockCat.TH.FunctionBuilder
 where
 
 import Control.Monad.IO.Class (MonadIO, liftIO)
+import Control.Monad.Trans.Class (lift)
 import Language.Haskell.TH
   ( Dec (..),
     Exp (..),
@@ -261,8 +262,7 @@ doCreateConstantMockFnDecs Total funNameStr mockFunName ty monadVarName = do
         , needsTypeable target
         ]
       ctx =
-        [ AppT (ConT ''MonadIO) (VarT monadVarName)
-        ] ++ typeablePreds
+        AppT (ConT ''MonadIO) (VarT monadVarName) : typeablePreds
       resultType =
         AppT
           (AppT ArrowT ty)
