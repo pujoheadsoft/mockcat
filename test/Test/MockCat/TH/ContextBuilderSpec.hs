@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TemplateHaskellQuotes #-}
 
 module Test.MockCat.TH.ContextBuilderSpec (spec) where
 
@@ -7,7 +7,6 @@ import Test.Hspec
 import Control.Monad.IO.Class (MonadIO)
 import Test.MockCat.MockT (MockT)
 import Test.MockCat.TH.ContextBuilder
-import Test.MockCat.TH.ClassAnalysis (VarAppliedType(..))
 
 spec :: Spec
 spec = describe "ContextBuilder helpers" $ do

@@ -1,5 +1,4 @@
-{-# LANGUAGE TemplateHaskell #-}
-
+{-# LANGUAGE TemplateHaskellQuotes #-}
 module Test.MockCat.TH.ClassAnalysisSpec (spec) where
 
 import Control.Monad.IO.Class (MonadIO)

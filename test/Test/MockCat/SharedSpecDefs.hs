@@ -11,25 +11,45 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE TypeApplications #-}
 
-module Test.MockCat.SharedSpecDefs where
+module Test.MockCat.SharedSpecDefs
+  ( FileOperation(..),
+    program,
+    Finder(..),
+    findValue,
+    ApiOperation(..),
+    MonadStateSub(..),
+    MonadStateSub2(..),
+    MonadVar2_1,
+    MonadVar2_1Sub(..),
+    MonadVar2_2,
+    MonadVar2_2Sub(..),
+    MonadVar3_1,
+    MonadVar3_1Sub(..),
+    MonadVar3_2,
+    MonadVar3_2Sub(..),
+    MonadVar3_3,
+    MonadVar3_3Sub(..),
+    MultiApplyTest(..),
+    getValues,
+    ExplicitlyReturnMonadicValuesTest(..),
+    ExplicitlyReturnMonadicValuesPartialTest(..),
+    AssocTypeTest(..),
+    DefaultMethodTest(..),
+    ParamThreeMonad(..),
+    MonadAsync(..),
+    TestClass(..),
+    Teletype(..),
+    UserInput(..),
+    UserInputGetter(..)
+  )
+where
 
 import Prelude hiding (readFile, writeFile)
-import Data.Text (Text, pack, isInfixOf)
-import Control.Monad (unless)
-import Control.Monad.IO.Class (MonadIO, liftIO)
-import Control.Monad.Reader (MonadReader, ask)
-import qualified Control.Concurrent.Async as Async
+import Data.Text (Text)
+import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.State (MonadState)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
-import Control.Monad.Trans.Class (lift)
-import Test.MockCat
-import Data.List (find)
-import Unsafe.Coerce (unsafeCoerce)
-import GHC.TypeLits (KnownSymbol, symbolVal)
-import Data.Proxy (Proxy(..))
-import qualified Data.Text.IO as TIO
 import Data.Kind (Type)
-import Data.Traversable (Traversable)
 
 
 class Monad m => FileOperation m where

@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TemplateHaskellQuotes #-}
 
 module Test.MockCat.TH.FunctionBuilderSpec (spec) where
 
@@ -86,7 +86,7 @@ spec = do
       normalize preds `shouldBe` []
 
 normalize :: [Pred] -> [String]
-normalize = fmap cleanup . fmap pprint
+normalize = fmap (cleanup . pprint)
   where
     cleanup =
       T.unpack
@@ -94,6 +94,6 @@ normalize = fmap cleanup . fmap pprint
         . T.replace (T.pack "Data.Typeable.Internal.") (T.pack "")
         . T.replace (T.pack "GHC.Internal.") (T.pack "")
         . T.pack
-  
+
 
 
