@@ -36,8 +36,7 @@ import Test.MockCat.Cons ((:>) (..))
 import Unsafe.Coerce (unsafeCoerce)
 import Prelude hiding (any)
 import Data.Typeable (Typeable, typeOf)
-import GHC.Exts (Int(..), reallyUnsafePtrEquality#)
-import Foreign.Ptr (Ptr, ptrToIntPtr, castPtr)
+import Foreign.Ptr (Ptr, ptrToIntPtr, castPtr, IntPtr)
 
 data Param v
   = ExpectValue v
@@ -164,14 +163,19 @@ instance
 returnValue :: (ProjectionReturn params, ReturnOf params ~ Param r) => params -> r
 returnValue = value . projReturn
 
+-- | Get the pointer address of a value (used for both comparison and display)
+getPtrAddr :: forall a. a -> IntPtr
+getPtrAddr x = ptrToIntPtr (castPtr (unsafeCoerce x :: Ptr ()))
+
 -- | Helper function to compare function values using pointer equality
+-- Uses the same pointer calculation as showFunction for consistency
 compareFunction :: forall a. a -> a -> Bool
-compareFunction x y= I# (reallyUnsafePtrEquality# (unsafeCoerce x) (unsafeCoerce y)) == 1
+compareFunction x y = getPtrAddr x == getPtrAddr y
 
 -- | Show function using type information and a pointer hash
 showFunction :: forall a. Typeable a => a -> String
 showFunction x =
   let typeStr = show (typeOf x)
-      -- Create a pseudo-address from the pointer for display purposes
-      ptrAddr = show (ptrToIntPtr (castPtr (unsafeCoerce x :: Ptr ())))
+      -- Use the same pointer address calculation as compareFunction
+      ptrAddr = show (getPtrAddr x)
    in typeStr ++ "@" ++ ptrAddr
