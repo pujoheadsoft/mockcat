@@ -45,7 +45,7 @@ spec = do
     let
       f :: String -> String -> String
       f a b = a <> b
-    stub <- createStubFn $ "a" |> f |> True
+    stub <- createMockFn $ "a" |> f |> True
     stub "a" f `shouldBe` True
 
   it "function arg2" do
@@ -59,7 +59,7 @@ spec = do
       g :: String -> String -> String
       g a b = a <> b
 
-    stub <- createStubFn $ "a" |> f |> g |> True
+    stub <- createMockFn $ "a" |> f |> g |> True
 
     -- Verify that calling with wrong function order raises an error
     evaluate (stub "a" g f) `shouldThrow` anyErrorCall
@@ -104,58 +104,58 @@ spec = do
 
   it "stub" do
     -- create a stub function
-    stubFn <- createStubFn $ "value" |> True
+    stubFn <- createMockFn $ "value" |> True
     -- assert
     stubFn "value" `shouldBe` True
 
   it "stub & verify" do
     -- create a mock
-    mockFn <- createStubFn $ "value" |> True
+    mockFn <- createMockFn $ "value" |> True
     -- assert
     mockFn "value" `shouldBe` True
     -- verify
     mockFn `shouldApplyTo` "value"
 
   it "how to use" do
-    f <- createStubFn $ "param1" |> "param2" |> pure @IO ()
+    f <- createMockFn $ "param1" |> "param2" |> pure @IO ()
     actual <- f "param1" "param2"
     actual `shouldBe` ()
 
   it "named stub" do
-    f <- createNamedStubFn "named stub" $ "x" |> "y" |> True
+    f <- createNamedMockFn "named stub" $ "x" |> "y" |> True
     f "x" "y" `shouldBe` True
 
-  it "createStubFnIO returns monadic stub (IO)" do
-    f <- createStubFnIO $ "a" |> (11 :: Int) |> False
+  it "createMockFnIO returns monadic stub (IO)" do
+    f <- createMockFnIO $ "a" |> (11 :: Int) |> False
     f "a" (11 :: Int) `shouldReturn` False
 
-  it "createStubFnIO returns monadic stub (MaybeT)" do
+  it "createMockFnIO returns monadic stub (MaybeT)" do
     mm <- runMaybeT do
       -- create a mock inside MaybeT
-      createStubFnIO $ True |> False
+      createMockFnIO $ True |> False
     case mm of
-      Nothing -> expectationFailure "createStubFnIO returned Nothing"
+      Nothing -> expectationFailure "createMockFnIO returned Nothing"
       Just f -> do
         -- f :: Bool -> MaybeT IO Bool
         res <- runMaybeT $ f True
         res `shouldBe` Just False
 
   it "named mock" do
-    f <- createNamedStubFn "mock" $ "value" |> "a" |> True
+    f <- createNamedMockFn "mock" $ "value" |> "a" |> True
     f "value" "a" `shouldBe` True
 
   it "stub function" do
-    f <- createStubFn $ "value" |> True
+    f <- createMockFn $ "value" |> True
     f "value" `shouldBe` True
 
   it "shouldApplyTimes" do
-    f <- createStubFn $ "value" |> True
+    f <- createMockFn $ "value" |> True
     print $ f "value"
     print $ f "value"
     f `shouldApplyTimes` (2 :: Int) `to` "value"
 
   it "shouldApplyInOrder" do
-    f <- createStubFn $ any |> True |> ()
+    f <- createMockFn $ any |> True |> ()
     print $ f "a" True
     print $ f "b" True
     f
@@ -164,7 +164,7 @@ spec = do
                            ]
 
   it "shouldApplyInPartialOrder" do
-    f <- createStubFn $ any |> True |> ()
+    f <- createMockFn $ any |> True |> ()
     print $ f "a" True
     print $ f "b" True
     print $ f "c" True
@@ -174,23 +174,23 @@ spec = do
                                   ]
 
   it "any" do
-    f <- createStubFn $ any |> "return value"
+    f <- createMockFn $ any |> "return value"
     f "something" `shouldBe` "return value"
 
   it "expect" do
-    f <- createStubFn $ expect (> (5 :: Int)) "> 5" |> "return value"
+    f <- createMockFn $ expect (> (5 :: Int)) "> 5" |> "return value"
     f 6 `shouldBe` "return value"
 
   it "expect_" do
-    f <- createStubFn $ expect_ (> (5 :: Int)) |> "return value"
+    f <- createMockFn $ expect_ (> (5 :: Int)) |> "return value"
     f 6 `shouldBe` "return value"
 
   it "expectByExpr" do
-    f <- createStubFn $ $(expectByExpr [|(> (5 :: Int))|]) |> "return value"
+    f <- createMockFn $ $(expectByExpr [|(> (5 :: Int))|]) |> "return value"
     f 6 `shouldBe` "return value"
 
   it "multi" do
-    f <- createStubFn do
+    f <- createMockFn do
       onCase $ "a" |> "return x"
       onCase $ "b" |> "return y"
 
@@ -198,7 +198,7 @@ spec = do
     f "b" `shouldBe` "return y"
 
   it "Return different values for the same argument" do
-    f <- createStubFn $ do
+    f <- createMockFn $ do
       onCase $ "arg" |> "x"
       onCase $ "arg" |> "y"
 

@@ -32,42 +32,23 @@ where
 
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Language.Haskell.TH
-  ( Cxt,
-    Dec (..),
+  ( Dec (..),
     Exp (..),
-    FunDep,
     Name,
-    Pat (..),
     Pred,
     Q,
     Quote,
     Type (..),
     TyVarBndr(..),
-    Lit (..),
-    mkName,
-    pprint,
-    reify,
     Inline (NoInline),
     RuleMatch (FunLike),
     Phases (AllPhases),
-    pragInlD,
-    sigD,
-    funD,
-    clause,
-    normalB,
-    varP,
-    varE,
-    litE,
-    stringL,
-    bangP,
+    mkName,
     newName
   )
 import Language.Haskell.TH.Lib
 import Language.Haskell.TH.Syntax (nameBase, Specificity (SpecifiedSpec))
-import Test.MockCat.Mock
-  ( createNamedStubFn,
-    createNamedConstantStubFn
-  )
+import Test.MockCat.Mock ( createNamedMockFn, createNamedConstantMockFn, MockBuilder )
 import Test.MockCat.MockT
   ( MockT (..),
     Definition (..),
@@ -87,7 +68,6 @@ import Test.MockCat.TH.ClassAnalysis
     updateType
   )
 import Test.MockCat.Verify (ResolvableParamsOf, ResolvableParams, resolveForVerification, verificationFailure, ResolvedMock(..), shouldApplyToAnythingResolved)
-import Test.MockCat.Mock (MockBuilder)
 import Data.Maybe (fromMaybe)
 import Data.Function ((&))
 import Data.Proxy (Proxy(..))
@@ -233,7 +213,7 @@ doCreateMockFnDecs mockType funNameStr mockFunName params funType monadVarName u
             (AppT (AppT (ConT ''MockT) (VarT monadVarName)) (TupleT 0))
     sigD mockFunName (pure (ForallT [] ctx resultType))
 
-  createMockFn <- [|createNamedStubFn|]
+  createMockFn <- [|createNamedMockFn|]
 
   mockBody <- createMockBody funNameStr createMockFn
   newFun <- funD mockFunName [clause [varP $ mkName "p"] (normalB (pure mockBody)) []]
@@ -266,7 +246,7 @@ doCreateConstantMockFnDecs Partial funNameStr mockFunName _ monadVarName = do
               resultType
           )
       )
-  createMockFn <- [|createNamedConstantStubFn|]
+  createMockFn <- [|createNamedConstantMockFn|]
   mockBody <- createMockBody funNameStr createMockFn
   newFun <- funD mockFunName [clause [varP $ mkName "p"] (normalB (pure mockBody)) []]
   pure $ newFunSig : [newFun]
@@ -288,7 +268,7 @@ doCreateConstantMockFnDecs Total funNameStr mockFunName ty monadVarName = do
           (AppT ArrowT ty)
           (AppT (AppT (ConT ''MockT) (VarT monadVarName)) (TupleT 0))
   newFunSig <- sigD mockFunName (pure (ForallT [] ctx resultType))
-  createMockFn <- [|createNamedConstantStubFn|]
+  createMockFn <- [|createNamedConstantMockFn|]
   mockBody <- createMockBody funNameStr createMockFn
   newFun <- funD mockFunName [clause [varP $ mkName "p"] (normalB (pure mockBody)) []]
   pure $ newFunSig : [newFun]
@@ -318,7 +298,7 @@ doCreateEmptyVerifyParamMockFnDecs funNameStr mockFunName params funType monadVa
             (AppT (AppT (ConT ''MockT) (VarT monadVarName)) (TupleT 0))
     sigD mockFunName (pure (ForallT [] ctx resultType))
 
-  createMockFn <- [|createNamedStubFn|]
+  createMockFn <- [|createNamedMockFn|]
 
   mockBody <- createMockBody funNameStr createMockFn
   newFun <- funD mockFunName [clause [varP $ mkName "p"] (normalB (pure mockBody)) []]

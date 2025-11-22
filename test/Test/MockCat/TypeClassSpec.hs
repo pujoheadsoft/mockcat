@@ -99,7 +99,7 @@ _ask ::
   ) =>
   env -> MockT m ()
 _ask p = MockT $ do
-  mockInstance <- liftIO $ createNamedConstantStubFn "ask" p
+  mockInstance <- liftIO $ createNamedConstantMockFn "ask" p
   resolved <- liftIO $ do
     result <- Verify.resolveForVerification mockInstance
     case result of
@@ -115,7 +115,7 @@ _readFile ::
   params ->
   MockT m ()
 _readFile p = MockT $ do
-  mockInstance <- liftIO $ createNamedStubFn "readFile" p
+  mockInstance <- liftIO $ createNamedMockFn "readFile" p
   resolved <- liftIO $ do
     result <- Verify.resolveForVerification mockInstance
     case result of
@@ -131,7 +131,7 @@ _writeFile ::
   params ->
   MockT m ()
 _writeFile p = MockT $ do
-  mockInstance <- liftIO $ createNamedStubFn "writeFile" p
+  mockInstance <- liftIO $ createNamedMockFn "writeFile" p
   resolved <- liftIO $ do
     result <- Verify.resolveForVerification mockInstance
     case result of
@@ -147,7 +147,7 @@ _post ::
   params ->
   MockT m ()
 _post p = MockT $ do
-  mockFn <- liftIO $ createNamedStubFn "post" p
+  mockFn <- liftIO $ createNamedMockFn "post" p
   resolved <- liftIO $ do
     result <- Verify.resolveForVerification mockFn
     case result of
@@ -330,7 +330,7 @@ _getBy ::
   params ->
   MockT m ()
 _getBy p = MockT $ do
-  mockInstance <- liftIO $ createNamedStubFn "_getBy" p
+  mockInstance <- liftIO $ createNamedMockFn "_getBy" p
   resolved <- liftIO $ do
     result <- Verify.resolveForVerification mockInstance
     case result of
@@ -348,7 +348,7 @@ _echo ::
   params ->
   MockT m ()
 _echo p = MockT $ do
-  mockInstance <- liftIO $ createNamedStubFn "_echo" p
+  mockInstance <- liftIO $ createNamedMockFn "_echo" p
   resolved <- liftIO $ do
     result <- Verify.resolveForVerification mockInstance
     case result of
@@ -366,7 +366,7 @@ _fn2_1Sub ::
   params ->
   MockT m ()
 _fn2_1Sub p = MockT $ do
-  mockInstance <- liftIO $ createNamedStubFn "_fn2_1Sub" p
+  mockInstance <- liftIO $ createNamedMockFn "_fn2_1Sub" p
   resolved <- liftIO $ do
     result <- Verify.resolveForVerification mockInstance
     case result of
@@ -384,7 +384,7 @@ _fn2_2Sub ::
   params ->
   MockT m ()
 _fn2_2Sub p = MockT $ do
-  mockInstance <- liftIO $ createNamedStubFn "_fn2_2Sub" p
+  mockInstance <- liftIO $ createNamedMockFn "_fn2_2Sub" p
   resolved <- liftIO $ do
     result <- Verify.resolveForVerification mockInstance
     case result of
@@ -402,7 +402,7 @@ _fn3_1Sub ::
   params ->
   MockT m ()
 _fn3_1Sub p = MockT $ do
-  mockInstance <- liftIO $ createNamedStubFn "_fn3_1Sub" p
+  mockInstance <- liftIO $ createNamedMockFn "_fn3_1Sub" p
   resolved <- liftIO $ do
     result <- Verify.resolveForVerification mockInstance
     case result of
@@ -420,7 +420,7 @@ _fn3_2Sub ::
   params ->
   MockT m ()
 _fn3_2Sub p = MockT $ do
-  mockInstance <- liftIO $ createNamedStubFn "_fn3_2Sub" p
+  mockInstance <- liftIO $ createNamedMockFn "_fn3_2Sub" p
   resolved <- liftIO $ do
     result <- Verify.resolveForVerification mockInstance
     case result of
@@ -438,7 +438,7 @@ _fn3_3Sub ::
   params ->
   MockT m ()
 _fn3_3Sub p = MockT $ do
-  mockInstance <- liftIO $ createNamedStubFn "_fn3_3Sub" p
+  mockInstance <- liftIO $ createNamedMockFn "_fn3_3Sub" p
   resolved <- liftIO $ do
     result <- Verify.resolveForVerification mockInstance
     case result of
@@ -456,7 +456,7 @@ _getValueBy ::
   params ->
   MockT m ()
 _getValueBy p = MockT $ do
-  mockInstance <- liftIO $ createNamedStubFn "_getValueBy" p
+  mockInstance <- liftIO $ createNamedMockFn "_getValueBy" p
   resolved <- liftIO $ do
     result <- Verify.resolveForVerification mockInstance
     case result of
@@ -475,7 +475,7 @@ _fnState ::
   params ->
   MockT m ()
 _fnState p = MockT $ do
-  mockInstance <- liftIO $ createNamedStubFn "_fnState" p
+  mockInstance <- liftIO $ createNamedMockFn "_fnState" p
   let verifyStub _ = pure ()
   addDefinition (Definition (Proxy :: Proxy "_fnState") mockInstance verifyStub)
 
@@ -488,7 +488,7 @@ _fnState2 ::
   params ->
   MockT m ()
 _fnState2 p = MockT $ do
-  mockInstance <- liftIO $ createNamedStubFn "_fnState2" p
+  mockInstance <- liftIO $ createNamedMockFn "_fnState2" p
   let verifyStub _ = pure ()
   addDefinition (Definition (Proxy :: Proxy "_fnState2") mockInstance verifyStub)
 
@@ -501,7 +501,7 @@ _fnParam3_1 ::
   params ->
   MockT m ()
 _fnParam3_1 p = MockT $ do
-  mockInstance <- liftIO $ createNamedStubFn "_fnParam3_1" p
+  mockInstance <- liftIO $ createNamedMockFn "_fnParam3_1" p
   resolved <- liftIO $ do
     result <- Verify.resolveForVerification mockInstance
     case result of
@@ -519,7 +519,7 @@ _fnParam3_2 ::
   params ->
   MockT m ()
 _fnParam3_2 p = MockT $ do
-  mockInstance <- liftIO $ createNamedStubFn "_fnParam3_2" p
+  mockInstance <- liftIO $ createNamedMockFn "_fnParam3_2" p
   resolved <- liftIO $ do
     result <- Verify.resolveForVerification mockInstance
     case result of
@@ -537,7 +537,7 @@ _fnParam3_3 ::
   params ->
   MockT m ()
 _fnParam3_3 p = MockT $ do
-  mockInstance <- liftIO $ createNamedStubFn "_fnParam3_3" p
+  mockInstance <- liftIO $ createNamedMockFn "_fnParam3_3" p
   resolved <- liftIO $ do
     result <- Verify.resolveForVerification mockInstance
     case result of
@@ -555,7 +555,7 @@ _getByExplicit ::
   params ->
   MockT m ()
 _getByExplicit p = MockT $ do
-  mockInstance <- liftIO $ createNamedStubFn "_getByExplicit" p
+  mockInstance <- liftIO $ createNamedMockFn "_getByExplicit" p
   resolved <- liftIO $ do
     result <- Verify.resolveForVerification mockInstance
     case result of
@@ -573,7 +573,7 @@ _echoExplicit ::
   params ->
   MockT m ()
 _echoExplicit p = MockT $ do
-  mockInstance <- liftIO $ createNamedStubFn "_echoExplicit" p
+  mockInstance <- liftIO $ createNamedMockFn "_echoExplicit" p
   resolved <- liftIO $ do
     result <- Verify.resolveForVerification mockInstance
     case result of
@@ -590,7 +590,7 @@ _defaultAction ::
   a ->
   MockT m ()
 _defaultAction value = MockT $ do
-  mockInstance <- liftIO $ createNamedConstantStubFn "_defaultAction" value
+  mockInstance <- liftIO $ createNamedConstantMockFn "_defaultAction" value
   resolved <- liftIO $ do
     result <- Verify.resolveForVerification mockInstance
     case result of
@@ -607,7 +607,7 @@ _produce ::
   a ->
   MockT m ()
 _produce value = MockT $ do
-  mockInstance <- liftIO $ createNamedConstantStubFn "_produce" value
+  mockInstance <- liftIO $ createNamedConstantMockFn "_produce" value
   resolved <- liftIO $ do
     result <- Verify.resolveForVerification mockInstance
     case result of
@@ -623,7 +623,7 @@ stubPostFn ::
   params ->
   MockT m ()
 stubPostFn p = MockT $ do
-  mockInstance <- liftIO $ createNamedStubFn "stubPostFn" p
+  mockInstance <- liftIO $ createNamedMockFn "stubPostFn" p
   resolved <- liftIO $ do
     result <- Verify.resolveForVerification mockInstance
     case result of
@@ -667,7 +667,7 @@ _readTTY ::
   params ->
   MockT m ()
 _readTTY p = MockT $ do
-  mockInstance <- liftIO $ createNamedStubFn "_readTTY" p
+  mockInstance <- liftIO $ createNamedMockFn "_readTTY" p
   resolved <- liftIO $ do
     result <- Verify.resolveForVerification mockInstance
     case result of
@@ -685,7 +685,7 @@ _writeTTY ::
   params ->
   MockT m ()
 _writeTTY p = MockT $ do
-  mockInstance <- liftIO $ createNamedStubFn "_writeTTY" p
+  mockInstance <- liftIO $ createNamedMockFn "_writeTTY" p
   resolved <- liftIO $ do
     result <- Verify.resolveForVerification mockInstance
     case result of
@@ -707,7 +707,7 @@ spec = do
     result `shouldBe` ()
 
   it "Read, edit, and output files" do
-    modifyContentStub <- createStubFn $ pack "content" |> pack "modifiedContent"
+    modifyContentStub <- createMockFn $ pack "content" |> pack "modifiedContent"
 
     result <- runMockT do
       _ask "environment"

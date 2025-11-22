@@ -1,7 +1,4 @@
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE TypeFamilies #-}
-
+{-# LANGUAGE TemplateHaskellQuotes #-}
 module Test.MockCat.TH.ContextBuilder
   ( -- Constraint rewrite
     liftConstraint,

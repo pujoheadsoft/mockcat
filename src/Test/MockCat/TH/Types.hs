@@ -1,4 +1,3 @@
-{-# LANGUAGE RecordWildCards #-}
 module Test.MockCat.TH.Types
   ( MockOptions(..)
   , options

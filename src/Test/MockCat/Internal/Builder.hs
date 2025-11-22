@@ -24,7 +24,6 @@ import Test.MockCat.Cons
 import Test.MockCat.Param
 import Test.MockCat.AssociationList (lookup, update, insert, empty, member)
 import Prelude hiding (lookup)
-import Control.Monad.Trans
 import Control.Monad.State
 import Data.Kind (Type)
 import Test.MockCat.Internal.Types

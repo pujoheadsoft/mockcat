@@ -473,7 +473,7 @@ verificationFailure =
     intercalate
       "\n"
       [ "The provided stub cannot be verified.",
-        "Please create it via createStubFn/createNamedStubFn or createStubFnIO when verification is required."
+        "Please create it via createMockFn/createNamedMockFn or createMockFnIO when verification is required."
       ]
 
 data ResolvedMock params = ResolvedMock {
@@ -494,5 +494,5 @@ requireResolved target = do
         intercalate
           "\n"
           [ "The provided stub cannot be verified.",
-            "Please create it via createStubFn/createNamedStubFn or createStubFnIO when verification is required."
+            "Please create it via createMockFn/createNamedMockFn or createMockFnIO when verification is required."
           ]

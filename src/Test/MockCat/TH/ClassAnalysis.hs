@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TemplateHaskellQuotes #-}
 module Test.MockCat.TH.ClassAnalysis
   ( ClassName2VarNames (..),
     VarName2ClassNames (..),

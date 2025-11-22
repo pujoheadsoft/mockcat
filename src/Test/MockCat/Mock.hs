@@ -21,12 +21,12 @@ module Test.MockCat.Mock
   , build
   , MockIOBuilder
   , buildIO
+  , createMockFn
+  , createNamedMockFn
+  , createMockFnIO
   , createStubFn
-  , createNamedStubFn
-  , createStubFnIO
-  , createPureStubFn
-  , createConstantStubFn
-  , createNamedConstantStubFn
+  , createConstantMockFn
+  , createNamedConstantMockFn
   , shouldApplyTo
   , shouldApplyTimes
   , shouldApplyInOrder
@@ -68,8 +68,14 @@ import Test.MockCat.Param
 import Test.MockCat.Verify
 import Type.Reflection (TyCon, splitApps, typeRep, typeRepTyCon)
 
-{- | Create a stub function with verification hooks attached. -}
-createStubFn ::
+{- | Create a mock function with verification hooks attached.
+
+This function creates a verifiable stub that records argument applications
+and can be verified via helpers such as 'shouldApplyTo' and 'shouldApplyTimes'.
+The function internally uses 'unsafePerformIO' to make the returned function
+appear pure, but it requires 'MonadIO' for creation.
+-}
+createMockFn ::
   ( MonadIO m
   , MockBuilder params fn verifyParams
   , Typeable verifyParams
@@ -77,12 +83,18 @@ createStubFn ::
   ) =>
   params ->
   m fn
-createStubFn params = do
+createMockFn params = do
   (fn, verifier) <- build Nothing params
   registerStub Nothing verifier fn
 
-{- | Create a named stub function. The provided name is used in failure messages. -}
-createNamedStubFn ::
+{- | Create a named mock function. The provided name is used in failure messages.
+
+This function creates a verifiable stub that records argument applications
+and can be verified via helpers such as 'shouldApplyTo' and 'shouldApplyTimes'.
+The function internally uses 'unsafePerformIO' to make the returned function
+appear pure, but it requires 'MonadIO' for creation.
+-}
+createNamedMockFn ::
   ( MonadIO m
   , MockBuilder params fn verifyParams
   , Typeable verifyParams
@@ -91,22 +103,22 @@ createNamedStubFn ::
   MockName ->
   params ->
   m fn
-createNamedStubFn name params = do
+createNamedMockFn name params = do
   (fn, verifier) <- build (Just name) params
   registerStub (Just name) verifier fn
 
-{- | Create a constant stub function. -}
-createConstantStubFn ::
+{- | Create a constant mock function with verification hooks attached. -}
+createConstantMockFn ::
   ( MonadIO m
   , MockBuilder (Param b) b ()
   , Typeable b
   ) =>
   b ->
   m b
-createConstantStubFn value = createStubFn (param value)
+createConstantMockFn value = createMockFn (param value)
 
-{- | Create a named constant stub function. -}
-createNamedConstantStubFn ::
+{- | Create a named constant mock function. -}
+createNamedConstantMockFn ::
   ( MonadIO m
   , MockBuilder (Param b) b ()
   , Typeable b
@@ -114,10 +126,15 @@ createNamedConstantStubFn ::
   MockName ->
   b ->
   m b
-createNamedConstantStubFn name value = createNamedStubFn name (param value)
+createNamedConstantMockFn name value = createNamedMockFn name (param value)
 
-{- | Create a stub function whose result lives in another monad. -}
-createStubFnIO ::
+{- | Create a mock function whose result lives in another monad.
+
+This function creates a verifiable stub that records argument applications
+and can be verified via helpers such as 'shouldApplyTo' and 'shouldApplyTimes'.
+The returned function's result type is in IO or can be lifted to other monads.
+-}
+createMockFnIO ::
   forall params fn verifyParams m fnM.
   ( MockIOBuilder params fn verifyParams
   , MonadIO m
@@ -127,16 +144,22 @@ createStubFnIO ::
   ) =>
   params ->
   m fnM
-createStubFnIO params = do
+createMockFnIO params = do
   (fnIO, verifier) <- liftIO $ buildIO Nothing params
   let lifted = liftFunTo (Proxy :: Proxy m) fnIO
   registerStub Nothing verifier lifted
 
-createPureStubFn ::
+{- | Create a pure stub function without verification hooks.
+
+This function creates a simple stub that returns values based on the provided
+parameters, but does not support verification. Use 'createMockFn' if you need
+verification capabilities.
+-}
+createStubFn ::
   StubBuilder params fn =>
   params ->
   fn
-createPureStubFn = buildStub Nothing
+createStubFn = buildStub Nothing
 
 to :: (a -> IO ()) -> a -> IO ()
 to f = f

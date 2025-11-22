@@ -22,7 +22,7 @@ import Test.MockCat hiding (any)
 
 prop_predicate_negative_not_counted :: Property
 prop_predicate_negative_not_counted = forAll genVals $ \xs -> monadicIO $ do
-  f <- run $ createStubFn (expect even "even" |> True)
+  f <- run $ createMockFn (expect even "even" |> True)
   outcomes <- run $ mapM (\x -> (try (evaluate (f x)) :: IO (Either SomeException Bool))) xs
   let evens = length (filter even xs)
       successes = length [ () | (x, Right _) <- zip xs outcomes, even x ]
@@ -80,7 +80,7 @@ prop_lazy_partial_force_concurrency = forAll genPlan $ \(arg, mask) -> monadicIO
 prop_partial_order_interleaved_duplicates :: Property
 prop_partial_order_interleaved_duplicates = forAll genPair $ \(a,b) -> a /= b ==> monadicIO $ do
   -- Pattern a a b : [a,b] subsequence succeeds, [b,a] fails.
-  f <- run $ createStubFn $ cases [ param a |> True
+  f <- run $ createMockFn $ cases [ param a |> True
                                 , param a |> True
                                 , param b |> True ]
   run $ f a `seq` f a `seq` f b `seq` pure ()

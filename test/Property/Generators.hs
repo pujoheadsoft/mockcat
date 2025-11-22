@@ -21,8 +21,8 @@ scriptGen = do
 
 -- | Build a mock (Int -> Bool) whose allowed arguments are exactly the script values, each returning True.
 buildUnaryMock :: Script Int -> IO (Int -> Bool)
-buildUnaryMock (Script []) = createStubFn (param 0 |> True) -- degenerate, never invoked
-buildUnaryMock (Script xs) = createStubFn $ cases [ param a |> True | a <- xs ]
+buildUnaryMock (Script []) = createMockFn (param 0 |> True) -- degenerate, never invoked
+buildUnaryMock (Script xs) = createMockFn $ cases [ param a |> True | a <- xs ]
 
 -- | Execute the script against the provided stub function, forcing each Bool.
 runScript :: (Int -> Bool) -> Script Int -> IO ()

@@ -120,7 +120,7 @@ _readFile ::
   params ->
   MockT m ()
 _readFile p = MockT $ do
-  mockInstance <- liftIO $ createNamedStubFn "readFile" p
+  mockInstance <- liftIO $ createNamedMockFn "readFile" p
   resolved <- liftIO $ do
     result <- Verify.resolveForVerification mockInstance
     case result of
@@ -136,7 +136,7 @@ _writeFile ::
   params ->
   MockT m ()
 _writeFile p = MockT $ do
-  mockInstance <- liftIO $ createNamedStubFn "writeFile" p
+  mockInstance <- liftIO $ createNamedMockFn "writeFile" p
   resolved <- liftIO $ do
     result <- Verify.resolveForVerification mockInstance
     case result of
@@ -153,7 +153,7 @@ _getInput ::
   r ->
   MockT m ()
 _getInput value = MockT $ do
-  mockInstance <- liftIO $ createNamedConstantStubFn "getInput" value
+  mockInstance <- liftIO $ createNamedConstantMockFn "getInput" value
   resolved <- liftIO $ do
     result <- Verify.resolveForVerification mockInstance
     case result of
@@ -171,7 +171,7 @@ _toUserInput ::
   params ->
   MockT m ()
 _toUserInput p = MockT $ do
-  mockInstance <- liftIO $ createNamedStubFn "toUserInput" p
+  mockInstance <- liftIO $ createNamedMockFn "toUserInput" p
   resolved <- liftIO $ do
     result <- Verify.resolveForVerification mockInstance
     case result of
@@ -189,7 +189,7 @@ _getByPartial ::
   params ->
   MockT m ()
 _getByPartial p = MockT $ do
-  mockInstance <- liftIO $ createNamedStubFn "getBy" p
+  mockInstance <- liftIO $ createNamedMockFn "getBy" p
   resolved <- liftIO $ do
     result <- Verify.resolveForVerification mockInstance
     case result of
@@ -207,7 +207,7 @@ _echoPartial ::
   params ->
   MockT m ()
 _echoPartial p = MockT $ do
-  mockInstance <- liftIO $ createNamedStubFn "echo" p
+  mockInstance <- liftIO $ createNamedMockFn "echo" p
   resolved <- liftIO $ do
     result <- Verify.resolveForVerification mockInstance
     case result of
@@ -247,7 +247,7 @@ _findIds ::
   r ->
   MockT m ()
 _findIds p = MockT $ do
-  mockInstance <- liftIO $ createNamedConstantStubFn "_findIds" p
+  mockInstance <- liftIO $ createNamedConstantMockFn "_findIds" p
   resolved <- liftIO $ do
     result <- Verify.resolveForVerification mockInstance
     case result of

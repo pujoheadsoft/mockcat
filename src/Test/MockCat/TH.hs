@@ -1,7 +1,6 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE BlockArguments #-}
-{-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -25,14 +24,13 @@ module Test.MockCat.TH
 where
 
 import Control.Monad (unless)
-import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.Trans.Class (lift)
-import Data.Data (Proxy (..))
+import Data.Proxy (Proxy(..))
 import Data.Function ((&))
 import Data.List (elemIndex, nub)
 import Data.Maybe (catMaybes, fromMaybe)
 import qualified Data.Map.Strict as Map
- 
+
 import Language.Haskell.TH
   ( Cxt,
     Dec (..),
@@ -44,7 +42,6 @@ import Language.Haskell.TH
     Pat (..),
     Pred,
     Q,
-    Quote (newName),
     TyVarBndr (..),
     TySynEqn (..),
     TypeFamilyHead (..),
@@ -53,73 +50,52 @@ import Language.Haskell.TH
     mkName,
     pprint,
     reify,
-    Inline (NoInline),
-    RuleMatch (FunLike),
-    Phases (AllPhases),
   )
 import Language.Haskell.TH.Lib
 import Language.Haskell.TH.PprLib (Doc, hcat, parens, text)
-import Language.Haskell.TH.Syntax (nameBase, Specificity (SpecifiedSpec))
-import Test.MockCat.Mock
+import Language.Haskell.TH.Syntax (nameBase)
+import Test.MockCat.Mock ()
 import Test.MockCat.MockT
 import Test.MockCat.TH.ClassAnalysis
-  ( ClassName2VarNames (..),
-    VarName2ClassNames (..),
+  ( ClassName2VarNames(..),
+    VarName2ClassNames(..),
     filterClassInfo,
     filterMonadicVarInfos,
     getClassName,
     getClassNames,
-    toClassInfos
-  )
+    toClassInfos,
+    VarAppliedType(..),
+    applyVarAppliedTypes )
 import Test.MockCat.TH.ContextBuilder
   ( MockType (..),
     buildContext,
     getTypeVarName,
     getTypeVarNames,
-    mockTType,
     tyVarBndrToType,
     applyFamilyArg
   )
 import Test.MockCat.TH.TypeUtils
   ( splitApps,
-    substituteType,
-    isNotConstantFunctionType,
-    needsTypeable
+    substituteType
   )
 import Test.MockCat.TH.FunctionBuilder
-  ( createMockBuilderVerifyParams,
-    createMockBuilderFnType,
-    createMockBody,
-    createFnName,
+  ( createFnName,
     findParam,
     typeToNames,
     safeIndex,
     generateStubFn,
-    partialAdditionalPredicates
-    , MockFnContext(..)
+    MockFnContext(..)
     , buildMockFnContext
     , buildMockFnDeclarations
     , createNoInlinePragma
-    , determineMockFnBuilder
-  )
-import Test.MockCat.TH.ClassAnalysis
-  ( VarAppliedType (..),
-    applyVarAppliedTypes,
-    updateType
   )
 -- Function generation utilities remain defined locally in this module.
 import Test.MockCat.TH.Types (MockOptions(..), options)
-import Test.MockCat.Verify
-  ( ResolvedMock (..),
-    resolveForVerification,
-    shouldApplyToAnythingResolved,
-    verificationFailure,
-    ResolvableParamsOf
-  )
+import Test.MockCat.Verify ()
 import Test.MockCat.Param
 import Unsafe.Coerce (unsafeCoerce)
 import Prelude as P
- 
+
 
 showExp :: Q Exp -> Q String
 showExp qexp = show . pprintExp <$> qexp
@@ -352,7 +328,7 @@ makeMockDecs ty mockType className monadVarName cxt typeVars decs options = do
       varAppliedTypes
       options
       cxt
-  let filteredCxt = filter (\predTy -> predTy `notElem` predsToDrop) fullCxt
+  let filteredCxt = filter (`notElem` predsToDrop) fullCxt
   instanceDec <-
     instanceD
       (pure filteredCxt)
@@ -587,7 +563,7 @@ generateInstanceRealFnBody fnName fnNameStr args r options = do
         Nothing -> lift $ $(foldl appE (varE fnName) args)
     |]
 
- 
+
 
 createMockFnDec :: MockType -> Name -> [VarAppliedType] -> MockOptions -> Dec -> Q [Dec]
 createMockFnDec mockType monadVarName varAppliedTypes options (SigD sigFnName ty) = do
@@ -597,7 +573,7 @@ createMockFnDec mockType monadVarName varAppliedTypes options (SigD sigFnName ty
   pure $ pragmaDec : fnDecs
 createMockFnDec _ _ _ _ dec = fail $ "unsupport dec: " <> pprint dec
 
- 
+
 
 verifyExtension :: Extension -> Q ()
 verifyExtension e = isExtEnabled e >>= flip unless (fail $ "Language extensions `" ++ show e ++ "` is required.")

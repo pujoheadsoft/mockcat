@@ -30,7 +30,7 @@ import Control.Monad.IO.Class (liftIO)
 prop_predicate_param_match_counts :: Property
 prop_predicate_param_match_counts = forAll genVals $ \xs -> monadicIO $ do
   -- build predicate mock: (Int -> Bool) returning True for all evens
-  f <- run $ createStubFn (expect even "even" |> True)
+  f <- run $ createMockFn (expect even "even" |> True)
   results <- run $ mapM (\x -> try (evaluate (f x)) :: IO (Either SomeException Bool)) xs
   let successes = length [ () | Right _ <- results ]
       expected  = length (filter even xs)
@@ -50,7 +50,7 @@ prop_predicate_param_match_counts = forAll genVals $ \xs -> monadicIO $ do
 -- saturate at the last value.
 prop_multicase_progression :: Property
 prop_multicase_progression = forAll genSeq $ \(arg, rs, extra) -> monadicIO $ do
-  f <- run $ createStubFn $ cases [ param arg |> r | r <- rs ]
+  f <- run $ createMockFn $ cases [ param arg |> r | r <- rs ]
   let totalCalls = length rs + extra
   -- NOTE [GHC9.4 duplicate-call counting]
   -- On GHC 9.4 we observed that using @replicateM totalCalls (evaluate (f arg))@
@@ -83,7 +83,7 @@ prop_runMockT_isolation :: Property
 prop_runMockT_isolation = monadicIO $ do
   -- Run 1: expect one application
   r1 <- run $ try $ runMockT $ do
-    f <- liftIO $ createStubFn (param (1 :: Int) |> True)
+    f <- liftIO $ createMockFn (param (1 :: Int) |> True)
     addDefinition Definition { symbol = Proxy @"iso", mock = f, verify = \m' -> shouldApplyTimesToAnything m' 1 }
     liftIO $ f 1 `seq` pure ()
   case r1 of
@@ -91,7 +91,7 @@ prop_runMockT_isolation = monadicIO $ do
     Right () -> assert True
   -- Run 2: expect zero (if leaked, would see 1 and fail)
   r2 <- run $ try $ runMockT $ do
-    f <- liftIO $ createStubFn (param (1 :: Int) |> True)
+    f <- liftIO $ createMockFn (param (1 :: Int) |> True)
     addDefinition Definition { symbol = Proxy @"iso", mock = f, verify = \m' -> shouldApplyTimesToAnything m' 0 }
     pure ()
   case r2 of
@@ -107,10 +107,10 @@ prop_neverApply_unused :: Property
 prop_neverApply_unused = forAll (chooseInt (0,5)) $ \n -> monadicIO $ do
   r <- run $ try $ runMockT $ do
     -- used mock
-    mUsed <- liftIO $ createStubFn (param (0 :: Int) |> True)
+    mUsed <- liftIO $ createMockFn (param (0 :: Int) |> True)
     addDefinition Definition { symbol = Proxy @"used", mock = mUsed, verify = \m' -> shouldApplyTimesToAnything m' n }
     -- unused mock
-    mUnused <- liftIO $ createStubFn (param (42 :: Int) |> True)
+    mUnused <- liftIO $ createMockFn (param (42 :: Int) |> True)
     addDefinition Definition { symbol = Proxy @"unused", mock = mUnused, verify = \m' -> shouldApplyTimesToAnything m' 0 }
     let f = mUsed
     -- See NOTE [GHC9.4 duplicate-call counting] above: make each application
@@ -129,7 +129,7 @@ prop_neverApply_unused = forAll (chooseInt (0,5)) $ \n -> monadicIO $ do
 prop_partial_order_duplicates :: Property
 prop_partial_order_duplicates = forAll genDupScript $ \xs -> length xs >= 2 ==> monadicIO $ do
   -- build mock over sequence
-  f <- run $ createStubFn $ cases [ param x |> True | x <- xs ]
+  f <- run $ createMockFn $ cases [ param x |> True | x <- xs ]
   run $ sequence_ [ f x `seq` pure () | x <- xs ]
   let uniques = nub xs
   -- success case

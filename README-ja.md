@@ -42,7 +42,7 @@ mockcat は Haskell 向けの小さなモック / スタブ DSL です。
 * 侵襲的なアーキテクチャ変更を要求しない。既存テストへ差し込める。
 
 #### 導入 (手書きスタブから段階的移行) 手順例
-1. 既存の手書きスタブを `createStubFn` に置換 (同じ型シグネチャ温存)。
+1. 既存の手書きスタブを `createMockFn` に置換 (同じ型シグネチャ温存)。
 2. 必要なテストだけ `shouldApplyTo` / `shouldApplyTimes` を追加 (全部に付けない)。
 3. 重複呼び出し判定や順序がテスト意図なら `shouldApplyInOrder` を追加。
 4. 将来さらに fuzz / property を盛りたい場合は PoC モジュール (ParamSpec/Scenario) を検討。
@@ -86,17 +86,17 @@ mockcat は Haskell 向けの小さなモック / スタブ DSL です。
 </details>
 
 ## 例
-スタブ関数
+スタブ関数（検証機能なし）
 ```haskell
--- create a stub function
-stubFn <- createStubFn $ "value" |> True
+-- create a stub function without verification
+let stubFn = createStubFn $ "value" |> True
 -- assert
 stubFn "value" `shouldBe` True
 ```
-適用の検証
+モック関数（検証機能付き）
 ```haskell
--- create a verifiable stub
-stubFunction <- createStubFn $ "value" |> True
+-- create a verifiable mock function
+stubFunction <- createMockFn $ "value" |> True
 -- assert
 stubFunction "value" `shouldBe` True
 -- verify
@@ -113,12 +113,29 @@ result <- runMockT do
 
 result `shouldBe` ()
 ```
-## スタブ関数の概要
+## スタブ関数とモック関数の概要
+
+mockcatは2種類の関数を提供します：
+
+1. **スタブ関数** (`createStubFn`): 検証機能を持たない純粋なスタブ関数
+2. **モック関数** (`createMockFn`): 検証機能を持つモック関数（内部で`unsafePerformIO`を使用）
+
+### スタブ関数（検証機能なし）
+
 スタブ関数は`createStubFn`関数で生成することができます。
 `createStubFn`の引数は、適用が期待される引数を `|>` で連結したもので、`|>` の最後の値が関数の返り値となります。
 ```haskell
-createStubFn $ (10 :: Int) |> "return value"
+let stubFn = createStubFn $ (10 :: Int) |> "return value"
 ```
+
+### モック関数（検証機能付き）
+
+モック関数は`createMockFn`関数で生成することができます。
+`createMockFn`の引数は、適用が期待される引数を `|>` で連結したもので、`|>` の最後の値が関数の返り値となります。
+```haskell
+mockFn <- createMockFn $ (10 :: Int) |> "return value"
+```
+
 これは型クラスのモックにおけるスタブ関数の場合も同様です。
 ```haskell
 runMockT do
@@ -127,26 +144,26 @@ runMockT do
 期待される引数は、条件として指定することもできます。
 ```haskell
 -- Conditions other than exact match
-createStubFn $ any |> "return value"
-createStubFn $ expect (> 5) "> 5" |> "return value"
-createStubFn $ expect_ (> 5) |> "return value"
-createStubFn $ $(expectByExpr [|(> 5)|]) |> "return value"
+mockFn <- createMockFn $ any |> "return value"
+mockFn <- createMockFn $ expect (> 5) "> 5" |> "return value"
+mockFn <- createMockFn $ expect_ (> 5) |> "return value"
+mockFn <- createMockFn $ $(expectByExpr [|(> 5)|]) |> "return value"
 ```
 また、引数に応じて返す値を変えることも可能です。
 （同じ引数に対して、別の値を返すことも可能できます。）
 ```haskell
--- Parameterized Stub
-createStubFn do
+-- Parameterized Mock
+mockFn <- createMockFn do
   onCase $ "a" |> "return x"
   onCase $ "b" |> "return y"
-createStubFn do
+mockFn <- createMockFn do
   onCase $ "arg" |> "x"
   onCase $ "arg" |> "y"
 ```
 ## 検証の概要
-スタブ関数の適用を検証するには、`createStubFn` で生成したスタブ関数に対して直接検証関数を適用します。
+モック関数の適用を検証するには、`createMockFn` で生成したモック関数に対して直接検証関数を適用します。
 ```haskell
-stubFunction <- createStubFn $ "value" |> True
+stubFunction <- createMockFn $ "value" |> True
 -- assert
 stubFunction "value" `shouldBe` True
 -- verify
@@ -434,8 +451,8 @@ import Test.MockCat
 spec :: Spec
 spec = do
   it "使い方の例" do
-    -- スタブの生成("value"を適用すると、純粋な値Trueを返す)
-    stubFunction <- createStubFn $ "value" |> True
+    -- モック関数の生成("value"を適用すると、純粋な値Trueを返す)
+    stubFunction <- createMockFn $ "value" |> True
 
     -- 関数の適用結果を検証
     stubFunction "value" `shouldBe` True
@@ -445,7 +462,7 @@ spec = do
 
 ```
 
-### スタブ関数
+### スタブ関数（検証機能なし）
 スタブ関数を直接作るには `createStubFn` 関数を使います。  
 検証が不要な場合は、こちらを使うとよいでしょう。
 ```haskell
@@ -457,14 +474,11 @@ import Test.MockCat
 spec :: Spec
 spec = do
   it "スタブ関数を生成することができる" do
-    -- 生成
-    f <- createStubFn $ "param1" |> "param2" |> pure @IO ()
+    -- 生成（検証機能なしの純粋なスタブ）
+    let f = createStubFn $ "param1" |> "param2" |> True
 
     -- 適用
-    actual <- f "param1" "param2"
-
-    -- 検証
-    actual `shouldBe` ()
+    f "param1" "param2" `shouldBe` True
 ```
 `createStubFn` 関数には、関数が適用されることを期待する引数を `|>` で連結して渡します。
 `|>` の最後の値が関数の返り値となります。
@@ -476,8 +490,8 @@ Expected arguments were not applied to the function.
   expected: "value"
   but got: "valuo"
 ```
-### 名前付きスタブ関数
-スタブ関数には名前を付けることができます。
+### 名前付きモック関数
+モック関数には名前を付けることができます。
 ```haskell
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE TypeApplications #-}
@@ -486,8 +500,8 @@ import Test.MockCat
 
 spec :: Spec
 spec = do
-  it "named stub" do
-    f <- createNamedStubFn "named stub" $ "x" |> "y" |> True
+  it "named mock" do
+    f <- createNamedMockFn "named mock" $ "x" |> "y" |> True
     f "x" "z" `shouldBe` True
 ```
 期待した引数に適用されなかった場合に出力されるエラーメッセージには、この名前が含まれるようになります。
@@ -515,8 +529,8 @@ spec = do
     shouldApplyToAnything m
 ```
 
-### 柔軟なスタブ関数
-`createStubFn` 関数に具体的な値ではなく、条件式を与えることで、柔軟なスタブ関数を生成できます。  
+### 柔軟なモック関数
+`createMockFn` 関数に具体的な値ではなく、条件式を与えることで、柔軟なモック関数を生成できます。  
 これを使うと、任意の値や、特定のパターンに合致する文字列などに対して期待値を返すことができます。  
 これはモナド型のモックを生成した際のスタブ関数も同様です。
 ### any
@@ -531,7 +545,7 @@ import Prelude hiding (any)
 spec :: Spec
 spec = do
   it "any" do
-    f <- createStubFn $ any |> "return value"
+    f <- createMockFn $ any |> "return value"
     f "something" `shouldBe` "return value"
 ```
 Preludeに同名の関数が定義されているため、`import Prelude hiding (any)`としています。
@@ -549,7 +563,7 @@ import Test.MockCat
 spec :: Spec
 spec = do
   it "expect" do
-    f <- createStubFn $ expect (> 5) "> 5" |> "return value"
+    f <- createMockFn $ expect (> 5) "> 5" |> "return value"
     f 6 `shouldBe` "return value"
 ```
 
@@ -566,7 +580,7 @@ import Test.MockCat
 spec :: Spec
 spec = do
   it "expect_" do
-    f <- createStubFn $ expect_ (> 5) |> "return value"
+    f <- createMockFn $ expect_ (> 5) |> "return value"
     f 6 `shouldBe` "return value"
 ```
 
@@ -583,12 +597,12 @@ import Test.MockCat
 spec :: Spec
 spec = do
   it "expectByExpr" do
-    f <- createStubFn $ $(expectByExpr [|(> 5)|]) |> "return value"
+    f <- createMockFn $ $(expectByExpr [|(> 5)|]) |> "return value"
     f 6 `shouldBe` "return value"
 ```
 
-### 適用される引数ごとに異なる値を返すスタブ関数
-`onCase`関数を使うと引数ごとに異なる値を返すスタブ関数を作れます。
+### 適用される引数ごとに異なる値を返すモック関数
+`onCase`関数を使うと引数ごとに異なる値を返すモック関数を作れます。
 ```haskell
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE TypeApplications #-}
@@ -598,7 +612,7 @@ import Test.MockCat
 spec :: Spec
 spec = do
   it "multi" do
-    f <- createStubFn do
+    f <- createMockFn do
       onCase $ "a" |> "return x"
       onCase $ "b" |> "return y"
 
@@ -606,8 +620,8 @@ spec = do
     f "b" `shouldBe` "return y"
 ```
 
-### 同じ引数に適用されたとき異なる値を返すスタブ関数
-`onCase`関数を使うとき、引数が同じで返り値が異なるようにすると、同じ引数に適用しても異なる値を返すスタブ関数を作れます。
+### 同じ引数に適用されたとき異なる値を返すモック関数
+`onCase`関数を使うとき、引数が同じで返り値が異なるようにすると、同じ引数に適用しても異なる値を返すモック関数を作れます。
 ```haskell
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE TypeApplications #-}
@@ -618,7 +632,7 @@ import GHC.IO (evaluate)
 spec :: Spec
 spec = do
   it "Return different values for the same argument" do
-    f <- createStubFn do
+    f <- createMockFn do
       onCase $ "arg" |> "x"
       onCase $ "arg" |> "y"
 
@@ -628,12 +642,12 @@ spec = do
     v3 <- evaluate $ f "arg"
     v1 `shouldBe` "x"
     v2 `shouldBe` "y"
-    v3 `shouldBe` "y" -- After the second time, “y” is returned.
+    v3 `shouldBe` "y" -- After the second time, "y" is returned.
 ```
 あるいは`cases`関数を使うこともできます。
 ```haskell
 f <-
-  createStubFn $
+  createMockFn $
     cases
       [ "a" |> "return x",
         "b" |> "return y"
@@ -646,7 +660,7 @@ f "b" `shouldBe` "return y"
 ## 検証
 ### 期待される引数に適用されたか検証する
 期待される引数に適用されたかは `shouldApplyTo` 関数で検証することができます。  
-`createStubFn` で生成したスタブ関数に対して直接検証を行います。
+`createMockFn` で生成したモック関数に対して直接検証を行います。
 ```haskell
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE TypeApplications #-}
@@ -655,17 +669,17 @@ import Test.MockCat
 
 spec :: Spec
 spec = do
-  it "stub & verify" do
-    -- create a verifiable stub
+  it "mock & verify" do
+    -- create a verifiable mock
     let args = "value" |> True
-    stubFunction <- createStubFn args
+    stubFunction <- createMockFn args
     -- assert
     stubFunction "value" `shouldBe` True
     -- verify
     stubFunction `shouldApplyTo` "value"
 ```
 ### 注
-適用されたという記録は、スタブ関数の返り値が評価される時点で行われます。  
+適用されたという記録は、モック関数の返り値が評価される時点で行われます。  
 したがって、検証は返り値の評価後に行う必要があります。
 ```haskell
 {-# LANGUAGE BlockArguments #-}
@@ -676,7 +690,7 @@ import Test.MockCat
 spec :: Spec
 spec = do
   it "Verification does not work" do
-    f <- createStubFn $ "expect arg" |> "return value"
+    f <- createMockFn $ "expect arg" |> "return value"
     -- 引数の適用は行うが返り値は評価しない
     let _ = f "expect arg"
     f `shouldApplyTo` "expect arg"

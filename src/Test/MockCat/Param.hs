@@ -8,7 +8,6 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE MagicHash #-}
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
 -- | This module is a parameter of the mock function.
