@@ -7,9 +7,7 @@
 {-# LANGUAGE TypeFamilyDependencies #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE MagicHash #-}
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
@@ -44,24 +42,6 @@ import Foreign.Ptr (Ptr, ptrToIntPtr, castPtr)
 data Param v
   = ExpectValue v
   | ExpectCondition (v -> Bool) String
-
--- | Helper function to compare function values using pointer equality
--- Note: This only works for functions with the same definition,
--- not for structurally equivalent functions
-ptrEq :: a -> a -> Bool
-ptrEq x y = I# (reallyUnsafePtrEquality# (unsafeCoerce x) (unsafeCoerce y)) == 1
-
--- | Helper function to compare function values using pointer equality
-compareFunction :: forall a. a -> a -> Bool
-compareFunction = ptrEq
-
--- | Show function using type information and a pointer hash
-showFunction :: forall a. Typeable a => a -> String
-showFunction x =
-  let typeStr = show (typeOf x)
-      -- Create a pseudo-address from the pointer for display purposes
-      ptrAddr = show (ptrToIntPtr (castPtr (unsafeCoerce x :: Ptr ())))
-   in typeStr ++ "@" ++ ptrAddr
 
 instance {-# OVERLAPPABLE #-} (Eq a) => Eq (Param a) where
   (ExpectValue a) == (ExpectValue b) = a == b
@@ -183,3 +163,15 @@ instance
 
 returnValue :: (ProjectionReturn params, ReturnOf params ~ Param r) => params -> r
 returnValue = value . projReturn
+
+-- | Helper function to compare function values using pointer equality
+compareFunction :: forall a. a -> a -> Bool
+compareFunction x y= I# (reallyUnsafePtrEquality# (unsafeCoerce x) (unsafeCoerce y)) == 1
+
+-- | Show function using type information and a pointer hash
+showFunction :: forall a. Typeable a => a -> String
+showFunction x =
+  let typeStr = show (typeOf x)
+      -- Create a pseudo-address from the pointer for display purposes
+      ptrAddr = show (ptrToIntPtr (castPtr (unsafeCoerce x :: Ptr ())))
+   in typeStr ++ "@" ++ ptrAddr
