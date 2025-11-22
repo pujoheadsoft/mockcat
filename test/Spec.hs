@@ -1,6 +1,5 @@
 import Test.Hspec (hspec, describe, it)
 import Test.MockCat.MockSpec as Mock
-import Test.MockCat.MockSpec2 as Mock2
 import Test.MockCat.ConsSpec as Cons
 import Test.MockCat.ParamSpec as Param
 import Test.MockCat.AssociationListSpec as AssociationList
@@ -33,7 +32,6 @@ main = hspec $ do
     Cons.spec
     Param.spec
     Mock.spec
-    Mock2.spec
     AssociationList.spec
     Example.spec
     TypeClass.spec

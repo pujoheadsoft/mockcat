@@ -103,7 +103,6 @@ test-suite mockcat-test
       Test.MockCat.Impl
       Test.MockCat.Internal.RegistrySpec
       Test.MockCat.MockSpec
-      Test.MockCat.MockSpec2
       Test.MockCat.ParamSpec
       Test.MockCat.PartialMockSpec
       Test.MockCat.PartialMockTHSpec
