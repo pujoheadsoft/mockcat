@@ -225,14 +225,15 @@ wrapUnitStub ::
   fn ->
   fn
 wrapUnitStub ref meta value =
-  perform $ do
-    guardActive <- isGuardActive meta
-    if guardActive || isIOType (Proxy :: Proxy fn)
-      then pure value
-      else do
-        markUnitUsed meta
-        appendAppliedParams ref ()
-        pure value
+  let trackedValue = perform $ do
+        guardActive <- isGuardActive meta
+        if guardActive || isIOType (Proxy :: Proxy fn)
+          then pure value
+          else do
+            markUnitUsed meta
+            appendAppliedParams ref ()
+            pure value
+   in value `seq` trackedValue
 
 isIOType :: forall a. Typeable a => Proxy a -> Bool
 isIOType _ =

@@ -17,7 +17,6 @@ module Test.MockCat.Verify where
 
 import Test.MockCat.Internal.Types
 import Control.Monad (guard, when)
-import Data.Function ((&))
 import Data.IORef (IORef, readIORef)
 import Data.List (elemIndex, intercalate)
 import Data.Maybe
@@ -62,8 +61,10 @@ verify ::
 verify m matchType = do
   ResolvedMock mockName (Verifier ref) <- requireResolved m
   appliedParamsList <- readAppliedParamsList ref
-  let result = doVerify mockName appliedParamsList matchType
-  result & maybe (pure ()) (\(VerifyFailed msg) -> errorWithoutStackTrace msg)
+  case doVerify mockName appliedParamsList matchType of
+    Nothing -> pure ()
+    Just (VerifyFailed msg) ->
+      errorWithoutStackTrace msg `seq` pure ()
 
 doVerify :: (Eq a, Show a) => Maybe MockName -> AppliedParamsList a -> VerifyMatchType a -> Maybe VerifyFailed
 doVerify name list (MatchAny a) = do
@@ -188,8 +189,10 @@ verifyOrder ::
 verifyOrder method m matchers = do
   ResolvedMock mockName (Verifier ref) <- requireResolved m
   appliedParamsList <- readAppliedParamsList ref
-  let result = doVerifyOrder method mockName appliedParamsList matchers
-  result & maybe (pure ()) (\(VerifyFailed msg) -> errorWithoutStackTrace msg)
+  case doVerifyOrder method mockName appliedParamsList matchers of
+    Nothing -> pure ()
+    Just (VerifyFailed msg) ->
+      errorWithoutStackTrace msg `seq` pure ()
 
 doVerifyOrder ::
   (Eq a, Show a) =>
