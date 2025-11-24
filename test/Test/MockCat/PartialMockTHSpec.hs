@@ -88,7 +88,7 @@ spec = do
 
     describe "MultiParamType" $ do
       it "all real function" $ do
-        values <- runMockT $ findValue
+        values <- runMockT findValue
         values `shouldBe` ["{id: 1}", "{id: 2}", "{id: 3}"]
 
       it "partial findIds" $ do

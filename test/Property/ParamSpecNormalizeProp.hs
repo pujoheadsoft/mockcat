@@ -1,8 +1,6 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE PackageImports #-}
 {-# LANGUAGE GADTs #-}
-{-# LANGUAGE MonoLocalBinds #-}
 module Property.ParamSpecNormalizeProp (spec, prop_enum_duplicate_equivalence) where
 
 import Test.Hspec
@@ -10,7 +8,6 @@ import Test.QuickCheck
 import Data.List (nub)
 import Support.ParamSpec (ParamSpec(..))
 import Support.ParamSpecNormalize
-import Data.Hashable (Hashable)
 
 -- Generator for small ParamSpec Int
 -- Avoid empty enum (library contract), but include duplicates.
@@ -29,8 +26,7 @@ genParamSpecInt = frequency
       xs <- vectorOf n smallInt
       pure (PSEnum xs)
     rangeSpec = do
-      a <- smallInt; b <- smallInt
-      pure (PSRangeInt a b)
+      a <- smallInt; PSRangeInt a <$> smallInt
 
 pretty :: ParamSpec Int -> String
 pretty ps = case ps of
@@ -83,5 +79,5 @@ prop_enum_duplicate_equivalence = forAll genDupEnum $ \(xs :: [Int]) ->
       baseLen <- choose (1,5)
       base <- vectorOf baseLen (choose (-5,5))
       dupFactor <- choose (0,3)
-      extras <- concat <$> mapM (\v -> vectorOf dupFactor (pure v)) base
+      extras <- concat <$> mapM (vectorOf dupFactor . pure) base
       shuffle (base ++ extras)

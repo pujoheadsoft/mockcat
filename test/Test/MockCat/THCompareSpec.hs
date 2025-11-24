@@ -11,7 +11,7 @@ import Test.Hspec
 import Language.Haskell.TH (pprint, Dec(..), Type(..), litE, stringL, listE, tupE)
 import Language.Haskell.TH.Syntax (nameBase)
 import Data.Char (isDigit, isLower)
-import Data.List (foldl', sort)
+import Data.List (foldl', sort, nub)
 import Data.Maybe (mapMaybe)
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as T
@@ -38,6 +38,9 @@ stripQualifiers =
       T.pack
       [ "Test.MockCat.SharedSpecDefs."
       , "Test.MockCat.MockT."
+      , "Test.MockCat.Internal.Builder."
+      , "Test.MockCat.Cons."
+      , "Test.MockCat.Param."
       , "Control.Monad.IO.Class."
       , "GHC.Types."
       , "Data.Typeable.Internal."
@@ -68,7 +71,20 @@ squeezePunctuation =
     , (" ]", "]")
     , (" <" , "<")
     , ("> ", ">")
+    , ("((:>) ", "(")
+    , ("((:>)", "(")
+    , ("(:>) ", "")
+    , ("(:>)", "")
     ]
+  . T.replace (T.pack "Head (Param") (T.pack "Head :>Param")
+  . T.replace (T.pack "Head :> Param") (T.pack "Head :>Param")
+  -- Fix: MockBuilder (Head :>Param r) r () should not become MockBuilder (Head :>Param r r ()
+  -- First fix the case where " r r ()" appears (missing closing paren)
+  . T.replace (T.pack ":>Param r r ()") (T.pack ":>Param r) r ()")
+  . T.replace (T.pack "Head :>Param r r ()") (T.pack "Head :>Param r) r ()")
+  . T.replace (T.pack "Param r r ()") (T.pack "Param r) r ()")
+  -- Then handle the general case of ") r ()" -> " r ()" but only if not already fixed
+  . T.replace (T.pack ") r ()") (T.pack " r ()")
   where
     applyReplacements reps txt =
       foldl'
@@ -165,6 +181,28 @@ generatedAssocTypeStr = $(
       Nothing -> fail "AssocTypeTest not found"
       Just n -> do decs <- makeMock (conT n); litE (stringL (concatMap pprint decs))
   )
+
+generatedAssocSigPairs :: [(String, String)]
+generatedAssocSigPairs =
+  $(
+    do
+      m <- lookupTypeName "Test.MockCat.SharedSpecDefs.AssocTypeTest"
+      case m of
+        Nothing -> fail "AssocTypeTest not found"
+        Just n -> do
+          decs <- makeMock (conT n)
+          let sigPairs =
+                [ (nameBase name, pprint ty)
+                | SigD name ty <- decs
+                ]
+          listE
+            [ tupE [litE (stringL fn), litE (stringL sig)]
+            | (fn, sig) <- sigPairs
+            ]
+  )
+
+generatedAssocSigMap :: Map.Map String String
+generatedAssocSigMap = Map.fromList generatedAssocSigPairs
 
 generatedParamThreeStr :: String
 generatedParamThreeStr = $(
@@ -292,6 +330,31 @@ spec = describe "TH generated vs handwritten instances" do
     it desc $
       assertInstancesEquivalent manualPath className generatedStr
 
+  it "generated helper signatures do not contain duplicated Typeable constraints" do
+    let allSigMaps =
+          [ generatedFinderSigMap,
+            generatedUserInputSigMap
+          ]
+        extractTypeableTargets :: String -> [String]
+        extractTypeableTargets s =
+          let go acc txt =
+                let (_, rest) = T.breakOn (T.pack "Typeable") txt
+                 in if T.null rest
+                      then acc
+                      else
+                        let afterTypeable = T.drop (T.length (T.pack "Typeable")) rest
+                            afterTrim = T.stripStart afterTypeable
+                            tok = T.strip $ T.takeWhile (\c -> c /= ',' && c /= ')' && c /= '=') afterTrim
+                            rest' = afterTypeable
+                         in go (acc ++ [T.unpack tok]) rest'
+           in go [] (T.pack s)
+        checkMap m =
+          forM_ (Map.toList m) \(_fn, sig) -> do
+            let nsig = normalizeSignature sig
+                targets = extractTypeableTargets nsig
+            (length targets) `shouldBe` (length (nub targets))
+    mapM_ checkMap allSigMaps
+
   describe "Partial mock helper signatures match handwritten" do
     it "_findIds signature matches handwritten" $
       assertHelperSigMatches partialMockSpecPath generatedFinderSigMap "_findIds"
@@ -305,6 +368,9 @@ spec = describe "TH generated vs handwritten instances" do
         Just sig ->
           normalizeSignature sig
             `shouldSatisfy` not . T.isInfixOf (T.pack "ResolvableParamsOf") . T.pack
+
+    it "_produce signature matches handwritten" $
+      assertHelperSigMatches typeClassSpecPath generatedAssocSigMap "_produce"
 
 -- helper to extract generated instance headers from a pre-pprinted string
 extractGeneratedInstanceCxtsFromStr :: String -> String -> [String]
@@ -395,7 +461,12 @@ normalizeSignature =
     . T.pack
     . dropFunctionName
     . stripForallClause
+    . replaceDoubleParens
     . normalize
+
+-- collapse duplicated closing parens introduced by normalization quirks
+replaceDoubleParens :: String -> String
+replaceDoubleParens = T.unpack . T.replace (T.pack "))") (T.pack ")") . T.pack
 
 dropFunctionName :: String -> String
 dropFunctionName sig =

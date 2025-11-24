@@ -1,4 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE LambdaCase #-}
@@ -49,7 +50,8 @@ import Language.Haskell.TH
   )
 import Language.Haskell.TH.Lib
 import Language.Haskell.TH.Syntax (nameBase, Specificity (SpecifiedSpec))
-import Test.MockCat.Mock ( createNamedMockFn, createNamedConstantMockFn, MockBuilder )
+import Test.MockCat.Mock ( createNamedMockFnWithParams, MockBuilder )
+import Test.MockCat.Cons (Head(..), (:>)(..))
 import Test.MockCat.MockT
   ( MockT (..),
     Definition (..),
@@ -72,14 +74,14 @@ import Test.MockCat.Verify (ResolvableParamsOf, ResolvableParams, resolveForVeri
 import Data.Maybe (fromMaybe)
 import Data.Function ((&))
 import Data.Proxy (Proxy(..))
-import Data.List (find, nub)
+import Data.List (find, nub, nubBy)
 import Data.Typeable (Typeable)
+import Language.Haskell.TH.Ppr (pprint)
 import Unsafe.Coerce (unsafeCoerce)
 import GHC.TypeLits (KnownSymbol, symbolVal)
 
 -- copy of createMockBuilder functions
-import Test.MockCat.Cons ((:>))
-import Test.MockCat.Param (Param)
+import Test.MockCat.Param (Param, param)
 import Test.MockCat.TH.Types (MockOptions(..))
 
 createMockBuilderVerifyParams :: Type -> Type
@@ -120,6 +122,20 @@ partialAdditionalPredicates funType verifyParams =
           verifyParams
       | not (null (collectTypeVars funType))
       ]
+
+-- remove Typeable () (unit) and duplicate preds (comparing pretty-printed)
+filterTypeablePreds :: [Pred] -> [Pred]
+filterTypeablePreds preds =
+  nubBy (\a b -> pprint a == pprint b) $ filter (not . isUnitTypePred) preds
+
+isUnitTypePred :: Pred -> Bool
+isUnitTypePred (AppT (ConT _) t) = isUnitType t
+isUnitTypePred _ = False
+
+isUnitType :: Type -> Bool
+isUnitType (TupleT 0) = True
+isUnitType (ParensT t) = isUnitType t
+isUnitType _ = False
 
 -- The following are copies of the function generation utilities from TH.hs
 
@@ -189,34 +205,43 @@ doCreateMockFnDecs :: (Quote m) => MockType -> String -> Name -> Name -> Type ->
 doCreateMockFnDecs mockType funNameStr mockFunName params funType monadVarName updatedType = do
   newFunSig <- do
     let verifyParams = createMockBuilderVerifyParams updatedType
-        baseCtx =
-          [ AppT (AppT (AppT (ConT ''MockBuilder) (VarT params)) funType) verifyParams
-          , AppT (ConT ''MonadIO) (VarT monadVarName)
+        mockBuilderPred =
+          AppT (AppT (AppT (ConT ''MockBuilder) (VarT params)) funType) verifyParams
+        eqConstraint =
+          [ AppT
+              (AppT EqualityT (AppT (ConT ''ResolvableParamsOf) funType))
+              verifyParams
+          | not (null (collectTypeVars funType))
           ]
+        baseCtx =
+          ([mockBuilderPred | verifyParams /= TupleT 0])
+            ++ [AppT (ConT ''MonadIO) (VarT monadVarName)]
         ctx = case mockType of
           Partial ->
             baseCtx ++ partialAdditionalPredicates funType verifyParams
           Total ->
-            let typeableTargets =
+            let typeableTargetsBase =
                   [ funType
                   , verifyParams
-                  , AppT (ConT ''ResolvableParams) funType
                   ]
+                typeableTargets =
+                  typeableTargetsBase
+                    ++ (if null eqConstraint then [AppT (ConT ''ResolvableParams) funType] else [])
                 typeablePreds =
                   [ AppT (ConT ''Typeable) target
                   | target <- typeableTargets
                   , needsTypeable target
                   ]
-             in baseCtx ++ typeablePreds
+             in baseCtx ++ eqConstraint ++ filterTypeablePreds typeablePreds
         resultType =
           AppT
             (AppT ArrowT (VarT params))
             (AppT (AppT (ConT ''MockT) (VarT monadVarName)) (TupleT 0))
     sigD mockFunName (pure (ForallT [] ctx resultType))
 
-  createMockFn <- [|createNamedMockFn|]
+  createMockFn <- [|createNamedMockFnWithParams|]
 
-  mockBody <- createMockBody funNameStr createMockFn
+  mockBody <- createMockBody funNameStr createMockFn [|p|]
   newFun <- funD mockFunName [clause [varP $ mkName "p"] (normalB (pure mockBody)) []]
 
   pure $ newFunSig : [newFun]
@@ -225,11 +250,11 @@ doCreateConstantMockFnDecs :: (Quote m) => MockType -> String -> Name -> Type ->
 doCreateConstantMockFnDecs Partial funNameStr mockFunName _ monadVarName = do
   stubVar <- newName "r"
   let ctx =
-        [ AppT (ConT ''Typeable) (VarT stubVar)
-        , AppT
+        [ AppT
             (AppT EqualityT (AppT (ConT ''ResolvableParamsOf) (VarT stubVar)))
             (TupleT 0)
         , AppT (ConT ''MonadIO) (VarT monadVarName)
+        , AppT (ConT ''Typeable) (VarT stubVar)
         ]
       resultType =
         AppT
@@ -247,29 +272,64 @@ doCreateConstantMockFnDecs Partial funNameStr mockFunName _ monadVarName = do
               resultType
           )
       )
-  createMockFn <- [|createNamedConstantMockFn|]
-  mockBody <- createMockBody funNameStr createMockFn
+  createMockFn <- [|createNamedMockFnWithParams|]
+  headParam <- [|Head :> param p|]
+  mockBody <- createMockBody funNameStr createMockFn (pure headParam)
   newFun <- funD mockFunName [clause [varP $ mkName "p"] (normalB (pure mockBody)) []]
   pure $ newFunSig : [newFun]
 doCreateConstantMockFnDecs Total funNameStr mockFunName ty monadVarName = do
-  let typeableTargets =
-        [ ty
-        , AppT (ConT ''ResolvableParams) ty
-        ]
-      typeablePreds =
-        [ AppT (ConT ''Typeable) target
-        | target <- typeableTargets
-        , needsTypeable target
-        ]
-      ctx =
-        AppT (ConT ''MonadIO) (VarT monadVarName) : typeablePreds
-      resultType =
-        AppT
-          (AppT ArrowT ty)
-          (AppT (AppT (ConT ''MockT) (VarT monadVarName)) (TupleT 0))
-  newFunSig <- sigD mockFunName (pure (ForallT [] ctx resultType))
-  createMockFn <- [|createNamedConstantMockFn|]
-  mockBody <- createMockBody funNameStr createMockFn
+  newFunSig <- case ty of
+    AppT (ConT _) (VarT mv) | mv == monadVarName -> do
+      a <- newName "a"
+      let ctx =
+            [ AppT (ConT ''MonadIO) (VarT monadVarName)
+            , AppT (AppT EqualityT (AppT (ConT ''ResolvableParamsOf) (VarT a))) (TupleT 0)
+            , AppT (ConT ''Typeable) (VarT a)
+            ]
+          resultType =
+            AppT
+              (AppT ArrowT (VarT a))
+              (AppT (AppT (ConT ''MockT) (VarT monadVarName)) (TupleT 0))
+      sigD
+        mockFunName
+        ( pure
+            (ForallT
+                [PlainTV a SpecifiedSpec, PlainTV monadVarName SpecifiedSpec]
+                ctx
+                resultType
+            )
+        )
+    _ -> do
+      let headParamType = AppT (AppT (ConT ''(:>)) (ConT ''Head)) (AppT (ConT ''Param) ty)
+          typeableTargets =
+            [ ty
+            , AppT (ConT ''ResolvableParams) ty
+            ]
+          typeablePreds =
+            [ AppT (ConT ''Typeable) target
+            | target <- typeableTargets
+            , needsTypeable target
+            ]
+          verifyParams' = createMockBuilderVerifyParams ty
+          mockBuilderPred' = AppT (AppT (AppT (ConT ''MockBuilder) headParamType) ty) (TupleT 0)
+          typeablePreds' =
+            [ AppT (ConT ''Typeable) ty
+            | needsTypeable ty
+            ]
+            ++ typeablePreds
+          ctx =
+            [ AppT (ConT ''MonadIO) (VarT monadVarName)
+            ]
+            ++ ([mockBuilderPred' | verifyParams' /= TupleT 0])
+            ++ typeablePreds'
+          resultType =
+            AppT
+              (AppT ArrowT ty)
+              (AppT (AppT (ConT ''MockT) (VarT monadVarName)) (TupleT 0))
+      sigD mockFunName (pure (ForallT [PlainTV monadVarName SpecifiedSpec] ctx resultType))
+  createMockFn <- [|createNamedMockFnWithParams|]
+  headParam <- [|Head :> param p|]
+  mockBody <- createMockBody funNameStr createMockFn (pure headParam)
   newFun <- funD mockFunName [clause [varP $ mkName "p"] (normalB (pure mockBody)) []]
   pure $ newFunSig : [newFun]
 
@@ -287,29 +347,30 @@ doCreateEmptyVerifyParamMockFnDecs funNameStr mockFunName params funType monadVa
           | target <- typeableTargets
           , needsTypeable target
           ]
+        mockBuilderPred = AppT (AppT (AppT (ConT ''MockBuilder) (VarT params)) funType) verifyParams
         ctx =
-          [ AppT (AppT (AppT (ConT ''MockBuilder) (VarT params)) funType) verifyParams
-          , AppT (ConT ''MonadIO) (VarT monadVarName)
-          ]
-            ++ typeablePreds
+          [mockBuilderPred]
+            ++ [AppT (ConT ''MonadIO) (VarT monadVarName)]
+            ++ filterTypeablePreds typeablePreds
         resultType =
           AppT
             (AppT ArrowT (VarT params))
             (AppT (AppT (ConT ''MockT) (VarT monadVarName)) (TupleT 0))
     sigD mockFunName (pure (ForallT [] ctx resultType))
 
-  createMockFn <- [|createNamedMockFn|]
+  createMockFn <- [|createNamedMockFnWithParams|]
 
-  mockBody <- createMockBody funNameStr createMockFn
+  mockBody <- createMockBody funNameStr createMockFn [|p|]
   newFun <- funD mockFunName [clause [varP $ mkName "p"] (normalB (pure mockBody)) []]
 
   pure $ newFunSig : [newFun]
 
-createMockBody :: (Quote m) => String -> Exp -> m Exp
-createMockBody funNameStr createMockFn =
+createMockBody :: (Quote m) => String -> Exp -> m Exp -> m Exp
+createMockBody funNameStr createMockFn paramsExp =
+  paramsExp >>= \params ->
   [|
     MockT $ do
-      mockInstance <- liftIO $ $(pure createMockFn) $(litE (stringL funNameStr)) p
+      mockInstance <- liftIO $ $(pure createMockFn) $(litE (stringL funNameStr)) $(pure params)
       resolved <- liftIO do
         resolveForVerification mockInstance >>= \case
           Just (maybeName, verifier) -> pure $ ResolvedMock maybeName verifier

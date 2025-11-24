@@ -20,7 +20,7 @@ module Test.MockCat.Internal.Builder where
 
 import Data.IORef (IORef, newIORef, readIORef, atomicModifyIORef')
 import Data.Maybe
-import Test.MockCat.Cons
+import Test.MockCat.Cons (Head(..), (:>)(..))
 import Test.MockCat.Param
 import Test.MockCat.AssociationList (lookup, update, insert, empty, member)
 import Prelude hiding (lookup)
@@ -125,7 +125,20 @@ instance
         verifier = Verifier ref
     pure (fn, verifier)
 
--- | Instance for building a stub for a value.
+-- | Instance for building a stub for a constant value (with Head marker).
+instance
+  MockBuilder (Head :> Param r) r ()
+  where
+  build _ (Head :> params) = do
+    ref <- liftIO $ newIORef appliedRecord
+    let v = value params
+        fn = perform $ do
+          liftIO $ appendAppliedParams ref ()
+          pure v
+        verifier = Verifier ref
+    pure (fn, verifier)
+
+-- | Instance for building a stub for a value (backward compatibility).
 instance
   MockBuilder (Param r) r ()
   where

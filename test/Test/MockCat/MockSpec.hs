@@ -889,47 +889,47 @@ spec = do
 
   describe "constant" do
     it "createConstantMock" do
-      f <- createConstantMockFn "foo"
+      f <- createMockFn "foo"
       f `shouldBe` "foo"
       shouldApplyToAnything f
 
     it "createNamedConstantMock" do
-      f <- createNamedConstantMockFn "const" "foo"
+      f <- createNamedMockFn "const" "foo"
       f `shouldBe` "foo"
       shouldApplyToAnything f
 
     it "createConstantMock (error message)" do
-      f <- createConstantMockFn "foo"
+      f <- createMockFn "foo"
       shouldApplyToAnything f `shouldThrow` errorCall "It has never been applied function"
 
     it "createNamedConstantMock (error message)" do
-      f <- createNamedConstantMockFn "constant" "foo"
+      f <- createNamedMockFn "constant" "foo"
       shouldApplyToAnything f `shouldThrow` errorCall "It has never been applied function `constant`"
 
     -- TODO: Fix this test
     -- it "createConstantMock with shouldApplyTimesToAnything (success)" do
-    --   f <- createConstantMockFn "foo"
+    --   f <- createMockFn "foo"
     --   _ <- print f
     --   _ <- print f
     --   _ <- print f
     --   f `shouldApplyTimesToAnything` 3
 
     it "createConstantMock with shouldApplyTimesToAnything (failure)" do
-      f <- createConstantMockFn "foo"
+      f <- createMockFn "foo"
       _ <- evaluate f
       _ <- evaluate f
       f `shouldApplyTimesToAnything` 3 `shouldThrow` anyErrorCall
 
     -- TODO: Fix this test
     -- it "createNamedConstantMock with shouldApplyTimesToAnything (success)" do
-    --   f <- createNamedConstantMockFn "const" "foo"
+    --   f <- createNamedMockFn "const" "foo"
     --   _ <- f `shouldBe` "foo"
     --   _ <- f `shouldBe` "foo"
     --   _ <- f `shouldBe` "foo"
     --   f `shouldApplyTimesToAnything` 3
 
     it "createNamedConstantMock with shouldApplyTimesToAnything (failure)" do
-      f <- createNamedConstantMockFn "const" "foo"
+      f <- createNamedMockFn "const" "foo"
       _ <- evaluate f
       _ <- evaluate f
       f `shouldApplyTimesToAnything` 3 `shouldThrow` anyErrorCall

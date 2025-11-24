@@ -23,10 +23,9 @@ module Test.MockCat.Mock
   , buildIO
   , createMockFn
   , createNamedMockFn
+  , createNamedMockFnWithParams
   , createMockFnIO
   , createStubFn
-  , createConstantMockFn
-  , createNamedConstantMockFn
   , shouldApplyTo
   , shouldApplyTimes
   , shouldApplyInOrder
@@ -66,7 +65,87 @@ import Test.MockCat.Internal.Registry
 import Test.MockCat.Internal.Types
 import Test.MockCat.Param
 import Test.MockCat.Verify
+import Test.MockCat.Cons (Head(..), (:>)(..))
 import Type.Reflection (TyCon, splitApps, typeRep, typeRepTyCon)
+
+-- | Type family to convert raw values to mock parameters.
+--   Raw values (like "foo") are converted to Head :> Param a,
+--   while existing Param chains remain unchanged.
+type family ToMockParams p where
+  ToMockParams (Param a :> rest) = Param a :> rest  -- Already a Param chain, keep as is
+  ToMockParams (Param a) = Param a                  -- Single Param, keep as is
+  ToMockParams (Cases a b) = Cases a b              -- Cases, keep as is
+  ToMockParams (IO a) = IO a                        -- IO, keep as is
+  ToMockParams (Head :> a) = Head :> a              -- Already has Head, keep as is
+  ToMockParams a = Head :> Param a                  -- Raw value, wrap with Head :> Param
+
+-- | Type class for converting values to mock parameters.
+class CreateMock p where
+  toParams :: p -> ToMockParams p
+
+-- Instance for Param chains (most specific - should match first)
+instance {-# OVERLAPPING #-} CreateMock (Param a :> rest) where
+  toParams = id
+
+-- Instance for single Param
+instance {-# OVERLAPPING #-} CreateMock (Param a) where
+  toParams = id
+
+-- Instance for Cases
+instance {-# OVERLAPPING #-} CreateMock (Cases a b) where
+  toParams = id
+
+-- Instance for IO
+instance {-# OVERLAPPING #-} CreateMock (IO a) where
+  toParams = id
+
+-- Instance for Head :> Param r (constant values)
+instance {-# OVERLAPPING #-} CreateMock (Head :> Param r) where
+  toParams = id
+
+-- Instance for raw values (fallback)
+-- This handles raw values by wrapping them with Head :> Param
+-- We need to ensure this doesn't match Param chains, Cases, IO, or Head types
+instance {-# OVERLAPPABLE #-} 
+  ( ToMockParams b ~ (Head :> Param b)
+  , Typeable b
+  ) => CreateMock b where
+  toParams value = Head :> param value
+
+-- | Type class for converting values to mock parameters (named version).
+class CreateNamedMock p where
+  toParamsNamed :: p -> ToMockParams p
+
+-- Instance for Param chains
+instance {-# OVERLAPPING #-} CreateNamedMock (Param a :> rest) where
+  toParamsNamed = id
+
+-- Instance for single Param
+instance {-# OVERLAPPING #-} CreateNamedMock (Param a) where
+  toParamsNamed = id
+
+-- Instance for Cases
+instance {-# OVERLAPPING #-} CreateNamedMock (Cases a b) where
+  toParamsNamed = id
+
+-- Instance for IO
+instance {-# OVERLAPPING #-} CreateNamedMock (IO a) where
+  toParamsNamed = id
+
+-- Instance for Head :> Param r (constant values)
+instance {-# OVERLAPPING #-} CreateNamedMock (Head :> Param r) where
+  toParamsNamed = id
+
+-- Instance for raw values (fallback)
+-- This handles raw values by wrapping them with Head :> Param
+-- We need to ensure this doesn't match Param chains, Cases, IO, or Head types
+-- Note: This instance should not match types that already have other instances
+instance {-# OVERLAPPABLE #-} 
+  ( ToMockParams b ~ (Head :> Param b)
+  , Typeable b
+  , b ~ v  -- Add equality constraint to help type inference
+  ) => CreateNamedMock v where
+  toParamsNamed value = Head :> param value
 
 {- | Create a mock function with verification hooks attached.
 
@@ -77,13 +156,15 @@ appear pure, but it requires 'MonadIO' for creation.
 -}
 createMockFn ::
   ( MonadIO m
-  , MockBuilder params fn verifyParams
+  , CreateMock p
+  , MockBuilder (ToMockParams p) fn verifyParams
   , Typeable verifyParams
   , Typeable fn
   ) =>
-  params ->
+  p ->
   m fn
-createMockFn params = do
+createMockFn p = do
+  let params = toParams p
   (fn, verifier) <- build Nothing params
   registerStub Nothing verifier fn
 
@@ -96,6 +177,23 @@ appear pure, but it requires 'MonadIO' for creation.
 -}
 createNamedMockFn ::
   ( MonadIO m
+  , CreateNamedMock p
+  , MockBuilder (ToMockParams p) fn verifyParams
+  , Typeable verifyParams
+  , Typeable fn
+  ) =>
+  MockName ->
+  p ->
+  m fn
+createNamedMockFn name p = do
+  let params = toParamsNamed p
+  (fn, verifier) <- build (Just name) params
+  registerStub (Just name) verifier fn
+
+-- | Internal function for TH code that already has MockBuilder constraint.
+--   This avoids CreateNamedMock instance resolution issues in generated code.
+createNamedMockFnWithParams ::
+  ( MonadIO m
   , MockBuilder params fn verifyParams
   , Typeable verifyParams
   , Typeable fn
@@ -103,30 +201,9 @@ createNamedMockFn ::
   MockName ->
   params ->
   m fn
-createNamedMockFn name params = do
+createNamedMockFnWithParams name params = do
   (fn, verifier) <- build (Just name) params
   registerStub (Just name) verifier fn
-
-{- | Create a constant mock function with verification hooks attached. -}
-createConstantMockFn ::
-  ( MonadIO m
-  , MockBuilder (Param b) b ()
-  , Typeable b
-  ) =>
-  b ->
-  m b
-createConstantMockFn value = createMockFn (param value)
-
-{- | Create a named constant mock function. -}
-createNamedConstantMockFn ::
-  ( MonadIO m
-  , MockBuilder (Param b) b ()
-  , Typeable b
-  ) =>
-  MockName ->
-  b ->
-  m b
-createNamedConstantMockFn name value = createNamedMockFn name (param value)
 
 {- | Create a mock function whose result lives in another monad.
 

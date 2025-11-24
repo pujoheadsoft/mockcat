@@ -120,7 +120,7 @@ _readFile ::
   params ->
   MockT m ()
 _readFile p = MockT $ do
-  mockInstance <- liftIO $ createNamedMockFn "readFile" p
+  mockInstance <- liftIO $ createNamedMockFnWithParams "readFile" p
   resolved <- liftIO $ do
     result <- Verify.resolveForVerification mockInstance
     case result of
@@ -136,7 +136,7 @@ _writeFile ::
   params ->
   MockT m ()
 _writeFile p = MockT $ do
-  mockInstance <- liftIO $ createNamedMockFn "writeFile" p
+  mockInstance <- liftIO $ createNamedMockFnWithParams "writeFile" p
   resolved <- liftIO $ do
     result <- Verify.resolveForVerification mockInstance
     case result of
@@ -146,14 +146,13 @@ _writeFile p = MockT $ do
   addDefinition (Definition (Proxy :: Proxy "writeFile") mockInstance verifyStub)
 
 _getInput ::
-  ( Typeable r
-  , Verify.ResolvableParamsOf r ~ ()
+  ( Verify.ResolvableParamsOf r ~ ()
   , MonadIO m
-  ) =>
-  r ->
+  , Typeable r
+  ) =>r ->
   MockT m ()
 _getInput value = MockT $ do
-  mockInstance <- liftIO $ createNamedConstantMockFn "getInput" value
+  mockInstance <- liftIO $ createNamedMockFnWithParams "getInput" (Head :> param value)
   resolved <- liftIO $ do
     result <- Verify.resolveForVerification mockInstance
     case result of
@@ -165,13 +164,13 @@ _getInput value = MockT $ do
 _toUserInput ::
   ( MockBuilder params (String -> m (Maybe UserInput)) (Param String)
   , MonadIO m
-  , Typeable m
+  , Typeable (String -> m (Maybe UserInput))
   , Verify.ResolvableParamsOf (String -> m (Maybe UserInput)) ~ Param String
   ) =>
   params ->
   MockT m ()
 _toUserInput p = MockT $ do
-  mockInstance <- liftIO $ createNamedMockFn "toUserInput" p
+  mockInstance <- liftIO $ createNamedMockFnWithParams "toUserInput" p
   resolved <- liftIO $ do
     result <- Verify.resolveForVerification mockInstance
     case result of
@@ -183,13 +182,13 @@ _toUserInput p = MockT $ do
 _getByPartial ::
   ( MockBuilder params (String -> m Int) (Param String)
   , MonadIO m
-  , Typeable m
+  , Typeable (String -> m Int)
   , Verify.ResolvableParamsOf (String -> m Int) ~ Param String
   ) =>
   params ->
   MockT m ()
 _getByPartial p = MockT $ do
-  mockInstance <- liftIO $ createNamedMockFn "getBy" p
+  mockInstance <- liftIO $ createNamedMockFnWithParams "getBy" p
   resolved <- liftIO $ do
     result <- Verify.resolveForVerification mockInstance
     case result of
@@ -201,13 +200,13 @@ _getByPartial p = MockT $ do
 _echoPartial ::
   ( MockBuilder params (String -> m ()) (Param String)
   , MonadIO m
-  , Typeable m
+  , Typeable (String -> m ())
   , Verify.ResolvableParamsOf (String -> m ()) ~ Param String
   ) =>
   params ->
   MockT m ()
 _echoPartial p = MockT $ do
-  mockInstance <- liftIO $ createNamedMockFn "echo" p
+  mockInstance <- liftIO $ createNamedMockFnWithParams "echo" p
   resolved <- liftIO $ do
     result <- Verify.resolveForVerification mockInstance
     case result of
@@ -240,14 +239,13 @@ instance (MonadIO m, Finder a b m) => Finder a b (MockT m) where
       Nothing -> lift $ findById id
 
 _findIds ::
-  ( Typeable r
-  , Verify.ResolvableParamsOf r ~ ()
+  ( Verify.ResolvableParamsOf r ~ ()
   , MonadIO m
-  ) =>
-  r ->
+  , Typeable r
+  ) =>r ->
   MockT m ()
 _findIds p = MockT $ do
-  mockInstance <- liftIO $ createNamedConstantMockFn "_findIds" p
+  mockInstance <- liftIO $ createNamedMockFnWithParams "_findIds" (Head :> param p)
   resolved <- liftIO $ do
     result <- Verify.resolveForVerification mockInstance
     case result of

@@ -31,7 +31,7 @@ module Test.MockCat.Param
   )
 where
 
-import Test.MockCat.Cons ((:>) (..))
+import Test.MockCat.Cons ((:>) (..), Head(..))
 import Unsafe.Coerce (unsafeCoerce)
 import Prelude hiding (any)
 import Data.Typeable (Typeable, typeOf)
@@ -126,12 +126,16 @@ expect_ f = ExpectCondition f "[some condition]"
 
 -- | The type of the argument parameters of the parameters.
 type family ArgsOf params where
+  ArgsOf (Head :> Param r) = ()                        -- Constant value has no arguments
   ArgsOf (Param a :> Param r) = Param a
   ArgsOf (Param a :> rest) = Param a :> ArgsOf rest
 
 -- | Class for projecting the arguments of the parameter.
 class ProjectionArgs params where
   projArgs :: params -> ArgsOf params
+
+instance {-# OVERLAPPING #-} ProjectionArgs (Head :> Param r) where
+  projArgs (_ :> _) = ()
 
 instance {-# OVERLAPPING #-} ProjectionArgs (Param a :> Param r) where
   projArgs (a :> _) = a
@@ -144,11 +148,15 @@ instance
 
 -- | The type of the return parameter of the parameters.
 type family ReturnOf params where
+  ReturnOf (Head :> Param r) = Param r                 -- Constant value returns Param r
   ReturnOf (Param a :> Param r) = Param r
   ReturnOf (Param a :> rest) = ReturnOf rest
 
 class ProjectionReturn param where
   projReturn :: param -> ReturnOf param
+
+instance {-# OVERLAPPING #-} ProjectionReturn (Head :> Param r) where
+  projReturn (_ :> r) = r
 
 instance {-# OVERLAPPING #-} ProjectionReturn (Param a :> Param r) where
   projReturn (_ :> r) = r
