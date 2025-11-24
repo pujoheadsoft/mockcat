@@ -10,6 +10,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE DefaultSignatures #-}
 
 {- | Utilities for constructing verifiable stub functions.
 
@@ -113,39 +114,16 @@ instance {-# OVERLAPPABLE #-}
   toParams value = Head :> param value
 
 -- | Type class for converting values to mock parameters (named version).
+-- | Type class for converting values to mock parameters (named version).
+-- Default implementation: if a type implements `CreateMock`, reuse `toParams`.
 class CreateNamedMock p where
   toParamsNamed :: p -> ToMockParams p
+  default toParamsNamed :: CreateMock p => p -> ToMockParams p
+  toParamsNamed = toParams
 
--- Instance for Param chains
-instance {-# OVERLAPPING #-} CreateNamedMock (Param a :> rest) where
-  toParamsNamed = id
-
--- Instance for single Param
-instance {-# OVERLAPPING #-} CreateNamedMock (Param a) where
-  toParamsNamed = id
-
--- Instance for Cases
-instance {-# OVERLAPPING #-} CreateNamedMock (Cases a b) where
-  toParamsNamed = id
-
--- Instance for IO
-instance {-# OVERLAPPING #-} CreateNamedMock (IO a) where
-  toParamsNamed = id
-
--- Instance for Head :> Param r (constant values)
-instance {-# OVERLAPPING #-} CreateNamedMock (Head :> Param r) where
-  toParamsNamed = id
-
--- Instance for raw values (fallback)
--- This handles raw values by wrapping them with Head :> Param
--- We need to ensure this doesn't match Param chains, Cases, IO, or Head types
--- Note: This instance should not match types that already have other instances
-instance {-# OVERLAPPABLE #-} 
-  ( ToMockParams b ~ (Head :> Param b)
-  , Typeable b
-  , b ~ v  -- Add equality constraint to help type inference
-  ) => CreateNamedMock v where
-  toParamsNamed value = Head :> param value
+-- Generic instance: for any type that already implements CreateMock, reuse it.
+instance {-# OVERLAPPABLE #-} CreateMock p => CreateNamedMock p where
+  toParamsNamed = toParams
 
 {- | Create a mock function with verification hooks attached.
 

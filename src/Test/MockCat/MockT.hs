@@ -13,9 +13,7 @@ module Test.MockCat.MockT (
   MockT(..), Definition(..),
   runMockT,
   applyTimesIs,
-  expectApplyTimes,
   neverApply,
-  expectNever,
   MonadMockDefs(..)
   ) where
 import Control.Monad.IO.Class (MonadIO(..))
@@ -172,10 +170,6 @@ applyTimesIs (MockT inner) a = MockT $ ReaderT $ \ref -> do
   liftIO $ atomicModifyIORef' ref (\xs -> (xs ++ patched, ()))
   pure ()
 
--- | Preferred clearer alias for 'applyTimesIs'. Use this in new code.
-expectApplyTimes :: MonadIO m => MockT m () -> Int -> MockT m ()
-expectApplyTimes = applyTimesIs
-
 neverApply :: MonadIO m => MockT m () -> MockT m ()
 neverApply (MockT inner) = MockT $ ReaderT $ \ref -> do
   tmp <- liftIO $ newIORef []
@@ -186,8 +180,7 @@ neverApply (MockT inner) = MockT $ ReaderT $ \ref -> do
   pure ()
 
 -- | Alias for 'neverApply' providing naming symmetry with 'expectApplyTimes'.
-expectNever :: MonadIO m => MockT m () -> MockT m ()
-expectNever = neverApply
+-- note: `expectNever` removed; use `neverApply`
 
 instance MonadIO m => MonadMockDefs (MockT m) where
   addDefinition d = MockT $ ReaderT $ \ref -> liftIO $ atomicModifyIORef' ref (\xs -> (xs ++ [d], ()))
