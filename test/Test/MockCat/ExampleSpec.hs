@@ -123,7 +123,7 @@ spec = do
     actual `shouldBe` ()
 
   it "named stub" do
-    f <- createNamedMockFn "named stub" $ "x" |> "y" |> True
+    f <- createMockFn (label "named stub") $ "x" |> "y" |> True
     f "x" "y" `shouldBe` True
 
   it "createMockFnIO returns monadic stub (IO)" do
@@ -142,7 +142,7 @@ spec = do
         res `shouldBe` Just False
 
   it "named mock" do
-    f <- createNamedMockFn "mock" $ "value" |> "a" |> True
+    f <- createMockFn (label "mock") $ "value" |> "a" |> True
     f "value" "a" `shouldBe` True
 
   it "stub function" do

@@ -23,7 +23,6 @@ module Test.MockCat.Mock
   , MockIOBuilder
   , buildIO
   , createMockFn
-  , createNamedMockFn
   , createNamedMockFnWithParams
   , createMockFnIO
   , createStubFn
@@ -43,6 +42,8 @@ module Test.MockCat.Mock
   , cases
   , casesIO
   , LiftFunTo(..)
+  , label
+  , Label
   ) where
 
 import Control.Monad.IO.Class (MonadIO(..))
@@ -113,60 +114,91 @@ instance {-# OVERLAPPABLE #-}
   ) => CreateMock b where
   toParams value = Head :> param value
 
--- | Type class for converting values to mock parameters (named version).
--- | Type class for converting values to mock parameters (named version).
--- Default implementation: if a type implements `CreateMock`, reuse `toParams`.
-class CreateNamedMock p where
-  toParamsNamed :: p -> ToMockParams p
-  default toParamsNamed :: CreateMock p => p -> ToMockParams p
-  toParamsNamed = toParams
+-- | Label type for naming mock functions.
+newtype Label = Label MockName
 
--- Generic instance: for any type that already implements CreateMock, reuse it.
-instance {-# OVERLAPPABLE #-} CreateMock p => CreateNamedMock p where
-  toParamsNamed = toParams
+-- | Label function for naming mock functions.
+--   Use it with 'createMockFn' to provide a name for the mock function.
+--   
+--   @
+--   f <- createMockFn (label "mockName") $ "a" |> "b"
+--   @
+label :: MockName -> Label
+label = Label
 
-{- | Create a mock function with verification hooks attached.
+-- | Type class for creating mock functions with optional name.
+class CreateMockFn a where
+  createMockFnImpl :: a
 
-This function creates a verifiable stub that records argument applications
-and can be verified via helpers such as 'shouldApplyTo' and 'shouldApplyTimes'.
-The function internally uses 'unsafePerformIO' to make the returned function
-appear pure, but it requires 'MonadIO' for creation.
--}
-createMockFn ::
+-- | Create a mock function with verification hooks attached (unnamed version).
+--
+-- This function creates a verifiable stub that records argument applications
+-- and can be verified via helpers such as 'shouldApplyTo' and 'shouldApplyTimes'.
+-- The function internally uses 'unsafePerformIO' to make the returned function
+-- appear pure, but it requires 'MonadIO' for creation.
+--
+-- @
+-- f <- createMockFn $ "a" |> "b"
+-- @
+instance
   ( MonadIO m
   , CreateMock p
   , MockBuilder (ToMockParams p) fn verifyParams
   , Typeable verifyParams
   , Typeable fn
   ) =>
-  p ->
-  m fn
-createMockFn p = do
-  let params = toParams p
-  (fn, verifier) <- build Nothing params
-  registerStub Nothing verifier fn
+  CreateMockFn (p -> m fn)
+  where
+  createMockFnImpl p = do
+    let params = toParams p
+    (fn, verifier) <- build Nothing params
+    registerStub Nothing verifier fn
 
-{- | Create a named mock function. The provided name is used in failure messages.
-
-This function creates a verifiable stub that records argument applications
-and can be verified via helpers such as 'shouldApplyTo' and 'shouldApplyTimes'.
-The function internally uses 'unsafePerformIO' to make the returned function
-appear pure, but it requires 'MonadIO' for creation.
--}
-createNamedMockFn ::
+-- | Create a named mock function (named version).
+--
+-- The provided name is used in failure messages.
+-- This function creates a verifiable stub that records argument applications
+-- and can be verified via helpers such as 'shouldApplyTo' and 'shouldApplyTimes'.
+-- The function internally uses 'unsafePerformIO' to make the returned function
+-- appear pure, but it requires 'MonadIO' for creation.
+--
+-- @
+-- f <- createMockFn (label "mockName") $ "a" |> "b"
+-- @
+instance {-# OVERLAPPING #-}
   ( MonadIO m
-  , CreateNamedMock p
+  , CreateMock p
   , MockBuilder (ToMockParams p) fn verifyParams
   , Typeable verifyParams
   , Typeable fn
   ) =>
-  MockName ->
-  p ->
-  m fn
-createNamedMockFn name p = do
-  let params = toParamsNamed p
-  (fn, verifier) <- build (Just name) params
-  registerStub (Just name) verifier fn
+  CreateMockFn (Label -> p -> m fn)
+  where
+  createMockFnImpl (Label name) p = do
+    let params = toParams p
+    (fn, verifier) <- build (Just name) params
+    registerStub (Just name) verifier fn
+
+-- | Create a mock function with verification hooks attached.
+--
+-- This function can be used in two ways:
+--
+-- 1. Without a name:
+--    @
+--    f <- createMockFn $ "a" |> "b"
+--    @
+--
+-- 2. With a name (using 'label'):
+--    @
+--    f <- createMockFn (label "mockName") $ "a" |> "b"
+--    @
+--
+-- The function creates a verifiable stub that records argument applications
+-- and can be verified via helpers such as 'shouldApplyTo' and 'shouldApplyTimes'.
+-- The function internally uses 'unsafePerformIO' to make the returned function
+-- appear pure, but it requires 'MonadIO' for creation.
+createMockFn :: CreateMockFn a => a
+createMockFn = createMockFnImpl
 
 -- | Internal function for TH code that already has MockBuilder constraint.
 --   This avoids CreateNamedMock instance resolution issues in generated code.

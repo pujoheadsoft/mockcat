@@ -424,68 +424,68 @@ spec = do
 
     describe "createNamedMockFn" do
       it "greater than equal (success)" do
-        f <- createNamedMockFn "test" $ "a" |> True
+        f <- createMockFn (label "test") $ "a" |> True
         evaluate $ f "a"
         evaluate $ f "a"
         evaluate $ f "a"
         f `shouldApplyTimesGreaterThanEqual` 3 `to` "a"
 
       it "greater than equal (failure)" do
-        f <- createNamedMockFn "test" $ "a" |> True
+        f <- createMockFn (label "test") $ "a" |> True
         evaluate $ f "a"
         evaluate $ f "a"
         f `shouldApplyTimesGreaterThanEqual` 3 `to` "a" `shouldThrow` anyErrorCall
 
       it "less than equal (success)" do
-        f <- createNamedMockFn "test" $ "a" |> False
+        f <- createMockFn (label "test") $ "a" |> False
         evaluate $ f "a"
         evaluate $ f "a"
         evaluate $ f "a"
         f `shouldApplyTimesLessThanEqual` 3 `to` "a"
 
       it "less than equal (failure)" do
-        f <- createNamedMockFn "test" $ "a" |> False
+        f <- createMockFn (label "test") $ "a" |> False
         evaluate $ f "a"
         evaluate $ f "a"
         evaluate $ f "a"
         f `shouldApplyTimesLessThanEqual` 2 `to` "a" `shouldThrow` anyErrorCall
 
       it "greater than (success)" do
-        f <- createNamedMockFn "test" $ "a" |> True
+        f <- createMockFn (label "test") $ "a" |> True
         evaluate $ f "a"
         evaluate $ f "a"
         evaluate $ f "a"
         f `shouldApplyTimesGreaterThan` 2 `to` "a"
 
       it "greater than (failure)" do
-        f <- createNamedMockFn "test" $ "a" |> True
+        f <- createMockFn (label "test") $ "a" |> True
         evaluate $ f "a"
         evaluate $ f "a"
         f `shouldApplyTimesGreaterThan` 2 `to` "a" `shouldThrow` anyErrorCall
 
       it "less than (success)" do
-        f <- createNamedMockFn "test" $ "a" |> False
+        f <- createMockFn (label "test") $ "a" |> False
         evaluate $ f "a"
         evaluate $ f "a"
         evaluate $ f "a"
         f `shouldApplyTimesLessThan` 4 `to` "a"
 
       it "less than (failure)" do
-        f <- createNamedMockFn "test" $ "a" |> False
+        f <- createMockFn (label "test") $ "a" |> False
         evaluate $ f "a"
         evaluate $ f "a"
         evaluate $ f "a"
         f `shouldApplyTimesLessThan` 3 `to` "a" `shouldThrow` anyErrorCall
 
       it "shouldApplyTimesToAnything (success)" do
-        f <- createNamedMockFn "test" $ "a" |> True
+        f <- createMockFn (label "test") $ "a" |> True
         evaluate $ f "a"
         evaluate $ f "a"
         evaluate $ f "a"
         f `shouldApplyTimesToAnything` 3
 
       it "shouldApplyTimesToAnything (failure)" do
-        f <- createNamedMockFn "test" $ "a" |> True
+        f <- createMockFn (label "test") $ "a" |> True
         evaluate $ f "a"
         evaluate $ f "a"
         f `shouldApplyTimesToAnything` 3 `shouldThrow` anyErrorCall
@@ -753,7 +753,7 @@ spec = do
     describe "named mock" do
       describe "aply" do
         it "simple mock" do
-          f <- createNamedMockFn "mock function" $ "a" |> pure @IO ()
+          f <- createMockFn (label "mock function") $ "a" |> pure @IO ()
           let e =
                 "function `mock function` was not applied to the expected arguments.\n\
                 \  expected: \"a\"\n\
@@ -762,8 +762,7 @@ spec = do
 
         it "multi mock" do
           f <-
-            createNamedMockFn
-              "mock function"
+            createMockFn (label "mock function")
               do 
                 onCase $ "aaa" |> True |> pure @IO True
                 onCase $ "bbb" |> False |> pure @IO False
@@ -778,7 +777,7 @@ spec = do
 
       describe "verify" do
         it "simple mock verify" do
-          f <- createNamedMockFn "mock function" $ any |> pure @IO ()
+          f <- createMockFn (label "mock function") $ any |> pure @IO ()
           evaluate $ f "A"
           let e =
                 "function `mock function` was not applied to the expected arguments.\n\
@@ -787,7 +786,7 @@ spec = do
           f `shouldApplyTo` "X" `shouldThrow` errorCall e
 
         it "count" do
-          f <- createNamedMockFn "mock function" $ any |> pure @IO ()
+          f <- createMockFn (label "mock function") $ any |> pure @IO ()
           evaluate $ f "A"
           let e =
                 "function `mock function` was not applied the expected number of times to the expected arguments.\n\
@@ -796,7 +795,7 @@ spec = do
           f `shouldApplyTimes` (2 :: Int) `to` "A" `shouldThrow` errorCall e
 
         it "verify sequence" do
-          f <- createNamedMockFn "mock function" $ any |> pure @IO ()
+          f <- createMockFn (label "mock function") $ any |> pure @IO ()
           evaluate $ f "B"
           evaluate $ f "C"
           evaluate $ f "A"
@@ -811,7 +810,7 @@ spec = do
           f `shouldApplyInOrder` ["A", "B", "C"] `shouldThrow` errorCall e
 
         it "verify sequence (count mismatch)" do
-          f <- createNamedMockFn "createMockFnc" $ any |> pure @IO ()
+          f <- createMockFn (label "createMockFnc") $ any |> pure @IO ()
           evaluate $ f "B"
           evaluate $ f "C"
           let e =
@@ -821,7 +820,7 @@ spec = do
           f `shouldApplyInOrder` ["A", "B", "C"] `shouldThrow` errorCall e
 
         it "verify partially sequence" do
-          f <- createNamedMockFn "mock function" $ any |> pure @IO ()
+          f <- createMockFn (label "mock function") $ any |> pure @IO ()
           evaluate $ f "B"
           evaluate $ f "A"
           let e =
@@ -835,7 +834,7 @@ spec = do
           f `shouldApplyInPartialOrder` ["A", "C"] `shouldThrow` errorCall e
 
         it "verify partially sequence (count mismatch)" do
-          f <- createNamedMockFn "createMockFnc" $ any |> pure @IO ()
+          f <- createMockFn (label "createMockFnc") $ any |> pure @IO ()
           evaluate $ f "B"
           let e =
                 "function `createMockFnc` was not applied to the expected arguments in the expected order (count mismatch).\n\
@@ -844,7 +843,7 @@ spec = do
           f `shouldApplyInPartialOrder` ["A", "C"] `shouldThrow` errorCall e
 
         it "verify applied anything" do
-          f <- createNamedMockFn "mock" $ "X" |> True
+          f <- createMockFn (label "mock") $ "X" |> True
           shouldApplyToAnything f `shouldThrow` errorCall "It has never been applied function `mock`"
 
   describe "use expectation" do
@@ -894,7 +893,7 @@ spec = do
       shouldApplyToAnything f
 
     it "createNamedConstantMock" do
-      f <- createNamedMockFn "const" "foo"
+      f <- createMockFn (label "const") "foo"
       f `shouldBe` "foo"
       shouldApplyToAnything f
 
@@ -903,7 +902,7 @@ spec = do
       shouldApplyToAnything f `shouldThrow` errorCall "It has never been applied function"
 
     it "createNamedConstantMock (error message)" do
-      f <- createNamedMockFn "constant" "foo"
+      f <- createMockFn (label "constant") "foo"
       shouldApplyToAnything f `shouldThrow` errorCall "It has never been applied function `constant`"
 
     -- TODO: Fix this test
@@ -929,7 +928,7 @@ spec = do
     --   f `shouldApplyTimesToAnything` 3
 
     it "createNamedConstantMock with shouldApplyTimesToAnything (failure)" do
-      f <- createNamedMockFn "const" "foo"
+      f <- createMockFn (label "const") "foo"
       _ <- evaluate f
       _ <- evaluate f
       f `shouldApplyTimesToAnything` 3 `shouldThrow` anyErrorCall
