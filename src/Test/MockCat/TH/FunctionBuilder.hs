@@ -391,7 +391,7 @@ createFnName funName opts = do
 findParam :: (KnownSymbol sym) => Proxy sym -> [Definition] -> Maybe a
 findParam pa definitions = do
   let definition = find (\(Definition s _ _) -> symbolVal s == symbolVal pa) definitions
-  fmap (\(Definition _ mock _) -> unsafeCoerce mock) definition
+  fmap (\(Definition _ mockFunction _) -> unsafeCoerce mockFunction) definition
 
 typeToNames :: Type -> [Q Name]
 typeToNames (AppT (AppT ArrowT _) t2) = newName "a" : typeToNames t2

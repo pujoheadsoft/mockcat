@@ -67,7 +67,7 @@ data Definition =
   ) =>
   Definition {
   symbol :: Proxy sym,
-  mock :: f,
+  mockFunction :: f,
   verify :: f -> IO ()
 }
 
@@ -111,7 +111,7 @@ runMockT (MockT r) = do
   ref <- liftIO $ newIORef []
   a <- runReaderT r ref
   defs <- liftIO $ readIORef ref
-  for_ defs (\(Definition _ mock verify) -> liftIO $ verify mock)
+  for_ defs (\(Definition _ mockFunction verify) -> liftIO $ verify mockFunction)
   pure a
 
 {- | (Preferred: 'expectApplyTimes'; legacy: 'applyTimesIs')

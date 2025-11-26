@@ -706,7 +706,7 @@ spec = do
     result `shouldBe` ()
 
   it "Read, edit, and output files" do
-    modifyContentStub <- createMockFn $ pack "content" |> pack "modifiedContent"
+    modifyContentStub <- mock $ pack "content" |> pack "modifiedContent"
 
     result <- runMockT do
       _ask "environment"

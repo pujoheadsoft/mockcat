@@ -218,7 +218,7 @@ _echoPartial p = MockT $ do
 findParam :: KnownSymbol sym => Proxy sym -> [Definition] -> Maybe a
 findParam pa definitions = do
   let definition = find (\(Definition s _ _) -> symbolVal s == symbolVal pa) definitions
-  fmap (\(Definition _ mockFn _) -> unsafeCoerce mockFn) definition
+  fmap (\(Definition _ mockFunction _) -> unsafeCoerce mockFunction) definition
 
 instance (MonadIO m, Finder a b m) => Finder a b (MockT m) where
 

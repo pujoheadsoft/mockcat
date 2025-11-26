@@ -127,7 +127,7 @@ spec = do
 
 
   it "Read, edit, and output files2" do
-    modifyContentStub <- createMockFn $ pack "content" |> pack "modifiedContent"
+    modifyContentStub <- mock $ pack "content" |> pack "modifiedContent"
 
     result <- runMockT do
       _readFile $ "input.txt" |> pack "content"
