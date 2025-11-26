@@ -3,17 +3,17 @@ module Test.MockCat.Internal.RegistrySpec (spec) where
 
 import Test.Hspec
 import Test.MockCat.Internal.Registry
+import Control.Concurrent.STM (newTVarIO, readTVarIO)
 import Data.Dynamic (fromDynamic)
-import Data.IORef (newIORef, readIORef)
-import Test.MockCat.Internal.Types (Verifier(..), AppliedRecord(..))
 import Test.MockCat.AssociationList (empty)
+import Test.MockCat.Internal.Types (Verifier(..), AppliedRecord(..))
 
 spec :: Spec
 spec = do
   describe "Registry" do
     it "register and lookup" do
       let f = (+ 1) :: Int -> Int
-      ref <- newIORef AppliedRecord { appliedParamsList = [] :: [Int], appliedParamsCounter = empty }
+      ref <- newTVarIO AppliedRecord { appliedParamsList = [] :: [Int], appliedParamsCounter = empty }
       _ <- attachVerifierToFn f (Just "name", Verifier ref)
       verifier <- lookupVerifierForFn f
       case verifier of
@@ -21,7 +21,7 @@ spec = do
           mockName `shouldBe` Just "name"
           case (fromDynamic dyn :: Maybe (Verifier Int)) of
             Just (Verifier vref) -> do
-              r <- readIORef vref
+              r <- readTVarIO vref
               r `shouldBe` AppliedRecord { appliedParamsList = [] :: [Int], appliedParamsCounter = empty }
             Nothing -> expectationFailure "payload dynamic mismatch"
         Nothing -> expectationFailure "lookupStubFn returned Nothing"

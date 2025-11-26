@@ -10,14 +10,14 @@
 module Test.MockCat.Internal.Types where
 
 import Control.Monad (ap)
-import Data.IORef (IORef)
+import Control.Concurrent.STM (TVar)
 import Data.Maybe
 import GHC.IO (unsafePerformIO)
 import Test.MockCat.AssociationList (AssociationList)
 import Prelude hiding (lookup)
 import Control.Monad.State ( State )
 
-newtype Verifier params = Verifier (IORef (AppliedRecord params))
+newtype Verifier params = Verifier (TVar (AppliedRecord params))
 
 type AppliedParamsList params = [params]
 type AppliedParamsCounter params = AssociationList params Int

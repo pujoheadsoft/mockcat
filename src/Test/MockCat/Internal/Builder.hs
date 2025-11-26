@@ -17,7 +17,15 @@
 module Test.MockCat.Internal.Builder where
 
 
-import Data.IORef (IORef, newIORef, readIORef, atomicModifyIORef')
+import Control.Concurrent.STM
+  ( TVar
+  , atomically
+  , modifyTVar'
+  , newTVarIO
+  , readTVar
+  , readTVarIO
+  , writeTVar
+  )
 import Data.Maybe
 import Test.MockCat.Cons (Head(..), (:>)(..))
 import Test.MockCat.Param
@@ -70,7 +78,7 @@ instance
   MockBuilder (IO r) (IO r) ()
   where
   build _ action = do
-    ref <- liftIO $ newIORef appliedRecord
+    ref <- liftIO $ newTVarIO appliedRecord
     let fn = do
           result <- action
           liftIO $ appendAppliedParams ref ()
@@ -83,7 +91,7 @@ instance
   MockBuilder (Head :> Param r) r ()
   where
   build _ (Head :> params) = do
-    ref <- liftIO $ newIORef appliedRecord
+    ref <- liftIO $ newTVarIO appliedRecord
     let v = value params
         fn = perform $ do
           liftIO $ appendAppliedParams ref ()
@@ -96,7 +104,7 @@ instance
   MockBuilder (Param r) r ()
   where
   build _ params = do
-    ref <- liftIO $ newIORef appliedRecord
+    ref <- liftIO $ newTVarIO appliedRecord
     let v = value params
         fn = perform $ do
           liftIO $ appendAppliedParams ref ()
@@ -108,7 +116,7 @@ instance
 instance MockBuilder (Cases (IO a) ()) (IO a) () where
   build _ cases = do
     let params = runCase cases
-    ref <- liftIO $ newIORef appliedRecord
+    ref <- liftIO $ newTVarIO appliedRecord
     let fn = do
           count <- readAppliedCount ref ()
           let index = min count (length params - 1)
@@ -142,43 +150,41 @@ buildWithRecorder ::
   ( MonadIO m
   , BuildCurried args r fn
   ) =>
-  (IORef (AppliedRecord args) -> args -> IO r) ->
+  (TVar (AppliedRecord args) -> args -> IO r) ->
   m (fn, Verifier args)
 buildWithRecorder handler = do
-  ref <- liftIO $ newIORef appliedRecord
+  ref <- liftIO $ newTVarIO appliedRecord
   let fn = buildCurried (handler ref)
       verifier = Verifier ref
   pure (fn, verifier)
 
 appliedRecord :: AppliedRecord params
-appliedRecord = AppliedRecord {
-  appliedParamsList = mempty,
-  appliedParamsCounter = empty
-}
+appliedRecord =
+  AppliedRecord
+    { appliedParamsList = mempty
+    , appliedParamsCounter = empty
+    }
 
-appendAppliedParams :: IORef (AppliedRecord params) -> params -> IO ()
-appendAppliedParams ref inputParams = do
-  atomicModifyIORef' ref (\AppliedRecord {appliedParamsList, appliedParamsCounter} ->
-    let newRecord = AppliedRecord {
-          appliedParamsList = appliedParamsList ++ [inputParams],
-          appliedParamsCounter = appliedParamsCounter
+appendAppliedParams :: TVar (AppliedRecord params) -> params -> IO ()
+appendAppliedParams ref inputParams =
+  atomically $
+    modifyTVar' ref $ \record ->
+      record
+        { appliedParamsList = appliedParamsList record ++ [inputParams]
         }
-    in (newRecord, ()))
 
-readAppliedCount :: Eq params => IORef (AppliedRecord params) -> params -> IO Int
+readAppliedCount :: Eq params => TVar (AppliedRecord params) -> params -> IO Int
 readAppliedCount ref params = do
-  record <- readIORef ref
-  let count = appliedParamsCounter record
-  pure $ fromMaybe 0 (lookup params count)
+  record <- readTVarIO ref
+  pure $ fromMaybe 0 (lookup params (appliedParamsCounter record))
 
-incrementAppliedParamCount :: Eq params => IORef (AppliedRecord params) -> params -> IO ()
-incrementAppliedParamCount ref inputParams = do
-  atomicModifyIORef' ref (\AppliedRecord {appliedParamsList, appliedParamsCounter} ->
-    let newRecord = AppliedRecord {
-          appliedParamsList = appliedParamsList,
-          appliedParamsCounter = incrementCount inputParams appliedParamsCounter
+incrementAppliedParamCount :: Eq params => TVar (AppliedRecord params) -> params -> IO ()
+incrementAppliedParamCount ref inputParams =
+  atomically $
+    modifyTVar' ref $ \record ->
+      record
+        { appliedParamsCounter = incrementCount inputParams (appliedParamsCounter record)
         }
-    in (newRecord, ()))
 
 incrementCount :: Eq k => k -> AppliedParamsCounter k -> AppliedParamsCounter k
 incrementCount key list =
@@ -210,7 +216,7 @@ instance
 instance StubBuilder (Cases (IO a) ()) (IO a) where
   buildStub _ cases = do
     let params = runCase cases
-    s <- liftIO $ newIORef appliedRecord
+    s <- liftIO $ newTVarIO appliedRecord
     (do
       count <- readAppliedCount s ()
       let index = min count (length params - 1)
@@ -288,12 +294,17 @@ findReturnValuePure paramsList inputParams = do
 type InvocationStep args r = AppliedRecord args -> (AppliedRecord args, Either Message r)
 
 executeInvocation ::
-  IORef (AppliedRecord args) ->
+  TVar (AppliedRecord args) ->
   InvocationStep args r ->
   IO r
 executeInvocation ref step = do
-  outcome <- atomicModifyIORef' ref $ \record -> step record
-  either errorWithoutStackTrace pure outcome
+  result <-
+    atomically $ do
+      current <- readTVar ref
+      let (next, outcome) = step(current)
+      writeTVar ref next
+      pure outcome
+  either errorWithoutStackTrace pure result
 
 singleInvocationStep ::
   ParamConstraints params args r =>

@@ -28,11 +28,11 @@ and this project adheres to the
 - Verification helpers: `applyTimesIs`, `neverApply`.
 
 ### Changed
-- Refactored `MockT` from `StateT` to `ReaderT (IORef [Definition])` architecture.
+- Refactored `MockT` from `StateT` to `ReaderT (TVar [Definition])` architecture.
 - Simplified Template Haskell generated constraints.
 
 ### Fixed
-- Race causing lost/double count in concurrent stub applications (strict `atomicModifyIORef'`).
+- Race causing lost/double count in concurrent stub applications (strict `modifyTVar'`).
 
 ### Removed
 - `unsafePerformIO` in TH-generated code.

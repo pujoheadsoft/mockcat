@@ -65,22 +65,22 @@ wrapUnitStub ref meta value =
     - `isIOType` 判定により IO 型の返り値は扱いを変え、評価タイミングの違いに対応する。
 
 - `MockT` と `runMockT`
-  - `MockT` は内部的に `ReaderT (IORef [Definition])` を使う薄いラッパーで、テストスコープごとに新しい `IORef` を生成してスタブ定義を蓄積し、`runMockT` の終了時にすべての定義に対して検証を実行する。
+  - `MockT` は内部的に `ReaderT (TVar [Definition])` を使う薄いラッパーで、テストスコープごとに新しい `TVar` を生成してスタブ定義を蓄積し、`runMockT` の終了時にすべての定義に対して検証を実行する。
   - 実装抜粋（参照）:
 
 ```109:115:/home/kenji/source/haskell/mockcat/src/Test/MockCat/MockT.hs
 runMockT :: MonadIO m => MockT m a -> m a
 runMockT (MockT r) = do
-  ref <- liftIO $ newIORef []
+  ref <- liftIO $ newTVarIO []
   a <- runReaderT r ref
-  defs <- liftIO $ readIORef ref
+  defs <- liftIO $ readTVarIO ref
   for_ defs (\(Definition _ mock verify) -> liftIO $ verify mock)
   pure a
 ```
 
   - 並行性と安全性:
-    - 定義の追加やカウント更新は `atomicModifyIORef'` を用いており、並列スレッド間での漏れや重複計上を防ぐ実装（README にも注記）。
-    - `runMockT` ごとに独立した `IORef` を使用するためテスト間で状態が共有されない。
+    - 定義の追加やカウント更新は STM の `modifyTVar'` を用いており、並列スレッド間での漏れや重複計上を防ぐ実装（README にも注記）。
+    - `runMockT` ごとに独立した `TVar` を使用するためテスト間で状態が共有されない。
 
 - 期待値指定（Cases / onCase / cases）
   - `onCase` / `cases` で複数ケースを登録でき、同一引数に対して発生順に異なる返値を与えることも可能（sticky tail 動作）。
@@ -88,7 +88,7 @@ runMockT (MockT r) = do
 
 ## 遅延評価・並行性に関する挙動
 - 呼び出しが「記録される」タイミングは返値が評価された瞬間（Haskell の遅延評価を尊重）。
-- カウントは `atomicModifyIORef'` などで原子的に更新されるため、複数スレッドからの同時評価でも正確な合計が得られる（プロパティテストあり）。
+- カウントは `modifyTVar'` などの STM によって原子的に更新されるため、複数スレッドからの同時評価でも正確な合計が得られる（プロパティテストあり）。
 - Order 系の検証（`shouldApplyInOrder`）は評価順に基づくため、評価のタイミング次第で順序が変わり得る点に注意。README にも明記あり。
 
 ## Template Haskell（型クラスモック）の要点
@@ -112,7 +112,7 @@ result <- runMockT do
 ## 実装上の注目点・設計判断
 - 明示的な小ささ: DSL は `|>` と少数の組合せ子に絞られており、学習コストが低い。
 - 遅延評価尊重: 記録タイミングを返値の評価に委ねることで「副作用を無理に評価させない」設計。
-- 並行性に対する安全措置: `atomicModifyIORef'` や `MonadUnliftIO` 対応（`MockT` の `MonadUnliftIO` 実装）により、非同期実行を安全に扱う。
+- 並行性に対する安全措置: STM (`modifyTVar'`) や `MonadUnliftIO` 対応（`MockT` の `MonadUnliftIO` 実装）により、非同期実行を安全に扱う。
 - テスト設計向けの妥協: グローバルな隠れた状態を持たないことでテストの独立性を保証する一方、大規模な振る舞いシミュレート用途には向かないというトレードオフ。
 
 ## 既知の制限・注意事項

@@ -170,16 +170,16 @@ Non‑invocation (two styles):
 
 ### Concurrency & Laziness Semantics
 Within `runMockT`:
-1. Each evaluated application contributes 1 count (atomic IORef).
+1. Each evaluated application contributes 1 count (STM-backed TVar).
 2. Unforced results are not recorded.
 3. Order checks reflect evaluation order, not mere start time.
 4. Finish async work before verification.
 5. Fresh state per `runMockT` – no cross‑test leakage.
 
 ### Architecture Notes (≥ 0.5.3.0)
-Refactor from `StateT` to `ReaderT (IORef [Definition])` to:
+Refactor from `StateT` to `ReaderT (TVar [Definition])` to:
 * Provide lawful `MonadUnliftIO` instance for safe `withRunInIO` / `async`.
-* Remove lost/double count races via strict `atomicModifyIORef'`.
+* Remove lost/double count races via STM (`modifyTVar'`).
 * Eliminate `unsafePerformIO` & hidden global state.
 * Simplify TH output & reduce constraint noise.
 

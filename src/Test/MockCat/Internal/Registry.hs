@@ -13,16 +13,24 @@ module Test.MockCat.Internal.Registry
   , isGuardActive
   ) where
 
-import Data.Dynamic
-import System.Mem.StableName (StableName, eqStableName, hashStableName, makeStableName)
-import Test.MockCat.Internal.Types (MockName, Verifier)
-import Unsafe.Coerce (unsafeCoerce)
-import Data.IntMap.Strict (IntMap, alter, empty, insert, lookup, elems)
-import Data.IORef (IORef, newIORef, atomicModifyIORef', readIORef, writeIORef)
-import System.IO.Unsafe (unsafePerformIO)
-import Prelude hiding (lookup)
+import Control.Concurrent.STM
+  ( TVar
+  , atomically
+  , modifyTVar'
+  , newTVarIO
+  , readTVar
+  , readTVarIO
+  , writeTVar
+  )
 import Control.Exception (bracket_)
 import Control.Monad (forM_)
+import Data.Dynamic
+import Data.IntMap.Strict (IntMap, alter, empty, insert, lookup, elems)
+import System.IO.Unsafe (unsafePerformIO)
+import Test.MockCat.Internal.Types (MockName, Verifier)
+import Unsafe.Coerce (unsafeCoerce)
+import System.Mem.StableName (StableName, eqStableName, hashStableName, makeStableName)
+import Prelude hiding (lookup)
 
 data FnTag
 
@@ -56,8 +64,8 @@ sameFnStable a b = eqStableName (fromFnStable a) (fromFnStable b)
 type Registry = IntMap [Entry]
 
 {-# NOINLINE registry #-}
-registry :: IORef Registry
-registry = unsafePerformIO $ newIORef empty
+registry :: TVar Registry
+registry = unsafePerformIO $ newTVarIO empty
 
 attachVerifierToFn ::
   forall fn params.
@@ -76,7 +84,7 @@ lookupVerifierForFn fn = do
   let
     key = hashStableName stable
     stableFn = toFnStable stable
-  store <- readIORef registry
+  store <- readTVarIO registry
   pure $ lookup key store >>= findMatch stableFn
 
 attachDynamicVerifierToFn :: forall fn. fn -> (Maybe MockName, Dynamic) -> IO ()
@@ -86,7 +94,8 @@ attachDynamicVerifierToFn fn (name, payload) = do
     stableFn = toFnStable stable
     key = hashStableName stable
     entry = toEntry name stableFn payload
-  atomicModifyIORef' registry $ \m -> (alter (updateEntries entry stableFn) key m, ())
+  atomically $
+    modifyTVar' registry $ \m -> alter (updateEntries entry stableFn) key m
 
 toEntry :: Maybe MockName -> FnStableName -> Dynamic -> Entry
 toEntry (Just n) stableFn p = NamedEntry stableFn n p
@@ -110,8 +119,8 @@ data UnitTag
 type UnitStableName = StableName UnitTag
 
 data UnitMeta = UnitMeta
-  { unitGuardRef :: IORef Bool
-  , unitUsedRef :: IORef Bool
+  { unitGuardRef :: TVar Bool
+  , unitUsedRef :: TVar Bool
   }
 
 data UnitEntry = UnitEntry !UnitStableName !UnitMeta
@@ -134,50 +143,56 @@ sameUnitStable a b = eqStableName (fromUnitStable a) (fromUnitStable b)
 type UnitRegistry = IntMap [UnitEntry]
 
 {-# NOINLINE unitRegistry #-}
-unitRegistry :: IORef UnitRegistry
-unitRegistry = unsafePerformIO $ newIORef empty
+unitRegistry :: TVar UnitRegistry
+unitRegistry = unsafePerformIO $ newTVarIO empty
 
-registerUnitMeta :: IORef ref -> IO UnitMeta
+registerUnitMeta :: TVar ref -> IO UnitMeta
 registerUnitMeta ref = do
   stable <- makeStableName ref
   let key = hashStableName stable
       unitStable = toUnitStable stable
-  meta <- createUnitMeta
-  atomicModifyIORef' unitRegistry $ \store ->
+  fresh <- createUnitMeta
+  atomically $ do
+    store <- readTVar unitRegistry
     case lookup key store of
       Just entries ->
         case findUnit unitStable entries of
-          Just existing -> (store, existing)
-          Nothing ->
-            let newEntries = UnitEntry unitStable meta : entries
-             in (insert key newEntries store, meta)
-      Nothing ->
-        (insert key [UnitEntry unitStable meta] store, meta)
+          Just existing -> pure existing
+          Nothing -> do
+            let newEntries = UnitEntry unitStable fresh : entries
+            writeTVar unitRegistry (insert key newEntries store)
+            pure fresh
+      Nothing -> do
+        writeTVar unitRegistry (insert key [UnitEntry unitStable fresh] store)
+        pure fresh
 
-lookupUnitMeta :: IORef ref -> IO (Maybe UnitMeta)
+lookupUnitMeta :: TVar ref -> IO (Maybe UnitMeta)
 lookupUnitMeta ref = do
   stable <- makeStableName ref
   let key = hashStableName stable
       unitStable = toUnitStable stable
-  store <- readIORef unitRegistry
+  store <- readTVarIO unitRegistry
   pure $ lookup key store >>= findUnit unitStable
 
 withUnitGuard :: UnitMeta -> IO a -> IO a
-withUnitGuard meta = bracket_ (writeIORef (unitGuardRef meta) True) (writeIORef (unitGuardRef meta) False)
+withUnitGuard meta =
+  bracket_
+    (atomically $ writeTVar (unitGuardRef meta) True)
+    (atomically $ writeTVar (unitGuardRef meta) False)
 
 withAllUnitGuards :: IO a -> IO a
 withAllUnitGuards = bracket_ (setAllUnitGuards True) (setAllUnitGuards False)
 
 markUnitUsed :: UnitMeta -> IO ()
-markUnitUsed meta = writeIORef (unitUsedRef meta) True
+markUnitUsed meta = atomically $ writeTVar (unitUsedRef meta) True
 
 isGuardActive :: UnitMeta -> IO Bool
-isGuardActive meta = readIORef (unitGuardRef meta)
+isGuardActive meta = readTVarIO (unitGuardRef meta)
 
 createUnitMeta :: IO UnitMeta
 createUnitMeta = do
-  guardRef <- newIORef False
-  usedRef <- newIORef False
+  guardRef <- newTVarIO False
+  usedRef <- newTVarIO False
   pure UnitMeta {unitGuardRef = guardRef, unitUsedRef = usedRef}
 
 findUnit :: UnitStableName -> [UnitEntry] -> Maybe UnitMeta
@@ -187,7 +202,8 @@ findUnit target (entry : rest)
   | otherwise = findUnit target rest
 
 setAllUnitGuards :: Bool -> IO ()
-setAllUnitGuards flag = do
-  store <- readIORef unitRegistry
-  forM_ (concat (elems store)) $ \entry ->
-    writeIORef (unitGuardRef (unitEntryMeta entry)) flag
+setAllUnitGuards flag =
+  atomically $ do
+    store <- readTVar unitRegistry
+    forM_ (concat (elems store)) $ \entry ->
+      writeTVar (unitGuardRef (unitEntryMeta entry)) flag

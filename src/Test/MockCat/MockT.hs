@@ -16,6 +16,13 @@ module Test.MockCat.MockT (
   neverApply,
   MonadMockDefs(..)
   ) where
+import Control.Concurrent.STM
+  ( TVar
+  , atomically
+  , modifyTVar'
+  , newTVarIO
+  , readTVarIO
+  )
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans.Class (MonadTrans(..))
 import Control.Monad.Reader (ReaderT(..), runReaderT)
@@ -23,17 +30,16 @@ import GHC.TypeLits (KnownSymbol)
 import Data.Data (Proxy, Typeable)
 import Data.Foldable (for_)
 import UnliftIO (MonadUnliftIO(..))
-import Data.IORef (IORef, newIORef, readIORef, atomicModifyIORef')
 import Test.MockCat.Internal.Types (Verifier)
 import Test.MockCat.Verify (ResolvableParamsOf, resolveForVerification, verificationFailure, verifyAppliedCount)
 
-{- | MockT is a thin wrapper over @ReaderT (IORef [Definition])@ providing
+{- | MockT is a thin wrapper over @ReaderT (TVar [Definition])@ providing
      mock/stub registration and post-run verification.
 
 Concurrency safety (summary):
   * Within a single 'runMockT' invocation, concurrent applications of stub
     functions are recorded without lost or double counts. This is achieved via
-    atomic modifications ('atomicModifyIORef'').
+    STM updates ('modifyTVar'').
   * The /moment/ a call is recorded is when the stub's return value is evaluated;
     if you only create an application but never force the result, it will not
     appear in the verification log.
@@ -42,10 +48,10 @@ Concurrency safety (summary):
   * Perform verification (e.g. 'shouldApplyTimes', 'expectApplyTimes') after all
     parallel work has completed; running it mid-flight may observe fewer calls
     simply because some results are still lazy.
-  * Each 'runMockT' call uses a fresh IORef store; mocks are not shared across
+  * Each 'runMockT' call uses a fresh TVar store; mocks are not shared across
     separate 'runMockT' boundaries.
 -}
-newtype MockT m a = MockT { unMockT :: ReaderT (IORef [Definition]) m a }
+newtype MockT m a = MockT { unMockT :: ReaderT (TVar [Definition]) m a }
   deriving (Functor, Applicative, Monad, MonadTrans, MonadIO)
 
 class Monad m => MonadMockDefs m where
@@ -108,9 +114,9 @@ data Definition =
 -}
 runMockT :: MonadIO m => MockT m a -> m a
 runMockT (MockT r) = do
-  ref <- liftIO $ newIORef []
+  ref <- liftIO $ newTVarIO []
   a <- runReaderT r ref
-  defs <- liftIO $ readIORef ref
+  defs <- liftIO $ readTVarIO ref
   for_ defs (\(Definition _ mockFunction verify) -> liftIO $ verify mockFunction)
   pure a
 
@@ -163,32 +169,38 @@ runMockT (MockT r) = do
 -}
 applyTimesIs :: MonadIO m => MockT m () -> Int -> MockT m ()
 applyTimesIs (MockT inner) a = MockT $ ReaderT $ \ref -> do
-  tmp <- liftIO $ newIORef []
+  tmp <- liftIO $ newTVarIO []
   _ <- runReaderT inner tmp
-  defs <- liftIO $ readIORef tmp
+  defs <- liftIO $ readTVarIO tmp
   let patched = map (\(Definition s fn _) -> Definition s fn (`verifyApplyCount` a)) defs
-  liftIO $ atomicModifyIORef' ref (\xs -> (xs ++ patched, ()))
+  liftIO $
+    atomically $
+      modifyTVar' ref (\xs -> xs ++ patched)
   pure ()
 
 neverApply :: MonadIO m => MockT m () -> MockT m ()
 neverApply (MockT inner) = MockT $ ReaderT $ \ref -> do
-  tmp <- liftIO $ newIORef []
+  tmp <- liftIO $ newTVarIO []
   _ <- runReaderT inner tmp
-  defs <- liftIO $ readIORef tmp
+  defs <- liftIO $ readTVarIO tmp
   let patched = map (\(Definition s m _) -> Definition s m (`verifyApplyCount` 0)) defs
-  liftIO $ atomicModifyIORef' ref (\xs -> (xs ++ patched, ()))
+  liftIO $
+    atomically $
+      modifyTVar' ref (\xs -> xs ++ patched)
   pure ()
 
 -- | Alias for 'neverApply' providing naming symmetry with 'expectApplyTimes'.
 -- note: `expectNever` removed; use `neverApply`
 
 instance MonadIO m => MonadMockDefs (MockT m) where
-  addDefinition d = MockT $ ReaderT $ \ref -> liftIO $ atomicModifyIORef' ref (\xs -> (xs ++ [d], ()))
-  getDefinitions = MockT $ ReaderT $ \ref -> liftIO $ readIORef ref
+  addDefinition d = MockT $ ReaderT $ \ref ->
+    liftIO $ atomically $ modifyTVar' ref (\xs -> xs ++ [d])
+  getDefinitions = MockT $ ReaderT $ \ref -> liftIO $ readTVarIO ref
 
-instance MonadIO m => MonadMockDefs (ReaderT (IORef [Definition]) m) where
-  addDefinition d = ReaderT $ \ref -> liftIO $ atomicModifyIORef' ref (\xs -> (xs ++ [d], ()))
-  getDefinitions = ReaderT $ \ref -> liftIO $ readIORef ref
+instance MonadIO m => MonadMockDefs (ReaderT (TVar [Definition]) m) where
+  addDefinition d = ReaderT $ \ref ->
+    liftIO $ atomically $ modifyTVar' ref (\xs -> xs ++ [d])
+  getDefinitions = ReaderT $ \ref -> liftIO $ readTVarIO ref
 
 verifyApplyCount ::
   forall f params.

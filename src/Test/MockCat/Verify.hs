@@ -15,9 +15,9 @@
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
 module Test.MockCat.Verify where
 
+import Control.Concurrent.STM (TVar, readTVarIO)
 import Test.MockCat.Internal.Types
 import Control.Monad (guard, when)
-import Data.IORef (IORef, readIORef)
 import Data.List (elemIndex, intercalate)
 import Data.Maybe
 import Test.MockCat.Param
@@ -74,9 +74,9 @@ doVerify name list (MatchAll a) = do
   guard $ Prelude.any (a /=) list
   pure $ verifyFailedMessage name list a
 
-readAppliedParamsList :: IORef (AppliedRecord params) -> IO (AppliedParamsList params)
+readAppliedParamsList :: TVar (AppliedRecord params) -> IO (AppliedParamsList params)
 readAppliedParamsList ref = do
-  record <- readIORef ref
+  record <- readTVarIO ref
   pure $ appliedParamsList record
 
 class VerifyCount countType params a where

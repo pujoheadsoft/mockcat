@@ -42,9 +42,9 @@ module Test.MockCat.Mock
   , Label
   ) where
 
+import Control.Concurrent.STM (TVar, atomically, writeTVar)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.State (get, put)
-import Data.IORef (IORef, writeIORef)
 import Data.Proxy (Proxy(..))
 import Data.Type.Equality ((:~:) (Refl))
 import Data.Typeable (Typeable, eqT)
@@ -294,7 +294,7 @@ registerStub name verifier@(Verifier ref) fn = do
   case eqT :: Maybe (params :~: ()) of
     Just Refl -> do
       meta <- liftIO $ registerUnitMeta ref
-      liftIO $ writeIORef ref appliedRecord
+      liftIO $ atomically $ writeTVar ref appliedRecord
       let trackedValue = wrapUnitStub ref meta baseValue
       liftIO $
         withUnitGuard meta $ do
@@ -311,7 +311,7 @@ ioTyCon = typeRepTyCon (typeRep @(IO ()))
 wrapUnitStub ::
   forall fn.
   Typeable fn =>
-  IORef (AppliedRecord ()) ->
+  TVar (AppliedRecord ()) ->
   UnitMeta ->
   fn ->
   fn
