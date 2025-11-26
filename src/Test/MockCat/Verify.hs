@@ -3,6 +3,7 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE ConstraintKinds #-}
 {-# OPTIONS_GHC -Wno-missing-export-lists #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Use null" #-}
@@ -37,8 +38,7 @@ class Verify params input where
   -- Generic over mock representation `m` which must satisfy `IsMock` and
   -- whose `MockParams m` match this class's `params`.
   shouldApplyTo ::
-    ( MockResolvable m
-    , ResolvableParams m ~ params
+    ( ResolvableMockWithParams m params
     , HasCallStack) =>
     m ->
     input ->
@@ -51,12 +51,12 @@ instance (Eq a, Show a) => Verify a a where
   shouldApplyTo v a = verify v (MatchAny a)
 
 verify ::
-  ( MockResolvable m
-  , Eq (ResolvableParams m)
-  , Show (ResolvableParams m)
+  ( ResolvableMock m
+  , Eq (ResolvableParamsOf m)
+  , Show (ResolvableParamsOf m)
   ) =>
   m ->
-  VerifyMatchType (ResolvableParams m) ->
+  VerifyMatchType (ResolvableParamsOf m) ->
   IO ()
 verify m matchType = do
   ResolvedMock mockName (Verifier ref) <- requireResolved m
@@ -94,8 +94,7 @@ class VerifyCount countType params a where
   -- @
   --
   shouldApplyTimes ::
-    ( MockResolvable m
-    , ResolvableParams m ~ params
+    ( ResolvableMockWithParams m params
     , HasCallStack
     , Eq params
     ) =>
@@ -126,10 +125,10 @@ compareCount (GreaterThanEqual e) a = a >= e
 compareCount (GreaterThan e) a = a > e
 
 verifyCount ::
-  ( MockResolvable m
-  , Eq (ResolvableParams m)) =>
+  ( ResolvableMock m
+  , Eq (ResolvableParamsOf m)) =>
   m ->
-  ResolvableParams m ->
+  ResolvableParamsOf m ->
   CountVerifyMethod ->
   IO ()
 verifyCount m v method = do
@@ -163,14 +162,14 @@ class VerifyOrder params input where
   --   print $ stubFn m "b" True
   --   m \`shouldApplyInOrder\` ["a" |\> True, "b" |\> True]
   -- @
-  shouldApplyInOrder :: (MockResolvable m, ResolvableParams m ~ params, HasCallStack) => m -> [input] -> IO ()
+  shouldApplyInOrder :: (ResolvableMockWithParams m params, HasCallStack) => m -> [input] -> IO ()
 
   -- | Verify that functions are applied in the expected order.
   --
   -- Unlike @'shouldApplyInOrder'@, not all applications need to match exactly.
   --
   -- As long as the order matches, the verification succeeds.
-  shouldApplyInPartialOrder :: (MockResolvable m, ResolvableParams m ~ params, HasCallStack) => m -> [input] -> IO ()
+  shouldApplyInPartialOrder :: (ResolvableMockWithParams m params, HasCallStack) => m -> [input] -> IO ()
 
 instance (Eq a, Show a) => VerifyOrder (Param a) a where
   shouldApplyInOrder v a = verifyOrder ExactlySequence v $ param <$> a
@@ -181,10 +180,12 @@ instance {-# OVERLAPPABLE #-} (Eq a, Show a) => VerifyOrder a a where
   shouldApplyInPartialOrder = verifyOrder PartiallySequence
 
 verifyOrder ::
-  (MockResolvable m, Eq (ResolvableParams m), Show (ResolvableParams m)) =>
+  (ResolvableMock m
+  , Eq (ResolvableParamsOf m)
+  , Show (ResolvableParamsOf m)) =>
   VerifyOrderMethod ->
   m ->
-  [ResolvableParams m] ->
+  [ResolvableParamsOf m] ->
   IO ()
 verifyOrder method m matchers = do
   ResolvedMock mockName (Verifier ref) <- requireResolved m
@@ -277,8 +278,7 @@ mapWithIndex f xs = [f i x | (i, x) <- zip [0 ..] xs]
 shouldApplyTimesGreaterThanEqual ::
   ( VerifyCount CountVerifyMethod params a
   , Eq params
-  , MockResolvable m
-  , ResolvableParams m ~ params
+  , ResolvableMockWithParams m params
   , HasCallStack
   ) =>
   m ->
@@ -291,8 +291,7 @@ shouldApplyTimesGreaterThanEqual m i = shouldApplyTimes m (GreaterThanEqual i)
 shouldApplyTimesLessThanEqual ::
   ( VerifyCount CountVerifyMethod params a
   , Eq params
-  , MockResolvable m
-  , ResolvableParams m ~ params
+  , ResolvableMockWithParams m params
   , HasCallStack
   ) =>
   m ->
@@ -305,8 +304,7 @@ shouldApplyTimesLessThanEqual m i = shouldApplyTimes m (LessThanEqual i)
 shouldApplyTimesGreaterThan ::
   ( VerifyCount CountVerifyMethod params a
   , Eq params
-  , MockResolvable m
-  , ResolvableParams m ~ params
+  , ResolvableMockWithParams m params
   , HasCallStack
   ) =>
   m ->
@@ -319,8 +317,7 @@ shouldApplyTimesGreaterThan m i = shouldApplyTimes m (GreaterThan i)
 shouldApplyTimesLessThan ::
   ( VerifyCount CountVerifyMethod params a
   , Eq params
-  , MockResolvable m
-  , ResolvableParams m ~ params
+  , ResolvableMockWithParams m params
   , HasCallStack
   ) =>
   m ->
@@ -337,8 +334,7 @@ shouldApplyTimesLessThan m i = shouldApplyTimes m (LessThan i)
 --   when (null appliedParamsList) $ error $ "It has never been applied function" <> mockNameLabel (mockName m)
 
 shouldApplyToAnything ::
-  ( MockResolvable m
-  , ResolvableParams m ~ params
+  ( ResolvableMockWithParams m params
   , HasCallStack
   ) =>
   m ->
@@ -357,8 +353,7 @@ shouldApplyToAnythingResolved ResolvedMock {resolvedMockName = mockName, resolve
 
 -- | Verify that it was apply to anything (times).
 shouldApplyTimesToAnything ::
-  ( MockResolvable m
-  , ResolvableParams m ~ params
+  ( ResolvableMockWithParams m params
   ) =>
   m ->
   Int ->
@@ -384,53 +379,15 @@ type family FunctionParams fn where
   FunctionParams (a -> fn) = PrependParam a (FunctionParams fn)
   FunctionParams fn = ()
 
-type family IsValueType target :: Bool where
-  IsValueType (IO r) = 'False
-  IsValueType (a -> fn) = 'False
-  IsValueType target = 'True
-
-type family IsIO target :: Bool where
-  IsIO (IO r) = 'True
-  IsIO target = 'False
-
 type family ResolvableParamsOf target :: Type where
-  ResolvableParamsOf (IO r) = FunctionParams (IO r)
   ResolvableParamsOf (a -> fn) = FunctionParams (a -> fn)
   ResolvableParamsOf target = ()
 
-class MockResolvable target where
-  type ResolvableParams target :: Type
-  type ResolvableParams target = ResolvableParamsOf target
-  resolveMock :: target -> IO (Maybe (Maybe MockName, Verifier (ResolvableParams target)))
+-- | Constraint alias for resolvable mock types.
+type ResolvableMock m = (Typeable (ResolvableParamsOf m), Typeable (Verifier (ResolvableParamsOf m)))
 
-instance
-  {-# OVERLAPPING #-}
-  ( Typeable (Verifier (FunctionParams (a -> fn)))
-  , Typeable (FunctionParams (a -> fn))
-  ) =>
-  MockResolvable (a -> fn) where
-  resolveMock = resolveForVerification
-
-instance
-  {-# OVERLAPPING #-}
-  ( Typeable (Verifier (FunctionParams (IO r)))
-  , Typeable (FunctionParams (IO r))
-  ) =>
-  MockResolvable (IO r) where
-  resolveMock = resolveForVerification
-
-instance
-  {-# OVERLAPPABLE #-}
-  ( Typeable (Verifier ())
-  , FunctionParams value ~ ()
-  , ResolvableParamsOf value ~ ()
-  , IsValueType value ~ 'True
-  , IsIO value ~ 'False
-  , Typeable (ResolvableParamsOf value)
-  ) =>
-  MockResolvable value where
-  type ResolvableParams value = ResolvableParamsOf value
-  resolveMock = resolveForVerification
+-- | Constraint alias for resolvable mock types with specific params.
+type ResolvableMockWithParams m params = (ResolvableParamsOf m ~ params, ResolvableMock m)
 
 resolveForVerification ::
   forall target params.
@@ -485,12 +442,15 @@ data ResolvedMock params = ResolvedMock {
 }
 
 requireResolved ::
-  forall target.
-  MockResolvable target =>
+  forall target params.
+  ( params ~ ResolvableParamsOf target
+  , Typeable params
+  , Typeable (Verifier params)
+  ) =>
   target ->
-  IO (ResolvedMock (ResolvableParams target))
+  IO (ResolvedMock params)
 requireResolved target = do
-  resolveMock target >>= \case
+  resolveForVerification target >>= \case
     Just (name, verifier) -> pure $ ResolvedMock name verifier
     Nothing ->
       errorWithoutStackTrace $

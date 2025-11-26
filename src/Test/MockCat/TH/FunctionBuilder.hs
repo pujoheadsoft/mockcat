@@ -70,7 +70,7 @@ import Test.MockCat.TH.ClassAnalysis
   ( VarAppliedType (..),
     updateType
   )
-import Test.MockCat.Verify (ResolvableParamsOf, ResolvableParams, resolveForVerification, verificationFailure, ResolvedMock(..), shouldApplyToAnythingResolved)
+import Test.MockCat.Verify (ResolvableParamsOf, resolveForVerification, verificationFailure, ResolvedMock(..), shouldApplyToAnythingResolved)
 import Data.Maybe (fromMaybe)
 import Data.Function ((&))
 import Data.Proxy (Proxy(..))
@@ -226,7 +226,7 @@ doCreateMockFnDecs mockType funNameStr mockFunName params funType monadVarName u
                   ]
                 typeableTargets =
                   typeableTargetsBase
-                    ++ (if null eqConstraint then [AppT (ConT ''ResolvableParams) funType] else [])
+                    ++ (if null eqConstraint then [AppT (ConT ''ResolvableParamsOf) funType] else [])
                 typeablePreds =
                   [ AppT (ConT ''Typeable) target
                   | target <- typeableTargets
@@ -303,7 +303,7 @@ doCreateConstantMockFnDecs Total funNameStr mockFunName ty monadVarName = do
       let headParamType = AppT (AppT (ConT ''(:>)) (ConT ''Head)) (AppT (ConT ''Param) ty)
           typeableTargets =
             [ ty
-            , AppT (ConT ''ResolvableParams) ty
+            , AppT (ConT ''ResolvableParamsOf) ty
             ]
           typeablePreds =
             [ AppT (ConT ''Typeable) target
@@ -340,7 +340,7 @@ doCreateEmptyVerifyParamMockFnDecs funNameStr mockFunName params funType monadVa
         typeableTargets =
           [ funType
           , verifyParams
-          , AppT (ConT ''ResolvableParams) funType
+          , AppT (ConT ''ResolvableParamsOf) funType
           ]
         typeablePreds =
           [ AppT (ConT ''Typeable) target
