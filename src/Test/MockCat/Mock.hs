@@ -25,7 +25,7 @@ module Test.MockCat.Mock
   , mock
   , createNamedMockFnWithParams
   , mockIO
-  , createStubFn
+  , stub
   , shouldApplyTo
   , shouldApplyTimes
   , shouldApplyInOrder
@@ -293,11 +293,11 @@ This function creates a simple stub that returns values based on the provided
 parameters, but does not support verification. Use 'mock' if you need
 verification capabilities.
 -}
-createStubFn ::
+stub ::
   StubBuilder params fn =>
   params ->
   fn
-createStubFn = buildStub Nothing
+stub = buildStub Nothing
 
 to :: (a -> IO ()) -> a -> IO ()
 to f = f
