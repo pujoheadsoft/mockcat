@@ -9,7 +9,6 @@
 {-# HLINT ignore "Use null" #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 {-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
@@ -25,57 +24,8 @@ import Test.MockCat.Param
 import Test.MockCat.AssociationList (lookup, update, insert, empty, member)
 import Prelude hiding (lookup)
 import Control.Monad.State
-import Data.Kind (Type)
 import Test.MockCat.Internal.Types
 import Test.MockCat.Internal.Message
-
--- ------------
-data Pure
-data PureWithIO
-data InIO
-
-type family ApplyMode (mode :: k) (r :: Type) :: Type where
-  ApplyMode Pure r = r
-  ApplyMode PureWithIO r = r
-  ApplyMode InIO r = IO r
-
-type family ModeInput (mode :: k) (r :: Type) :: Type where
-  ModeInput Pure r = r
-  ModeInput PureWithIO r = IO r
-  ModeInput InIO r = IO r
-
-class ModeSpec mode where
-  finalize :: forall r. ModeInput mode r -> ApplyMode mode r
-
-instance ModeSpec Pure where
-  finalize :: ModeInput Pure r -> ApplyMode Pure r
-  finalize = id
-
-instance ModeSpec PureWithIO where
-  finalize :: ModeInput PureWithIO r -> ApplyMode PureWithIO r
-  finalize = perform
-
-instance ModeSpec InIO where
-  finalize :: ModeInput InIO r -> ApplyMode InIO r
-  finalize = id
-
-type InputFn mode args r = args -> ModeInput mode r
-
-type family CurriedFn (mode :: k) (args :: Type) (r :: Type) :: Type where
-  CurriedFn mode (Param a) r = a -> ApplyMode mode r
-  CurriedFn mode (Param a :> rest) r = a -> CurriedFn mode rest r
-
-class ModeSpec mode => BuildCurriedGeneric mode args r fn | mode args r -> fn where
-  buildGeneric :: InputFn mode args r -> fn
-
-instance (ModeSpec mode, fn ~ (a -> ApplyMode mode r))
-      => BuildCurriedGeneric mode (Param a) r fn where
-  buildGeneric f a = finalize @mode @r (f (param a))
-
-instance (ModeSpec mode, BuildCurriedGeneric mode rest r fn, fn' ~ (a -> fn))
-      => BuildCurriedGeneric mode (Param a :> rest) r fn' where
-  buildGeneric input a = buildGeneric @mode @rest @r (input . (\rest -> p a :> rest))
--- ------------
 
 -- | Class for building a curried function.
 -- The purpose of this class is to automatically generate and provide
@@ -84,25 +34,28 @@ instance (ModeSpec mode, BuildCurriedGeneric mode rest r fn, fn' ~ (a -> fn))
 -- @args@ is the argument list type of the mock.
 -- @r@ is the return type of the function.
 -- @fn@ is the curried function type.
-type BuildCurried args r fn = BuildCurriedGeneric PureWithIO args r fn
+class BuildCurried args r fn | args r -> fn where
+  buildCurriedImpl :: (args -> IO r) -> fn
 
 -- | Build a curried function that returns an IO result.
 buildCurried :: forall args r fn. BuildCurried args r fn => (args -> IO r) -> fn
-buildCurried = buildGeneric @PureWithIO @args @r
+buildCurried = buildCurriedImpl
 
 -- | Build a curried function that returns a pure result.
 buildCurriedPure :: forall args r fn. BuildCurried args r fn => (args -> r) -> fn
 buildCurriedPure a2r = buildCurried (pure . a2r)
 
--- | Like 'BuildCurried' but returns an IO result at the end of the curried function.
--- This is used by the MockIO builder to produce functions whose final result is in IO,
--- allowing them to be lifted into other monads via 'LiftFunTo'.
-type BuildCurriedIO args r fn = BuildCurriedGeneric InIO args r fn
+instance (fn ~ (a -> r)) => BuildCurried (Param a) r fn where
+  buildCurriedImpl f a = perform (f (param a))
 
--- | Build a curried function that returns an IO result.
-buildCurriedIO :: forall args r fn. BuildCurriedIO args r fn => (args -> IO r) -> fn
-buildCurriedIO = buildGeneric @InIO @args @r
-
+instance
+  ( BuildCurried rest r fn
+  , fn' ~ (a -> fn)
+  ) =>
+  BuildCurried (Param a :> rest) r fn'
+  where
+  buildCurriedImpl input a =
+    buildCurriedImpl @rest @r @fn (input . (\rest -> p a :> rest))
 
 -- | Class for creating a stub corresponding to the parameter description.
 class MockBuilder params fn verifyParams | params -> fn, params -> verifyParams where
@@ -185,21 +138,6 @@ instance {-# OVERLAPPABLE #-}
     buildWithRecorder (\ref inputParams -> executeInvocation ref (singleInvocationStep name params inputParams))
 
 
-class MockIOBuilder params fn verifyParams | params -> fn, params -> verifyParams where
-  buildIO ::
-    Maybe MockName ->
-    params ->
-    IO (fn, Verifier verifyParams)
-
-instance {-# OVERLAPPABLE #-}
-  ( p ~ (Param a :> rest)
-  , ParamConstraints p args r
-  , BuildCurriedIO args r fn
-  ) => MockIOBuilder (Param a :> rest) fn args where
-  buildIO name params =
-    buildIOWithRecorder (\ref inputParams -> executeInvocation ref (singleInvocationStep name params inputParams))
-
-
 buildWithRecorder ::
   ( MonadIO m
   , BuildCurried args r fn
@@ -209,16 +147,6 @@ buildWithRecorder ::
 buildWithRecorder handler = do
   ref <- liftIO $ newIORef appliedRecord
   let fn = buildCurried (handler ref)
-      verifier = Verifier ref
-  pure (fn, verifier)
-
-buildIOWithRecorder ::
-  BuildCurriedIO args r fn =>
-  (IORef (AppliedRecord args) -> args -> IO r) ->
-  IO (fn, Verifier args)
-buildIOWithRecorder handler = do
-  ref <- newIORef appliedRecord
-  let fn = buildCurriedIO (handler ref)
       verifier = Verifier ref
   pure (fn, verifier)
 

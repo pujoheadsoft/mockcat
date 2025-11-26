@@ -500,19 +500,19 @@ spec = do
 
       f `shouldApplyTo` "Article Id"
 
-  describe "mockIO" do
+  describe "mock (monadic results)" do
     describe "shouldApplyTo" do
       it "success" do
-        f <- mockIO $ "a" |> (1 :: Int) |> True
+        f <- mock $ "a" |> (1 :: Int) |> pure @IO True
         _ <- f "a" (1 :: Int)
         f `shouldApplyTo` ("a" |> (1 :: Int))
       
       it "failure (arguments mismatch)" do
-        f <- mockIO $ "a" |> (1 :: Int) |> True
+        f <- mock $ "a" |> (1 :: Int) |> pure @IO True
         f "b" (1 :: Int) `shouldThrow` anyErrorCall
 
       it "failure" do
-        f <- mockIO $ any |> pure @IO True
+        f <- mock $ any |> pure @IO True
         _ <- f "A"
         f `shouldApplyTo` "X"
           `shouldThrow` errorCall
@@ -522,28 +522,28 @@ spec = do
 
     describe "shouldApplyTimes" do
       it "success" do
-        f <- mockIO $ "a" |> (1 :: Int) |> True
+        f <- mock $ "a" |> (1 :: Int) |> pure @IO True
         _ <- f "a" (1 :: Int)
         _ <- f "a" (1 :: Int)
         _ <- f "a" (1 :: Int)
         f `shouldApplyTimes` (3 :: Int) `to` ("a" |> (1 :: Int))
 
       it "failure" do
-        f <- mockIO $ "a" |> (1 :: Int) |> True
+        f <- mock $ "a" |> (1 :: Int) |> pure @IO True
         _ <- f "a" (1 :: Int)
         _ <- f "a" (1 :: Int)
         f `shouldApplyTimes` (3 :: Int) `to` ("a" |> (1 :: Int)) `shouldThrow` anyErrorCall
 
     describe "shouldApplyInOrder" do
       it "success" do
-        f <- mockIO $ any |> any |> True
+        f <- mock $ any |> any |> pure @IO True
         _ <- f "a" (1 :: Int)
         _ <- f "b" (2 :: Int)
         _ <- f "c" (3 :: Int)
         f `shouldApplyInOrder` ["a" |> (1 :: Int), "b" |> (2 :: Int), "c" |> (3 :: Int)]
 
       it "failure" do
-        f <- mockIO $ any |> any |> True
+        f <- mock $ any |> any |> pure @IO True
         _ <- f "b" (2 :: Int)
         _ <- f "a" (1 :: Int)
         _ <- f "c" (3 :: Int)
@@ -551,42 +551,42 @@ spec = do
 
     describe "shouldApplyInPartialOrder" do
       it "success" do
-        f <- mockIO $ any |> any |> True
+        f <- mock $ any |> any |> pure @IO True
         _ <- f "a" (1 :: Int)
         _ <- f "b" (2 :: Int)
         _ <- f "c" (3 :: Int)
         f `shouldApplyInPartialOrder` ["a" |> (1 :: Int), "c" |> (3 :: Int)]
 
       it "failure" do
-        f <- mockIO $ any |> any |> True
+        f <- mock $ any |> any |> pure @IO True
         _ <- f "b" (2 :: Int)
         _ <- f "a" (1 :: Int)
         f `shouldApplyInPartialOrder` ["a" |> (1 :: Int), "b" |> (2 :: Int)] `shouldThrow` anyErrorCall
 
     describe "shouldApplyTimesGreaterThanEqual" do
       it "success" do
-        f <- mockIO $ "a" |> (1 :: Int) |> True
+        f <- mock $ "a" |> (1 :: Int) |> pure @IO True
         _ <- f "a" (1 :: Int)
         _ <- f "a" (1 :: Int)
         _ <- f "a" (1 :: Int)
         f `shouldApplyTimesGreaterThanEqual` 3 `to` ("a" |> (1 :: Int))
 
       it "failure" do
-        f <- mockIO $ "a" |> (1 :: Int) |> True
+        f <- mock $ "a" |> (1 :: Int) |> pure @IO True
         _ <- f "a" (1 :: Int)
         _ <- f "a" (1 :: Int)
         f `shouldApplyTimesGreaterThanEqual` 3 `to` ("a" |> (1 :: Int)) `shouldThrow` anyErrorCall
 
     describe "shouldApplyTimesLessThanEqual" do
       it "success" do
-        f <- mockIO $ "a" |> (1 :: Int) |> True
+        f <- mock $ "a" |> (1 :: Int) |> pure @IO True
         _ <- f "a" (1 :: Int)
         _ <- f "a" (1 :: Int)
         _ <- f "a" (1 :: Int)
         f `shouldApplyTimesLessThanEqual` 3 `to` ("a" |> (1 :: Int))
 
       it "failure" do
-        f <- mockIO $ "a" |> (1 :: Int) |> True
+        f <- mock $ "a" |> (1 :: Int) |> pure @IO True
         _ <- f "a" (1 :: Int)
         _ <- f "a" (1 :: Int)
         _ <- f "a" (1 :: Int)
@@ -594,28 +594,28 @@ spec = do
 
     describe "shouldApplyTimesGreaterThan" do
       it "success" do
-        f <- mockIO $ "a" |> (1 :: Int) |> True
+        f <- mock $ "a" |> (1 :: Int) |> pure @IO True
         _ <- f "a" (1 :: Int)
         _ <- f "a" (1 :: Int)
         _ <- f "a" (1 :: Int)
         f `shouldApplyTimesGreaterThan` 2 `to` ("a" |> (1 :: Int))
 
       it "failure" do
-        f <- mockIO $ "a" |> (1 :: Int) |> True
+        f <- mock $ "a" |> (1 :: Int) |> pure @IO True
         _ <- f "a" (1 :: Int)
         _ <- f "a" (1 :: Int)
         f `shouldApplyTimesGreaterThan` 2 `to` ("a" |> (1 :: Int)) `shouldThrow` anyErrorCall
 
     describe "shouldApplyTimesLessThan" do
       it "success" do
-        f <- mockIO $ "a" |> (1 :: Int) |> True
+        f <- mock $ "a" |> (1 :: Int) |> pure @IO True
         _ <- f "a" (1 :: Int)
         _ <- f "a" (1 :: Int)
         _ <- f "a" (1 :: Int)
         f `shouldApplyTimesLessThan` 4 `to` ("a" |> (1 :: Int))
 
       it "failure" do
-        f <- mockIO $ "a" |> (1 :: Int) |> True
+        f <- mock $ "a" |> (1 :: Int) |> pure @IO True
         _ <- f "a" (1 :: Int)
         _ <- f "a" (1 :: Int)
         _ <- f "a" (1 :: Int)
@@ -623,51 +623,51 @@ spec = do
 
     describe "shouldApplyToAnything" do
       it "success" do
-        f <- mockIO $ any |> any |> True
+        f <- mock $ any |> any |> pure @IO True
         _ <- f "a" (1 :: Int)
         shouldApplyToAnything f
 
       it "failure" do
-        f <- mockIO $ "a" |> (1 :: Int) |> True
+        f <- mock $ "a" |> (1 :: Int) |> pure @IO True
         shouldApplyToAnything f `shouldThrow` anyErrorCall
 
     describe "shouldApplyTimesToAnything" do
       it "success" do
-        f <- mockIO $ any |> any |> True
+        f <- mock $ any |> any |> pure @IO True
         _ <- f "a" (1 :: Int)
         _ <- f "b" (2 :: Int)
         _ <- f "c" (3 :: Int)
         f `shouldApplyTimesToAnything` 3
 
       it "failure" do
-        f <- mockIO $ any |> any |> True
+        f <- mock $ any |> any |> pure @IO True
         _ <- f "a" (1 :: Int)
         _ <- f "b" (2 :: Int)
         f `shouldApplyTimesToAnything` 3 `shouldThrow` anyErrorCall
 
     describe "named mock" do
       it "shouldApplyTo with name in error message" do
-        f <- mockIO (label "mockIO function") $ "a" |> (1 :: Int) |> True
+        f <- mock (label "monadic mock") $ "a" |> (1 :: Int) |> pure @IO True
         _ <- f "a" (1 :: Int)
         f `shouldApplyTo` ("b" |> (1 :: Int)) `shouldThrow` anyErrorCall
 
       it "shouldApplyTimes with name in error message" do
-        f <- mockIO (label "mockIO function") $ "a" |> (1 :: Int) |> True
+        f <- mock (label "monadic mock") $ "a" |> (1 :: Int) |> pure @IO True
         _ <- f "a" (1 :: Int)
         _ <- f "a" (1 :: Int)
         let e =
-              "function `mockIO function` was not applied the expected number of times to the expected arguments.\n\
+              "function `monadic mock` was not applied the expected number of times to the expected arguments.\n\
               \  expected: 3\n\
               \   but got: 2"
         f `shouldApplyTimes` (3 :: Int) `to` ("a" |> (1 :: Int)) `shouldThrow` errorCall e
 
       it "shouldApplyInOrder with name in error message" do
-        f <- mockIO (label "mockIO function") $ any |> any |> True
+        f <- mock (label "monadic mock") $ any |> any |> pure @IO True
         _ <- f "b" (2 :: Int)
         _ <- f "a" (1 :: Int)
         _ <- f "c" (3 :: Int)
         let e =
-              "function `mockIO function` was not applied to the expected arguments in the expected order.\n\
+              "function `monadic mock` was not applied to the expected arguments in the expected order.\n\
               \  expected 1st applied: a,1\n\
               \   but got 1st applied: b,2\n\
               \  expected 2nd applied: b,2\n\
@@ -675,11 +675,11 @@ spec = do
         f `shouldApplyInOrder` ["a" |> (1 :: Int), "b" |> (2 :: Int), "c" |> (3 :: Int)] `shouldThrow` errorCall e
 
       it "shouldApplyInPartialOrder with name in error message" do
-        f <- mockIO (label "mockIO function") $ any |> any |> True
+        f <- mock (label "monadic mock") $ any |> any |> pure @IO True
         _ <- f "b" (2 :: Int)
         _ <- f "a" (1 :: Int)
         let e =
-              "function `mockIO function` was not applied to the expected arguments in the expected order.\n\
+              "function `monadic mock` was not applied to the expected arguments in the expected order.\n\
               \  expected order:\n\
               \    a,1\n\
               \    c,3\n\
@@ -689,8 +689,8 @@ spec = do
         f `shouldApplyInPartialOrder` ["a" |> (1 :: Int), "c" |> (3 :: Int)] `shouldThrow` errorCall e
 
       it "shouldApplyToAnything with name in error message" do
-        f <- mockIO (label "mockIO function") $ "a" |> (1 :: Int) |> True
-        shouldApplyToAnything f `shouldThrow` errorCall "It has never been applied function `mockIO function`"
+        f <- mock (label "monadic mock") $ "a" |> (1 :: Int) |> pure @IO True
+        shouldApplyToAnything f `shouldThrow` errorCall "It has never been applied function `monadic mock`"
 
   describe "Appropriate message when a test fails." do
     describe "anonymous mock" do

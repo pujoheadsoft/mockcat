@@ -17,7 +17,7 @@ import Test.MockCat
 import Prelude hiding (writeFile, readFile, and, any, not, or)
 import GHC.IO (evaluate)
 import Data.Text hiding (any)
-import Control.Monad.Trans.Maybe (runMaybeT)
+import Control.Monad.Trans.Maybe (MaybeT, runMaybeT)
 import Test.MockCat.SharedSpecDefs
 
 makeMock [t|FileOperation|]
@@ -126,16 +126,16 @@ spec = do
     f <- mock (label "named stub") $ "x" |> "y" |> True
     f "x" "y" `shouldBe` True
 
-  it "mockIO returns monadic stub (IO)" do
-    f <- mockIO $ "a" |> (11 :: Int) |> False
+  it "mock returns monadic stub (IO)" do
+    f <- mock $ "a" |> (11 :: Int) |> pure @IO False
     f "a" (11 :: Int) `shouldReturn` False
 
-  it "mockIO returns monadic stub (MaybeT)" do
+  it "mock returns monadic stub (MaybeT)" do
     mm <- runMaybeT do
       -- create a mock inside MaybeT
-      mockIO $ True |> False
+      mock $ True |> pure @(MaybeT IO) False
     case mm of
-      Nothing -> expectationFailure "mockIO returned Nothing"
+      Nothing -> expectationFailure "mock returned Nothing"
       Just f -> do
         -- f :: Bool -> MaybeT IO Bool
         res <- runMaybeT $ f True

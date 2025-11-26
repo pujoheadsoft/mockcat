@@ -20,11 +20,8 @@ verified via helpers such as 'shouldApplyTo' and 'shouldApplyTimes'.
 module Test.MockCat.Mock
   ( MockBuilder
   , build
-  , MockIOBuilder
-  , buildIO
   , mock
   , createNamedMockFnWithParams
-  , mockIO
   , stub
   , shouldApplyTo
   , shouldApplyTimes
@@ -41,7 +38,6 @@ module Test.MockCat.Mock
   , onCase
   , cases
   , casesIO
-  , LiftFunTo(..)
   , label
   , Label
   ) where
@@ -49,7 +45,6 @@ module Test.MockCat.Mock
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.State (get, put)
 import Data.IORef (IORef, writeIORef)
-import Data.Kind (Type)
 import Data.Proxy (Proxy(..))
 import Data.Type.Equality ((:~:) (Refl))
 import Data.Typeable (Typeable, eqT)
@@ -129,10 +124,6 @@ label = Label
 -- | Type class for creating mock functions with optional name.
 class CreateMockFn a where
   mockImpl :: a
-
--- | Type class for creating mock functions in IO with optional name.
-class CreateMockFnIO a where
-  createMockFnIOImpl :: a
 
 -- | Type class for creating stub functions with optional name.
 class CreateStubFn a where
@@ -223,73 +214,6 @@ createNamedMockFnWithParams name params = do
   (fn, verifier) <- build (Just name) params
   registerStub (Just name) verifier fn
 
--- | Create a mock function whose result lives in another monad (unnamed version).
---
--- This function creates a verifiable stub that records argument applications
--- and can be verified via helpers such as 'shouldApplyTo' and 'shouldApplyTimes'.
--- The returned function's result type is in IO or can be lifted to other monads.
---
--- @
--- f <- mockIO $ "a" |> (1 :: Int) |> True
--- @
-instance
-  ( MockIOBuilder params fn verifyParams
-  , MonadIO m
-  , LiftFunTo fn fnM m
-  , Typeable verifyParams
-  , Typeable fnM
-  ) =>
-  CreateMockFnIO (params -> m fnM)
-  where
-  createMockFnIOImpl params = do
-    (fnIO, verifier) <- liftIO $ buildIO Nothing params
-    let lifted = liftFunTo (Proxy :: Proxy m) fnIO
-    registerStub Nothing verifier lifted
-
--- | Create a named mock function whose result lives in another monad (named version).
---
--- The provided name is used in failure messages.
--- This function creates a verifiable stub that records argument applications
--- and can be verified via helpers such as 'shouldApplyTo' and 'shouldApplyTimes'.
--- The returned function's result type is in IO or can be lifted to other monads.
---
--- @
--- f <- mockIO (label "mockName") $ "a" |> (1 :: Int) |> True
--- @
-instance {-# OVERLAPPING #-}
-  ( MockIOBuilder params fn verifyParams
-  , MonadIO m
-  , LiftFunTo fn fnM m
-  , Typeable verifyParams
-  , Typeable fnM
-  ) =>
-  CreateMockFnIO (Label -> params -> m fnM)
-  where
-  createMockFnIOImpl (Label name) params = do
-    (fnIO, verifier) <- liftIO $ buildIO (Just name) params
-    let lifted = liftFunTo (Proxy :: Proxy m) fnIO
-    registerStub (Just name) verifier lifted
-
-{- | Create a mock function whose result lives in another monad.
-
-This function can be used in two ways:
-
-1. Without a name:
-   @
-   f <- mockIO $ "a" |> (1 :: Int) |> True
-   @
-
-2. With a name (using 'label'):
-   @
-   f <- mockIO (label "mockName") $ "a" |> (1 :: Int) |> True
-   @
-
-This function creates a verifiable stub that records argument applications
-and can be verified via helpers such as 'shouldApplyTo' and 'shouldApplyTimes'.
-The returned function's result type is in IO or can be lifted to other monads.
--}
-mockIO :: CreateMockFnIO a => a
-mockIO = createMockFnIOImpl
 
 -- | Create a pure stub function without verification hooks (unnamed version).
 --
@@ -353,15 +277,6 @@ cases a = Cases $ put a
 {- | IO variant of 'cases'. -}
 casesIO :: [a] -> Cases (IO a) ()
 casesIO = Cases . (put . map pure)
-
-class LiftFunTo funIO funM (m :: Type -> Type) | funIO m -> funM where
-  liftFunTo :: Proxy m -> funIO -> funM
-
-instance MonadIO m => LiftFunTo (IO r) (m r) m where
-  liftFunTo _ = liftIO
-
-instance LiftFunTo restIO restM m => LiftFunTo (a -> restIO) (a -> restM) m where
-  liftFunTo p f a = liftFunTo p (f a)
 
 registerStub ::
   forall m params fn.
