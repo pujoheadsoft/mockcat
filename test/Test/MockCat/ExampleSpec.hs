@@ -126,16 +126,16 @@ spec = do
     f <- mock (label "named stub") $ "x" |> "y" |> True
     f "x" "y" `shouldBe` True
 
-  it "createMockFnIO returns monadic stub (IO)" do
-    f <- createMockFnIO $ "a" |> (11 :: Int) |> False
+  it "mockIO returns monadic stub (IO)" do
+    f <- mockIO $ "a" |> (11 :: Int) |> False
     f "a" (11 :: Int) `shouldReturn` False
 
-  it "createMockFnIO returns monadic stub (MaybeT)" do
+  it "mockIO returns monadic stub (MaybeT)" do
     mm <- runMaybeT do
       -- create a mock inside MaybeT
-      createMockFnIO $ True |> False
+      mockIO $ True |> False
     case mm of
-      Nothing -> expectationFailure "createMockFnIO returned Nothing"
+      Nothing -> expectationFailure "mockIO returned Nothing"
       Just f -> do
         -- f :: Bool -> MaybeT IO Bool
         res <- runMaybeT $ f True

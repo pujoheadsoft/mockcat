@@ -24,7 +24,7 @@ module Test.MockCat.Mock
   , buildIO
   , mock
   , createNamedMockFnWithParams
-  , createMockFnIO
+  , mockIO
   , createStubFn
   , shouldApplyTo
   , shouldApplyTimes
@@ -226,7 +226,7 @@ createNamedMockFnWithParams name params = do
 -- The returned function's result type is in IO or can be lifted to other monads.
 --
 -- @
--- f <- createMockFnIO $ "a" |> (1 :: Int) |> True
+-- f <- mockIO $ "a" |> (1 :: Int) |> True
 -- @
 instance
   ( MockIOBuilder params fn verifyParams
@@ -250,7 +250,7 @@ instance
 -- The returned function's result type is in IO or can be lifted to other monads.
 --
 -- @
--- f <- createMockFnIO (label "mockName") $ "a" |> (1 :: Int) |> True
+-- f <- mockIO (label "mockName") $ "a" |> (1 :: Int) |> True
 -- @
 instance {-# OVERLAPPING #-}
   ( MockIOBuilder params fn verifyParams
@@ -272,20 +272,20 @@ This function can be used in two ways:
 
 1. Without a name:
    @
-   f <- createMockFnIO $ "a" |> (1 :: Int) |> True
+   f <- mockIO $ "a" |> (1 :: Int) |> True
    @
 
 2. With a name (using 'label'):
    @
-   f <- createMockFnIO (label "mockName") $ "a" |> (1 :: Int) |> True
+   f <- mockIO (label "mockName") $ "a" |> (1 :: Int) |> True
    @
 
 This function creates a verifiable stub that records argument applications
 and can be verified via helpers such as 'shouldApplyTo' and 'shouldApplyTimes'.
 The returned function's result type is in IO or can be lifted to other monads.
 -}
-createMockFnIO :: CreateMockFnIO a => a
-createMockFnIO = createMockFnIOImpl
+mockIO :: CreateMockFnIO a => a
+mockIO = createMockFnIOImpl
 
 {- | Create a pure stub function without verification hooks.
 
