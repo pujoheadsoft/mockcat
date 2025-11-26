@@ -134,6 +134,10 @@ class CreateMockFn a where
 class CreateMockFnIO a where
   createMockFnIOImpl :: a
 
+-- | Type class for creating stub functions with optional name.
+class CreateStubFn a where
+  stubImpl :: a
+
 -- | Create a mock function with verification hooks attached (unnamed version).
 --
 -- This function creates a verifiable stub that records argument applications
@@ -287,17 +291,51 @@ The returned function's result type is in IO or can be lifted to other monads.
 mockIO :: CreateMockFnIO a => a
 mockIO = createMockFnIOImpl
 
+-- | Create a pure stub function without verification hooks (unnamed version).
+--
+-- This function creates a simple stub that returns values based on the provided
+-- parameters, but does not support verification. Use 'mock' if you need
+-- verification capabilities.
+--
+-- @
+-- let f = stub $ "a" |> "b"
+-- @
+instance StubBuilder params fn => CreateStubFn (params -> fn) where
+  stubImpl = buildStub Nothing
+
+-- | Create a named pure stub function without verification hooks (named version).
+--
+-- The provided name is used in failure messages.
+-- This function creates a simple stub that returns values based on the provided
+-- parameters, but does not support verification. Use 'mock' if you need
+-- verification capabilities.
+--
+-- @
+-- let f = stub (label "stubName") $ "a" |> "b"
+-- @
+instance {-# OVERLAPPING #-} StubBuilder params fn => CreateStubFn (Label -> params -> fn) where
+  stubImpl (Label name) = buildStub (Just name)
+
 {- | Create a pure stub function without verification hooks.
+
+This function can be used in two ways:
+
+1. Without a name:
+   @
+   let f = stub $ "a" |> "b"
+   @
+
+2. With a name (using 'label'):
+   @
+   let f = stub (label "stubName") $ "a" |> "b"
+   @
 
 This function creates a simple stub that returns values based on the provided
 parameters, but does not support verification. Use 'mock' if you need
 verification capabilities.
 -}
-stub ::
-  StubBuilder params fn =>
-  params ->
-  fn
-stub = buildStub Nothing
+stub :: CreateStubFn a => a
+stub = stubImpl
 
 to :: (a -> IO ()) -> a -> IO ()
 to f = f
