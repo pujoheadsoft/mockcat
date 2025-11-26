@@ -130,6 +130,10 @@ label = Label
 class CreateMockFn a where
   createMockFnImpl :: a
 
+-- | Type class for creating mock functions in IO with optional name.
+class CreateMockFnIO a where
+  createMockFnIOImpl :: a
+
 -- | Create a mock function with verification hooks attached (unnamed version).
 --
 -- This function creates a verifiable stub that records argument applications
@@ -215,26 +219,73 @@ createNamedMockFnWithParams name params = do
   (fn, verifier) <- build (Just name) params
   registerStub (Just name) verifier fn
 
-{- | Create a mock function whose result lives in another monad.
-
-This function creates a verifiable stub that records argument applications
-and can be verified via helpers such as 'shouldApplyTo' and 'shouldApplyTimes'.
-The returned function's result type is in IO or can be lifted to other monads.
--}
-createMockFnIO ::
-  forall params fn verifyParams m fnM.
+-- | Create a mock function whose result lives in another monad (unnamed version).
+--
+-- This function creates a verifiable stub that records argument applications
+-- and can be verified via helpers such as 'shouldApplyTo' and 'shouldApplyTimes'.
+-- The returned function's result type is in IO or can be lifted to other monads.
+--
+-- @
+-- f <- createMockFnIO $ "a" |> (1 :: Int) |> True
+-- @
+instance
   ( MockIOBuilder params fn verifyParams
   , MonadIO m
   , LiftFunTo fn fnM m
   , Typeable verifyParams
   , Typeable fnM
   ) =>
-  params ->
-  m fnM
-createMockFnIO params = do
-  (fnIO, verifier) <- liftIO $ buildIO Nothing params
-  let lifted = liftFunTo (Proxy :: Proxy m) fnIO
-  registerStub Nothing verifier lifted
+  CreateMockFnIO (params -> m fnM)
+  where
+  createMockFnIOImpl params = do
+    (fnIO, verifier) <- liftIO $ buildIO Nothing params
+    let lifted = liftFunTo (Proxy :: Proxy m) fnIO
+    registerStub Nothing verifier lifted
+
+-- | Create a named mock function whose result lives in another monad (named version).
+--
+-- The provided name is used in failure messages.
+-- This function creates a verifiable stub that records argument applications
+-- and can be verified via helpers such as 'shouldApplyTo' and 'shouldApplyTimes'.
+-- The returned function's result type is in IO or can be lifted to other monads.
+--
+-- @
+-- f <- createMockFnIO (label "mockName") $ "a" |> (1 :: Int) |> True
+-- @
+instance {-# OVERLAPPING #-}
+  ( MockIOBuilder params fn verifyParams
+  , MonadIO m
+  , LiftFunTo fn fnM m
+  , Typeable verifyParams
+  , Typeable fnM
+  ) =>
+  CreateMockFnIO (Label -> params -> m fnM)
+  where
+  createMockFnIOImpl (Label name) params = do
+    (fnIO, verifier) <- liftIO $ buildIO (Just name) params
+    let lifted = liftFunTo (Proxy :: Proxy m) fnIO
+    registerStub (Just name) verifier lifted
+
+{- | Create a mock function whose result lives in another monad.
+
+This function can be used in two ways:
+
+1. Without a name:
+   @
+   f <- createMockFnIO $ "a" |> (1 :: Int) |> True
+   @
+
+2. With a name (using 'label'):
+   @
+   f <- createMockFnIO (label "mockName") $ "a" |> (1 :: Int) |> True
+   @
+
+This function creates a verifiable stub that records argument applications
+and can be verified via helpers such as 'shouldApplyTo' and 'shouldApplyTimes'.
+The returned function's result type is in IO or can be lifted to other monads.
+-}
+createMockFnIO :: CreateMockFnIO a => a
+createMockFnIO = createMockFnIOImpl
 
 {- | Create a pure stub function without verification hooks.
 

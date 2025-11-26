@@ -645,6 +645,53 @@ spec = do
         _ <- f "b" (2 :: Int)
         f `shouldApplyTimesToAnything` 3 `shouldThrow` anyErrorCall
 
+    describe "named mock" do
+      it "shouldApplyTo with name in error message" do
+        f <- createMockFnIO (label "mockIO function") $ "a" |> (1 :: Int) |> True
+        _ <- f "a" (1 :: Int)
+        f `shouldApplyTo` ("b" |> (1 :: Int)) `shouldThrow` anyErrorCall
+
+      it "shouldApplyTimes with name in error message" do
+        f <- createMockFnIO (label "mockIO function") $ "a" |> (1 :: Int) |> True
+        _ <- f "a" (1 :: Int)
+        _ <- f "a" (1 :: Int)
+        let e =
+              "function `mockIO function` was not applied the expected number of times to the expected arguments.\n\
+              \  expected: 3\n\
+              \   but got: 2"
+        f `shouldApplyTimes` (3 :: Int) `to` ("a" |> (1 :: Int)) `shouldThrow` errorCall e
+
+      it "shouldApplyInOrder with name in error message" do
+        f <- createMockFnIO (label "mockIO function") $ any |> any |> True
+        _ <- f "b" (2 :: Int)
+        _ <- f "a" (1 :: Int)
+        _ <- f "c" (3 :: Int)
+        let e =
+              "function `mockIO function` was not applied to the expected arguments in the expected order.\n\
+              \  expected 1st applied: a,1\n\
+              \   but got 1st applied: b,2\n\
+              \  expected 2nd applied: b,2\n\
+              \   but got 2nd applied: a,1"
+        f `shouldApplyInOrder` ["a" |> (1 :: Int), "b" |> (2 :: Int), "c" |> (3 :: Int)] `shouldThrow` errorCall e
+
+      it "shouldApplyInPartialOrder with name in error message" do
+        f <- createMockFnIO (label "mockIO function") $ any |> any |> True
+        _ <- f "b" (2 :: Int)
+        _ <- f "a" (1 :: Int)
+        let e =
+              "function `mockIO function` was not applied to the expected arguments in the expected order.\n\
+              \  expected order:\n\
+              \    a,1\n\
+              \    c,3\n\
+              \  but got:\n\
+              \    b,2\n\
+              \    a,1"
+        f `shouldApplyInPartialOrder` ["a" |> (1 :: Int), "c" |> (3 :: Int)] `shouldThrow` errorCall e
+
+      it "shouldApplyToAnything with name in error message" do
+        f <- createMockFnIO (label "mockIO function") $ "a" |> (1 :: Int) |> True
+        shouldApplyToAnything f `shouldThrow` errorCall "It has never been applied function `mockIO function`"
+
   describe "Appropriate message when a test fails." do
     describe "anonymous mock" do
       describe "apply" do
