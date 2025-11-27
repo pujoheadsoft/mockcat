@@ -83,7 +83,7 @@ instance
           result <- action
           liftIO $ appendAppliedParams ref ()
           pure result
-        verifier = Verifier ref
+        verifier = Verifier ref VerifierIOConstant
     pure (fn, verifier)
 
 -- | Instance for building a stub for a constant value (with Head marker).
@@ -96,7 +96,7 @@ instance
         fn = perform $ do
           liftIO $ appendAppliedParams ref ()
           pure v
-        verifier = Verifier ref
+        verifier = Verifier ref VerifierPureConstant
     pure (fn, verifier)
 
 -- | Instance for building a stub for a value (backward compatibility).
@@ -109,7 +109,7 @@ instance
         fn = perform $ do
           liftIO $ appendAppliedParams ref ()
           pure v
-        verifier = Verifier ref
+        verifier = Verifier ref VerifierPureConstant
     pure (fn, verifier)
 
 -- | Instance for building a stub for `Cases (IO a) ()`.
@@ -124,7 +124,7 @@ instance MockBuilder (Cases (IO a) ()) (IO a) () where
           appendAppliedParams ref ()
           incrementAppliedParamCount ref ()
           fromJust r
-        verifier = Verifier ref
+        verifier = Verifier ref VerifierIOConstant
     pure (fn, verifier)
 
 -- | Overlapping instance for building a stub when parameters are provided as 'Cases'.
@@ -155,7 +155,7 @@ buildWithRecorder ::
 buildWithRecorder handler = do
   ref <- liftIO $ newTVarIO appliedRecord
   let fn = buildCurried (handler ref)
-      verifier = Verifier ref
+      verifier = Verifier ref VerifierFunction
   pure (fn, verifier)
 
 appliedRecord :: AppliedRecord params

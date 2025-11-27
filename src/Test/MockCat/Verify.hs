@@ -25,12 +25,13 @@ import Test.MockCat.Param
 import Prelude hiding (lookup)
 import GHC.Stack (HasCallStack)
 import Test.MockCat.Internal.Message
-import Data.Kind (Type)
+import Data.Kind (Type, Constraint)
 import Test.MockCat.Cons ((:>))
 import Data.Typeable (Typeable, eqT)
 import Test.MockCat.Internal.Registry (lookupVerifierForFn, withAllUnitGuards)
 import Data.Type.Equality ((:~:) (Refl))
 import Data.Dynamic (fromDynamic)
+import GHC.TypeLits (TypeError, ErrorMessage(..), Symbol)
 
 -- | Class for verifying mock function.
 class Verify params input where
@@ -59,8 +60,8 @@ verify ::
   VerifyMatchType (ResolvableParamsOf m) ->
   IO ()
 verify m matchType = do
-  ResolvedMock mockName (Verifier ref) <- requireResolved m
-  appliedParamsList <- readAppliedParamsList ref
+  ResolvedMock mockName verifier <- requireResolved m
+  appliedParamsList <- readAppliedParamsList (verifierRef verifier)
   case doVerify mockName appliedParamsList matchType of
     Nothing -> pure ()
     Just (VerifyFailed msg) ->
@@ -97,6 +98,7 @@ class VerifyCount countType params a where
     ( ResolvableMockWithParams m params
     , HasCallStack
     , Eq params
+    , RequireCallable "shouldApplyTimes" m
     ) =>
     m ->
     countType ->
@@ -126,14 +128,15 @@ compareCount (GreaterThan e) a = a > e
 
 verifyCount ::
   ( ResolvableMock m
-  , Eq (ResolvableParamsOf m)) =>
+  , Eq (ResolvableParamsOf m)
+  , RequireCallable "shouldApplyTimes" m) =>
   m ->
   ResolvableParamsOf m ->
   CountVerifyMethod ->
   IO ()
 verifyCount m v method = do
-  ResolvedMock mockName (Verifier ref) <- requireResolved m
-  appliedParamsList <- readAppliedParamsList ref
+  ResolvedMock mockName verifier <- requireResolved m
+  appliedParamsList <- readAppliedParamsList (verifierRef verifier)
   let appliedCount = length (filter (v ==) appliedParamsList)
   if compareCount method appliedCount
     then pure ()
@@ -162,14 +165,28 @@ class VerifyOrder params input where
   --   print $ stubFn m "b" True
   --   m \`shouldApplyInOrder\` ["a" |\> True, "b" |\> True]
   -- @
-  shouldApplyInOrder :: (ResolvableMockWithParams m params, HasCallStack) => m -> [input] -> IO ()
+  shouldApplyInOrder ::
+    ( ResolvableMockWithParams m params
+    , HasCallStack
+    , RequireCallable "shouldApplyInOrder" m
+    ) =>
+    m ->
+    [input] ->
+    IO ()
 
   -- | Verify that functions are applied in the expected order.
   --
   -- Unlike @'shouldApplyInOrder'@, not all applications need to match exactly.
   --
   -- As long as the order matches, the verification succeeds.
-  shouldApplyInPartialOrder :: (ResolvableMockWithParams m params, HasCallStack) => m -> [input] -> IO ()
+  shouldApplyInPartialOrder ::
+    ( ResolvableMockWithParams m params
+    , HasCallStack
+    , RequireCallable "shouldApplyInPartialOrder" m
+    ) =>
+    m ->
+    [input] ->
+    IO ()
 
 instance (Eq a, Show a) => VerifyOrder (Param a) a where
   shouldApplyInOrder v a = verifyOrder ExactlySequence v $ param <$> a
@@ -188,8 +205,8 @@ verifyOrder ::
   [ResolvableParamsOf m] ->
   IO ()
 verifyOrder method m matchers = do
-  ResolvedMock mockName (Verifier ref) <- requireResolved m
-  appliedParamsList <- readAppliedParamsList ref
+  ResolvedMock mockName verifier <- requireResolved m
+  appliedParamsList <- readAppliedParamsList (verifierRef verifier)
   case doVerifyOrder method mockName appliedParamsList matchers of
     Nothing -> pure ()
     Just (VerifyFailed msg) ->
@@ -280,6 +297,7 @@ shouldApplyTimesGreaterThanEqual ::
   , Eq params
   , ResolvableMockWithParams m params
   , HasCallStack
+  , RequireCallable "shouldApplyTimes" m
   ) =>
   m ->
   Int ->
@@ -293,6 +311,7 @@ shouldApplyTimesLessThanEqual ::
   , Eq params
   , ResolvableMockWithParams m params
   , HasCallStack
+  , RequireCallable "shouldApplyTimes" m
   ) =>
   m ->
   Int ->
@@ -306,6 +325,7 @@ shouldApplyTimesGreaterThan ::
   , Eq params
   , ResolvableMockWithParams m params
   , HasCallStack
+  , RequireCallable "shouldApplyTimes" m
   ) =>
   m ->
   Int ->
@@ -319,6 +339,7 @@ shouldApplyTimesLessThan ::
   , Eq params
   , ResolvableMockWithParams m params
   , HasCallStack
+  , RequireCallable "shouldApplyTimes" m
   ) =>
   m ->
   Int ->
@@ -345,8 +366,8 @@ shouldApplyToAnythingResolved ::
   HasCallStack =>
   ResolvedMock params ->
   IO ()
-shouldApplyToAnythingResolved ResolvedMock {resolvedMockName = mockName, resolvedMockVerifier = Verifier ref} = do
-  appliedParamsList <- readAppliedParamsList ref
+shouldApplyToAnythingResolved ResolvedMock {resolvedMockName = mockName, resolvedMockVerifier = verifier} = do
+  appliedParamsList <- readAppliedParamsList (verifierRef verifier)
   when (null appliedParamsList) $
     error $
       "It has never been applied function" <> mockNameLabel mockName
@@ -354,22 +375,37 @@ shouldApplyToAnythingResolved ResolvedMock {resolvedMockName = mockName, resolve
 -- | Verify that it was apply to anything (times).
 shouldApplyTimesToAnything ::
   ( ResolvableMockWithParams m params
+  , RequireCallable "shouldApplyTimesToAnything" m
   ) =>
   m ->
   Int ->
   IO ()
 shouldApplyTimesToAnything m count = do
-  ResolvedMock mockName (Verifier ref) <- requireResolved m
-  appliedParamsList <- readAppliedParamsList ref
-  let appliedCount = length appliedParamsList
-  when (count /= appliedCount) $
+  ResolvedMock mockName verifier <- requireResolved m
+  case verifierKind verifier of
+    VerifierPureConstant ->
+      errorWithoutStackTrace $
+        unsupportedTimesMessage mockName
+    _ -> do
+      appliedParamsList <- readAppliedParamsList (verifierRef verifier)
+      let appliedCount = length appliedParamsList
+      when (count /= appliedCount) $
         errorWithoutStackTrace $
-        intercalate
-          "\n"
-          [ "function" <> mockNameLabel mockName <> " was not applied the expected number of times.",
-            "  expected: " <> show count,
-            "   but got: " <> show appliedCount
-          ]
+          intercalate
+            "\n"
+            [ "function" <> mockNameLabel mockName <> " was not applied the expected number of times.",
+              "  expected: " <> show count,
+              "   but got: " <> show appliedCount
+            ]
+
+unsupportedTimesMessage :: Maybe MockName -> String
+unsupportedTimesMessage mockName =
+  intercalate
+    "\n"
+    [ "function" <> mockNameLabel mockName <> " does not support shouldApplyTimesToAnything.",
+      "  reason: pure constant mocks are values, not callable functions.",
+      "  hint: use shouldApplyToAnything instead."
+    ]
 
 type family PrependParam a rest where
   PrependParam a () = Param a
@@ -382,6 +418,39 @@ type family FunctionParams fn where
 type family ResolvableParamsOf target :: Type where
   ResolvableParamsOf (a -> fn) = FunctionParams (a -> fn)
   ResolvableParamsOf target = ()
+
+type family Or (a :: Bool) (b :: Bool) :: Bool where
+  Or 'True _ = 'True
+  Or _ 'True = 'True
+  Or 'False 'False = 'False
+
+type family Not (a :: Bool) :: Bool where
+  Not 'True = 'False
+  Not 'False = 'True
+
+type family IsFunctionType target :: Bool where
+  IsFunctionType (_a -> _b) = 'True
+  IsFunctionType _ = 'False
+
+type family IsIOType target :: Bool where
+  IsIOType (IO _) = 'True
+  IsIOType _ = 'False
+
+type family IsPureConstant target :: Bool where
+  IsPureConstant target = Not (Or (IsFunctionType target) (IsIOType target))
+
+type family RequireCallable (fn :: Symbol) target :: Constraint where
+  RequireCallable fn target =
+    RequireCallableImpl fn (IsPureConstant target) target
+
+type family RequireCallableImpl (fn :: Symbol) (isPure :: Bool) target :: Constraint where
+  RequireCallableImpl fn 'True target =
+    TypeError
+      ( 'Text fn ':<>: 'Text " is not available for pure constant mocks."
+          ':$$: 'Text "  target type: " ':<>: 'ShowType target
+          ':$$: 'Text "  hint: convert it into a callable mock or use shouldApplyToAnything."
+      )
+  RequireCallableImpl _ 'False _ = ()
 
 -- | Constraint alias for resolvable mock types.
 type ResolvableMock m = (Typeable (ResolvableParamsOf m), Typeable (Verifier (ResolvableParamsOf m)))
@@ -415,8 +484,8 @@ verifyAppliedCount ::
   Verifier params ->
   Int ->
   IO ()
-verifyAppliedCount maybeName (Verifier ref) expected = do
-  appliedParamsList <- readAppliedParamsList ref
+verifyAppliedCount maybeName verifier expected = do
+  appliedParamsList <- readAppliedParamsList (verifierRef verifier)
   let appliedCount = length appliedParamsList
   when (expected /= appliedCount) $
     errorWithoutStackTrace $

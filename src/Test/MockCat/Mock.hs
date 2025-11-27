@@ -288,7 +288,7 @@ registerStub ::
   Verifier params ->
   fn ->
   m fn
-registerStub name verifier@(Verifier ref) fn = do
+registerStub name verifier@(Verifier {verifierRef = ref}) fn = do
   baseValue <- liftIO $ evaluate fn
   case eqT :: Maybe (params :~: ()) of
     Just Refl -> do

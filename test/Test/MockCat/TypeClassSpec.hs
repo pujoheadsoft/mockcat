@@ -37,8 +37,8 @@ import Test.MockCat.Internal.Message (mockNameLabel)
 import Test.MockCat.SharedSpecDefs
 
 verifyResolvedAny :: Verify.ResolvedMock params -> IO ()
-verifyResolvedAny (Verify.ResolvedMock name (Verifier ref)) = do
-  appliedParamsList <- Verify.readAppliedParamsList ref
+verifyResolvedAny Verify.ResolvedMock { Verify.resolvedMockName = name, Verify.resolvedMockVerifier = verifier } = do
+  appliedParamsList <- Verify.readAppliedParamsList (verifierRef verifier)
   when (null appliedParamsList) $
     error $ "It has never been applied function" <> mockNameLabel name
 

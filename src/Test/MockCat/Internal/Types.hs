@@ -17,7 +17,16 @@ import Test.MockCat.AssociationList (AssociationList)
 import Prelude hiding (lookup)
 import Control.Monad.State ( State )
 
-newtype Verifier params = Verifier (TVar (AppliedRecord params))
+data Verifier params = Verifier
+  { verifierRef :: TVar (AppliedRecord params)
+  , verifierKind :: VerifierKind
+  }
+
+data VerifierKind
+  = VerifierPureConstant
+  | VerifierIOConstant
+  | VerifierFunction
+  deriving (Eq, Show)
 
 type AppliedParamsList params = [params]
 type AppliedParamsCounter params = AssociationList params Int

@@ -290,6 +290,10 @@ stubFunction `shouldApplyTimesLessThan` (2 :: Int) `to` "value"
 stubFunction `shouldApplyTimesLessThanEqual` (1 :: Int) `to` "value"
 stubFunction `shouldApplyTimesToAnything` (1 :: Int)
 ```
+Note: all counting / order verification helpers (`shouldApplyTimes`, `shouldApplyTimesGreaterThan*`, `shouldApplyTimesLessThan*`,
+`shouldApplyTimesToAnything`, `shouldApplyInOrder`, `shouldApplyInPartialOrder`, …) can only be used with callable mocks (functions or IO actions).  
+Pure constant mocks such as `mock "foo"` only support `shouldApplyTo` / `shouldApplyToAnything`, because they are plain values and cannot meaningfully record multiple applications.  
+Attempting to call one of the counting/order helpers on a pure constant mock now results in a compile-time error.
 In the case of typeclass mocks, when `runMockT` is applied, verification that the prepared stub functions have been applied is performed automatically.
 ```haskell
 result <- runMockT do

@@ -184,6 +184,9 @@ stubFunction `shouldApplyTimesLessThan` (2 :: Int) `to` "value"
 stubFunction `shouldApplyTimesLessThanEqual` (1 :: Int) `to` "value"
 stubFunction `shouldApplyTimesToAnything` (1 :: Int)
 ```
+なお、回数／順序の検証を行う各種ヘルパ（`shouldApplyTimes` 系、`shouldApplyTimesToAnything`、`shouldApplyInOrder`、`shouldApplyInPartialOrder` など）は、関数（あるいは IO アクション）として呼び出されるモックにしか利用できません。  
+`mock "foo"` のような純粋な定数モックは単なる値であり適用回数を記録できないため、`shouldApplyTo` / `shouldApplyToAnything` を使用してください。  
+上記の回数／順序ヘルパを定数モックに対して呼び出そうとすると、コンパイルエラーになります。
 型クラスのモックの場合は、`runMockT`を適用した際、用意したスタブ関数の適用が行われたかの検証が自動で行われます。
 ```haskell
 result <- runMockT do

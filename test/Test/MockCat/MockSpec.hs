@@ -938,6 +938,11 @@ spec = do
       f <- mock "foo"
       f `shouldBe` "foo"
       shouldApplyToAnything f
+    
+    -- it "xxx" do
+    --   f <- mock "foo"
+    --   f `shouldBe` "foo"
+    --   f `shouldApplyTimesToAnything` 1
 
     it "createNamedConstantMock" do
       f <- mock (label "const") "foo"
@@ -951,34 +956,6 @@ spec = do
     it "createNamedConstantMock (error message)" do
       f <- mock (label "constant") "foo"
       shouldApplyToAnything f `shouldThrow` errorCall "It has never been applied function `constant`"
-
-    -- TODO: Fix this test
-    -- it "createConstantMock with shouldApplyTimesToAnything (success)" do
-    --   f <- mock "foo"
-    --   _ <- print f
-    --   _ <- print f
-    --   _ <- print f
-    --   f `shouldApplyTimesToAnything` 3
-
-    it "createConstantMock with shouldApplyTimesToAnything (failure)" do
-      f <- mock "foo"
-      _ <- evaluate f
-      _ <- evaluate f
-      f `shouldApplyTimesToAnything` 3 `shouldThrow` anyErrorCall
-
-    -- TODO: Fix this test
-    -- it "createNamedConstantMock with shouldApplyTimesToAnything (success)" do
-    --   f <- createNamedMockFn "const" "foo"
-    --   _ <- f `shouldBe` "foo"
-    --   _ <- f `shouldBe` "foo"
-    --   _ <- f `shouldBe` "foo"
-    --   f `shouldApplyTimesToAnything` 3
-
-    it "createNamedConstantMock with shouldApplyTimesToAnything (failure)" do
-      f <- mock (label "const") "foo"
-      _ <- evaluate f
-      _ <- evaluate f
-      f `shouldApplyTimesToAnything` 3 `shouldThrow` anyErrorCall
 
     it "verify constant IO mock" do
       f <- mock $ pure @IO "foo"
