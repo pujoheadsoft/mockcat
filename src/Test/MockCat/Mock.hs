@@ -33,6 +33,21 @@ module Test.MockCat.Mock
   , shouldApplyTimesLessThan
   , shouldApplyToAnything
   , shouldApplyTimesToAnything
+  , shouldBeCalled
+  , times
+  , atLeast
+  , atMost
+  , greaterThan
+  , lessThan
+  , once
+  , never
+  , inOrder
+  , inPartialOrder
+  , inOrderWith
+  , inPartialOrderWith
+  , calledWith
+  , anything
+  , with
   , to
   , onCase
   , cases

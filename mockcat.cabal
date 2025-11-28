@@ -108,6 +108,7 @@ test-suite mockcat-test
       Test.MockCat.PartialMockSpec
       Test.MockCat.PartialMockTHSpec
       Test.MockCat.SharedSpecDefs
+      Test.MockCat.ShouldBeCalledSpec
       Test.MockCat.StubSpec
       Test.MockCat.TH.ClassAnalysisSpec
       Test.MockCat.TH.ContextBuilderSpec

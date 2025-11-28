@@ -13,6 +13,8 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE FunctionalDependencies #-}
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
 module Test.MockCat.Verify where
 
@@ -528,3 +530,126 @@ requireResolved target = do
           [ "The provided stub cannot be verified.",
             "Please create it via mock when verification is required."
           ]
+
+-- ============================================
+-- shouldBeCalled API
+-- ============================================
+
+-- | Verification specification for shouldBeCalled
+data VerificationSpec params where
+  -- | Count verification with specific arguments
+  CountVerification :: CountVerifyMethod -> params -> VerificationSpec params
+  -- | Count verification without arguments (any arguments)
+  CountAnyVerification :: Int -> VerificationSpec params
+  -- | Order verification
+  OrderVerification :: VerifyOrderMethod -> [params] -> VerificationSpec params
+  -- | Simple verification with arguments (at least once)
+  SimpleVerification :: params -> VerificationSpec params
+  -- | Simple verification without arguments (at least once, any arguments)
+  AnyVerification :: VerificationSpec params
+
+-- | Times condition for count verification
+data TimesSpec = TimesSpec CountVerifyMethod
+
+-- | Create a times condition for exact count
+times :: Int -> TimesSpec
+times n = TimesSpec (Equal n)
+
+-- | Create a times condition for at least count
+atLeast :: Int -> TimesSpec
+atLeast n = TimesSpec (GreaterThanEqual n)
+
+-- | Create a times condition for at most count
+atMost :: Int -> TimesSpec
+atMost n = TimesSpec (LessThanEqual n)
+
+-- | Create a times condition for greater than count
+greaterThan :: Int -> TimesSpec
+greaterThan n = TimesSpec (GreaterThan n)
+
+-- | Create a times condition for less than count
+lessThan :: Int -> TimesSpec
+lessThan n = TimesSpec (LessThan n)
+
+-- | Create a times condition for exactly once
+once :: TimesSpec
+once = TimesSpec (Equal 1)
+
+-- | Create a times condition for never (zero times)
+never :: TimesSpec
+never = TimesSpec (Equal 0)
+
+-- | Order condition for order verification
+data OrderSpec = OrderSpec VerifyOrderMethod
+
+-- | Create an order condition for exact sequence
+inOrder :: OrderSpec
+inOrder = OrderSpec ExactlySequence
+
+-- | Create an order condition for partial sequence
+inPartialOrder :: OrderSpec
+inPartialOrder = OrderSpec PartiallySequence
+
+-- | Create a simple verification with arguments
+--   This accepts both raw values and Param chains
+calledWith :: params -> VerificationSpec params
+calledWith = SimpleVerification
+
+-- | Create a simple verification without arguments
+--   Note: This is polymorphic and will be resolved based on the mock type
+anything :: forall params. VerificationSpec params
+anything = AnyVerification
+
+-- | Type class for combining times condition with arguments
+class WithArgs spec params where
+  type WithResult spec params :: Type
+  with :: spec -> params -> WithResult spec params
+
+-- | Instance for times condition with arguments
+instance (Eq params, Show params) => WithArgs TimesSpec params where
+  type WithResult TimesSpec params = VerificationSpec params
+  with (TimesSpec method) args = CountVerification method args
+
+-- | Helper function for order verification (direct list, no 'with' needed)
+inOrderWith :: [params] -> VerificationSpec params
+inOrderWith = OrderVerification ExactlySequence
+
+-- | Helper function for partial order verification (direct list, no 'with' needed)
+inPartialOrderWith :: [params] -> VerificationSpec params
+inPartialOrderWith = OrderVerification PartiallySequence
+
+-- | Main verification function class
+class ShouldBeCalled m spec where
+  shouldBeCalled :: HasCallStack => m -> spec -> IO ()
+
+-- | Instance for times spec alone (without arguments)
+instance 
+  ( ResolvableMockWithParams m params
+  , RequireCallable "shouldBeCalled" m
+  , RequireCallable "shouldApplyTimesToAnything" m
+  ) => ShouldBeCalled m TimesSpec where
+  shouldBeCalled m (TimesSpec (Equal n)) = 
+    shouldApplyTimesToAnything m n
+  shouldBeCalled _ (TimesSpec _) = 
+    errorWithoutStackTrace "times without args only supports Equal (use 'with' for other methods)"
+
+-- | Instance for VerificationSpec (handles all verification types)
+instance {-# OVERLAPPING #-}
+  ( ResolvableMockWithParams m params
+  , Eq params
+  , Show params
+  , RequireCallable "shouldBeCalled" m
+  , RequireCallable "shouldApplyTimes" m
+  , RequireCallable "shouldApplyTimesToAnything" m
+  ) => ShouldBeCalled m (VerificationSpec params) where
+  shouldBeCalled m spec = case spec of
+    CountVerification method args -> 
+      verifyCount m args method
+    CountAnyVerification count -> 
+      shouldApplyTimesToAnything m count
+    OrderVerification method argsList -> 
+      verifyOrder method m argsList
+    SimpleVerification args -> 
+      verify m (MatchAny args)
+    AnyVerification -> 
+      shouldApplyToAnything m

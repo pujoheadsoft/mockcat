@@ -16,6 +16,7 @@ import Test.MockCat.TH.TypeUtilsSpec as THTypeUtils
 import Test.MockCat.TH.ContextBuilderSpec as THContextBuilder
 import Test.MockCat.TH.ClassAnalysisSpec as THClassAnalysis
 import Test.MockCat.TH.FunctionBuilderSpec as THFunctionBuilder
+import Test.MockCat.ShouldBeCalledSpec as ShouldBeCalled
 import Test.QuickCheck (property)
 import qualified Property.ConcurrentCountProp as ConcurrencyProp
 import qualified Property.LazyEvalProp as LazyEvalProp
@@ -46,6 +47,7 @@ main = hspec $ do
     THContextBuilder.spec
     THClassAnalysis.spec
     THFunctionBuilder.spec
+    ShouldBeCalled.spec
     describe "Property Concurrency" $ do
       it "total apply count is preserved across threads" $ property ConcurrencyProp.prop_concurrent_total_apply_count
     describe "Property Lazy Evaluation" $ do
