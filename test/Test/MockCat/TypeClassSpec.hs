@@ -15,9 +15,8 @@
 
 module Test.MockCat.TypeClassSpec (spec) where
 
-import Control.Exception (evaluate)
 import Data.Text (Text, pack)
-import Test.Hspec (Spec, it, shouldBe, shouldThrow, anyErrorCall, describe, errorCall)
+import Test.Hspec (Spec, it, shouldBe, shouldThrow, describe, errorCall)
 import Test.MockCat
 import Prelude hiding (readFile, writeFile)
 import Data.Data
@@ -25,7 +24,6 @@ import Data.List (find)
 import GHC.TypeLits (KnownSymbol, symbolVal)
 import Unsafe.Coerce (unsafeCoerce)
 import Data.Maybe (fromMaybe)
-import Control.Monad (when)
 import Control.Monad.Reader (MonadReader)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Reader.Class (ask, MonadReader (local))
@@ -33,8 +31,6 @@ import Control.Monad.Trans.Class (lift)
 import Control.Monad.State (MonadState (..), StateT, evalStateT)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import qualified Test.MockCat.Verify as Verify
-import Test.MockCat.Internal.Builder (build)
-import Test.MockCat.Mock (registerStub)
 import Test.MockCat.SharedSpecDefs
 
 apiFileOperationProgram ::
