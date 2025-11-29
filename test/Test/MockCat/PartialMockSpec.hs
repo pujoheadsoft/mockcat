@@ -14,7 +14,7 @@
 module Test.MockCat.PartialMockSpec (spec) where
 
 import Data.Text (Text, pack)
-import Test.Hspec (Spec, it, shouldBe, describe)
+import Test.Hspec (Spec, it, shouldBe, describe, shouldThrow, errorCall)
 import Test.MockCat
 import Test.MockCat.SharedSpecDefs
 import Test.MockCat.Impl ()
@@ -24,20 +24,11 @@ import Data.List (find)
 import GHC.TypeLits (KnownSymbol, symbolVal)
 import Unsafe.Coerce (unsafeCoerce)
 
-import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Maybe (MaybeT (..))
 import Control.Monad.Trans.Reader hiding (ask)
 import qualified Test.MockCat.Verify as Verify
-import Test.MockCat.Internal.Message (mockNameLabel)
-import Test.MockCat.Internal.Types (Verifier (..))
-
-verifyResolvedAny :: Verify.ResolvedMock params -> IO ()
-verifyResolvedAny Verify.ResolvedMock { Verify.resolvedMockName = name, Verify.resolvedMockVerifier = verifier } = do
-  appliedParamsList <- Verify.readAppliedParamsList (verifierRef verifier)
-  when (null appliedParamsList) $
-    error $ "It has never been applied function" <> mockNameLabel name
 
 getUserInput :: UserInputGetter m => m (Maybe UserInput)
 getUserInput = do
@@ -126,7 +117,7 @@ _readFile p = MockT $ do
     case result of
       Just (maybeName, verifier) -> pure $ Verify.ResolvedMock maybeName verifier
       Nothing -> Verify.verificationFailure
-  let verifyStub _ = verifyResolvedAny resolved
+  let verifyStub _ = Verify.verifyResolvedAny resolved
   addDefinition (Definition (Proxy :: Proxy "readFile") mockInstance verifyStub)
 
 _writeFile ::
@@ -142,7 +133,7 @@ _writeFile p = MockT $ do
     case result of
       Just (maybeName, verifier) -> pure $ Verify.ResolvedMock maybeName verifier
       Nothing -> Verify.verificationFailure
-  let verifyStub _ = verifyResolvedAny resolved
+  let verifyStub _ = Verify.verifyResolvedAny resolved
   addDefinition (Definition (Proxy :: Proxy "writeFile") mockInstance verifyStub)
 
 _getInput ::
@@ -158,7 +149,7 @@ _getInput value = MockT $ do
     case result of
       Just (maybeName, verifier) -> pure $ Verify.ResolvedMock maybeName verifier
       Nothing -> Verify.verificationFailure
-  let verifyStub _ = verifyResolvedAny resolved
+  let verifyStub _ = Verify.verifyResolvedAny resolved
   addDefinition (Definition (Proxy :: Proxy "getInput") mockInstance verifyStub)
 
 _toUserInput ::
@@ -176,7 +167,7 @@ _toUserInput p = MockT $ do
     case result of
       Just (maybeName, verifier) -> pure $ Verify.ResolvedMock maybeName verifier
       Nothing -> Verify.verificationFailure
-  let verifyStub _ = Verify.shouldApplyToAnythingResolved resolved
+  let verifyStub _ = Verify.verifyResolvedAny resolved
   addDefinition (Definition (Proxy :: Proxy "toUserInput") mockInstance verifyStub)
 
 _getByPartial ::
@@ -194,7 +185,7 @@ _getByPartial p = MockT $ do
     case result of
       Just (maybeName, verifier) -> pure $ Verify.ResolvedMock maybeName verifier
       Nothing -> Verify.verificationFailure
-  let verifyStub _ = Verify.shouldApplyToAnythingResolved resolved
+  let verifyStub _ = Verify.verifyResolvedAny resolved
   addDefinition (Definition (Proxy :: Proxy "getBy") mockInstance verifyStub)
 
 _echoPartial ::
@@ -212,7 +203,7 @@ _echoPartial p = MockT $ do
     case result of
       Just (maybeName, verifier) -> pure $ Verify.ResolvedMock maybeName verifier
       Nothing -> Verify.verificationFailure
-  let verifyStub _ = Verify.shouldApplyToAnythingResolved resolved
+  let verifyStub _ = Verify.verifyResolvedAny resolved
   addDefinition (Definition (Proxy :: Proxy "echo") mockInstance verifyStub)
 
 findParam :: KnownSymbol sym => Proxy sym -> [Definition] -> Maybe a
@@ -251,7 +242,7 @@ _findIds p = MockT $ do
     case result of
       Just (maybeName, verifier) -> pure $ Verify.ResolvedMock maybeName verifier
       Nothing -> Verify.verificationFailure
-  let verifyStub _ = verifyResolvedAny resolved
+  let verifyStub _ = Verify.verifyResolvedAny resolved
   addDefinition
     ( Definition
         (Proxy :: Proxy "_findIds")
@@ -319,3 +310,46 @@ spec = do
           _findIds [1 :: Int, 2]
           findValue
         values `shouldBe` ["{id: 1}", "{id: 2}"]
+
+  describe "verification failures" do
+    it "fails when _readFile is defined but readFile is never called" do
+      (runMockT @IO do
+        _readFile ("input.txt" |> pack "content")
+        -- readFile is never called
+        pure ()) `shouldThrow` errorCall "It has never been applied function `readFile`"
+
+    it "fails when _writeFile is defined but writeFile is never called" do
+      (runMockT @IO do
+        _writeFile $ "output.txt" |> pack "content" |> ()
+        -- writeFile is never called
+        pure ()) `shouldThrow` errorCall "It has never been applied function `writeFile`"
+
+    it "fails when _getInput is defined but getInput is never called" do
+      (runMockT @IO do
+        _getInput "value"
+        -- getInput is never called
+        pure ()) `shouldThrow` errorCall "It has never been applied function `getInput`"
+
+    it "fails when _toUserInput is defined but toUserInput is never called" do
+      (runMockT @IO do
+        _toUserInput $ "value" |> pure @IO (Just (UserInput "value"))
+        -- toUserInput is never called
+        pure ()) `shouldThrow` errorCall "It has never been applied function `toUserInput`"
+
+    it "fails when _getByPartial is defined but getByExplicitPartial is never called" do
+      (runMockT @IO do
+        _getByPartial $ "abc" |> pure @IO 123
+        -- getByExplicitPartial is never called
+        pure ()) `shouldThrow` errorCall "It has never been applied function `getBy`"
+
+    it "fails when _echoPartial is defined but echoExplicitPartial is never called" do
+      (runMockT @IO do
+        _echoPartial $ "3" |> pure @IO ()
+        -- echoExplicitPartial is never called
+        pure ()) `shouldThrow` errorCall "It has never been applied function `echo`"
+
+    it "fails when _findIds is defined but findIds is never called" do
+      (runMockT @IO do
+        _findIds [1 :: Int, 2]
+        -- findIds is never called
+        pure ()) `shouldThrow` errorCall "It has never been applied function `_findIds`"

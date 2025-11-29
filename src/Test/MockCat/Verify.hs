@@ -14,7 +14,6 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE GADTs #-}
-{-# LANGUAGE FunctionalDependencies #-}
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
 module Test.MockCat.Verify where
 
@@ -37,23 +36,6 @@ import GHC.TypeLits (TypeError, ErrorMessage(..), Symbol)
 import Unsafe.Coerce (unsafeCoerce)
 
 -- | Class for verifying mock function.
-class Verify params input where
-  -- | Verifies that the function has been applied to the expected arguments.
-  -- Generic over mock representation `m` which must satisfy `IsMock` and
-  -- whose `MockParams m` match this class's `params`.
-  shouldApplyTo ::
-    ( ResolvableMockWithParams m params
-    , HasCallStack) =>
-    m ->
-    input ->
-    IO ()
-
-instance (Eq a, Show a) => Verify (Param a) a where
-  shouldApplyTo v a = verify v (MatchAny (param a))
-
-instance (Eq a, Show a) => Verify a a where
-  shouldApplyTo v a = verify v (MatchAny a)
-
 verify ::
   ( ResolvableMock m
   , Eq (ResolvableParamsOf m)
@@ -83,42 +65,17 @@ readAppliedParamsList ref = do
   record <- readTVarIO ref
   pure $ appliedParamsList record
 
-class VerifyCount countType params a where
-  -- | Verify the number of times a function has been applied to an argument.
-  --
-  -- @
-  -- import Test.Hspec
-  -- import Test.MockCat
-  -- ...
-  -- it "verify to applied times." do
-  --   m \<- createMock $ "value" |\> True
-  --   print $ stubFn m "value"
-  --   print $ stubFn m "value"
-  --   m \`shouldApplyTimes\` (2 :: Int) \`to\` "value" 
-  -- @
-  --
-  shouldApplyTimes ::
-    ( ResolvableMockWithParams m params
-    , HasCallStack
-    , Eq params
-    , RequireCallable "shouldApplyTimes" m
-    ) =>
-    m ->
-    countType ->
-    a ->
-    IO ()
-
-instance VerifyCount CountVerifyMethod (Param a) a where
-  shouldApplyTimes v count a = verifyCount v (param a) count
-
-instance VerifyCount Int (Param a) a where
-  shouldApplyTimes v count a = verifyCount v (param a) (Equal count)
-
-instance {-# OVERLAPPABLE #-} VerifyCount CountVerifyMethod a a where
-  shouldApplyTimes v count a = verifyCount v a count
-
-instance {-# OVERLAPPABLE #-} VerifyCount Int a a where
-  shouldApplyTimes v count a = verifyCount v a (Equal count)
+-- | Verify that a resolved mock function was called at least once.
+--   This is used internally by typeclass mock verification.
+verifyResolvedAny :: ResolvedMock params -> IO ()
+verifyResolvedAny (ResolvedMock mockName verifier) = do
+  appliedParamsList <- readAppliedParamsList (verifierRef verifier)
+  when (null appliedParamsList) $
+    errorWithoutStackTrace $
+      intercalate
+        "\n"
+        [ "It has never been applied function" <> mockNameLabel mockName
+        ]
 
 
 
@@ -132,7 +89,7 @@ compareCount (GreaterThan e) a = a > e
 verifyCount ::
   ( ResolvableMock m
   , Eq (ResolvableParamsOf m)
-  , RequireCallable "shouldApplyTimes" m) =>
+  ) =>
   m ->
   ResolvableParamsOf m ->
   CountVerifyMethod ->
@@ -158,51 +115,6 @@ countWithArgsMismatchMessage mockName method appliedCount =
     ]
 
 
-
-class VerifyOrder params input where
-  -- | Verify functions are applied in the expected order.
-  --
-  -- @
-  -- import Test.Hspec
-  -- import Test.MockCat
-  -- import Prelude hiding (any)
-  -- ...
-  -- it "verify order of apply" do
-  --   m \<- createMock $ any |\> True |\> ()
-  --   print $ stubFn m "a" True
-  --   print $ stubFn m "b" True
-  --   m \`shouldApplyInOrder\` ["a" |\> True, "b" |\> True]
-  -- @
-  shouldApplyInOrder ::
-    ( ResolvableMockWithParams m params
-    , HasCallStack
-    , RequireCallable "shouldApplyInOrder" m
-    ) =>
-    m ->
-    [input] ->
-    IO ()
-
-  -- | Verify that functions are applied in the expected order.
-  --
-  -- Unlike @'shouldApplyInOrder'@, not all applications need to match exactly.
-  --
-  -- As long as the order matches, the verification succeeds.
-  shouldApplyInPartialOrder ::
-    ( ResolvableMockWithParams m params
-    , HasCallStack
-    , RequireCallable "shouldApplyInPartialOrder" m
-    ) =>
-    m ->
-    [input] ->
-    IO ()
-
-instance (Eq a, Show a) => VerifyOrder (Param a) a where
-  shouldApplyInOrder v a = verifyOrder ExactlySequence v $ param <$> a
-  shouldApplyInPartialOrder v a = verifyOrder PartiallySequence v $ param <$> a
-
-instance {-# OVERLAPPABLE #-} (Eq a, Show a) => VerifyOrder a a where
-  shouldApplyInOrder = verifyOrder ExactlySequence
-  shouldApplyInPartialOrder = verifyOrder PartiallySequence
 
 verifyOrder ::
   (ResolvableMock m
@@ -299,116 +211,7 @@ collectUnExpectedOrder appliedValues expectedValues =
 mapWithIndex :: (Int -> a -> b) -> [a] -> [b]
 mapWithIndex f xs = [f i x | (i, x) <- zip [0 ..] xs]
 
--- | Verify that the function has been applied to the expected arguments at least the expected number of times.
-shouldApplyTimesGreaterThanEqual ::
-  ( VerifyCount CountVerifyMethod params a
-  , Eq params
-  , ResolvableMockWithParams m params
-  , HasCallStack
-  , RequireCallable "shouldApplyTimes" m
-  ) =>
-  m ->
-  Int ->
-  a ->
-  IO ()
-shouldApplyTimesGreaterThanEqual m i = shouldApplyTimes m (GreaterThanEqual i)
-
--- | Verify that the function is applied to the expected arguments less than or equal to the expected number of times.
-shouldApplyTimesLessThanEqual ::
-  ( VerifyCount CountVerifyMethod params a
-  , Eq params
-  , ResolvableMockWithParams m params
-  , HasCallStack
-  , RequireCallable "shouldApplyTimes" m
-  ) =>
-  m ->
-  Int ->
-  a ->
-  IO ()
-shouldApplyTimesLessThanEqual m i = shouldApplyTimes m (LessThanEqual i)
-
--- | Verify that the function has been applied to the expected arguments a greater number of times than expected.
-shouldApplyTimesGreaterThan ::
-  ( VerifyCount CountVerifyMethod params a
-  , Eq params
-  , ResolvableMockWithParams m params
-  , HasCallStack
-  , RequireCallable "shouldApplyTimes" m
-  ) =>
-  m ->
-  Int ->
-  a ->
-  IO ()
-shouldApplyTimesGreaterThan m i = shouldApplyTimes m (GreaterThan i)
-
--- | Verify that the function has been applied to the expected arguments less than the expected number of times.
-shouldApplyTimesLessThan ::
-  ( VerifyCount CountVerifyMethod params a
-  , Eq params
-  , ResolvableMockWithParams m params
-  , HasCallStack
-  , RequireCallable "shouldApplyTimes" m
-  ) =>
-  m ->
-  Int ->
-  a ->
-  IO ()
-shouldApplyTimesLessThan m i = shouldApplyTimes m (LessThan i)
-
--- | Verify that it was apply to anything.
--- shouldApplyToAnything :: (IsMock m, MockParams m ~ params, HasCallStack) => m -> IO ()
--- shouldApplyToAnything m = do
---   let Verifier ref = mockVerifier m
---   appliedParamsList <- readAppliedParamsList ref
---   when (null appliedParamsList) $ error $ "It has never been applied function" <> mockNameLabel (mockName m)
-
-shouldApplyToAnything ::
-  ( ResolvableMockWithParams m params
-  , HasCallStack
-  ) =>
-  m ->
-  IO ()
-shouldApplyToAnything m = requireResolved m >>= shouldApplyToAnythingResolved
-
-shouldApplyToAnythingResolved ::
-  HasCallStack =>
-  ResolvedMock params ->
-  IO ()
-shouldApplyToAnythingResolved ResolvedMock {resolvedMockName = mockName, resolvedMockVerifier = verifier} = do
-  appliedParamsList <- readAppliedParamsList (verifierRef verifier)
-  when (null appliedParamsList) $
-    error $
-      "It has never been applied function" <> mockNameLabel mockName
-
--- | Verify that it was apply to anything (times).
-shouldApplyTimesToAnything ::
-  ( ResolvableMockWithParams m params
-  , RequireCallable "shouldApplyTimesToAnything" m
-  ) =>
-  m ->
-  Int ->
-  IO ()
-shouldApplyTimesToAnything m count = do
-  ResolvedMock mockName verifier <- requireResolved m
-  case verifierKind verifier of
-    VerifierPureConstant ->
-      errorWithoutStackTrace $
-        unsupportedTimesMessage mockName
-    _ -> do
-      appliedParamsList <- readAppliedParamsList (verifierRef verifier)
-      let appliedCount = length appliedParamsList
-      when (count /= appliedCount) $
-        errorWithoutStackTrace $
-          countMismatchMessage mockName count appliedCount
-
-unsupportedTimesMessage :: Maybe MockName -> String
-unsupportedTimesMessage mockName =
-  intercalate
-    "\n"
-    [ "function" <> mockNameLabel mockName <> " does not support shouldApplyTimesToAnything.",
-      "  reason: pure constant mocks are values, not callable functions.",
-      "  hint: use shouldApplyToAnything instead."
-    ]
+-- Legacy shouldApply* helpers removed. Use shouldBeCalled API instead.
 
 type family PrependParam a rest where
   PrependParam a () = Param a
@@ -451,7 +254,7 @@ type family RequireCallableImpl (fn :: Symbol) (isPure :: Bool) target :: Constr
     TypeError
       ( 'Text fn ':<>: 'Text " is not available for pure constant mocks."
           ':$$: 'Text "  target type: " ':<>: 'ShowType target
-          ':$$: 'Text "  hint: convert it into a callable mock or use shouldApplyToAnything."
+          ':$$: 'Text "  hint: convert it into a callable mock or use shouldBeCalled with 'anything'."
       )
   RequireCallableImpl _ 'False _ = ()
 
@@ -554,7 +357,7 @@ data VerificationSpec params where
   AnyVerification :: VerificationSpec params
 
 -- | Times condition for count verification
-data TimesSpec = TimesSpec CountVerifyMethod
+newtype TimesSpec = TimesSpec CountVerifyMethod
 
 -- | Create a times condition for exact count
 times :: Int -> TimesSpec
@@ -585,7 +388,7 @@ never :: TimesSpec
 never = TimesSpec (Equal 0)
 
 -- | Order condition for order verification
-data OrderSpec = OrderSpec VerifyOrderMethod
+newtype OrderSpec = OrderSpec VerifyOrderMethod
 
 -- | Create an order condition for exact sequence
 inOrder :: OrderSpec
@@ -684,10 +487,10 @@ class ShouldBeCalled m spec where
 instance 
   ( ResolvableMockWithParams m params
   , RequireCallable "shouldBeCalled" m
-  , RequireCallable "shouldApplyTimesToAnything" m
   ) => ShouldBeCalled m TimesSpec where
-  shouldBeCalled m (TimesSpec (Equal n)) = 
-    shouldApplyTimesToAnything m n
+  shouldBeCalled m (TimesSpec (Equal n)) = do
+    ResolvedMock mockName verifier <- requireResolved m
+    verifyAppliedCount mockName verifier n
   shouldBeCalled _ (TimesSpec _) = 
     errorWithoutStackTrace "times without args only supports Equal (use 'with' for other methods)"
 
@@ -697,20 +500,28 @@ instance {-# OVERLAPPING #-}
   , Eq params
   , Show params
   , RequireCallable "shouldBeCalled" m
-  , RequireCallable "shouldApplyTimes" m
-  , RequireCallable "shouldApplyTimesToAnything" m
   ) => ShouldBeCalled m (VerificationSpec params) where
   shouldBeCalled m spec = case spec of
     CountVerification method args -> 
       verifyCount m args method
     CountAnyVerification count -> 
-      shouldApplyTimesToAnything m count
+      do
+        ResolvedMock mockName verifier <- requireResolved m
+        verifyAppliedCount mockName verifier count
     OrderVerification method argsList -> 
       verifyOrder method m argsList
     SimpleVerification args -> 
       verify m (MatchAny args)
     AnyVerification -> 
-      shouldApplyToAnything m
+      do
+        ResolvedMock mockName verifier <- requireResolved m
+        appliedParamsList <- readAppliedParamsList (verifierRef verifier)
+        when (null appliedParamsList) $
+          errorWithoutStackTrace $
+            intercalate
+              "\n"
+              [ "It has never been applied function" <> mockNameLabel mockName
+              ]
 
 -- | Instance for Param chains (e.g., "a" |> "b")
 instance {-# OVERLAPPING #-}

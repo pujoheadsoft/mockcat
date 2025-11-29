@@ -15,7 +15,7 @@ module Property.AdditionalProps
 import Test.QuickCheck
 import Test.QuickCheck.Monadic (monadicIO, run, assert)
 import Control.Exception (try, SomeException, evaluate)
-import Control.Monad (forM, forM_)
+import Control.Monad (replicateM, forM_)
 import Data.List (nub)
 import Data.Proxy (Proxy(..))
 import Test.MockCat
@@ -37,7 +37,7 @@ prop_predicate_param_match_counts = forAll genVals $ \xs -> monadicIO $ do
   -- sanity: every success came from an even value
   assert (all even [ x | (x, Right _) <- zip xs results ])
   -- counts should match
-  run $ f `shouldApplyTimesToAnything` expected
+  run $ f `shouldBeCalled` times expected
   assert (successes == expected)
   where
     genVals = resize 40 $ listOf (arbitrary :: Gen Int)
@@ -59,16 +59,16 @@ prop_multicase_progression = forAll genSeq $ \(arg, rs, extra) -> monadicIO $ do
   -- even under -O0) may float the pure expression @f arg@ and share it.
   -- We intentionally inject the loop index via a seq so each iteration has a
   -- syntactically distinct thunk, ensuring the unsafePerformIO body runs per call.
-  vals <- run $ forM [1 .. totalCalls] $ \i -> evaluate (case i of { _ -> f arg })
+  vals <- run $ replicateM totalCalls (evaluate (f arg))
   let (prefix, suffix) = splitAt (length rs) vals
   assert (prefix == rs)
   assert (all (== last rs) suffix)
-  run $ f `shouldApplyTimesToAnything` totalCalls
+  run $ f `shouldBeCalled` times totalCalls
   where
     genSeq = do
       arg <- arbitrary :: Gen Int
       Positive len <- arbitrary :: Gen (Positive Int)
-      let capped = 1 + (len `mod` 5) -- keep small (1..5)
+      let capped = 1 + len `mod` 5 -- keep small (1..5)
       rs <- vectorOf capped (arbitrary :: Gen Int)
       extra <- chooseInt (0,3)
       pure (arg, rs, extra)
@@ -84,7 +84,7 @@ prop_runMockT_isolation = monadicIO $ do
   -- Run 1: expect one application
   r1 <- run $ try $ runMockT $ do
     f <- liftIO $ mock (param (1 :: Int) |> True)
-    addDefinition Definition { symbol = Proxy @"iso", mockFunction = f, verify = \m' -> shouldApplyTimesToAnything m' 1 }
+    addDefinition Definition { symbol = Proxy @"iso", mockFunction = f, verify = \m' -> m' `shouldBeCalled` times 1 }
     liftIO $ f 1 `seq` pure ()
   case r1 of
     Left (_ :: SomeException) -> assert False
@@ -92,7 +92,7 @@ prop_runMockT_isolation = monadicIO $ do
   -- Run 2: expect zero (if leaked, would see 1 and fail)
   r2 <- run $ try $ runMockT $ do
     f <- liftIO $ mock (param (1 :: Int) |> True)
-    addDefinition Definition { symbol = Proxy @"iso", mockFunction = f, verify = \m' -> shouldApplyTimesToAnything m' 0 }
+    addDefinition Definition { symbol = Proxy @"iso", mockFunction = f, verify = \m' -> m' `shouldBeCalled` times 0 }
     pure ()
   case r2 of
     Left (_ :: SomeException) -> assert False
@@ -108,17 +108,17 @@ prop_neverApply_unused = forAll (chooseInt (0,5)) $ \n -> monadicIO $ do
   r <- run $ try $ runMockT $ do
     -- used mock
     mUsed <- liftIO $ mock (param (0 :: Int) |> True)
-    addDefinition Definition { symbol = Proxy @"used", mockFunction = mUsed, verify = \m' -> shouldApplyTimesToAnything m' n }
+    addDefinition Definition { symbol = Proxy @"used", mockFunction = mUsed, verify = \m' -> m' `shouldBeCalled` times n }
     -- unused mock
     mUnused <- liftIO $ mock (param (42 :: Int) |> True)
-    addDefinition Definition { symbol = Proxy @"unused", mockFunction = mUnused, verify = \m' -> shouldApplyTimesToAnything m' 0 }
+    addDefinition Definition { symbol = Proxy @"unused", mockFunction = mUnused, verify = \m' -> m' `shouldBeCalled` times 0 }
     let f = mUsed
     -- See NOTE [GHC9.4 duplicate-call counting] above: make each application
     -- depend on the loop index to avoid sharing; case forces dependence.
-    liftIO $ forM_ [1 .. n] $ \i -> evaluate (case i of { _ -> f 0 })
+    liftIO $ replicateM n (evaluate (f 0))
   case r of
     Left (_ :: SomeException) -> assert False
-    Right () -> assert True
+    Right _ -> assert True
 
 --------------------------------------------------------------------------------
 -- 25. Partial order duplicates property
@@ -130,16 +130,16 @@ prop_partial_order_duplicates :: Property
 prop_partial_order_duplicates = forAll genDupScript $ \xs -> length xs >= 2 ==> monadicIO $ do
   -- build mock over sequence
   f <- run $ mock $ cases [ param x |> True | x <- xs ]
-  run $ sequence_ [ f x `seq` pure () | x <- xs ]
+  run $ forM_ xs $ \x -> f x `seq` pure ()
   let uniques = nub xs
   -- success case
-  run $ f `shouldApplyInPartialOrder` (param <$> uniques)
+  run $ f `shouldBeCalled` inPartialOrderWith (param <$> uniques)
   assert True
   -- failure case (if we have at least two unique values)
   case uniques of
     (_:_:_) | isClusterOrdered uniques xs -> do
       let reversed = reverse uniques
-      e <- run $ (try (f `shouldApplyInPartialOrder` (param <$> reversed)) :: IO (Either SomeException ()))
+      e <- run (try (f `shouldBeCalled` inPartialOrderWith (param <$> reversed)) :: IO (Either SomeException ()))
       case e of
         Left _ -> assert True
         Right _ -> assert False
@@ -147,7 +147,7 @@ prop_partial_order_duplicates = forAll genDupScript $ \xs -> length xs >= 2 ==> 
   where
     genDupScript = do
       Positive len <- arbitrary :: Gen (Positive Int)
-      let size = 2 + (len `mod` 6) -- 2..7
+      let size = 2 + len `mod` 6 -- 2..7
       base <- vectorOf size (arbitrary :: Gen Int)
       -- ensure at least one duplicate by forcing first element copy if all distinct
       pure $ ensureDup base

@@ -114,8 +114,6 @@ spec = do
     mockFn <- mock $ "value" |> True
     -- assert
     mockFn "value" `shouldBe` True
-    -- verify
-    mockFn `shouldApplyTo` "value"
 
   it "how to use" do
     f <- mock $ "param1" |> "param2" |> pure @IO ()
@@ -148,31 +146,6 @@ spec = do
   it "stub function" do
     f <- mock $ "value" |> True
     f "value" `shouldBe` True
-
-  it "shouldApplyTimes" do
-    f <- mock $ "value" |> True
-    print $ f "value"
-    print $ f "value"
-    f `shouldApplyTimes` (2 :: Int) `to` "value"
-
-  it "shouldApplyInOrder" do
-    f <- mock $ any |> True |> ()
-    print $ f "a" True
-    print $ f "b" True
-    f
-      `shouldApplyInOrder` [ "a" |> True,
-                             "b" |> True
-                           ]
-
-  it "shouldApplyInPartialOrder" do
-    f <- mock $ any |> True |> ()
-    print $ f "a" True
-    print $ f "b" True
-    print $ f "c" True
-    f
-      `shouldApplyInPartialOrder` [ "a" |> True,
-                                    "c" |> True
-                                  ]
 
   it "any" do
     f <- mock $ any |> "return value"

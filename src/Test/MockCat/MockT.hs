@@ -12,6 +12,7 @@
 module Test.MockCat.MockT (
   MockT(..), Definition(..),
   runMockT,
+  expectApplyTimes,
   applyTimesIs,
   neverApply,
   MonadMockDefs(..)
@@ -167,15 +168,16 @@ runMockT (MockT r) = do
   @
 
 -}
+expectApplyTimes :: MonadIO m => MockT m () -> Int -> MockT m ()
+expectApplyTimes = applyTimesIs
+
 applyTimesIs :: MonadIO m => MockT m () -> Int -> MockT m ()
 applyTimesIs (MockT inner) a = MockT $ ReaderT $ \ref -> do
   tmp <- liftIO $ newTVarIO []
   _ <- runReaderT inner tmp
   defs <- liftIO $ readTVarIO tmp
   let patched = map (\(Definition s fn _) -> Definition s fn (`verifyApplyCount` a)) defs
-  liftIO $
-    atomically $
-      modifyTVar' ref (\xs -> xs ++ patched)
+  liftIO $ atomically $ modifyTVar' ref (++ patched)
   pure ()
 
 neverApply :: MonadIO m => MockT m () -> MockT m ()
@@ -184,9 +186,7 @@ neverApply (MockT inner) = MockT $ ReaderT $ \ref -> do
   _ <- runReaderT inner tmp
   defs <- liftIO $ readTVarIO tmp
   let patched = map (\(Definition s m _) -> Definition s m (`verifyApplyCount` 0)) defs
-  liftIO $
-    atomically $
-      modifyTVar' ref (\xs -> xs ++ patched)
+  liftIO $ atomically $ modifyTVar' ref (++ patched)
   pure ()
 
 -- | Alias for 'neverApply' providing naming symmetry with 'expectApplyTimes'.
@@ -194,12 +194,12 @@ neverApply (MockT inner) = MockT $ ReaderT $ \ref -> do
 
 instance MonadIO m => MonadMockDefs (MockT m) where
   addDefinition d = MockT $ ReaderT $ \ref ->
-    liftIO $ atomically $ modifyTVar' ref (\xs -> xs ++ [d])
+    liftIO $ atomically $ modifyTVar' ref (++ [d])
   getDefinitions = MockT $ ReaderT $ \ref -> liftIO $ readTVarIO ref
 
 instance MonadIO m => MonadMockDefs (ReaderT (TVar [Definition]) m) where
   addDefinition d = ReaderT $ \ref ->
-    liftIO $ atomically $ modifyTVar' ref (\xs -> xs ++ [d])
+    liftIO $ atomically $ modifyTVar' ref (++ [d])
   getDefinitions = ReaderT $ \ref -> liftIO $ readTVarIO ref
 
 verifyApplyCount ::

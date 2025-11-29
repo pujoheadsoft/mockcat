@@ -36,7 +36,7 @@ prop_predicate_negative_not_counted = forAll genVals $ \xs -> monadicIO $ do
   -- Successes count equals even inputs
   assert (successes == evens)
   -- Applied count equals successes (only even)
-  run $ f `shouldApplyTimesToAnything` evens
+  run $ f `shouldBeCalled` times evens
   assert True
   where
     genVals = resize 60 $ listOf (arbitrary :: Gen Int)
@@ -56,7 +56,7 @@ prop_lazy_partial_force_concurrency = forAll genPlan $ \(arg, mask) -> monadicIO
   let forcedCount = length (filter id mask)
   run $ runMockT $ do
     -- expectation: arg -> arg; count only forced executions
-    _parLazy (param arg |> arg) `applyTimesIs` forcedCount
+    _parLazy (param arg |> arg) `expectApplyTimes` forcedCount
     -- prepare thunks (NOT executed yet)
     let thunks = replicate (length mask) (parLazy arg)
     withRunInIO $ \runIn -> do
@@ -84,8 +84,8 @@ prop_partial_order_interleaved_duplicates = forAll genPair $ \(a,b) -> a /= b ==
                                 , param a |> True
                                 , param b |> True ]
   run $ f a `seq` f a `seq` f b `seq` pure ()
-  run $ f `shouldApplyInPartialOrder` [param a, param b]
-  e <- run $ (try (f `shouldApplyInPartialOrder` [param b, param a]) :: IO (Either SomeException ()))
+  run $ f `shouldBeCalled` inPartialOrderWith [param a, param b]
+  e <- run $ (try (f `shouldBeCalled` inPartialOrderWith [param b, param a]) :: IO (Either SomeException ()))
   case e of
     Left _  -> assert True
     Right _ -> assert False

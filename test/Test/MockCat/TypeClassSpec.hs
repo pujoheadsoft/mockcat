@@ -15,8 +15,9 @@
 
 module Test.MockCat.TypeClassSpec (spec) where
 
+import Control.Exception (evaluate)
 import Data.Text (Text, pack)
-import Test.Hspec (Spec, it, shouldBe)
+import Test.Hspec (Spec, it, shouldBe, shouldThrow, anyErrorCall, describe, errorCall)
 import Test.MockCat
 import Prelude hiding (readFile, writeFile)
 import Data.Data
@@ -32,15 +33,9 @@ import Control.Monad.Trans.Class (lift)
 import Control.Monad.State (MonadState (..), StateT, evalStateT)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import qualified Test.MockCat.Verify as Verify
-import Test.MockCat.Internal.Types (Verifier (..))
-import Test.MockCat.Internal.Message (mockNameLabel)
+import Test.MockCat.Internal.Builder (build)
+import Test.MockCat.Mock (registerStub)
 import Test.MockCat.SharedSpecDefs
-
-verifyResolvedAny :: Verify.ResolvedMock params -> IO ()
-verifyResolvedAny Verify.ResolvedMock { Verify.resolvedMockName = name, Verify.resolvedMockVerifier = verifier } = do
-  appliedParamsList <- Verify.readAppliedParamsList (verifierRef verifier)
-  when (null appliedParamsList) $
-    error $ "It has never been applied function" <> mockNameLabel name
 
 apiFileOperationProgram ::
   (MonadReader String m, FileOperation m, ApiOperation m) =>
@@ -104,7 +99,7 @@ _ask p = MockT $ do
     case result of
       Just (maybeName, verifier) -> pure $ Verify.ResolvedMock maybeName verifier
       Nothing -> Verify.verificationFailure
-  let verifyStub _ = verifyResolvedAny resolved
+  let verifyStub _ = Verify.verifyResolvedAny resolved
   addDefinition (Definition (Proxy :: Proxy "ask") mockInstance verifyStub)
 
 _readFile ::
@@ -120,7 +115,7 @@ _readFile p = MockT $ do
     case result of
       Just (maybeName, verifier) -> pure $ Verify.ResolvedMock maybeName verifier
       Nothing -> Verify.verificationFailure
-  let verifyStub _ = verifyResolvedAny resolved
+  let verifyStub _ = Verify.verifyResolvedAny resolved
   addDefinition (Definition (Proxy :: Proxy "readFile") mockInstance verifyStub)
 
 _writeFile ::
@@ -136,7 +131,7 @@ _writeFile p = MockT $ do
     case result of
       Just (maybeName, verifier) -> pure $ Verify.ResolvedMock maybeName verifier
       Nothing -> Verify.verificationFailure
-  let verifyStub _ = verifyResolvedAny resolved
+  let verifyStub _ = Verify.verifyResolvedAny resolved
   addDefinition (Definition (Proxy :: Proxy "writeFile") mockInstance verifyStub)
 
 _post ::
@@ -152,7 +147,7 @@ _post p = MockT $ do
     case result of
       Just (maybeName, verifier) -> pure $ Verify.ResolvedMock maybeName verifier
       Nothing -> Verify.verificationFailure
-  let verifyStub _ = verifyResolvedAny resolved
+  let verifyStub _ = Verify.verifyResolvedAny resolved
   addDefinition (Definition (Proxy :: Proxy "post") mockFn verifyStub)
 
 findParam :: KnownSymbol sym => Proxy sym -> [Definition] -> Maybe a
@@ -335,7 +330,7 @@ _getBy p = MockT $ do
     case result of
       Just (maybeName, verifier) -> pure $ Verify.ResolvedMock maybeName verifier
       Nothing -> Verify.verificationFailure
-  let verifyStub _ = Verify.shouldApplyToAnythingResolved resolved
+  let verifyStub _ = Verify.verifyResolvedAny resolved
   addDefinition (Definition (Proxy :: Proxy "_getBy") mockInstance verifyStub)
 
 _echo ::
@@ -353,7 +348,7 @@ _echo p = MockT $ do
     case result of
       Just (maybeName, verifier) -> pure $ Verify.ResolvedMock maybeName verifier
       Nothing -> Verify.verificationFailure
-  let verifyStub _ = Verify.shouldApplyToAnythingResolved resolved
+  let verifyStub _ = Verify.verifyResolvedAny resolved
   addDefinition (Definition (Proxy :: Proxy "_echo") mockInstance verifyStub)
 
 _fn2_1Sub ::
@@ -371,7 +366,7 @@ _fn2_1Sub p = MockT $ do
     case result of
       Just (maybeName, verifier) -> pure $ Verify.ResolvedMock maybeName verifier
       Nothing -> Verify.verificationFailure
-  let verifyStub _ = Verify.shouldApplyToAnythingResolved resolved
+  let verifyStub _ = Verify.verifyResolvedAny resolved
   addDefinition (Definition (Proxy :: Proxy "_fn2_1Sub") mockInstance verifyStub)
 
 _fn2_2Sub ::
@@ -389,7 +384,7 @@ _fn2_2Sub p = MockT $ do
     case result of
       Just (maybeName, verifier) -> pure $ Verify.ResolvedMock maybeName verifier
       Nothing -> Verify.verificationFailure
-  let verifyStub _ = Verify.shouldApplyToAnythingResolved resolved
+  let verifyStub _ = Verify.verifyResolvedAny resolved
   addDefinition (Definition (Proxy :: Proxy "_fn2_2Sub") mockInstance verifyStub)
 
 _fn3_1Sub ::
@@ -407,7 +402,7 @@ _fn3_1Sub p = MockT $ do
     case result of
       Just (maybeName, verifier) -> pure $ Verify.ResolvedMock maybeName verifier
       Nothing -> Verify.verificationFailure
-  let verifyStub _ = Verify.shouldApplyToAnythingResolved resolved
+  let verifyStub _ = Verify.verifyResolvedAny resolved
   addDefinition (Definition (Proxy :: Proxy "_fn3_1Sub") mockInstance verifyStub)
 
 _fn3_2Sub ::
@@ -425,7 +420,7 @@ _fn3_2Sub p = MockT $ do
     case result of
       Just (maybeName, verifier) -> pure $ Verify.ResolvedMock maybeName verifier
       Nothing -> Verify.verificationFailure
-  let verifyStub _ = Verify.shouldApplyToAnythingResolved resolved
+  let verifyStub _ = Verify.verifyResolvedAny resolved
   addDefinition (Definition (Proxy :: Proxy "_fn3_2Sub") mockInstance verifyStub)
 
 _fn3_3Sub ::
@@ -443,7 +438,7 @@ _fn3_3Sub p = MockT $ do
     case result of
       Just (maybeName, verifier) -> pure $ Verify.ResolvedMock maybeName verifier
       Nothing -> Verify.verificationFailure
-  let verifyStub _ = Verify.shouldApplyToAnythingResolved resolved
+  let verifyStub _ = Verify.verifyResolvedAny resolved
   addDefinition (Definition (Proxy :: Proxy "_fn3_3Sub") mockInstance verifyStub)
 
 _getValueBy ::
@@ -461,7 +456,7 @@ _getValueBy p = MockT $ do
     case result of
       Just (maybeName, verifier) -> pure $ Verify.ResolvedMock maybeName verifier
       Nothing -> Verify.verificationFailure
-  let verifyStub _ = Verify.shouldApplyToAnythingResolved resolved
+  let verifyStub _ = Verify.verifyResolvedAny resolved
   addDefinition (Definition (Proxy :: Proxy "_getValueBy") mockInstance verifyStub)
 
 _fnState ::
@@ -474,9 +469,12 @@ _fnState ::
   params ->
   MockT m ()
 _fnState p = MockT $ do
-  mockInstance <- liftIO $ createNamedMockFnWithParams "_fnState" p
-  let verifyStub _ = pure ()
-  addDefinition (Definition (Proxy :: Proxy "_fnState") mockInstance verifyStub)
+  -- Cases を使っている場合でも検証できるように、build から直接 verifier を取得
+  (mockInstance, verifier) <- liftIO $ build (Just "_fnState") p
+  registeredFn <- liftIO $ registerStub (Just "_fnState") verifier mockInstance
+  let resolved = Verify.ResolvedMock (Just "_fnState") verifier
+  let verifyStub _ = Verify.verifyResolvedAny resolved
+  addDefinition (Definition (Proxy :: Proxy "_fnState") registeredFn verifyStub)
 
 _fnState2 ::
   ( MockBuilder params (String -> m ()) (Param String)
@@ -487,9 +485,11 @@ _fnState2 ::
   params ->
   MockT m ()
 _fnState2 p = MockT $ do
-  mockInstance <- liftIO $ createNamedMockFnWithParams "_fnState2" p
-  let verifyStub _ = pure ()
-  addDefinition (Definition (Proxy :: Proxy "_fnState2") mockInstance verifyStub)
+  (mockInstance, verifier) <- liftIO $ build (Just "_fnState2") p
+  registeredFn <- liftIO $ registerStub (Just "_fnState2") verifier mockInstance
+  let resolved = Verify.ResolvedMock (Just "_fnState2") verifier
+  let verifyStub _ = Verify.verifyResolvedAny resolved
+  addDefinition (Definition (Proxy :: Proxy "_fnState2") registeredFn verifyStub)
 
 _fnParam3_1 ::
   ( MockBuilder params (Int -> Bool -> m String) (Param Int :> Param Bool)
@@ -506,7 +506,7 @@ _fnParam3_1 p = MockT $ do
     case result of
       Just (maybeName, verifier) -> pure $ Verify.ResolvedMock maybeName verifier
       Nothing -> Verify.verificationFailure
-  let verifyStub _ = Verify.shouldApplyToAnythingResolved resolved
+  let verifyStub _ = Verify.verifyResolvedAny resolved
   addDefinition (Definition (Proxy :: Proxy "_fnParam3_1") mockInstance verifyStub)
 
 _fnParam3_2 ::
@@ -524,7 +524,7 @@ _fnParam3_2 p = MockT $ do
     case result of
       Just (maybeName, verifier) -> pure $ Verify.ResolvedMock maybeName verifier
       Nothing -> Verify.verificationFailure
-  let verifyStub _ = Verify.shouldApplyToAnythingResolved resolved
+  let verifyStub _ = Verify.verifyResolvedAny resolved
   addDefinition (Definition (Proxy :: Proxy "_fnParam3_2") mockInstance verifyStub)
 
 _fnParam3_3 ::
@@ -542,7 +542,7 @@ _fnParam3_3 p = MockT $ do
     case result of
       Just (maybeName, verifier) -> pure $ Verify.ResolvedMock maybeName verifier
       Nothing -> Verify.verificationFailure
-  let verifyStub _ = Verify.shouldApplyToAnythingResolved resolved
+  let verifyStub _ = Verify.verifyResolvedAny resolved
   addDefinition (Definition (Proxy :: Proxy "_fnParam3_3") mockInstance verifyStub)
 
 _getByExplicit ::
@@ -560,7 +560,7 @@ _getByExplicit p = MockT $ do
     case result of
       Just (maybeName, verifier) -> pure $ Verify.ResolvedMock maybeName verifier
       Nothing -> Verify.verificationFailure
-  let verifyStub _ = Verify.shouldApplyToAnythingResolved resolved
+  let verifyStub _ = Verify.verifyResolvedAny resolved
   addDefinition (Definition (Proxy :: Proxy "_getByExplicit") mockInstance verifyStub)
 
 _echoExplicit ::
@@ -578,7 +578,7 @@ _echoExplicit p = MockT $ do
     case result of
       Just (maybeName, verifier) -> pure $ Verify.ResolvedMock maybeName verifier
       Nothing -> Verify.verificationFailure
-  let verifyStub _ = Verify.shouldApplyToAnythingResolved resolved
+  let verifyStub _ = Verify.verifyResolvedAny resolved
   addDefinition (Definition (Proxy :: Proxy "_echoExplicit") mockInstance verifyStub)
 
 _defaultAction ::
@@ -595,7 +595,7 @@ _defaultAction value = MockT $ do
     case result of
       Just (maybeName, verifier) -> pure $ Verify.ResolvedMock maybeName verifier
       Nothing -> Verify.verificationFailure
-  let verifyStub _ = Verify.shouldApplyToAnythingResolved resolved
+  let verifyStub _ = Verify.verifyResolvedAny resolved
   addDefinition (Definition (Proxy :: Proxy "_defaultAction") mockInstance verifyStub)
 
 _produce ::
@@ -612,7 +612,7 @@ _produce value = MockT $ do
     case result of
       Just (maybeName, verifier) -> pure $ Verify.ResolvedMock maybeName verifier
       Nothing -> Verify.verificationFailure
-  let verifyStub _ = Verify.shouldApplyToAnythingResolved resolved
+  let verifyStub _ = Verify.verifyResolvedAny resolved
   addDefinition (Definition (Proxy :: Proxy "_produce") mockInstance verifyStub)
 
 stubPostFn ::
@@ -628,7 +628,7 @@ stubPostFn p = MockT $ do
     case result of
       Just (maybeName, verifier) -> pure $ Verify.ResolvedMock maybeName verifier
       Nothing -> Verify.verificationFailure
-  let verifyStub _ = Verify.shouldApplyToAnythingResolved resolved
+  let verifyStub _ = Verify.verifyResolvedAny resolved
   addDefinition (Definition (Proxy :: Proxy "post") mockInstance verifyStub)
 
 processFiles :: (MonadAsync m, FileOperation m) => [FilePath] -> m [Text]
@@ -672,7 +672,7 @@ _readTTY p = MockT $ do
     case result of
       Just (maybeName, verifier) -> pure $ Verify.ResolvedMock maybeName verifier
       Nothing -> Verify.verificationFailure
-  let verifyStub _ = Verify.shouldApplyToAnythingResolved resolved
+  let verifyStub _ = Verify.verifyResolvedAny resolved
   addDefinition (Definition (Proxy :: Proxy "_readTTY") mockInstance verifyStub)
 
 _writeTTY ::
@@ -690,7 +690,7 @@ _writeTTY p = MockT $ do
     case result of
       Just (maybeName, verifier) -> pure $ Verify.ResolvedMock maybeName verifier
       Nothing -> Verify.verificationFailure
-  let verifyStub _ = Verify.shouldApplyToAnythingResolved resolved
+  let verifyStub _ = Verify.verifyResolvedAny resolved
   addDefinition (Definition (Proxy :: Proxy "_writeTTY") mockInstance verifyStub)
 
 spec :: Spec
@@ -826,3 +826,164 @@ spec = do
         onCase $ "file2.txt" |> pack "content2"
       processFiles ["file1.txt", "file2.txt"]
     result `shouldBe` [pack "content1", pack "content2"]
+
+  describe "verification failures" do
+    it "fails when _readFile is defined but readFile is never called" do
+      (runMockT @IO do
+        _readFile ("input.txt" |> pack "content")
+        -- readFile is never called
+        pure ()) `shouldThrow` errorCall "It has never been applied function `readFile`"
+
+    it "fails when _writeFile is defined but writeFile is never called" do
+      (runMockT @IO do
+        _writeFile $ "output.txt" |> pack "content" |> ()
+        -- writeFile is never called
+        pure ()) `shouldThrow` errorCall "It has never been applied function `writeFile`"
+
+    it "fails when _ask is defined but ask is never called" do
+      (runMockT @IO do
+        _ask "environment"
+        -- ask is never called
+        pure ()) `shouldThrow` errorCall "It has never been applied function `ask`"
+
+    it "fails when _post is defined but post is never called" do
+      (runMockT @IO do
+        _post $ pack "content" |> ()
+        -- post is never called
+        pure ()) `shouldThrow` errorCall "It has never been applied function `post`"
+
+    it "fails when _readFile is defined but only writeFile is called" do
+      (runMockT @IO do
+        _readFile ("input.txt" |> pack "content")
+        _writeFile $ "output.txt" |> pack "content" |> ()
+        -- readFile is never called, only writeFile is called
+        do
+          writeFile "output.txt" (pack "content")
+          pure ()) `shouldThrow` errorCall "It has never been applied function `readFile`"
+
+    it "fails when _writeFile is defined but only readFile is called" do
+      (runMockT @IO do
+        _readFile ("input.txt" |> pack "content")
+        _writeFile $ "output.txt" |> pack "content" |> ()
+        -- writeFile is never called, only readFile is called
+        do
+          readFile "input.txt") `shouldThrow` errorCall "It has never been applied function `writeFile`"
+
+    it "fails when _fnState is defined but fnState is never called" do
+      let action = runMockT @(StateT String IO) do
+            _fnState $ do
+              onCase $ Just "current" |> pure @(StateT String IO) "next"
+              onCase $ Nothing |> pure @(StateT String IO) "default"
+            -- fnState is never called
+            pure ()
+      evalStateT action "seed" `shouldThrow` errorCall "It has never been applied function `_fnState`"
+
+    it "fails when _fnState2 is defined but fnState2 is never called" do
+      let action = runMockT @(StateT String IO) do
+            _fnState2 $ "label" |> pure @(StateT String IO) ()
+            -- fnState2 is never called
+            pure ()
+      evalStateT action "initial" `shouldThrow` errorCall "It has never been applied function `_fnState2`"
+
+    it "fails when _getBy is defined but getBy is never called" do
+      (runMockT @IO do
+        _getBy $ "s" |> pure @IO (10 :: Int)
+        -- getBy is never called
+        pure ()) `shouldThrow` errorCall "It has never been applied function `_getBy`"
+
+    it "fails when _echo is defined but echo is never called" do
+      (runMockT @IO do
+        _echo $ "10" |> pure @IO ()
+        -- echo is never called
+        pure ()) `shouldThrow` errorCall "It has never been applied function `_echo`"
+
+    it "fails when _fn2_1Sub is defined but fn2_1Sub is never called" do
+      (runMockT @IO do
+        _fn2_1Sub $ "alpha" |> pure @IO ()
+        -- fn2_1Sub is never called
+        pure ()) `shouldThrow` errorCall "It has never been applied function `_fn2_1Sub`"
+
+    it "fails when _fn2_2Sub is defined but fn2_2Sub is never called" do
+      (runMockT @IO do
+        _fn2_2Sub $ "beta" |> pure @IO ()
+        -- fn2_2Sub is never called
+        pure ()) `shouldThrow` errorCall "It has never been applied function `_fn2_2Sub`"
+
+    it "fails when _fn3_1Sub is defined but fn3_1Sub is never called" do
+      (runMockT @IO do
+        _fn3_1Sub $ "gamma" |> pure @IO ()
+        -- fn3_1Sub is never called
+        pure ()) `shouldThrow` errorCall "It has never been applied function `_fn3_1Sub`"
+
+    it "fails when _fn3_2Sub is defined but fn3_2Sub is never called" do
+      (runMockT @IO do
+        _fn3_2Sub $ "delta" |> pure @IO ()
+        -- fn3_2Sub is never called
+        pure ()) `shouldThrow` errorCall "It has never been applied function `_fn3_2Sub`"
+
+    it "fails when _fn3_3Sub is defined but fn3_3Sub is never called" do
+      (runMockT @IO do
+        _fn3_3Sub $ "epsilon" |> pure @IO ()
+        -- fn3_3Sub is never called
+        pure ()) `shouldThrow` errorCall "It has never been applied function `_fn3_3Sub`"
+
+    it "fails when _getValueBy is defined but getValueBy is never called" do
+      (runMockT @IO do
+        _getValueBy $ "a" |> pure @IO "ax"
+        -- getValueBy is never called
+        pure ()) `shouldThrow` errorCall "It has never been applied function `_getValueBy`"
+
+    it "fails when _fnParam3_1 is defined but fnParam3_1 is never called" do
+      (runMockT @IO do
+        _fnParam3_1 $ do
+          onCase $ (1 :: Int) |> True |> pure @IO "combined"
+        -- fnParam3_1 is never called
+        pure ()) `shouldThrow` errorCall "It has never been applied function `_fnParam3_1`"
+
+    it "fails when _fnParam3_2 is defined but fnParam3_2 is never called" do
+      (runMockT @IO do
+        _fnParam3_2 $ casesIO [1 :: Int]
+        -- fnParam3_2 is never called
+        pure ()) `shouldThrow` errorCall "It has never been applied function `_fnParam3_2`"
+
+    it "fails when _fnParam3_3 is defined but fnParam3_3 is never called" do
+      (runMockT @IO do
+        _fnParam3_3 $ casesIO [True]
+        -- fnParam3_3 is never called
+        pure ()) `shouldThrow` errorCall "It has never been applied function `_fnParam3_3`"
+
+    it "fails when _getByExplicit is defined but getByExplicit is never called" do
+      (runMockT @IO do
+        _getByExplicit $ "key" |> pure @IO (42 :: Int)
+        -- getByExplicit is never called
+        pure ()) `shouldThrow` errorCall "It has never been applied function `_getByExplicit`"
+
+    it "fails when _echoExplicit is defined but echoExplicit is never called" do
+      (runMockT @IO do
+        _echoExplicit $ "value" |> pure @IO ()
+        -- echoExplicit is never called
+        pure ()) `shouldThrow` errorCall "It has never been applied function `_echoExplicit`"
+
+    it "fails when _defaultAction is defined but defaultAction is never called" do
+      (runMockT @IO do
+        _defaultAction (99 :: Int)
+        -- defaultAction is never called
+        pure ()) `shouldThrow` errorCall "It has never been applied function `_defaultAction`"
+
+    it "fails when _produce is defined but produce is never called" do
+      (runMockT @IO do
+        _produce (321 :: Int)
+        -- produce is never called
+        pure ()) `shouldThrow` errorCall "It has never been applied function `_produce`"
+
+    it "fails when _readTTY is defined but readTTY is never called" do
+      (runMockT @IO do
+        _readTTY $ casesIO ["a", ""]
+        -- readTTY is never called
+        pure ()) `shouldThrow` errorCall "It has never been applied function `_readTTY`"
+
+    it "fails when _writeTTY is defined but writeTTY is never called" do
+      (runMockT @IO do
+        _writeTTY $ "a" |> pure @IO ()
+        -- writeTTY is never called
+        pure ()) `shouldThrow` errorCall "It has never been applied function `_writeTTY`"

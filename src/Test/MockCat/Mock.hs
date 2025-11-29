@@ -1,38 +1,26 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
-{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
-{-# HLINT ignore "Use null" #-}
-{-# OPTIONS_GHC -Wno-name-shadowing #-}
-{-# OPTIONS_GHC -Wno-redundant-constraints #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE DefaultSignatures #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# OPTIONS_GHC -Wno-name-shadowing #-}
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
 {- | Utilities for constructing verifiable stub functions.
 
 Each stub produced by this module records argument applications and can be
-verified via helpers such as 'shouldApplyTo' and 'shouldApplyTimes'.
+verified via the unified 'shouldBeCalled' API.
 -}
 module Test.MockCat.Mock
   ( MockBuilder
   , build
   , mock
   , createNamedMockFnWithParams
+  , registerStub
   , stub
-  , shouldApplyTo
-  , shouldApplyTimes
-  , shouldApplyInOrder
-  , shouldApplyInPartialOrder
-  , shouldApplyTimesGreaterThanEqual
-  , shouldApplyTimesLessThanEqual
-  , shouldApplyTimesGreaterThan
-  , shouldApplyTimesLessThan
-  , shouldApplyToAnything
-  , shouldApplyTimesToAnything
   , shouldBeCalled
   , times
   , atLeast
@@ -47,9 +35,7 @@ module Test.MockCat.Mock
   , inPartialOrderWith
   , calledWith
   , anything
-  , with
   , withArgs
-  , to
   , onCase
   , cases
   , casesIO
@@ -147,7 +133,7 @@ class CreateStubFn a where
 -- | Create a mock function with verification hooks attached (unnamed version).
 --
 -- This function creates a verifiable stub that records argument applications
--- and can be verified via helpers such as 'shouldApplyTo' and 'shouldApplyTimes'.
+-- and can be verified via the unified 'shouldBeCalled' API.
 -- The function internally uses 'unsafePerformIO' to make the returned function
 -- appear pure, but it requires 'MonadIO' for creation.
 --
@@ -172,7 +158,7 @@ instance
 --
 -- The provided name is used in failure messages.
 -- This function creates a verifiable stub that records argument applications
--- and can be verified via helpers such as 'shouldApplyTo' and 'shouldApplyTimes'.
+-- and can be verified via the unified 'shouldBeCalled' API.
 -- The function internally uses 'unsafePerformIO' to make the returned function
 -- appear pure, but it requires 'MonadIO' for creation.
 --
@@ -208,7 +194,7 @@ instance {-# OVERLAPPING #-}
 --    @
 --
 -- The function creates a verifiable stub that records argument applications
--- and can be verified via helpers such as 'shouldApplyTo' and 'shouldApplyTimes'.
+-- and can be verified via the unified 'shouldBeCalled' API.
 -- The function internally uses 'unsafePerformIO' to make the returned function
 -- appear pure, but it requires 'MonadIO' for creation.
 mock :: CreateMockFn a => a
@@ -275,9 +261,6 @@ verification capabilities.
 -}
 stub :: CreateStubFn a => a
 stub = stubImpl
-
-to :: (a -> IO ()) -> a -> IO ()
-to f = f
 
 {- | Register a stub case within a 'Cases' builder. -}
 onCase :: a -> Cases a ()

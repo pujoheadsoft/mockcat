@@ -11,16 +11,15 @@ import Test.QuickCheck.Monadic (monadicIO, run, assert)
 import Control.Exception (try, SomeException)
 import Data.Maybe (listToMaybe)
 import Data.List (nub)
-import Test.MockCat (shouldApplyInOrder, shouldApplyInPartialOrder)
+import Test.MockCat (shouldBeCalled, inOrderWith, inPartialOrderWith, param)
 import Property.Generators
-import Test.MockCat (param)
 
 -- | Property: executing a non-empty script yields exact order success.
 prop_inorder_succeeds :: Property
 prop_inorder_succeeds = forAll scriptGen $ \scr@(Script xs) -> not (null xs) ==> monadicIO $ do
   f <- run $ buildUnaryMock scr
   run $ runScript f scr
-  run $ f `shouldApplyInOrder` (param <$> xs)
+  run $ f `shouldBeCalled` inOrderWith (param <$> xs)
   assert True
 
 -- | Property: a single adjacent swap causes order verification failure.
@@ -34,7 +33,7 @@ prop_adjacent_swap_fails = forAll scriptGen $ \(Script xs) -> length xs >= 2 ==>
       let swapped = take i xs ++ [xs !! (i+1), xs !! i] ++ drop (i+2) xs
       f <- run $ buildUnaryMock (Script xs)
       run $ runScript f (Script xs)
-      e <- run $ (try (f `shouldApplyInOrder` (param <$> swapped)) :: IO (Either SomeException ()))
+      e <- run $ (try (f `shouldBeCalled` inOrderWith (param <$> swapped)) :: IO (Either SomeException ()))
       case e of
         Left _ -> assert True
         Right _ -> assert False
@@ -53,7 +52,7 @@ prop_partial_order_subset_succeeds = forAll scriptGen $ \scr@(Script xs) -> not 
   subset <- run $ generate $ chooseSubsequence xs
   f <- run $ buildUnaryMock scr
   run $ runScript f scr
-  run $ f `shouldApplyInPartialOrder` (param <$> subset)
+  run $ f `shouldBeCalled` inPartialOrderWith (param <$> subset)
   assert True
 
 -- | Property: selecting two distinct values and reversing them causes partial order failure.
@@ -69,7 +68,7 @@ prop_partial_order_reversed_pair_fails = forAll scriptGen $ \scr@(Script xs) -> 
           f <- run $ buildUnaryMock scr
           run $ runScript f scr
           let reversed = [xs!!j, xs!!i]
-          e <- run $ (try (f `shouldApplyInPartialOrder` (param <$> reversed)) :: IO (Either SomeException ()))
+          e <- run $ (try (f `shouldBeCalled` inPartialOrderWith (param <$> reversed)) :: IO (Either SomeException ()))
           case e of
             Left _ -> assert True
             Right _ -> assert False

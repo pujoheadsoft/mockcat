@@ -70,7 +70,7 @@ import Test.MockCat.TH.ClassAnalysis
   ( VarAppliedType (..),
     updateType
   )
-import Test.MockCat.Verify (ResolvableParamsOf, resolveForVerification, verificationFailure, ResolvedMock(..), shouldApplyToAnythingResolved)
+import Test.MockCat.Verify (ResolvableParamsOf, resolveForVerification, verificationFailure, ResolvedMock(..), verifyResolvedAny)
 import Data.Maybe (fromMaybe)
 import Data.Function ((&))
 import Data.Proxy (Proxy(..))
@@ -375,7 +375,7 @@ createMockBody funNameStr createMockFn paramsExp =
         resolveForVerification mockInstance >>= \case
           Just (maybeName, verifier) -> pure $ ResolvedMock maybeName verifier
           Nothing -> verificationFailure
-      let verifyStub _ = shouldApplyToAnythingResolved resolved
+      let verifyStub _ = verifyResolvedAny resolved
       addDefinition
         ( Definition
             (Proxy :: Proxy $(litT (strTyLit funNameStr)))
