@@ -226,3 +226,510 @@ spec = do
         _ <- f "c" (3 :: Int)
         f `shouldBeCalled` inOrderWith ["a" |> (1 :: Int), "b" |> (2 :: Int), "c" |> (3 :: Int)]
 
+      it "shouldBeCalled inPartialOrderWith with IO mock" do
+        f <- mock $ any |> any |> pure @IO True
+        _ <- f "a" (1 :: Int)
+        _ <- f "b" (2 :: Int)
+        _ <- f "c" (3 :: Int)
+        f `shouldBeCalled` inPartialOrderWith ["a" |> (1 :: Int), "c" |> (3 :: Int)]
+
+      it "shouldBeCalled anything with IO mock" do
+        f <- mock $ any |> any |> pure @IO True
+        _ <- f "a" (1 :: Int)
+        f `shouldBeCalled` anything
+
+      it "shouldBeCalled times without args with IO mock" do
+        f <- mock $ any |> any |> pure @IO True
+        _ <- f "a" (1 :: Int)
+        _ <- f "b" (2 :: Int)
+        _ <- f "c" (3 :: Int)
+        f `shouldBeCalled` times 3
+
+    describe "Named mocks (error messages)" do
+      it "shouldBeCalled with name in error message" do
+        f <- mock (label "named mock") $ "a" |> (1 :: Int) |> pure @IO True
+        _ <- f "a" (1 :: Int)
+        f `shouldBeCalled` ("b" |> (1 :: Int)) `shouldThrow` anyErrorCall
+
+      it "shouldBeCalled times with name in error message" do
+        f <- mock (label "named mock") $ "a" |> (1 :: Int) |> pure @IO True
+        _ <- f "a" (1 :: Int)
+        _ <- f "a" (1 :: Int)
+        let e =
+              "function `named mock` was not applied the expected number of times to the expected arguments.\n\
+              \  expected: 3\n\
+              \   but got: 2"
+        f `shouldBeCalled` (times 3 `withArgs` ("a" |> (1 :: Int))) `shouldThrow` errorCall e
+
+      it "shouldBeCalled inOrderWith with name in error message" do
+        f <- mock (label "named mock") $ any |> any |> pure @IO True
+        _ <- f "b" (2 :: Int)
+        _ <- f "a" (1 :: Int)
+        _ <- f "c" (3 :: Int)
+        let e =
+              "function `named mock` was not applied to the expected arguments in the expected order.\n\
+              \  expected 1st applied: a,1\n\
+              \   but got 1st applied: b,2\n\
+              \  expected 2nd applied: b,2\n\
+              \   but got 2nd applied: a,1"
+        f `shouldBeCalled` inOrderWith ["a" |> (1 :: Int), "b" |> (2 :: Int), "c" |> (3 :: Int)] `shouldThrow` errorCall e
+
+      it "shouldBeCalled inPartialOrderWith with name in error message" do
+        f <- mock (label "named mock") $ any |> any |> pure @IO True
+        _ <- f "b" (2 :: Int)
+        _ <- f "a" (1 :: Int)
+        let e =
+              "function `named mock` was not applied to the expected arguments in the expected order.\n\
+              \  expected order:\n\
+              \    a,1\n\
+              \    c,3\n\
+              \  but got:\n\
+              \    b,2\n\
+              \    a,1"
+        f `shouldBeCalled` inPartialOrderWith ["a" |> (1 :: Int), "c" |> (3 :: Int)] `shouldThrow` errorCall e
+
+      it "shouldBeCalled anything with name in error message" do
+        f <- mock (label "named mock") $ "a" |> (1 :: Int) |> pure @IO True
+        f `shouldBeCalled` anything `shouldThrow` errorCall "It has never been applied function `named mock`"
+
+    describe "Error messages" do
+      it "shouldBeCalled failure with detailed error message" do
+        f <- mock $ any |> True
+        evaluate $ f "A"
+        -- The error message format uses showForMessage which may quote the value
+        f `shouldBeCalled` "X" `shouldThrow` anyErrorCall
+
+      it "shouldBeCalled times failure with detailed error message" do
+        f <- mock $ "a" |> (1 :: Int) |> pure @IO True
+        _ <- f "a" (1 :: Int)
+        _ <- f "a" (1 :: Int)
+        let e =
+              "function was not applied the expected number of times to the expected arguments.\n\
+              \  expected: 3\n\
+              \   but got: 2"
+        f `shouldBeCalled` (times 3 `withArgs` ("a" |> (1 :: Int))) `shouldThrow` errorCall e
+
+    describe "Multiple arguments with typed values" do
+      it "shouldBeCalled with multiple typed arguments" do
+        f <- mock $ "a" |> (1 :: Int) |> pure @IO True
+        _ <- f "a" (1 :: Int)
+        f `shouldBeCalled` ("a" |> (1 :: Int))
+
+      it "shouldBeCalled times with multiple typed arguments" do
+        f <- mock $ "a" |> (1 :: Int) |> pure @IO True
+        _ <- f "a" (1 :: Int)
+        _ <- f "a" (1 :: Int)
+        _ <- f "a" (1 :: Int)
+        f `shouldBeCalled` (times 3 `withArgs` ("a" |> (1 :: Int)))
+
+      it "shouldBeCalled atLeast with multiple typed arguments" do
+        f <- mock $ "a" |> (1 :: Int) |> pure @IO True
+        _ <- f "a" (1 :: Int)
+        _ <- f "a" (1 :: Int)
+        _ <- f "a" (1 :: Int)
+        f `shouldBeCalled` (atLeast 3 `withArgs` ("a" |> (1 :: Int)))
+
+      it "shouldBeCalled atMost with multiple typed arguments" do
+        f <- mock $ "a" |> (1 :: Int) |> pure @IO True
+        _ <- f "a" (1 :: Int)
+        _ <- f "a" (1 :: Int)
+        _ <- f "a" (1 :: Int)
+        f `shouldBeCalled` (atMost 3 `withArgs` ("a" |> (1 :: Int)))
+
+      it "shouldBeCalled greaterThan with multiple typed arguments" do
+        f <- mock $ "a" |> (1 :: Int) |> pure @IO True
+        _ <- f "a" (1 :: Int)
+        _ <- f "a" (1 :: Int)
+        _ <- f "a" (1 :: Int)
+        f `shouldBeCalled` (greaterThan 2 `withArgs` ("a" |> (1 :: Int)))
+
+      it "shouldBeCalled lessThan with multiple typed arguments" do
+        f <- mock $ "a" |> (1 :: Int) |> pure @IO True
+        _ <- f "a" (1 :: Int)
+        _ <- f "a" (1 :: Int)
+        _ <- f "a" (1 :: Int)
+        f `shouldBeCalled` (lessThan 4 `withArgs` ("a" |> (1 :: Int)))
+
+      it "shouldBeCalled inOrderWith with multiple typed arguments" do
+        f <- mock $ any |> any |> pure @IO True
+        _ <- f "a" (1 :: Int)
+        _ <- f "b" (2 :: Int)
+        _ <- f "c" (3 :: Int)
+        f `shouldBeCalled` inOrderWith ["a" |> (1 :: Int), "b" |> (2 :: Int), "c" |> (3 :: Int)]
+
+      it "shouldBeCalled inPartialOrderWith with multiple typed arguments" do
+        f <- mock $ any |> any |> pure @IO True
+        _ <- f "a" (1 :: Int)
+        _ <- f "b" (2 :: Int)
+        _ <- f "c" (3 :: Int)
+        f `shouldBeCalled` inPartialOrderWith ["a" |> (1 :: Int), "c" |> (3 :: Int)]
+
+    describe "High arity mocks" do
+      it "shouldBeCalled with arity 2" do
+        f <- mock $ "a" |> "b" |> True
+        evaluate $ f "a" "b"
+        f `shouldBeCalled` ("a" |> "b")
+
+      it "shouldBeCalled with arity 3" do
+        f <- mock $ "a" |> "b" |> "c" |> False
+        evaluate $ f "a" "b" "c"
+        f `shouldBeCalled` ("a" |> "b" |> "c")
+
+      it "shouldBeCalled times with arity 2" do
+        f <- mock $ "a" |> "b" |> True
+        evaluate $ f "a" "b"
+        evaluate $ f "a" "b"
+        evaluate $ f "a" "b"
+        f `shouldBeCalled` (times 3 `withArgs` ("a" |> "b"))
+
+      it "shouldBeCalled times with arity 3" do
+        f <- mock $ "a" |> "b" |> "c" |> False
+        evaluate $ f "a" "b" "c"
+        evaluate $ f "a" "b" "c"
+        f `shouldBeCalled` (times 2 `withArgs` ("a" |> "b" |> "c"))
+
+      it "shouldBeCalled inOrderWith with arity 2" do
+        f <- mock $ any |> any |> True
+        evaluate $ f "a" "b"
+        evaluate $ f "c" "d"
+        f `shouldBeCalled` inOrderWith ["a" |> "b", "c" |> "d"]
+
+    describe "Multi-case mocks" do
+      it "shouldBeCalled with multiple cases (arity 1)" do
+        f <- mock $ do
+          onCase $ "1" |> True
+          onCase $ "2" |> False
+        evaluate $ f "1"
+        evaluate $ f "2"
+        f `shouldBeCalled` "1"
+        f `shouldBeCalled` "2"
+
+
+      it "shouldBeCalled with multiple cases (arity 2)" do
+        f <- mock $ do
+          onCase $ "1" |> "2" |> True
+          onCase $ "2" |> "3" |> False
+        evaluate $ f "1" "2"
+        evaluate $ f "2" "3"
+        f `shouldBeCalled` ("1" |> "2")
+        f `shouldBeCalled` ("2" |> "3")
+
+      it "shouldBeCalled times with multiple cases (arity 2)" do
+        f <- mock $ do
+          onCase $ "1" |> "2" |> True
+          onCase $ "2" |> "3" |> False
+        evaluate $ f "1" "2"
+        evaluate $ f "1" "2"
+        evaluate $ f "2" "3"
+        evaluate $ f "2" "3"
+        f `shouldBeCalled` (times 2 `withArgs` ("1" |> "2"))
+        f `shouldBeCalled` (times 2 `withArgs` ("2" |> "3"))
+
+    describe "Edge cases and boundary conditions" do
+      it "times 0 (never called)" do
+        f <- mock $ "a" |> True
+        f `shouldBeCalled` (times 0 `withArgs` "a")
+
+      it "atLeast 0 (always succeeds)" do
+        f <- mock $ "a" |> True
+        f `shouldBeCalled` (atLeast 0 `withArgs` "a")
+        evaluate $ f "a"
+        f `shouldBeCalled` (atLeast 0 `withArgs` "a")
+
+      it "atLeast boundary (exact count)" do
+        f <- mock $ "a" |> True
+        evaluate $ f "a"
+        evaluate $ f "a"
+        evaluate $ f "a"
+        f `shouldBeCalled` (atLeast 3 `withArgs` "a")
+
+      it "atMost boundary (exact count)" do
+        f <- mock $ "a" |> True
+        evaluate $ f "a"
+        evaluate $ f "a"
+        evaluate $ f "a"
+        f `shouldBeCalled` (atMost 3 `withArgs` "a")
+
+      it "greaterThan boundary (one more)" do
+        f <- mock $ "a" |> True
+        evaluate $ f "a"
+        evaluate $ f "a"
+        evaluate $ f "a"
+        f `shouldBeCalled` (greaterThan 2 `withArgs` "a")
+
+      it "lessThan boundary (one less)" do
+        f <- mock $ "a" |> True
+        evaluate $ f "a"
+        evaluate $ f "a"
+        f `shouldBeCalled` (lessThan 3 `withArgs` "a")
+
+    describe "Multiple arguments with Param combinators" do
+      it "shouldBeCalled with multiple arguments using any" do
+        f <- mock $ any |> any |> True
+        evaluate $ f "a" "b"
+        f `shouldBeCalled` (any |> any)
+
+      it "shouldBeCalled times with multiple arguments using any" do
+        f <- mock $ any |> any |> True
+        evaluate $ f "a" "b"
+        evaluate $ f "c" "d"
+        evaluate $ f "e" "f"
+        f `shouldBeCalled` (times 3 `withArgs` (any |> any))
+
+      it "shouldBeCalled with multiple arguments using expect" do
+        f <- mock $ any |> any |> True
+        evaluate $ f "a" "b"
+        f `shouldBeCalled` (expect (const True) "always true" |> expect (const True) "always true")
+
+      it "shouldBeCalled times with multiple arguments using expect" do
+        f <- mock $ any |> any |> True
+        evaluate $ f "a" "b"
+        evaluate $ f "c" "d"
+        f `shouldBeCalled` (times 2 `withArgs` (expect (const True) "always true" |> expect (const True) "always true"))
+
+      it "shouldBeCalled anything with multiple arguments" do
+        f <- mock $ any |> any |> True
+        evaluate $ f "a" "b"
+        f `shouldBeCalled` anything
+
+    describe "High arity mocks (continued)" do
+      it "shouldBeCalled with arity 9" do
+        f <- mock $ any |> any |> any |> any |> any |> any |> any |> any |> ()
+        evaluate $ f "1" "2" "3" "4" "5" "6" "7" "8"
+        f `shouldBeCalled` ("1" |> "2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8")
+
+      it "shouldBeCalled inOrderWith with arity 9" do
+        f <- mock $ any |> any |> any |> any |> any |> any |> any |> any |> ()
+        evaluate $ f "1" "2" "3" "4" "5" "6" "7" "8"
+        evaluate $ f "2" "3" "4" "5" "6" "7" "8" "9"
+        evaluate $ f "3" "4" "5" "6" "7" "8" "9" "0"
+        f `shouldBeCalled` inOrderWith
+          [ "1" |> "2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8",
+            "2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8" |> "9",
+            "3" |> "4" |> "5" |> "6" |> "7" |> "8" |> "9" |> "0"
+          ]
+
+    describe "Order verification edge cases" do
+      it "inOrderWith with single element" do
+        f <- mock $ any |> ()
+        evaluate $ f "a"
+        f `shouldBeCalled` inOrderWith ["a"]
+
+      it "inPartialOrderWith with single element" do
+        f <- mock $ any |> ()
+        evaluate $ f "a"
+        f `shouldBeCalled` inPartialOrderWith ["a"]
+
+      it "inOrderWith with multiple arguments (failure case)" do
+        f <- mock $ any |> any |> ()
+        evaluate $ f "a" "b"
+        evaluate $ f "c" "d"
+        f `shouldBeCalled` inOrderWith ["a" |> "b", "d" |> "c"] `shouldThrow` anyErrorCall
+
+      it "inPartialOrderWith with multiple arguments (failure case)" do
+        f <- mock $ any |> any |> ()
+        evaluate $ f "b" "a"
+        evaluate $ f "c" "d"
+        f `shouldBeCalled` inPartialOrderWith ["a" |> "b", "c" |> "d"] `shouldThrow` anyErrorCall
+
+    describe "Count verification with multiple arguments" do
+      it "once with multiple arguments" do
+        f <- mock $ "a" |> "b" |> True
+        evaluate $ f "a" "b"
+        f `shouldBeCalled` (once `withArgs` ("a" |> "b"))
+
+      it "once with multiple arguments (failure)" do
+        f <- mock $ "a" |> "b" |> True
+        evaluate $ f "a" "b"
+        evaluate $ f "a" "b"
+        f `shouldBeCalled` (once `withArgs` ("a" |> "b")) `shouldThrow` anyErrorCall
+
+      it "never with multiple arguments" do
+        f <- mock $ "a" |> "b" |> True
+        f `shouldBeCalled` (never `withArgs` ("a" |> "b"))
+
+      it "never with multiple arguments (failure)" do
+        f <- mock $ "a" |> "b" |> True
+        evaluate $ f "a" "b"
+        f `shouldBeCalled` (never `withArgs` ("a" |> "b")) `shouldThrow` anyErrorCall
+
+      it "atLeast with multiple arguments" do
+        f <- mock $ "a" |> "b" |> True
+        evaluate $ f "a" "b"
+        evaluate $ f "a" "b"
+        evaluate $ f "a" "b"
+        f `shouldBeCalled` (atLeast 2 `withArgs` ("a" |> "b"))
+
+      it "atMost with multiple arguments" do
+        f <- mock $ "a" |> "b" |> True
+        evaluate $ f "a" "b"
+        evaluate $ f "a" "b"
+        f `shouldBeCalled` (atMost 2 `withArgs` ("a" |> "b"))
+
+      it "greaterThan with multiple arguments" do
+        f <- mock $ "a" |> "b" |> True
+        evaluate $ f "a" "b"
+        evaluate $ f "a" "b"
+        evaluate $ f "a" "b"
+        f `shouldBeCalled` (greaterThan 1 `withArgs` ("a" |> "b"))
+
+      it "lessThan with multiple arguments" do
+        f <- mock $ "a" |> "b" |> True
+        evaluate $ f "a" "b"
+        evaluate $ f "a" "b"
+        f `shouldBeCalled` (lessThan 3 `withArgs` ("a" |> "b"))
+
+    describe "Edge cases and boundary conditions" do
+      it "times 0 (never called)" do
+        f <- mock $ "a" |> True
+        f `shouldBeCalled` (times 0 `withArgs` "a")
+
+      it "atLeast 0 (always succeeds)" do
+        f <- mock $ "a" |> True
+        f `shouldBeCalled` (atLeast 0 `withArgs` "a")
+        evaluate $ f "a"
+        f `shouldBeCalled` (atLeast 0 `withArgs` "a")
+
+      it "atLeast boundary (exact count)" do
+        f <- mock $ "a" |> True
+        evaluate $ f "a"
+        evaluate $ f "a"
+        evaluate $ f "a"
+        f `shouldBeCalled` (atLeast 3 `withArgs` "a")
+
+      it "atMost boundary (exact count)" do
+        f <- mock $ "a" |> True
+        evaluate $ f "a"
+        evaluate $ f "a"
+        evaluate $ f "a"
+        f `shouldBeCalled` (atMost 3 `withArgs` "a")
+
+      it "greaterThan boundary (one more)" do
+        f <- mock $ "a" |> True
+        evaluate $ f "a"
+        evaluate $ f "a"
+        evaluate $ f "a"
+        f `shouldBeCalled` (greaterThan 2 `withArgs` "a")
+
+      it "lessThan boundary (one less)" do
+        f <- mock $ "a" |> True
+        evaluate $ f "a"
+        evaluate $ f "a"
+        f `shouldBeCalled` (lessThan 3 `withArgs` "a")
+
+    describe "Multiple arguments with Param combinators" do
+      it "shouldBeCalled with multiple arguments using any" do
+        f <- mock $ any |> any |> True
+        evaluate $ f "a" "b"
+        f `shouldBeCalled` (any |> any)
+
+      it "shouldBeCalled times with multiple arguments using any" do
+        f <- mock $ any |> any |> True
+        evaluate $ f "a" "b"
+        evaluate $ f "c" "d"
+        evaluate $ f "e" "f"
+        f `shouldBeCalled` (times 3 `withArgs` (any |> any))
+
+      it "shouldBeCalled with multiple arguments using expect" do
+        f <- mock $ any |> any |> True
+        evaluate $ f "a" "b"
+        f `shouldBeCalled` (expect (const True) "always true" |> expect (const True) "always true")
+
+      it "shouldBeCalled times with multiple arguments using expect" do
+        f <- mock $ any |> any |> True
+        evaluate $ f "a" "b"
+        evaluate $ f "c" "d"
+        f `shouldBeCalled` (times 2 `withArgs` (expect (const True) "always true" |> expect (const True) "always true"))
+
+      it "shouldBeCalled anything with multiple arguments" do
+        f <- mock $ any |> any |> True
+        evaluate $ f "a" "b"
+        f `shouldBeCalled` anything
+
+    describe "High arity mocks (continued)" do
+      it "shouldBeCalled with arity 9" do
+        f <- mock $ any |> any |> any |> any |> any |> any |> any |> any |> ()
+        evaluate $ f "1" "2" "3" "4" "5" "6" "7" "8"
+        f `shouldBeCalled` inOrderWith ["1" |> "2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8"]
+
+      it "shouldBeCalled inOrderWith with arity 9" do
+        f <- mock $ any |> any |> any |> any |> any |> any |> any |> any |> ()
+        evaluate $ f "1" "2" "3" "4" "5" "6" "7" "8"
+        evaluate $ f "2" "3" "4" "5" "6" "7" "8" "9"
+        evaluate $ f "3" "4" "5" "6" "7" "8" "9" "0"
+        f `shouldBeCalled` inOrderWith
+          [ "1" |> "2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8",
+            "2" |> "3" |> "4" |> "5" |> "6" |> "7" |> "8" |> "9",
+            "3" |> "4" |> "5" |> "6" |> "7" |> "8" |> "9" |> "0"
+          ]
+
+    describe "Order verification edge cases" do
+      it "inOrderWith with single element" do
+        f <- mock $ any |> ()
+        evaluate $ f "a"
+        f `shouldBeCalled` inOrderWith ["a"]
+
+      it "inPartialOrderWith with single element" do
+        f <- mock $ any |> ()
+        evaluate $ f "a"
+        f `shouldBeCalled` inPartialOrderWith ["a"]
+
+      it "inOrderWith with multiple arguments (failure case)" do
+        f <- mock $ any |> any |> ()
+        evaluate $ f "a" "b"
+        evaluate $ f "c" "d"
+        f `shouldBeCalled` inOrderWith ["a" |> "b", "d" |> "c"] `shouldThrow` anyErrorCall
+
+      it "inPartialOrderWith with multiple arguments (failure case)" do
+        f <- mock $ any |> any |> ()
+        evaluate $ f "b" "a"
+        evaluate $ f "c" "d"
+        f `shouldBeCalled` inPartialOrderWith ["a" |> "b", "c" |> "d"] `shouldThrow` anyErrorCall
+
+    describe "Count verification with multiple arguments" do
+      it "once with multiple arguments" do
+        f <- mock $ "a" |> "b" |> True
+        evaluate $ f "a" "b"
+        f `shouldBeCalled` (once `withArgs` ("a" |> "b"))
+
+      it "once with multiple arguments (failure)" do
+        f <- mock $ "a" |> "b" |> True
+        evaluate $ f "a" "b"
+        evaluate $ f "a" "b"
+        f `shouldBeCalled` (once `withArgs` ("a" |> "b")) `shouldThrow` anyErrorCall
+
+      it "never with multiple arguments" do
+        f <- mock $ "a" |> "b" |> True
+        f `shouldBeCalled` (never `withArgs` ("a" |> "b"))
+
+      it "never with multiple arguments (failure)" do
+        f <- mock $ "a" |> "b" |> True
+        evaluate $ f "a" "b"
+        f `shouldBeCalled` (never `withArgs` ("a" |> "b")) `shouldThrow` anyErrorCall
+
+      it "atLeast with multiple arguments" do
+        f <- mock $ "a" |> "b" |> True
+        evaluate $ f "a" "b"
+        evaluate $ f "a" "b"
+        evaluate $ f "a" "b"
+        f `shouldBeCalled` (atLeast 2 `withArgs` ("a" |> "b"))
+
+      it "atMost with multiple arguments" do
+        f <- mock $ "a" |> "b" |> True
+        evaluate $ f "a" "b"
+        evaluate $ f "a" "b"
+        f `shouldBeCalled` (atMost 2 `withArgs` ("a" |> "b"))
+
+      it "greaterThan with multiple arguments" do
+        f <- mock $ "a" |> "b" |> True
+        evaluate $ f "a" "b"
+        evaluate $ f "a" "b"
+        evaluate $ f "a" "b"
+        f `shouldBeCalled` (greaterThan 1 `withArgs` ("a" |> "b"))
+
+      it "lessThan with multiple arguments" do
+        f <- mock $ "a" |> "b" |> True
+        evaluate $ f "a" "b"
+        evaluate $ f "a" "b"
+        f `shouldBeCalled` (lessThan 3 `withArgs` ("a" |> "b"))
+
