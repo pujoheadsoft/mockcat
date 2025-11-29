@@ -34,6 +34,8 @@ import Test.MockCat.Internal.Registry (lookupVerifierForFn, withAllUnitGuards)
 import Data.Type.Equality ((:~:) (Refl))
 import Data.Dynamic (fromDynamic)
 import GHC.TypeLits (TypeError, ErrorMessage(..), Symbol)
+import Unsafe.Coerce (unsafeCoerce)
+import Unsafe.Coerce (unsafeCoerce)
 
 -- | Class for verifying mock function.
 class Verify params input where
@@ -610,13 +612,90 @@ instance (Eq params, Show params) => WithArgs TimesSpec params where
   type WithResult TimesSpec params = VerificationSpec params
   with (TimesSpec method) args = CountVerification method args
 
+-- | New function for combining times condition with arguments (supports raw values)
+--   This will replace 'with' once the old 'with' is removed
+--   We use type class to support both Param types and raw values
+class WithArgsNew spec params where
+  type WithResultNew spec params :: Type
+  withArgs :: spec -> params -> WithResultNew spec params
+
+-- | Type family to normalize argument types for 'withArgs'
+--   This helps avoid Type Family conflicts by normalizing types
+type family NormalizeWithArg a :: Type where
+  NormalizeWithArg (Param a :> rest) = Param a :> rest
+  NormalizeWithArg (Param a) = Param a
+  NormalizeWithArg a = Param a
+
+-- | Unified instance for all argument types (normalized via Type Family)
+instance 
+  ( normalized ~ NormalizeWithArg params
+  , Eq normalized
+  , Show normalized
+  , Typeable params
+  , Typeable normalized
+  ) => WithArgsNew TimesSpec params where
+  type WithResultNew TimesSpec params = VerificationSpec (NormalizeWithArg params)
+  withArgs (TimesSpec method) args = 
+    case eqT :: Maybe (params :~: NormalizeWithArg params) of
+      Just Refl -> CountVerification method args
+      Nothing -> 
+        -- For raw values, convert to Param
+        -- For Param a, this branch should not be taken, but we handle it safely
+        CountVerification method (unsafeCoerce args :: NormalizeWithArg params)
+
+infixl 8 `withArgs`
+
 -- | Helper function for order verification (direct list, no 'with' needed)
-inOrderWith :: [params] -> VerificationSpec params
-inOrderWith = OrderVerification ExactlySequence
+--   Supports both Param types and raw values
+class InOrderWith params where
+  inOrderWith :: [params] -> VerificationSpec (NormalizeWithArg params)
+
+-- | Instance for Param chains
+instance {-# OVERLAPPING #-}
+  ( Eq (Param a :> rest)
+  , Show (Param a :> rest)
+  ) => InOrderWith (Param a :> rest) where
+  inOrderWith = OrderVerification ExactlySequence
+
+-- | Instance for single Param
+instance {-# OVERLAPPING #-}
+  ( Eq (Param a)
+  , Show (Param a)
+  ) => InOrderWith (Param a) where
+  inOrderWith = OrderVerification ExactlySequence
+
+-- | Instance for raw values (converted to Param)
+instance {-# OVERLAPPABLE #-}
+  ( Eq (Param a)
+  , Show (Param a)
+  ) => InOrderWith a where
+  inOrderWith args = OrderVerification ExactlySequence (unsafeCoerce (param <$> args) :: [NormalizeWithArg a])
 
 -- | Helper function for partial order verification (direct list, no 'with' needed)
-inPartialOrderWith :: [params] -> VerificationSpec params
-inPartialOrderWith = OrderVerification PartiallySequence
+--   Supports both Param types and raw values
+class InPartialOrderWith params where
+  inPartialOrderWith :: [params] -> VerificationSpec (NormalizeWithArg params)
+
+-- | Instance for Param chains
+instance {-# OVERLAPPING #-}
+  ( Eq (Param a :> rest)
+  , Show (Param a :> rest)
+  ) => InPartialOrderWith (Param a :> rest) where
+  inPartialOrderWith = OrderVerification PartiallySequence
+
+-- | Instance for single Param
+instance {-# OVERLAPPING #-}
+  ( Eq (Param a)
+  , Show (Param a)
+  ) => InPartialOrderWith (Param a) where
+  inPartialOrderWith = OrderVerification PartiallySequence
+
+-- | Instance for raw values (converted to Param)
+instance {-# OVERLAPPABLE #-}
+  ( Eq (Param a)
+  , Show (Param a)
+  ) => InPartialOrderWith a where
+  inPartialOrderWith args = OrderVerification PartiallySequence (unsafeCoerce (param <$> args) :: [NormalizeWithArg a])
 
 -- | Main verification function class
 class ShouldBeCalled m spec where
@@ -653,3 +732,31 @@ instance {-# OVERLAPPING #-}
       verify m (MatchAny args)
     AnyVerification -> 
       shouldApplyToAnything m
+
+-- | Instance for Param chains (e.g., "a" |> "b")
+instance {-# OVERLAPPING #-}
+  ( ResolvableMockWithParams m (Param a :> rest)
+  , Eq (Param a :> rest)
+  , Show (Param a :> rest)
+  ) => ShouldBeCalled m (Param a :> rest) where
+  shouldBeCalled m args = 
+    verify m (MatchAny args)
+
+-- | Instance for single Param (e.g., param "a")
+instance {-# OVERLAPPING #-}
+  ( ResolvableMockWithParams m (Param a)
+  , Eq (Param a)
+  , Show (Param a)
+  ) => ShouldBeCalled m (Param a) where
+  shouldBeCalled m args = 
+    verify m (MatchAny args)
+
+-- | Instance for raw values (e.g., "a")
+--   This converts raw values to Param at runtime
+instance {-# OVERLAPPABLE #-}
+  ( ResolvableMockWithParams m (Param a)
+  , Eq (Param a)
+  , Show (Param a)
+  ) => ShouldBeCalled m a where
+  shouldBeCalled m arg = 
+    verify m (MatchAny (param arg))

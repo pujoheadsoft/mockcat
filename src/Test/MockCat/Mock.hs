@@ -48,6 +48,7 @@ module Test.MockCat.Mock
   , calledWith
   , anything
   , with
+  , withArgs
   , to
   , onCase
   , cases
