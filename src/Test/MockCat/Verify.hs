@@ -35,7 +35,6 @@ import Data.Type.Equality ((:~:) (Refl))
 import Data.Dynamic (fromDynamic)
 import GHC.TypeLits (TypeError, ErrorMessage(..), Symbol)
 import Unsafe.Coerce (unsafeCoerce)
-import Unsafe.Coerce (unsafeCoerce)
 
 -- | Class for verifying mock function.
 class Verify params input where
@@ -146,12 +145,17 @@ verifyCount m v method = do
     then pure ()
     else
       errorWithoutStackTrace $
-        intercalate
-          "\n"
-          [ "function" <> mockNameLabel mockName <> " was not applied the expected number of times to the expected arguments.",
-            "  expected: " <> show method,
-            "   but got: " <> show appliedCount
-          ]
+        countWithArgsMismatchMessage mockName method appliedCount
+
+-- | Generate error message for count mismatch with arguments
+countWithArgsMismatchMessage :: Maybe MockName -> CountVerifyMethod -> Int -> String
+countWithArgsMismatchMessage mockName method appliedCount =
+  intercalate
+    "\n"
+    [ "function" <> mockNameLabel mockName <> " was not applied the expected number of times to the expected arguments.",
+      "  expected: " <> show method,
+      "   but got: " <> show appliedCount
+    ]
 
 
 
@@ -395,12 +399,7 @@ shouldApplyTimesToAnything m count = do
       let appliedCount = length appliedParamsList
       when (count /= appliedCount) $
         errorWithoutStackTrace $
-          intercalate
-            "\n"
-            [ "function" <> mockNameLabel mockName <> " was not applied the expected number of times.",
-              "  expected: " <> show count,
-              "   but got: " <> show appliedCount
-            ]
+          countMismatchMessage mockName count appliedCount
 
 unsupportedTimesMessage :: Maybe MockName -> String
 unsupportedTimesMessage mockName =
@@ -483,6 +482,7 @@ resolveForVerification target = do
         Just verifier -> pure $ Just (name, verifier)
         Nothing -> pure Nothing
 
+-- | Verify that a function was applied the expected number of times
 verifyAppliedCount ::
   Maybe MockName ->
   Verifier params ->
@@ -493,21 +493,21 @@ verifyAppliedCount maybeName verifier expected = do
   let appliedCount = length appliedParamsList
   when (expected /= appliedCount) $
     errorWithoutStackTrace $
-      intercalate
-        "\n"
-        [ "function" <> mockNameLabel maybeName <> " was not applied the expected number of times.",
-          "  expected: " <> show expected,
-          "   but got: " <> show appliedCount
-        ]
+      countMismatchMessage maybeName expected appliedCount
+
+-- | Generate error message for count mismatch
+countMismatchMessage :: Maybe MockName -> Int -> Int -> String
+countMismatchMessage maybeName expected appliedCount =
+  intercalate
+    "\n"
+    [ "function" <> mockNameLabel maybeName <> " was not applied the expected number of times.",
+      "  expected: " <> show expected,
+      "   but got: " <> show appliedCount
+    ]
 
 verificationFailure :: IO a
 verificationFailure =
-  errorWithoutStackTrace $
-    intercalate
-      "\n"
-      [ "The provided stub cannot be verified.",
-        "Please create it via mock when verification is required."
-      ]
+  errorWithoutStackTrace verificationFailureMessage
 
 data ResolvedMock params = ResolvedMock {
   resolvedMockName :: Maybe MockName,
@@ -525,13 +525,16 @@ requireResolved ::
 requireResolved target = do
   resolveForVerification target >>= \case
     Just (name, verifier) -> pure $ ResolvedMock name verifier
-    Nothing ->
-      errorWithoutStackTrace $
-        intercalate
-          "\n"
-          [ "The provided stub cannot be verified.",
-            "Please create it via mock when verification is required."
-          ]
+    Nothing -> verificationFailure
+
+-- | Error message for when a stub cannot be verified
+verificationFailureMessage :: String
+verificationFailureMessage =
+  intercalate
+    "\n"
+    [ "The provided stub cannot be verified.",
+      "Please create it via mock when verification is required."
+    ]
 
 -- ============================================
 -- shouldBeCalled API
@@ -612,13 +615,6 @@ instance (Eq params, Show params) => WithArgs TimesSpec params where
   type WithResult TimesSpec params = VerificationSpec params
   with (TimesSpec method) args = CountVerification method args
 
--- | New function for combining times condition with arguments (supports raw values)
---   This will replace 'with' once the old 'with' is removed
---   We use type class to support both Param types and raw values
-class WithArgsNew spec params where
-  type WithResultNew spec params :: Type
-  withArgs :: spec -> params -> WithResultNew spec params
-
 -- | Type family to normalize argument types for 'withArgs'
 --   This helps avoid Type Family conflicts by normalizing types
 type family NormalizeWithArg a :: Type where
@@ -626,76 +622,59 @@ type family NormalizeWithArg a :: Type where
   NormalizeWithArg (Param a) = Param a
   NormalizeWithArg a = Param a
 
--- | Unified instance for all argument types (normalized via Type Family)
-instance 
-  ( normalized ~ NormalizeWithArg params
-  , Eq normalized
-  , Show normalized
+-- | New function for combining times condition with arguments (supports raw values)
+--   This will replace 'with' once the old 'with' is removed
+--   We use a regular function with Type Family normalization instead of a type class
+withArgs ::
+  forall params.
+  ( Eq (NormalizeWithArg params)
+  , Show (NormalizeWithArg params)
   , Typeable params
-  , Typeable normalized
-  ) => WithArgsNew TimesSpec params where
-  type WithResultNew TimesSpec params = VerificationSpec (NormalizeWithArg params)
-  withArgs (TimesSpec method) args = 
-    case eqT :: Maybe (params :~: NormalizeWithArg params) of
-      Just Refl -> CountVerification method args
-      Nothing -> 
-        -- For raw values, convert to Param
-        -- For Param a, this branch should not be taken, but we handle it safely
-        CountVerification method (unsafeCoerce args :: NormalizeWithArg params)
+  , Typeable (NormalizeWithArg params)
+  ) => TimesSpec -> params -> VerificationSpec (NormalizeWithArg params)
+withArgs (TimesSpec method) args = 
+  case eqT :: Maybe (params :~: NormalizeWithArg params) of
+    Just Refl -> CountVerification method args
+    Nothing -> 
+      -- For raw values, convert to Param
+      -- For Param a, this branch should not be taken, but we handle it safely
+      CountVerification method (unsafeCoerce args :: NormalizeWithArg params)
 
 infixl 8 `withArgs`
 
 -- | Helper function for order verification (direct list, no 'with' needed)
 --   Supports both Param types and raw values
-class InOrderWith params where
-  inOrderWith :: [params] -> VerificationSpec (NormalizeWithArg params)
-
--- | Instance for Param chains
-instance {-# OVERLAPPING #-}
-  ( Eq (Param a :> rest)
-  , Show (Param a :> rest)
-  ) => InOrderWith (Param a :> rest) where
-  inOrderWith = OrderVerification ExactlySequence
-
--- | Instance for single Param
-instance {-# OVERLAPPING #-}
-  ( Eq (Param a)
-  , Show (Param a)
-  ) => InOrderWith (Param a) where
-  inOrderWith = OrderVerification ExactlySequence
-
--- | Instance for raw values (converted to Param)
-instance {-# OVERLAPPABLE #-}
-  ( Eq (Param a)
-  , Show (Param a)
-  ) => InOrderWith a where
-  inOrderWith args = OrderVerification ExactlySequence (unsafeCoerce (param <$> args) :: [NormalizeWithArg a])
+--   Uses Type Family normalization similar to withArgs
+inOrderWith ::
+  forall params.
+  ( Eq (NormalizeWithArg params)
+  , Show (NormalizeWithArg params)
+  , Typeable params
+  , Typeable (NormalizeWithArg params)
+  ) => [params] -> VerificationSpec (NormalizeWithArg params)
+inOrderWith args = 
+  case eqT :: Maybe (params :~: NormalizeWithArg params) of
+    Just Refl -> OrderVerification ExactlySequence args
+    Nothing -> 
+      -- For raw values, convert to Param
+      OrderVerification ExactlySequence (unsafeCoerce (param <$> args) :: [NormalizeWithArg params])
 
 -- | Helper function for partial order verification (direct list, no 'with' needed)
 --   Supports both Param types and raw values
-class InPartialOrderWith params where
-  inPartialOrderWith :: [params] -> VerificationSpec (NormalizeWithArg params)
-
--- | Instance for Param chains
-instance {-# OVERLAPPING #-}
-  ( Eq (Param a :> rest)
-  , Show (Param a :> rest)
-  ) => InPartialOrderWith (Param a :> rest) where
-  inPartialOrderWith = OrderVerification PartiallySequence
-
--- | Instance for single Param
-instance {-# OVERLAPPING #-}
-  ( Eq (Param a)
-  , Show (Param a)
-  ) => InPartialOrderWith (Param a) where
-  inPartialOrderWith = OrderVerification PartiallySequence
-
--- | Instance for raw values (converted to Param)
-instance {-# OVERLAPPABLE #-}
-  ( Eq (Param a)
-  , Show (Param a)
-  ) => InPartialOrderWith a where
-  inPartialOrderWith args = OrderVerification PartiallySequence (unsafeCoerce (param <$> args) :: [NormalizeWithArg a])
+--   Uses Type Family normalization similar to withArgs
+inPartialOrderWith ::
+  forall params.
+  ( Eq (NormalizeWithArg params)
+  , Show (NormalizeWithArg params)
+  , Typeable params
+  , Typeable (NormalizeWithArg params)
+  ) => [params] -> VerificationSpec (NormalizeWithArg params)
+inPartialOrderWith args = 
+  case eqT :: Maybe (params :~: NormalizeWithArg params) of
+    Just Refl -> OrderVerification PartiallySequence args
+    Nothing -> 
+      -- For raw values, convert to Param
+      OrderVerification PartiallySequence (unsafeCoerce (param <$> args) :: [NormalizeWithArg params])
 
 -- | Main verification function class
 class ShouldBeCalled m spec where
