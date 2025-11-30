@@ -3,7 +3,8 @@ module Test.MockCat
     module Test.MockCat.Cons,
     module Test.MockCat.Param,
     module Test.MockCat.MockT,
-    module Test.MockCat.TH
+    module Test.MockCat.TH,
+    module Test.MockCat.WithMock
   )
 where
 
@@ -12,3 +13,4 @@ import Test.MockCat.Cons
 import Test.MockCat.Param
 import Test.MockCat.MockT
 import Test.MockCat.TH
+import Test.MockCat.WithMock

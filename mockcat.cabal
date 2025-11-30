@@ -64,6 +64,7 @@ library
       Test.MockCat.TH.Types
       Test.MockCat.TH.TypeUtils
       Test.MockCat.Verify
+      Test.MockCat.WithMock
   other-modules:
       Paths_mockcat
   hs-source-dirs:
@@ -117,6 +118,7 @@ test-suite mockcat-test
       Test.MockCat.THCompareSpec
       Test.MockCat.TypeClassSpec
       Test.MockCat.TypeClassTHSpec
+      Test.MockCat.WithMockSpec
       Paths_mockcat
   hs-source-dirs:
       test
