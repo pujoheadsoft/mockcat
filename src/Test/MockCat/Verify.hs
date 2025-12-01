@@ -289,24 +289,30 @@ resolveForVerification target = do
 verifyAppliedCount ::
   Maybe MockName ->
   Verifier params ->
-  Int ->
+  CountVerifyMethod ->
   IO ()
-verifyAppliedCount maybeName verifier expected = do
+verifyAppliedCount maybeName verifier method = do
   appliedParamsList <- readAppliedParamsList (verifierRef verifier)
   let appliedCount = length appliedParamsList
-  when (expected /= appliedCount) $
+  when (not $ compareCount method appliedCount) $
     errorWithoutStackTrace $
-      countMismatchMessage maybeName expected appliedCount
+      countMismatchMessage maybeName method appliedCount
 
 -- | Generate error message for count mismatch
-countMismatchMessage :: Maybe MockName -> Int -> Int -> String
-countMismatchMessage maybeName expected appliedCount =
+countMismatchMessage :: Maybe MockName -> CountVerifyMethod -> Int -> String
+countMismatchMessage maybeName method appliedCount =
   intercalate
     "\n"
     [ "function" <> mockNameLabel maybeName <> " was not applied the expected number of times.",
-      "  expected: " <> show expected,
+      "  expected: " <> showCountMethod method,
       "   but got: " <> show appliedCount
     ]
+  where
+    showCountMethod (Equal n) = show n
+    showCountMethod (LessThanEqual n) = "<= " <> show n
+    showCountMethod (GreaterThanEqual n) = ">= " <> show n
+    showCountMethod (LessThan n) = "< " <> show n
+    showCountMethod (GreaterThan n) = "> " <> show n
 
 verificationFailure :: IO a
 verificationFailure =
@@ -348,7 +354,7 @@ data VerificationSpec params where
   -- | Count verification with specific arguments
   CountVerification :: CountVerifyMethod -> params -> VerificationSpec params
   -- | Count verification without arguments (any arguments)
-  CountAnyVerification :: Int -> VerificationSpec params
+  CountAnyVerification :: CountVerifyMethod -> VerificationSpec params
   -- | Order verification
   OrderVerification :: VerifyOrderMethod -> [params] -> VerificationSpec params
   -- | Simple verification with arguments (at least once)
@@ -488,11 +494,9 @@ instance
   ( ResolvableMockWithParams m params
   , RequireCallable "shouldBeCalled" m
   ) => ShouldBeCalled m TimesSpec where
-  shouldBeCalled m (TimesSpec (Equal n)) = do
+  shouldBeCalled m (TimesSpec method) = do
     ResolvedMock mockName verifier <- requireResolved m
-    verifyAppliedCount mockName verifier n
-  shouldBeCalled _ (TimesSpec _) = 
-    errorWithoutStackTrace "times without args only supports Equal (use 'with' for other methods)"
+    verifyAppliedCount mockName verifier method
 
 -- | Instance for VerificationSpec (handles all verification types)
 instance {-# OVERLAPPING #-}

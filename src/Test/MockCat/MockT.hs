@@ -31,7 +31,7 @@ import GHC.TypeLits (KnownSymbol)
 import Data.Data (Proxy, Typeable)
 import Data.Foldable (for_)
 import UnliftIO (MonadUnliftIO(..))
-import Test.MockCat.Internal.Types (Verifier)
+import Test.MockCat.Internal.Types (Verifier, CountVerifyMethod(..))
 import Test.MockCat.Verify (ResolvableParamsOf, resolveForVerification, verificationFailure, verifyAppliedCount)
 
 {- | MockT is a thin wrapper over @ReaderT (TVar [Definition])@ providing
@@ -176,7 +176,7 @@ applyTimesIs (MockT inner) a = MockT $ ReaderT $ \ref -> do
   tmp <- liftIO $ newTVarIO []
   _ <- runReaderT inner tmp
   defs <- liftIO $ readTVarIO tmp
-  let patched = map (\(Definition s fn _) -> Definition s fn (`verifyApplyCount` a)) defs
+  let patched = map (\(Definition s fn _) -> Definition s fn (`verifyApplyCount` (Equal a))) defs
   liftIO $ atomically $ modifyTVar' ref (++ patched)
   pure ()
 
@@ -185,7 +185,7 @@ neverApply (MockT inner) = MockT $ ReaderT $ \ref -> do
   tmp <- liftIO $ newTVarIO []
   _ <- runReaderT inner tmp
   defs <- liftIO $ readTVarIO tmp
-  let patched = map (\(Definition s m _) -> Definition s m (`verifyApplyCount` 0)) defs
+  let patched = map (\(Definition s m _) -> Definition s m (`verifyApplyCount` (Equal 0))) defs
   liftIO $ atomically $ modifyTVar' ref (++ patched)
   pure ()
 
@@ -209,12 +209,12 @@ verifyApplyCount ::
   , Typeable (Verifier params)
   ) =>
   f ->
-  Int ->
+  CountVerifyMethod ->
   IO ()
-verifyApplyCount stub expected = do
+verifyApplyCount stub method = do
   result <- resolveForVerification stub
   case result of
     Just (maybeName, verifier) ->
-      verifyAppliedCount maybeName verifier expected
+      verifyAppliedCount maybeName verifier method
     Nothing ->
       verificationFailure
