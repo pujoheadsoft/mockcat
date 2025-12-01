@@ -50,13 +50,11 @@ module Test.MockCat.WithMock
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Reader (ReaderT(..), runReaderT, MonadReader(..), ask)
 import Control.Concurrent.STM (TVar, newTVarIO, readTVarIO, modifyTVar', atomically)
-import Data.Foldable (for_)
-import Control.Monad.State (State(..), runState, get, put, modify)
-import Test.MockCat.Mock (mock)
+import Control.Monad.State (State(..), runState, get, put, modify, execState)
 import Test.MockCat.Verify
   ( ResolvableParamsOf
   , ResolvableMock
-  , ResolvableMockWithParams
+
   , requireResolved
   , verifyCount
   , verifyOrder
@@ -69,42 +67,24 @@ import Test.MockCat.Verify
   , never
   , atLeast
   , anything
-  , VerificationSpec(..)
+
   )
 import Test.MockCat.Internal.Types
   ( Verifier
-  , AppliedRecord
-  , appliedParamsList
+
+
   , CountVerifyMethod(..)
   , VerifyOrderMethod(..)
   )
-import Test.MockCat.Internal.Registry (lookupVerifierForFn, withAllUnitGuards)
-import Test.MockCat.Param (Param(..), param, (|>))
-import Test.MockCat.Cons ((:>))
-import Data.Typeable (Typeable, eqT)
-import Data.Type.Equality ((:~:)(Refl))
-import Data.Dynamic (fromDynamic)
+import Test.MockCat.Param (Param(..), param)
+import Data.Typeable (Typeable)
 import Data.Proxy (Proxy(..))
-import Unsafe.Coerce (unsafeCoerce)
 
 -- | Mock expectation context holds verification actions to run at the end
 --   of the `withMock` block. Storing `IO ()` avoids forcing concrete param
 --   types at registration time.
 newtype WithMockContext = WithMockContext (TVar [IO ()])
 
--- | Mock expectation data
--- Note: we don't require Typeable/Show/Eq constraints at construction time
--- so that creating expectations does not force concrete param types early.
-data MockExpectation where
-  MockExpectation ::
-    ( ResolvableMock m
-    , ResolvableParamsOf m ~ params
-    , Show params
-    , Eq params
-    ) =>
-    m ->
-    Expectation params ->
-    MockExpectation
 
 -- | Expectation specification
 data Expectation params where
@@ -125,7 +105,7 @@ newtype Expectations params a = Expectations (State [Expectation params] a)
 
 -- | Run Expectations to get a list of expectations
 runExpectations :: Expectations params a -> [Expectation params]
-runExpectations (Expectations s) = snd (runState s [])
+runExpectations (Expectations s) = execState s []
 
 -- | Add an expectation to the builder
 addExpectation :: Expectation params -> Expectations params ()
@@ -146,8 +126,6 @@ withMock action = do
 verifyExpectation ::
   ( ResolvableMock m
   , ResolvableParamsOf m ~ params
-  , Typeable params
-  , Typeable (Verifier params)
   , Show params
   , Eq params
   ) =>
@@ -163,7 +141,7 @@ verifyExpectation mockFn expectation = do
       verifyAppliedCount (resolvedMockName resolved) (resolvedMockVerifier resolved) count
     OrderExpectation method argsList ->
       verifyOrder method mockFn argsList
-    SimpleExpectation args ->
+    SimpleExpectation _ ->
       verifyResolvedAny resolved
     AnyExpectation ->
       verifyResolvedAny resolved
@@ -194,7 +172,7 @@ class BuildExpectations fn exp where
 -- | Instance for direct Expectations value
 --   The params type must match ResolvableParamsOf fn
 instance forall fn params. (ResolvableParamsOf fn ~ params) => BuildExpectations fn (Expectations params ()) where
-  buildExpectations _ exp = runExpectations exp
+  buildExpectations _ = runExpectations
 
 -- | Instance for function form (fn -> Expectations params ())
 --   This allows passing a function that receives the mock function
@@ -210,8 +188,6 @@ expects ::
   , ExtractParams exp
   , ExpParams exp ~ params
   , BuildExpectations fn exp
-  , Typeable params
-  , Typeable (Verifier params)
   , Show params
   , Eq params
   ) =>
@@ -224,17 +200,9 @@ expects mockFnM exp = do
   let _ = extractParams exp :: Proxy params
   mockFn <- mockFnM
   let expectations = buildExpectations mockFn exp
-  let actions = map (\e -> verifyExpectation mockFn e) expectations
+  let actions = map (verifyExpectation mockFn) expectations
   liftIO $ atomically $ modifyTVar' ctxVar (++ actions)
   pure mockFn
-
-
--- | Helper to create called with params inferred from expects context
---   This is a workaround for type inference issues
-calledWithParams ::
-  forall params.
-  TimesSpec -> Expectations params ()
-calledWithParams = called @params
 
 -- | Create a count expectation builder
 --   The params type is inferred from the mock function in expects
