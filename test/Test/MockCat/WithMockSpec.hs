@@ -7,26 +7,22 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 {-# OPTIONS_GHC -Wno-unused-do-bind #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 module Test.MockCat.WithMockSpec (spec) where
 
 import Prelude hiding (readFile, writeFile, any)
-import Data.Text (Text, pack)
-import Test.Hspec (Spec, describe, it, shouldBe, shouldThrow, anyErrorCall, shouldContain)
+import Data.Text (pack)
+import Test.Hspec (Spec, describe, it, shouldBe, shouldThrow, anyErrorCall)
 import Test.MockCat
 import Test.MockCat.SharedSpecDefs
 import GHC.IO (evaluate)
 import Control.Concurrent.Async (async, wait)
 import Control.Concurrent (threadDelay)
 import Control.Monad (replicateM, replicateM_, void)
-import Control.Monad.IO.Unlift (withRunInIO, MonadUnliftIO)
+import Control.Monad.IO.Unlift (withRunInIO)
 import Control.Monad.IO.Class (liftIO)
-import Control.Monad.Reader (ReaderT)
 import Control.Exception (try, ErrorCall(..))
-import qualified Test.MockCat.WithMock as WithMock
-import Test.MockCat.WithMock (Expectation)
-import Test.MockCat.Param (Param)
-import Test.MockCat.Param (Param)
 
 -- Generate mocks for FileOperation
 makeMock [t|FileOperation|]
@@ -52,7 +48,7 @@ spec = do
     it "simple mock with expects using param" $ do
       withMock $ do
         mockFn <- mock (any |> True)
-          `expects` (called once `with` (param "a"))
+          `expects` (called once `with` param "a")
         liftIO $ mockFn "a" `shouldBe` True
 
     it "fails when not called" $ do
@@ -88,20 +84,20 @@ spec = do
     it "anything expectation" $ do
       withMock $ do
         mockFn <- mock (any |> True)
-          `expects` (called once)
+          `expects` called once
 
         void $ liftIO $ evaluate $ mockFn "a"
 
     it "anything expectation fails when not called" $ do
-      (withMock $ do
+      withMock (do
         _ <- mock (any @String |> True)
-          `expects` (called once)
+          `expects` called once
         pure ()) `shouldThrow` anyErrorCall
 
     it "anything expectation error message when not called" $ do
       result <- try $ withMock $ do
         _ <- mock (any @String |> True)
-          `expects` (called once)
+          `expects` called once
         pure ()
       case result of
         Left (ErrorCall msg) -> do
@@ -116,13 +112,13 @@ spec = do
     it "never expectation without args succeeds when not called" $ do
       withMock $ do
         _ <- mock (any @String |> True)
-          `expects` (called never)
+          `expects` called never
         pure ()
 
     it "never expectation without args fails when called" $ do
-      (withMock $ do
+      withMock (do
         mockFn <- mock (any @String |> True)
-          `expects` (called never)
+          `expects` called never
         liftIO $ mockFn "a" `shouldBe` True
         pure ()) `shouldThrow` anyErrorCall
 
@@ -134,7 +130,7 @@ spec = do
         pure ()
 
     it "never expectation with args fails when called with that arg" $ do
-      (withMock $ do
+      withMock (do
         mockFn <- mock (any @String |> True)
           `expects` (called never `with` "z")
         liftIO $ mockFn "z" `shouldBe` True
@@ -152,7 +148,7 @@ spec = do
         pure ()
 
     it "multiple expectations in do block fails when not all satisfied" $ do
-      (withMock $ do
+      withMock (do
         mockFn <- mock (any @String |> True)
           `expects` do
             called (times 2) `with` "a"
@@ -172,7 +168,7 @@ spec = do
         pure ()
 
     it "multiple expectations in do block with never fails when violated" $ do
-      (withMock $ do
+      withMock (do
         mockFn <- mock (any @String |> True)
           `expects` do
             called once `with` "a"
@@ -197,7 +193,7 @@ spec = do
         pure ()
 
     it "multiple expectations fails when count is insufficient" $ do
-      (withMock $ do
+      withMock (do
         mockFn <- mock (any @String |> True)
           `expects` do
             called (times 3) `with` "a"
@@ -209,7 +205,7 @@ spec = do
         pure ()) `shouldThrow` anyErrorCall
 
     it "multiple expectations fails when atLeast is not satisfied" $ do
-      (withMock $ do
+      withMock (do
         mockFn <- mock (any @String |> True)
           `expects` do
             called (atLeast 2) `with` "a"
@@ -232,7 +228,7 @@ spec = do
         pure ()
 
     it "multiple expectations with never fails when never is violated" $ do
-      (withMock $ do
+      withMock (do
         mockFn <- mock (any @String |> True)
           `expects` do
             called (times 2) `with` "a"
@@ -246,30 +242,30 @@ spec = do
 
   describe "withMock verification failures" $ do
     it "fails when called fewer times than expected" $ do
-      (withMock $ do
+      withMock (do
         mockFn <- mock (any |> True)
           `expects` do
             called (times 3) `with` "a"
-        
+
         liftIO $ evaluate $ mockFn "a"
         liftIO $ evaluate $ mockFn "a"
         pure ()) `shouldThrow` anyErrorCall
 
     it "fails when called with unexpected arguments" $ do
-      (withMock $ do
+      withMock (do
         mockFn <- mock (any |> True)
           `expects` do
             called once `with` "a"
-        
+
         liftIO $ evaluate $ mockFn "b"
         pure ()) `shouldThrow` anyErrorCall
 
     it "fails when called but never expected" $ do
-      (withMock $ do
+      withMock (do
         mockFn <- mock (any |> True)
           `expects` do
             called never `with` "z"
-        
+
         liftIO $ evaluate $ mockFn "z"
         pure ()) `shouldThrow` anyErrorCall
 
@@ -280,7 +276,7 @@ spec = do
           _readFile $ "input.txt" |> pack "content"
           _writeFile $ "output.txt" |> pack "content" |> ()
           operationProgram "input.txt" "output.txt"
-        
+
         liftIO $ result `shouldBe` ()
 
   describe "order verification" $ do
@@ -289,29 +285,29 @@ spec = do
         mockFn <- mock (any @String |> True)
           `expects` do
             calledInOrder ["a", "b", "c"]
-        
+
         liftIO $ mockFn "a" `shouldBe` True
         liftIO $ mockFn "b" `shouldBe` True
         liftIO $ mockFn "c" `shouldBe` True
         pure ()
 
     it "calledInOrder fails when called in wrong order" $ do
-      (withMock $ do
+      withMock (do
         mockFn <- mock (any @String |> True)
           `expects` do
             calledInOrder ["a", "b", "c"]
-        
+
         liftIO $ mockFn "a" `shouldBe` True
         liftIO $ mockFn "c" `shouldBe` True  -- Wrong order: should be "b"
         liftIO $ mockFn "b" `shouldBe` True
         pure ()) `shouldThrow` anyErrorCall
 
     it "calledInOrder fails when not all calls are made" $ do
-      (withMock $ do
+      withMock (do
         mockFn <- mock (any @String |> True)
           `expects` do
             calledInOrder ["a", "b", "c"]
-        
+
         liftIO $ mockFn "a" `shouldBe` True
         liftIO $ mockFn "b" `shouldBe` True
         -- missing: mockFn "c"
@@ -322,18 +318,18 @@ spec = do
         mockFn <- mock (any @String |> True)
           `expects` do
             calledInSequence ["a", "c"]
-        
+
         liftIO $ mockFn "a" `shouldBe` True
         liftIO $ mockFn "b" `shouldBe` True  -- This is ignored
         liftIO $ mockFn "c" `shouldBe` True
         pure ()
 
     it "calledInSequence fails when sequence is violated" $ do
-      (withMock $ do
+      withMock (do
         mockFn <- mock (any @String |> True)
           `expects` do
             calledInSequence ["a", "c"]
-        
+
         liftIO $ mockFn "c" `shouldBe` True  -- Wrong: "a" should come first
         liftIO $ mockFn "a" `shouldBe` True
         pure ()) `shouldThrow` anyErrorCall
@@ -343,7 +339,7 @@ spec = do
         mockFn <- mock (any @String |> True)
           `expects` do
             calledInSequence ["a", "c"]
-        
+
         liftIO $ mockFn "a" `shouldBe` True
         liftIO $ mockFn "x" `shouldBe` True
         liftIO $ mockFn "y" `shouldBe` True
@@ -356,11 +352,11 @@ spec = do
         fn1 <- mock (any @String |> True)
           `expects` do
             called once `with` "a"
-        
+
         fn2 <- mock (any @String |> any @String |> False)
           `expects` do
             called once `with` ("x" |> "y")
-        
+
         liftIO $ fn1 "a" `shouldBe` True
         liftIO $ fn2 "x" "y" `shouldBe` False
         pure ()
@@ -373,10 +369,10 @@ spec = do
           `expects` do
             called once `with` "a"
         liftIO $ evaluate $ fn1 "a"
-      
+
       -- Second withMock block: expect zero (if leaked, would see 1 and fail)
       withMock $ do
-        fn2 <- mock (any |> True)
+        _ <- mock (any |> True)
           `expects` do
             called never `with` "a"
         pure ()
@@ -388,39 +384,20 @@ spec = do
           `expects` do
             called once `with` "x"
         liftIO $ evaluate $ fn1 "x"
-      
+
       -- Block 2: call with "y"
       withMock $ do
         fn2 <- mock (any |> True)
           `expects` do
             called once `with` "y"
         liftIO $ evaluate $ fn2 "y"
-      
+
       -- Block 3: no calls
       withMock $ do
-        fn3 <- mock (any |> True)
+        _ <- mock (any |> True)
           `expects` do
             called never `with` "z"
         pure ()
-
-    {-
-    it "withMock blocks with same argument values are independent" $ do
-      -- Both blocks use "same" as argument, but should be independent
-      withMock $ do
-        fn1 <- mock (any |> True)
-          `expects` do
-            called (times 2) `with` "same"
-        liftIO $ evaluate $ fn1 "same"
-        liftIO $ evaluate $ fn1 "same"
-      
-      withMock $ do
-        fn2 <- mock (any |> True)
-          `expects` do
-            called (times 3) `with` "same"
-        liftIO $ evaluate $ fn2 "same"
-        liftIO $ evaluate $ fn2 "same"
-        liftIO $ evaluate $ fn2 "same"
-    -}
 
   describe "withMock concurrency" $ do
     it "counts calls across parallel threads" $ do
@@ -428,7 +405,7 @@ spec = do
         mockFn <- mock (any |> True)
           `expects` do
             called (times 10)
-        
+
         withRunInIO $ \runInIO -> do
           as <- replicateM 10 (async $ runInIO $ do
             liftIO $ evaluate $ mockFn "a"
@@ -441,7 +418,7 @@ spec = do
           `expects` do
             called (times 5) `with` "a"
             called (times 5) `with` "b"
-        
+
         withRunInIO $ \runInIO -> do
           as1 <- replicateM 5 (async $ runInIO $ liftIO $ evaluate $ mockFn "a")
           as2 <- replicateM 5 (async $ runInIO $ liftIO $ evaluate $ mockFn "b")
@@ -451,12 +428,12 @@ spec = do
       let threads = 20 :: Int
           callsPerThread = 10 :: Int
           total = threads * callsPerThread :: Int
-      
+
       withMock $ do
         mockFn <- mock (any |> True)
           `expects` do
             called (times total)
-        
+
         withRunInIO $ \runInIO -> do
           as <- replicateM threads (async $ runInIO $ do
             replicateM_ callsPerThread $ do
@@ -469,7 +446,7 @@ spec = do
         mockFn <- mock (any @String |> True)
           `expects` do
             calledInOrder ["first", "second", "third"]
-        
+
         withRunInIO $ \runInIO -> do
           -- Sequential calls to preserve order
           runInIO $ void $ liftIO $ evaluate $ mockFn "first"
