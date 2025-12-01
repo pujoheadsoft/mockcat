@@ -336,13 +336,32 @@ requireResolved target = do
     Just (name, verifier) -> pure $ ResolvedMock name verifier
     Nothing -> verificationFailure
 
--- | Error message for when a stub cannot be verified
 verificationFailureMessage :: String
 verificationFailureMessage =
   intercalate
     "\n"
-    [ "The provided stub cannot be verified.",
-      "Please create it via mock when verification is required."
+    [ "Error: 'shouldBeCalled' can only verify functions created by 'mock'.",
+      "",
+      "The value you passed could not be recognized as a mock function.",
+      "",
+      "This usually happens in one of the following cases:",
+      "  - You passed a normal (non-mock) function.",
+      "  - You passed a stub or value not created via 'mock' / 'mockIO'.",
+      "  - You are trying to verify a value that was never registered as a mock.",
+      "",
+      "How to fix it:",
+      "  1. Make sure you created the function with 'mock' (or 'mockIO' for IO)",
+      "     before calling 'shouldBeCalled'.",
+      "  2. Pass that mock value directly to 'shouldBeCalled'",
+      "     (not the original function or a plain value).",
+      "",
+      "If this message still appears, check that:",
+      "  - You are not passing a pure constant.",
+      "  - The mock value is still in scope where 'shouldBeCalled' is used.",
+      "",
+      "Tip: If you prefer automatic verification,",
+      "consider using 'withMock', which runs all expectations at the end",
+      "of the block."
     ]
 
 -- ============================================

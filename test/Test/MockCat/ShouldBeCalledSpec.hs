@@ -8,6 +8,7 @@ module Test.MockCat.ShouldBeCalledSpec (spec) where
 import GHC.IO (evaluate)
 import Test.Hspec
 import Test.MockCat
+import Test.MockCat.Verify (verificationFailureMessage)
 import Prelude hiding (any)
 
 spec :: Spec
@@ -308,6 +309,11 @@ spec = do
               \  expected: 3\n\
               \   but got: 2"
         f `shouldBeCalled` (times 3 `withArgs` ("a" |> (1 :: Int))) `shouldThrow` errorCall e
+
+      it "shouldBeCalled with non-mock function shows guidance message" do
+        let f :: Int -> Int
+            f x = x
+        (f `shouldBeCalled` times 1) `shouldThrow` errorCall verificationFailureMessage
 
     describe "Multiple arguments with typed values" do
       it "shouldBeCalled with multiple typed arguments" do
