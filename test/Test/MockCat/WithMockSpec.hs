@@ -64,7 +64,6 @@ spec = do
         pure ()
       case result of
         Left (ErrorCall msg) -> do
-          -- エラーメッセージを複数行で見やすく定義
           let expected =
                 "function was not applied the expected number of times to the expected arguments.\n" <>
                 "  expected: 1\n" <>
@@ -101,7 +100,6 @@ spec = do
         pure ()
       case result of
         Left (ErrorCall msg) -> do
-          -- countMismatchMessage の形式に合わせる
           let expected =
                 "function was not applied the expected number of times.\n" <>
                 "  expected: 1\n" <>
