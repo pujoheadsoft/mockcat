@@ -113,6 +113,136 @@ spec = do
           msg `shouldBe` expected
         _ -> fail "Expected ErrorCall"
 
+    it "never expectation without args succeeds when not called" $ do
+      withMock $ do
+        _ <- mock (any @String |> True)
+          `expects` (called never)
+        pure ()
+
+    it "never expectation without args fails when called" $ do
+      (withMock $ do
+        mockFn <- mock (any @String |> True)
+          `expects` (called never)
+        liftIO $ mockFn "a" `shouldBe` True
+        pure ()) `shouldThrow` anyErrorCall
+
+    it "never expectation with args succeeds when not called with that arg" $ do
+      withMock $ do
+        mockFn <- mock (any @String |> True)
+          `expects` (called never `with` "z")
+        liftIO $ mockFn "a" `shouldBe` True
+        pure ()
+
+    it "never expectation with args fails when called with that arg" $ do
+      (withMock $ do
+        mockFn <- mock (any @String |> True)
+          `expects` (called never `with` "z")
+        liftIO $ mockFn "z" `shouldBe` True
+        pure ()) `shouldThrow` anyErrorCall
+
+    it "multiple expectations in do block" $ do
+      withMock $ do
+        mockFn <- mock (any @String |> True)
+          `expects` do
+            called (times 2) `with` "a"
+            called once `with` "b"
+        liftIO $ mockFn "a" `shouldBe` True
+        liftIO $ mockFn "a" `shouldBe` True
+        liftIO $ mockFn "b" `shouldBe` True
+        pure ()
+
+    it "multiple expectations in do block fails when not all satisfied" $ do
+      (withMock $ do
+        mockFn <- mock (any @String |> True)
+          `expects` do
+            called (times 2) `with` "a"
+            called once `with` "b"
+        liftIO $ mockFn "a" `shouldBe` True
+        liftIO $ mockFn "a" `shouldBe` True
+        -- missing: mockFn "b"
+        pure ()) `shouldThrow` anyErrorCall
+
+    it "multiple expectations in do block with never" $ do
+      withMock $ do
+        mockFn <- mock (any @String |> True)
+          `expects` do
+            called once `with` "a"
+            called never `with` "z"
+        liftIO $ mockFn "a" `shouldBe` True
+        pure ()
+
+    it "multiple expectations in do block with never fails when violated" $ do
+      (withMock $ do
+        mockFn <- mock (any @String |> True)
+          `expects` do
+            called once `with` "a"
+            called never `with` "z"
+        liftIO $ mockFn "a" `shouldBe` True
+        liftIO $ mockFn "z" `shouldBe` True  -- This should fail
+        pure ()) `shouldThrow` anyErrorCall
+
+    it "multiple expectations with different counts" $ do
+      withMock $ do
+        mockFn <- mock (any @String |> True)
+          `expects` do
+            called (times 3) `with` "a"
+            called (atLeast 2) `with` "b"
+            called once `with` "c"
+        liftIO $ mockFn "a" `shouldBe` True
+        liftIO $ mockFn "a" `shouldBe` True
+        liftIO $ mockFn "a" `shouldBe` True
+        liftIO $ mockFn "b" `shouldBe` True
+        liftIO $ mockFn "b" `shouldBe` True
+        liftIO $ mockFn "c" `shouldBe` True
+        pure ()
+
+    it "multiple expectations fails when count is insufficient" $ do
+      (withMock $ do
+        mockFn <- mock (any @String |> True)
+          `expects` do
+            called (times 3) `with` "a"
+            called once `with` "b"
+        liftIO $ mockFn "a" `shouldBe` True
+        liftIO $ mockFn "a" `shouldBe` True
+        -- missing one more "a" call
+        liftIO $ mockFn "b" `shouldBe` True
+        pure ()) `shouldThrow` anyErrorCall
+
+    it "multiple expectations fails when atLeast is not satisfied" $ do
+      (withMock $ do
+        mockFn <- mock (any @String |> True)
+          `expects` do
+            called (atLeast 2) `with` "a"
+            called once `with` "b"
+        liftIO $ mockFn "a" `shouldBe` True
+        -- missing one more "a" call (need at least 2)
+        liftIO $ mockFn "b" `shouldBe` True
+        pure ()) `shouldThrow` anyErrorCall
+
+    it "multiple expectations with mixed never and count" $ do
+      withMock $ do
+        mockFn <- mock (any @String |> True)
+          `expects` do
+            called (times 2) `with` "a"
+            called never `with` "z"
+            called once `with` "b"
+        liftIO $ mockFn "a" `shouldBe` True
+        liftIO $ mockFn "a" `shouldBe` True
+        liftIO $ mockFn "b" `shouldBe` True
+        pure ()
+
+    it "multiple expectations with never fails when never is violated" $ do
+      (withMock $ do
+        mockFn <- mock (any @String |> True)
+          `expects` do
+            called (times 2) `with` "a"
+            called never `with` "z"
+            called once `with` "b"
+        liftIO $ mockFn "a" `shouldBe` True
+        liftIO $ mockFn "a" `shouldBe` True
+        liftIO $ mockFn "z" `shouldBe` True  -- This should fail
+        pure ()) `shouldThrow` anyErrorCall
+
     {-
     it "multiple expectations" $ do
       withMock $ do

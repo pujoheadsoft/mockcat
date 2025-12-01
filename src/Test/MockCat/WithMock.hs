@@ -264,13 +264,13 @@ instance {-# OVERLAPPING #-}
   where
   with expM args = do
     expM
-    -- Extract the last expectation and modify it to include args
+    -- Extract the last expectation (last in list, since addExpectation appends) and modify it to include args
     Expectations $ do
       exps <- get
-      case exps of
+      case reverse exps of
         [] -> error "with: no expectation to add arguments to"
         (CountAnyExpectation method : rest) -> do
-          put rest
+          put (reverse rest)
           modify (++ [CountExpectation method args])
         _ -> error "with: can only add arguments to count-only expectations"
 
@@ -283,13 +283,13 @@ instance {-# OVERLAPPABLE #-}
   where
   with expM rawValue = do
     expM
-    -- Extract the last expectation and modify it to include args
+    -- Extract the last expectation (last in list, since addExpectation appends) and modify it to include args
     Expectations $ do
       exps <- get
-      case exps of
+      case reverse exps of
         [] -> error "with: no expectation to add arguments to"
         (CountAnyExpectation method : rest) -> do
-          put rest
+          put (reverse rest)
           modify (++ [CountExpectation method (param rawValue)])
         _ -> error "with: can only add arguments to count-only expectations"
 
