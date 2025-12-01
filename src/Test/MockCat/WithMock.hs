@@ -50,7 +50,7 @@ module Test.MockCat.WithMock
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Reader (ReaderT(..), runReaderT, MonadReader(..), ask)
 import Control.Concurrent.STM (TVar, newTVarIO, readTVarIO, modifyTVar', atomically)
-import Control.Monad.State (State(..), runState, get, put, modify, execState)
+import Control.Monad.State (State, get, put, modify, execState)
 import Test.MockCat.Verify
   ( ResolvableParamsOf
   , ResolvableMock
@@ -70,14 +70,11 @@ import Test.MockCat.Verify
 
   )
 import Test.MockCat.Internal.Types
-  ( Verifier
-
-
-  , CountVerifyMethod(..)
+  ( CountVerifyMethod(..)
   , VerifyOrderMethod(..)
   )
 import Test.MockCat.Param (Param(..), param)
-import Data.Typeable (Typeable)
+import Data.Kind (Type)
 import Data.Proxy (Proxy(..))
 
 -- | Mock expectation context holds verification actions to run at the end
@@ -152,7 +149,7 @@ infixl 0 `expects`
 
 -- | Type class to extract params type from an expectation expression
 class ExtractParams exp where
-  type ExpParams exp :: *
+  type ExpParams exp :: Type
   extractParams :: exp -> Proxy (ExpParams exp)
 
 instance ExtractParams (Expectations params ()) where
@@ -225,9 +222,6 @@ class WithArgs exp args params | exp args -> params where
   with :: exp -> args -> Expectations params ()
 
 instance {-# OVERLAPPING #-}
-  ( Eq params
-  , Show params
-  ) =>
   WithArgs (Expectations params ()) params params
   where
   with expM args = do
@@ -243,10 +237,7 @@ instance {-# OVERLAPPING #-}
         _ -> error "with: can only add arguments to count-only expectations"
 
 instance {-# OVERLAPPABLE #-}
-  ( Eq (Param a)
-  , Show (Param a)
-  , params ~ Param a
-  ) =>
+  (params ~ Param a) =>
   WithArgs (Expectations params ()) a params
   where
   with expM rawValue = do
@@ -271,11 +262,7 @@ class CalledInOrder args params | args -> params where
 
 -- | Convenience instance: infer params from function argument type @a@
 instance
-  ( Eq (Param a)
-  , Show (Param a)
-  , Typeable (Param a)
-  , params ~ Param a
-  ) =>
+  (params ~ Param a) =>
   CalledInOrder [a] params
   where
   calledInOrder args =
@@ -288,11 +275,7 @@ class CalledInSequence args params | args -> params where
 
 -- | Convenience instance: infer params from function argument type @a@
 instance
-  ( Eq (Param a)
-  , Show (Param a)
-  , Typeable (Param a)
-  , params ~ Param a
-  ) =>
+  (params ~ Param a) =>
   CalledInSequence [a] params
   where
   calledInSequence args =
