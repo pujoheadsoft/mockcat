@@ -297,22 +297,36 @@ instance {-# OVERLAPPABLE #-}
 
 
 -- | Create an order expectation
-calledInOrder ::
-  ( Eq params
-  , Show params
-  , Typeable params
+--   Accepts both Param values and raw values
+class CalledInOrder args params | args -> params where
+  calledInOrder :: args -> Expectations params ()
+
+-- | Convenience instance: infer params from function argument type @a@
+instance
+  ( Eq (Param a)
+  , Show (Param a)
+  , Typeable (Param a)
+  , params ~ Param a
   ) =>
-  [params] ->
-  Expectations params ()
-calledInOrder args = addExpectation (OrderExpectation ExactlySequence args)
+  CalledInOrder [a] params
+  where
+  calledInOrder args =
+    addExpectation (OrderExpectation ExactlySequence (map param args))
 
 -- | Create a partial order expectation
-calledInSequence ::
-  ( Eq params
-  , Show params
-  , Typeable params
+--   Accepts both Param values and raw values
+class CalledInSequence args params | args -> params where
+  calledInSequence :: args -> Expectations params ()
+
+-- | Convenience instance: infer params from function argument type @a@
+instance
+  ( Eq (Param a)
+  , Show (Param a)
+  , Typeable (Param a)
+  , params ~ Param a
   ) =>
-  [params] ->
-  Expectations params ()
-calledInSequence args = addExpectation (OrderExpectation PartiallySequence args)
+  CalledInSequence [a] params
+  where
+  calledInSequence args =
+    addExpectation (OrderExpectation PartiallySequence (map param args))
 
