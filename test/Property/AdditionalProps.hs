@@ -15,11 +15,15 @@ module Property.AdditionalProps
 import Test.QuickCheck
 import Test.QuickCheck.Monadic (monadicIO, run, assert)
 import Control.Exception (try, SomeException, evaluate)
-import Control.Monad (replicateM, forM_)
+import Control.Monad (forM, forM_)
 import Data.List (nub)
 import Data.Proxy (Proxy(..))
 import Test.MockCat
 import Control.Monad.IO.Class (liftIO)
+
+perCall :: Int -> a -> a
+perCall i x = case i of
+  _ -> x
 
 --------------------------------------------------------------------------------
 -- 21. PredicateParam property
@@ -59,7 +63,9 @@ prop_multicase_progression = forAll genSeq $ \(arg, rs, extra) -> monadicIO $ do
   -- even under -O0) may float the pure expression @f arg@ and share it.
   -- We intentionally inject the loop index via a seq so each iteration has a
   -- syntactically distinct thunk, ensuring the unsafePerformIO body runs per call.
-  vals <- run $ replicateM totalCalls (evaluate (f arg))
+  vals <- run $
+    forM [1 .. totalCalls] $ \i ->
+      evaluate (perCall i (f arg))
   let (prefix, suffix) = splitAt (length rs) vals
   assert (prefix == rs)
   assert (all (== last rs) suffix)
@@ -115,7 +121,9 @@ prop_neverApply_unused = forAll (chooseInt (0,5)) $ \n -> monadicIO $ do
     let f = mUsed
     -- See NOTE [GHC9.4 duplicate-call counting] above: make each application
     -- depend on the loop index to avoid sharing; case forces dependence.
-    liftIO $ replicateM n (evaluate (f 0))
+    liftIO $
+      forM_ [1 .. n] $ \i ->
+        evaluate (perCall i (f 0))
   case r of
     Left (_ :: SomeException) -> assert False
     Right _ -> assert True

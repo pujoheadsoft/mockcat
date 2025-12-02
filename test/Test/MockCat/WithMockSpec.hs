@@ -19,13 +19,17 @@ import Test.MockCat.SharedSpecDefs
 import GHC.IO (evaluate)
 import Control.Concurrent.Async (async, wait)
 import Control.Concurrent (threadDelay)
-import Control.Monad (replicateM, replicateM_, void)
+import Control.Monad (replicateM_, void, forM, forM_)
 import Control.Monad.IO.Unlift (withRunInIO)
 import Control.Monad.IO.Class (liftIO)
 import Control.Exception (try, ErrorCall(..))
 
 -- Generate mocks for FileOperation
 makeMock [t|FileOperation|]
+
+perCall :: Int -> a -> a
+perCall i x = case i of
+  _ -> x
 
 operationProgram ::
   FileOperation m =>
@@ -405,9 +409,10 @@ spec = do
             called (times 10)
 
         withRunInIO $ \runInIO -> do
-          as <- replicateM 10 (async $ runInIO $ do
-            liftIO $ evaluate $ mockFn "a"
-            pure ())
+          as <- forM [1 .. 10] $ \i ->
+            async $ runInIO $ do
+              liftIO $ evaluate $ perCall i (mockFn "a")
+              pure ()
           mapM_ wait as
 
     it "handles concurrent calls with different arguments" $ do
@@ -418,8 +423,10 @@ spec = do
             called (times 5) `with` "b"
 
         withRunInIO $ \runInIO -> do
-          as1 <- replicateM 5 (async $ runInIO $ liftIO $ evaluate $ mockFn "a")
-          as2 <- replicateM 5 (async $ runInIO $ liftIO $ evaluate $ mockFn "b")
+          as1 <- forM [1 .. 5] $ \i ->
+            async $ runInIO $ liftIO $ evaluate $ perCall i (mockFn "a")
+          as2 <- forM [1 .. 5] $ \i ->
+            async $ runInIO $ liftIO $ evaluate $ perCall (100 + i) (mockFn "b")
           mapM_ wait (as1 ++ as2)
 
     it "stress test: many threads with many calls" $ do
@@ -433,10 +440,12 @@ spec = do
             called (times total)
 
         withRunInIO $ \runInIO -> do
-          as <- replicateM threads (async $ runInIO $ do
-            replicateM_ callsPerThread $ do
-              liftIO $ evaluate $ mockFn "stress"
-              liftIO $ threadDelay 1)
+          as <- forM [1 .. threads] $ \threadIx ->
+            async $ runInIO $ do
+              forM_ [1 .. callsPerThread] $ \callIx -> do
+                let tag = threadIx * 1000 + callIx
+                liftIO $ evaluate $ perCall tag (mockFn "stress")
+                liftIO $ threadDelay 1
           mapM_ wait as
 
     it "concurrent calls preserve order expectations" $ do
