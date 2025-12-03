@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.37.0.
+-- This file has been generated from package.yaml by hpack version 0.39.0.
 --
 -- see: https://github.com/sol/hpack
 
@@ -105,10 +105,12 @@ test-suite mockcat-test
       Test.MockCat.Impl
       Test.MockCat.Internal.RegistrySpec
       Test.MockCat.MockSpec
+      Test.MockCat.MockTSpec
       Test.MockCat.ParamSpec
       Test.MockCat.PartialMockSpec
       Test.MockCat.PartialMockTHSpec
       Test.MockCat.SharedSpecDefs
+      Test.MockCat.ShouldBeCalledMockMSpec
       Test.MockCat.ShouldBeCalledSpec
       Test.MockCat.StubSpec
       Test.MockCat.TH.ClassAnalysisSpec
@@ -118,6 +120,7 @@ test-suite mockcat-test
       Test.MockCat.THCompareSpec
       Test.MockCat.TypeClassSpec
       Test.MockCat.TypeClassTHSpec
+      Test.MockCat.UnsafeCheck
       Test.MockCat.WithMockSpec
       Paths_mockcat
   hs-source-dirs:
@@ -130,6 +133,7 @@ test-suite mockcat-test
     , containers ==0.6.*
     , hashable >=1.4 && <1.6
     , hspec >=2.11 && <2.13
+    , inspection-testing >=0.4 && <0.6
     , mockcat
     , mtl >=2.3.1 && <2.4
     , stm ==2.5.*

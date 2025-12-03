@@ -19,7 +19,7 @@ import Test.MockCat.SharedSpecDefs
 import GHC.IO (evaluate)
 import Control.Concurrent.Async (async, wait)
 import Control.Concurrent (threadDelay)
-import Control.Monad (replicateM_, void, forM, forM_)
+import Control.Monad (void, forM, forM_)
 import Control.Monad.IO.Unlift (withRunInIO)
 import Control.Monad.IO.Class (liftIO)
 import Control.Exception (try, ErrorCall(..))

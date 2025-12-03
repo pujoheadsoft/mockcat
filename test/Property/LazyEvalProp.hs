@@ -8,7 +8,7 @@
 {-# OPTIONS_GHC -Wno-simplifiable-class-constraints #-}
 module Property.LazyEvalProp where
 
-import Test.QuickCheck
+import Test.QuickCheck hiding (once)
 import Test.QuickCheck.Monadic (monadicIO, run, assert)
 import Test.MockCat hiding (any)
 
@@ -24,7 +24,9 @@ makeMock [t|LazyUnaryAction|]
 prop_lazy_unforced_not_counted :: Property
 prop_lazy_unforced_not_counted = monadicIO $ do
   run $ runMockT $ do
-    _lazyUnaryAction (param (10 :: Int) |> (42 :: Int)) `applyTimesIs` 0
+    _ <- _lazyUnaryAction (param (10 :: Int) |> (42 :: Int))
+      `expects` do
+        called never
     -- Do NOT force the call; only build a thunk.
     let _thunk :: MockT IO Int
         _thunk = lazyUnaryAction 10
@@ -35,7 +37,9 @@ prop_lazy_unforced_not_counted = monadicIO $ do
 prop_lazy_forced_counted :: Property
 prop_lazy_forced_counted = monadicIO $ do
   run $ runMockT $ do
-    _lazyUnaryAction (param (10 :: Int) |> (7 :: Int)) `applyTimesIs` 1
+    _ <- _lazyUnaryAction (param (10 :: Int) |> (7 :: Int))
+      `expects` do
+        called once
     v <- lazyUnaryAction 10   -- forcing the monadic action executes the mock
     v `seq` pure ()           -- ensure result is evaluated (WHNF for Int)
   assert True

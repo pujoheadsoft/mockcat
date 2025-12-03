@@ -56,7 +56,9 @@ prop_lazy_partial_force_concurrency = forAll genPlan $ \(arg, mask) -> monadicIO
   let forcedCount = length (filter id mask)
   run $ runMockT $ do
     -- expectation: arg -> arg; count only forced executions
-    _parLazy (param arg |> arg) `expectApplyTimes` forcedCount
+    _ <- _parLazy (param arg |> arg)
+      `expects` do
+        called (times forcedCount)
     -- prepare thunks (NOT executed yet)
     let thunks = replicate (length mask) (parLazy arg)
     withRunInIO $ \runIn -> do

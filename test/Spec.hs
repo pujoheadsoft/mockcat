@@ -11,12 +11,14 @@ import Test.MockCat.PartialMockTHSpec as PartialMockTH
 import Test.MockCat.ConcurrencySpec as Concurrency
 import Test.MockCat.StubSpec as Stub
 import Test.MockCat.Internal.RegistrySpec as Registry
+import Test.MockCat.MockTSpec as MockTSpec
 import Test.MockCat.THCompareSpec as THCompare
 import Test.MockCat.TH.TypeUtilsSpec as THTypeUtils
 import Test.MockCat.TH.ContextBuilderSpec as THContextBuilder
 import Test.MockCat.TH.ClassAnalysisSpec as THClassAnalysis
 import Test.MockCat.TH.FunctionBuilderSpec as THFunctionBuilder
 import Test.MockCat.ShouldBeCalledSpec as ShouldBeCalled
+import Test.MockCat.ShouldBeCalledMockMSpec as ShouldBeCalledMockM
 import Test.MockCat.WithMockSpec as WithMock
 import Test.QuickCheck (property)
 import qualified Property.ConcurrentCountProp as ConcurrencyProp
@@ -42,6 +44,7 @@ main = hspec $ do
     PartialMockTH.spec
     Concurrency.spec
     Stub.spec
+    MockTSpec.spec
     Registry.spec
     THCompare.spec
     THTypeUtils.spec
@@ -49,6 +52,7 @@ main = hspec $ do
     THClassAnalysis.spec
     THFunctionBuilder.spec
     ShouldBeCalled.spec
+    ShouldBeCalledMockM.spec
     WithMock.spec
     describe "Property Concurrency" $ do
       it "total apply count is preserved across threads" $ property ConcurrencyProp.prop_concurrent_total_apply_count

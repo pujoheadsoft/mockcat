@@ -53,7 +53,7 @@ Use it when the following resonate:
 | You only need 1–3 small mocks and don’t want a heavy framework | Single expression `a |> b |> r` expectations stay lightweight |
 | You want argument + occurrence sensitive returns | Multiple `onCase` (including duplicate args) choose per call deterministically |
 | Verifying exact / partial order matters | Built‑in `shouldApplyInOrder` / `shouldApplyInPartialOrder` without extra harness |
-| Need to assert precise call counts (including zero) | `expectApplyTimes`, `expectNever`, plus granular `shouldApplyTimes*` APIs |
+| Need to assert precise call counts (including zero) | `expects` (`called …`, `times …`, etc.) or synchronous `shouldBeCalled` checks |
 | Concurrency: parallel tasks must not lose counts | Atomic recording + per‑call evaluation semantics tested with property tests |
 | You prefer explicit, non‑magical DSL | Only `|>` and a few combinators (`any`, `expect`, `expect_`, TH expectByExpr) |
 | You mix real + mocked methods in a typeclass | `makePartialMock` keeps untouched members real |
@@ -154,15 +154,16 @@ spec = it "kv" do
 
 Non‑invocation (two styles):
 ```haskell
-  _putKV ("x" |> "y" |> ()) `expectApplyTimes` 0  -- (legacy name: applyTimesIs)
-  neverApply $ _putKV ("x" |> "y" |> ())
+  _putKV ("x" |> "y" |> ())
+    `expects` do
+      called never
 ```
 
 ### Core Concepts (Brief)
 * Pipeline DSL: `a |> b |> returnValue` describes one expected application.
 * Matchers: `any`, `expect p label`, `expect_ p`, `$(expectByExpr [| predicate |])`.
 * Argument‑dependent returns: `onCase` or `cases [...]` (including differing values for same arg on later occurrences).
-* Counting: `expectApplyTimes` (legacy: `applyTimesIs`), `expectNever` (legacy: `neverApply`), plus `shouldApplyTimes*` predicates on mocks.
+* Counting: use `expects` (`called`, `times`, `atLeast`, etc.) or explicit `shouldBeCalled`/`shouldApplyTimes*` predicates.
 * Ordering: `shouldApplyInOrder`, `shouldApplyInPartialOrder`.
 * Concurrency: Call recorded only when result evaluated; counting atomic.
 * Partial mocks: `makePartialMock` for generating only some methods.
@@ -294,15 +295,9 @@ Note: all counting / order verification helpers (`shouldApplyTimes`, `shouldAppl
 `shouldApplyTimesToAnything`, `shouldApplyInOrder`, `shouldApplyInPartialOrder`, …) can only be used with callable mocks (functions or IO actions).  
 Pure constant mocks such as `mock "foo"` only support `shouldApplyTo` / `shouldApplyToAnything`, because they are plain values and cannot meaningfully record multiple applications.  
 Attempting to call one of the counting/order helpers on a pure constant mock now results in a compile-time error.
-In the case of typeclass mocks, when `runMockT` is applied, verification that the prepared stub functions have been applied is performed automatically.
-```haskell
-result <- runMockT do
-  _readFile $ "input.txt" |> pack "Content"
-  _writeFile $ "output.text" |> pack "Content" |> ()
-  operationProgram "input.txt" "output.text"
 
-result `shouldBe` ()
-```
+Typeclass mocks follow the same rule. Template Haskell generated helpers such as `_readFile` and `_writeFile` now return the actual mock functions, so you can chain `expects` directly to them. `runMockT` simply executes the supplied block inside a fresh expectation context; nothing is verified unless you register expectations with `expects` or call `shouldBeCalled` on the returned mock yourself.
+
 ## Mock of monad type class
 ### Example usage
 For example, suppose the following monad type class `FileOperation` and a function `operationProgram` that uses `FileOperation` are defined.
@@ -348,20 +343,19 @@ The last value of `|>` is the return value of the function.
 Mocks are run with `runMockT`.
 
 ### Verification
-After execution, the stub function is verified to see if it is applied as expected.  
-For example, the expected argument of the stub function `_writeFile` in the above example is changed from `"content"` to `"edited content"`.
+Attach expectations while defining the stub so that mismatches fail automatically.
 ```haskell
 result <- runMockT do
   _readFile ("input.txt" |> pack "content")
-  _writeFile ("output.txt" |> pack "edited content" |> ())
+  _ <- _writeFile ("output.txt" |> pack "content" |> ())
+    `expects` (called once `with` ("output.txt" |> pack "content" |> ()))
   operationProgram "input.txt" "output.txt"
+
+result `shouldBe` ()
 ```
-If you run the test, the test will fail and you will get the following error message.
+Changing the expected arguments (for example to `"edited content"`) makes the test fail with
 ```console
-uncaught exception: ErrorCall
 function `_writeFile` was not applied to the expected arguments.
-  expected: "output.txt", "edited content"
-  but got: "output.txt", "content"
 ```
 
 Suppose also that you did not use the stub function corresponding to the function you are using in your test case, as follows
@@ -383,24 +377,26 @@ operationProgram inputPath outputPath = do
   unless (pack "ngWord" `isInfixOf` content) $
     writeFile outputPath content
 ```
-This can be accomplished by using the `expectApplyTimes` function (legacy name: `applyTimesIs`) as follows.
+This can be accomplished by using `expects` with a count expectation as follows.
 ```haskell
 import Test.MockCat as M
 ...
 it "Read, and output files (contain ng word)" do
   result <- runMockT do
     _readFile ("input.txt" |> pack "contains ngWord")
-    _writeFile ("output.txt" |> M.any |> ()) `expectApplyTimes` 0
+    _ <- _writeFile ("output.txt" |> M.any |> ())
+      `expects` do
+        called never
     operationProgram "input.txt" "output.txt"
 
   result `shouldBe` ()
 ```
 You can verify that it was not applied by specifying `0`.
-Or you can use the `neverApply` function to accomplish the same thing.
+Or, if you prefer an explicit check, you can call `shouldBeCalled` after the test:
 ```haskell
 result <- runMockT do
-  _readFile ("input.txt" |> pack "contains ngWord")
-  neverApply $ _writeFile ("output.txt" |> M.any |> ())
+  stub <- _writeFile ("output.txt" |> M.any |> ())
+  liftIO $ stub `shouldBeCalled` never
   operationProgram "input.txt" "output.txt"
 ```
 `M.any` is a parameter that matches any value.  
@@ -428,22 +424,15 @@ spec :: Spec
 spec = do
   it "Read, and output files (with MonadReader)" do
     r <- runMockT do
-      _ask (Environment "input.txt" "output.txt")
+      _ <- _ask (Environment "input.txt" "output.txt")
+        `expects` (called once `with` (Environment "input.txt" "output.txt"))
       _readFile ("input.txt" |> pack "content")
       _writeFile ("output.txt" |> pack "content" |> ())
       operationProgram
     r `shouldBe` ()
 ```
-Now let's try to avoid using `ask`.
-```haskell
-operationProgram = do
-  content <- readFile "input.txt"
-  writeFile "output.txt" content
-```
-Then the test run fails and you will see that the stub function was not applied.
-```haskell
-It has never been applied function `_ask`
-```
+Removing the `ask` call from `operationProgram` now makes the expectation above fail with
+`It has never been applied function '_ask'`.
 ### Mock that returns a value of type `IO a`.
 Normally constant functions return the same value, but only for mocks that return a value of type `IO a`, you can create a mock that returns a different value each time it is applied.  
 For example, suppose a typeclass `Teletype` and a function `echo` to be tested are defined.  
@@ -534,8 +523,8 @@ instance (Monad m) => FileOperation (MockT m) where
   readFile :: Monad m => FilePath -> MockT m Text
   writeFile :: Monad m => FilePath -> Text -> MockT m ()
 
-_readFile :: (MockBuilder params (FilePath -> Text) (Param FilePath), Monad m) => params -> MockT m ()
-_writeFile :: (MockBuilder params (FilePath -> Text -> ()) (Param FilePath :> Param Text), Monad m) => params -> MockT m ()
+_readFile :: (MockBuilder params (FilePath -> Text) (Param FilePath), Monad m) => params -> MockT m (FilePath -> Text)
+_writeFile :: (MockBuilder params (FilePath -> Text -> ()) (Param FilePath :> Param Text), Monad m) => params -> MockT m (FilePath -> Text -> ())
 ```
 ## Mocking functions
 In addition to mocking monad type classes, mockcat can also mock regular functions.  

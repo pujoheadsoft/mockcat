@@ -26,15 +26,15 @@ import Control.Concurrent.STM
   )
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans.Class (MonadTrans(..))
-import Control.Monad.Reader (ReaderT(..), runReaderT)
+import Control.Monad.Reader (ReaderT(..), runReaderT, asks)
 import GHC.TypeLits (KnownSymbol)
 import Data.Data (Proxy, Typeable)
-import Data.Foldable (for_)
 import UnliftIO (MonadUnliftIO(..))
 import Test.MockCat.Internal.Types (Verifier, CountVerifyMethod(..))
 import Test.MockCat.Verify (ResolvableParamsOf, resolveForVerification, verificationFailure, verifyAppliedCount)
+import Test.MockCat.WithMock (WithMockContext(..), MonadWithMockContext(..))
 
-{- | MockT is a thin wrapper over @ReaderT (TVar [Definition])@ providing
+{- | MockT is a thin wrapper over @ReaderT MockTEnv@ providing
      mock/stub registration and post-run verification.
 
 Concurrency safety (summary):
@@ -52,7 +52,12 @@ Concurrency safety (summary):
   * Each 'runMockT' call uses a fresh TVar store; mocks are not shared across
     separate 'runMockT' boundaries.
 -}
-newtype MockT m a = MockT { unMockT :: ReaderT (TVar [Definition]) m a }
+data MockTEnv = MockTEnv
+  { envDefinitions :: TVar [Definition]
+  , envWithMockContext :: WithMockContext
+  }
+
+newtype MockT m a = MockT { unMockT :: ReaderT MockTEnv m a }
   deriving (Functor, Applicative, Monad, MonadTrans, MonadIO)
 
 class Monad m => MonadMockDefs m where
@@ -60,8 +65,11 @@ class Monad m => MonadMockDefs m where
   getDefinitions :: m [Definition]
 
 instance MonadUnliftIO m => MonadUnliftIO (MockT m) where
-  withRunInIO inner = MockT $ ReaderT $ \ref ->
-    withRunInIO $ \run -> inner (\(MockT r) -> run (runReaderT r ref))
+  withRunInIO inner = MockT $ ReaderT $ \env ->
+    withRunInIO $ \run -> inner (\(MockT r) -> run (runReaderT r env))
+
+instance {-# OVERLAPPING #-} Monad m => MonadWithMockContext (MockT m) where
+  askWithMockContext = MockT $ asks envWithMockContext
 
 
 data Definition =
@@ -115,10 +123,16 @@ data Definition =
 -}
 runMockT :: MonadIO m => MockT m a -> m a
 runMockT (MockT r) = do
-  ref <- liftIO $ newTVarIO []
-  a <- runReaderT r ref
-  defs <- liftIO $ readTVarIO ref
-  for_ defs (\(Definition _ mockFunction verify) -> liftIO $ verify mockFunction)
+  defsVar <- liftIO $ newTVarIO []
+  expectsVar <- liftIO $ newTVarIO []
+  let env =
+        MockTEnv
+          { envDefinitions = defsVar
+          , envWithMockContext = WithMockContext expectsVar
+          }
+  a <- runReaderT r env
+  actions <- liftIO $ readTVarIO expectsVar
+  liftIO $ sequence_ actions
   pure a
 
 {- | (Preferred: 'expectApplyTimes'; legacy: 'applyTimesIs')
@@ -172,36 +186,37 @@ expectApplyTimes :: MonadIO m => MockT m () -> Int -> MockT m ()
 expectApplyTimes = applyTimesIs
 
 applyTimesIs :: MonadIO m => MockT m () -> Int -> MockT m ()
-applyTimesIs (MockT inner) a = MockT $ ReaderT $ \ref -> do
-  tmp <- liftIO $ newTVarIO []
-  _ <- runReaderT inner tmp
-  defs <- liftIO $ readTVarIO tmp
+applyTimesIs (MockT inner) a = MockT $ ReaderT $ \env -> do
+  tmpDefs <- liftIO $ newTVarIO []
+  let nestedEnv = env { envDefinitions = tmpDefs }
+  _ <- runReaderT inner nestedEnv
+  defs <- liftIO $ readTVarIO tmpDefs
   let patched = map (\(Definition s fn _) -> Definition s fn (`verifyApplyCount` (Equal a))) defs
-  liftIO $ atomically $ modifyTVar' ref (++ patched)
+  liftIO $ atomically $ modifyTVar' (envDefinitions env) (++ patched)
   pure ()
 
 neverApply :: MonadIO m => MockT m () -> MockT m ()
-neverApply (MockT inner) = MockT $ ReaderT $ \ref -> do
-  tmp <- liftIO $ newTVarIO []
-  _ <- runReaderT inner tmp
-  defs <- liftIO $ readTVarIO tmp
+neverApply (MockT inner) = MockT $ ReaderT $ \env -> do
+  tmpDefs <- liftIO $ newTVarIO []
+  let nestedEnv = env { envDefinitions = tmpDefs }
+  _ <- runReaderT inner nestedEnv
+  defs <- liftIO $ readTVarIO tmpDefs
   let patched = map (\(Definition s m _) -> Definition s m (`verifyApplyCount` (Equal 0))) defs
-  liftIO $ atomically $ modifyTVar' ref (++ patched)
+  liftIO $ atomically $ modifyTVar' (envDefinitions env) (++ patched)
   pure ()
 
 -- | Alias for 'neverApply' providing naming symmetry with 'expectApplyTimes'.
 -- note: `expectNever` removed; use `neverApply`
 
 instance MonadIO m => MonadMockDefs (MockT m) where
-  addDefinition d = MockT $ ReaderT $ \ref ->
-    liftIO $ atomically $ modifyTVar' ref (++ [d])
-  getDefinitions = MockT $ ReaderT $ \ref -> liftIO $ readTVarIO ref
+  addDefinition d = MockT $ ReaderT $ \env ->
+    liftIO $ atomically $ modifyTVar' (envDefinitions env) (++ [d])
+  getDefinitions = MockT $ ReaderT $ \env -> liftIO $ readTVarIO (envDefinitions env)
 
-instance MonadIO m => MonadMockDefs (ReaderT (TVar [Definition]) m) where
-  addDefinition d = ReaderT $ \ref ->
-    liftIO $ atomically $ modifyTVar' ref (++ [d])
-  getDefinitions = ReaderT $ \ref -> liftIO $ readTVarIO ref
-
+instance MonadIO m => MonadMockDefs (ReaderT MockTEnv m) where
+  addDefinition d = ReaderT $ \env ->
+    liftIO $ atomically $ modifyTVar' (envDefinitions env) (++ [d])
+  getDefinitions = ReaderT $ \env -> liftIO $ readTVarIO (envDefinitions env)
 verifyApplyCount ::
   forall f params.
   ( Typeable params

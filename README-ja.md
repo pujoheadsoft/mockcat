@@ -187,15 +187,8 @@ stubFunction `shouldApplyTimesToAnything` (1 :: Int)
 なお、回数／順序の検証を行う各種ヘルパ（`shouldApplyTimes` 系、`shouldApplyTimesToAnything`、`shouldApplyInOrder`、`shouldApplyInPartialOrder` など）は、関数（あるいは IO アクション）として呼び出されるモックにしか利用できません。  
 `mock "foo"` のような純粋な定数モックは単なる値であり適用回数を記録できないため、`shouldApplyTo` / `shouldApplyToAnything` を使用してください。  
 上記の回数／順序ヘルパを定数モックに対して呼び出そうとすると、コンパイルエラーになります。
-型クラスのモックの場合は、`runMockT`を適用した際、用意したスタブ関数の適用が行われたかの検証が自動で行われます。
-```haskell
-result <- runMockT do
-  _readFile $ "input.txt" |> pack "Content"
-  _writeFile $ "output.text" |> pack "Content" |> ()
-  operationProgram "input.txt" "output.text"
 
-result `shouldBe` ()
-```
+型クラスのモックでも考え方は同じです。Template Haskell で自動生成される `_readFile` や `_writeFile` は、`expects` を直列に書けるよう実際のモック関数を返します。`runMockT` は新しい検証コンテキストでブロックを実行するだけなので、`expects` で期待値を登録するか、返されたモックに対して `shouldBeCalled` を呼ばない限り自動検証は行われません。
 ## 型クラスのモック
 ここからはより詳しく説明していきます。
 ### 例
@@ -242,21 +235,18 @@ spec = do
 モックは`runMockT`で実行します。
 
 ### 検証
-実行の後、スタブ関数が期待通りに適用されたか検証が行われます。  
-例えば、上記の例のスタブ関数`_writeFile`の適用が期待される引数を`"content"`から`"edited content"`に書き換えてみます。
+スタブを用意する際に期待値を登録しておくと、想定外の呼び出しでテストが自動的に失敗します。
 ```haskell
 result <- runMockT do
   _readFile ("input.txt" |> pack "content")
-  _writeFile ("output.txt" |> pack "edited content" |> ())
+  _ <- _writeFile ("output.txt" |> pack "content" |> ())
+    `expects` (called once `with` ("output.txt" |> pack "content" |> ()))
   operationProgram "input.txt" "output.txt"
+
+result `shouldBe` ()
 ```
-テストを実行すると、テストは失敗し、次のエラーメッセージが表示されます。
-```console
-uncaught exception: ErrorCall
-function `_writeFile` was not applied to the expected arguments.
-  expected: "output.txt","edited content"
-  but got: "output.txt","content"
-```
+この状態で期待される引数を `"edited content"` に変更すると、これまでどおり
+`function '_writeFile' was not applied to the expected arguments.` というエラーになります。
 
 また次のようにテスト対象で使用している関数に対応するスタブ関数を使用しなかったとします。
 ```haskell
@@ -279,25 +269,25 @@ operationProgram inputPath outputPath = do
     writeFile outputPath content
 ```
 
-これは次のように`expectApplyTimes`関数（旧: `applyTimesIs`）を使うことで実現できます。
+これは次のように`expects`でカウント期待値を宣言することで実現できます。
 ```haskell
 import Test.MockCat as M
 ...
 it "Read, and output files (contain ng word)" do
   result <- runMockT do
     _readFile ("input.txt" |> pack "contains ngWord")
-    _writeFile ("output.txt" |> M.any |> ()) `expectApplyTimes` 0
+    _ <- _writeFile ("output.txt" |> M.any |> ())
+      `expects` do
+        called never
     operationProgram "input.txt" "output.txt"
 
   result `shouldBe` ()
 ```
-`0`を指定することで適用されなかったことを検証できます。
-
-あるいは`neverApply`関数を使うことで同じことが実現できます。
+もしくはブロック終了後に直接 `shouldBeCalled` を呼び出しても構いません。
 ```haskell
 result <- runMockT do
-  _readFile ("input.txt" |> pack "contains ngWord")
-  neverApply $ _writeFile ("output.txt" |> M.any |> ())
+  stub <- _writeFile ("output.txt" |> M.any |> ())
+  liftIO $ stub `shouldBeCalled` never
   operationProgram "input.txt" "output.txt"
 ```
 
@@ -327,22 +317,15 @@ spec :: Spec
 spec = do
   it "Read, and output files (with MonadReader)" do
     r <- runMockT do
-      _ask (Environment "input.txt" "output.txt")
+      _ <- _ask (Environment "input.txt" "output.txt")
+        `expects` (called once `with` (Environment "input.txt" "output.txt"))
       _readFile ("input.txt" |> pack "content")
       _writeFile ("output.txt" |> pack "content" |> ())
       operationProgram
     r `shouldBe` ()
 ```
-ここで、`ask`を使わないようにしてみます。
-```haskell
-operationProgram = do
-  content <- readFile "input.txt"
-  writeFile "output.txt" content
-```
-するとテスト実行に失敗し、スタブ関数が適用されなかったことが表示されます。
-```haskell
-It has never been applied function `_ask`
-```
+ここで`ask`の呼び出しを削除すると、上記の期待値が失敗して
+`It has never been applied function '_ask'` というエラーになります。
 ### `IO a`型の値を返すモック
 通常定数関数は同じ値を返しますが、`IO a`型の値を返すモックの場合のみ、適用する度に別の値を返すようなモックを作ることができます。
 例えば型クラス`Teletype`とテスト対象の関数`echo`が定義されているとします。
@@ -436,8 +419,8 @@ instance (Monad m) => FileOperation (MockT m) where
   readFile :: Monad m => FilePath -> MockT m Text
   writeFile :: Monad m => FilePath -> Text -> MockT m ()
 
-_readFile :: (MockBuilder params (FilePath -> Text) (Param FilePath), Monad m) => params -> MockT m ()
-_writeFile :: (MockBuilder params (FilePath -> Text -> ()) (Param FilePath :> Param Text), Monad m) => params -> MockT m ()
+_readFile :: (MockBuilder params (FilePath -> Text) (Param FilePath), Monad m) => params -> MockT m (FilePath -> Text)
+_writeFile :: (MockBuilder params (FilePath -> Text -> ()) (Param FilePath :> Param Text), Monad m) => params -> MockT m (FilePath -> Text -> ())
 ```
 
 ## 関数のモック

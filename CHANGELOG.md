@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to the
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
+## Unreleased
+### Changed
+- Template Haskell generated helpers (e.g. `_readFile`, `_writeFile`) now return the mock function itself so they can be chained with `expects`.
+- `runMockT` / `withMock` no longer perform implicit verification; expectations run only when registered via `expects` or triggered manually via `shouldBeCalled`.
+
+### Documentation
+- Clarified the new expectation-driven flow in both README files.
+
 ## 0.6.0.0
 ### Changed
 - Removed the upper limit on variable arguments when creating stub functions. Previously, there was a restriction on the maximum number of arguments, but this limitation has been removed, allowing stub functions to accept an arbitrary number of arguments.

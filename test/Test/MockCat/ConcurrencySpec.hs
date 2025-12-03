@@ -48,11 +48,12 @@ parallelCallActionN n = withRunInIO \runInIO -> do
 
 spec :: Spec
 spec = do
-  describe "Concurrency / applyTimesIs" do
+  describe "Concurrency / expects" do
     it "counts calls across parallel async threads" do
       result <- runMockT do
-        _action (any |> (1 :: Int)) `applyTimesIs` 10
-
+        _ <- _action (any |> (1 :: Int))
+          `expects` do
+            called (times 10)
         parallelActionSum 10
       result `shouldBe` 10
 
@@ -61,22 +62,28 @@ spec = do
           callsPerThread = 20 :: Int
           total = threads * callsPerThread :: Int
       _ <- (runMockT $ do
-        _action (any |> (1 :: Int)) `applyTimesIs` total
+        _ <- _action (any |> (1 :: Int))
+          `expects` do
+            called (times total)
         parallelCallActionWithDelay threads callsPerThread
         ) :: IO ()
       pure ()
 
     it "fails verification when calls are fewer than declared" do
       runMockT (do
-        _action (any |> (1 :: Int)) `applyTimesIs` 10
+        _ <- _action (any |> (1 :: Int))
+          `expects` do
+            called (times 10)
         parallelCallActionN 9
         pure ()
         ) `shouldThrow` anyErrorCall
 
-  describe "Concurrency / neverApply" do
-    it "neverApply passes when stub not used in parallel context" do
+  describe "Concurrency / never expectation" do
+    it "passes when stub not used in parallel context" do
       r <- runMockT do
-        neverApply $ _action (any |> (99 :: Int))
+        _ <- _action (any |> (99 :: Int))
+          `expects` do
+            called never
 
         pure (123 :: Int)
       r `shouldBe` 123

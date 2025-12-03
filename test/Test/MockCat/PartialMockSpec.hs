@@ -5,8 +5,10 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE LambdaCase #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
+{-# OPTIONS_GHC -Wno-unused-do-bind #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeApplications #-}
@@ -14,13 +16,14 @@
 module Test.MockCat.PartialMockSpec (spec) where
 
 import Data.Text (Text, pack)
-import Test.Hspec (Spec, it, shouldBe, describe, shouldThrow, errorCall)
+import Control.Exception (ErrorCall(..), displayException)
+import Data.List (find, isInfixOf)
+import Test.Hspec (Spec, it, shouldBe, describe, shouldThrow, Selector)
 import Test.MockCat
 import Test.MockCat.SharedSpecDefs
 import Test.MockCat.Impl ()
 import Prelude hiding (readFile, writeFile)
 import Data.Data
-import Data.List (find)
 import GHC.TypeLits (KnownSymbol, symbolVal)
 import Unsafe.Coerce (unsafeCoerce)
 
@@ -29,6 +32,23 @@ import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Maybe (MaybeT (..))
 import Control.Monad.Trans.Reader hiding (ask)
 import qualified Test.MockCat.Verify as Verify
+
+missingCall :: String -> Selector ErrorCall
+missingCall name err =
+  let needle = "function `" <> name <> "` was not applied the expected number of times."
+   in needle `isInfixOf` displayException err
+
+ensureVerifiable ::
+  ( MonadIO m
+  , Verify.ResolvableMock target
+  ) =>
+  target ->
+  m ()
+ensureVerifiable target =
+  liftIO $
+    Verify.resolveForVerification target >>= \case
+      Just _ -> pure ()
+      Nothing -> Verify.verificationFailure
 
 getUserInput :: UserInputGetter m => m (Maybe UserInput)
 getUserInput = do
@@ -109,48 +129,40 @@ _readFile ::
   , MonadIO m
   ) =>
   params ->
-  MockT m ()
+  MockT m (FilePath -> Text)
 _readFile p = MockT $ do
   mockInstance <- liftIO $ createNamedMockFnWithParams "readFile" p
-  resolved <- liftIO $ do
-    result <- Verify.resolveForVerification mockInstance
-    case result of
-      Just (maybeName, verifier) -> pure $ Verify.ResolvedMock maybeName verifier
-      Nothing -> Verify.verificationFailure
-  let verifyStub _ = Verify.verifyResolvedAny resolved
+  ensureVerifiable mockInstance
+  let verifyStub _ = pure ()
   addDefinition (Definition (Proxy :: Proxy "readFile") mockInstance verifyStub)
+  pure mockInstance
 
 _writeFile ::
   ( MockBuilder params (FilePath -> Text -> ()) (Param FilePath :> Param Text)
   , MonadIO m
   ) =>
   params ->
-  MockT m ()
+  MockT m (FilePath -> Text -> ())
 _writeFile p = MockT $ do
   mockInstance <- liftIO $ createNamedMockFnWithParams "writeFile" p
-  resolved <- liftIO $ do
-    result <- Verify.resolveForVerification mockInstance
-    case result of
-      Just (maybeName, verifier) -> pure $ Verify.ResolvedMock maybeName verifier
-      Nothing -> Verify.verificationFailure
-  let verifyStub _ = Verify.verifyResolvedAny resolved
+  ensureVerifiable mockInstance
+  let verifyStub _ = pure ()
   addDefinition (Definition (Proxy :: Proxy "writeFile") mockInstance verifyStub)
+  pure mockInstance
 
 _getInput ::
   ( Verify.ResolvableParamsOf r ~ ()
   , MonadIO m
   , Typeable r
-  ) =>r ->
-  MockT m ()
+  ) =>
+  r ->
+  MockT m r
 _getInput value = MockT $ do
   mockInstance <- liftIO $ createNamedMockFnWithParams "getInput" (Head :> param value)
-  resolved <- liftIO $ do
-    result <- Verify.resolveForVerification mockInstance
-    case result of
-      Just (maybeName, verifier) -> pure $ Verify.ResolvedMock maybeName verifier
-      Nothing -> Verify.verificationFailure
-  let verifyStub _ = Verify.verifyResolvedAny resolved
+  ensureVerifiable mockInstance
+  let verifyStub _ = pure ()
   addDefinition (Definition (Proxy :: Proxy "getInput") mockInstance verifyStub)
+  pure mockInstance
 
 _toUserInput ::
   ( MockBuilder params (String -> m (Maybe UserInput)) (Param String)
@@ -159,16 +171,13 @@ _toUserInput ::
   , Verify.ResolvableParamsOf (String -> m (Maybe UserInput)) ~ Param String
   ) =>
   params ->
-  MockT m ()
+  MockT m (String -> m (Maybe UserInput))
 _toUserInput p = MockT $ do
   mockInstance <- liftIO $ createNamedMockFnWithParams "toUserInput" p
-  resolved <- liftIO $ do
-    result <- Verify.resolveForVerification mockInstance
-    case result of
-      Just (maybeName, verifier) -> pure $ Verify.ResolvedMock maybeName verifier
-      Nothing -> Verify.verificationFailure
-  let verifyStub _ = Verify.verifyResolvedAny resolved
+  ensureVerifiable mockInstance
+  let verifyStub _ = pure ()
   addDefinition (Definition (Proxy :: Proxy "toUserInput") mockInstance verifyStub)
+  pure mockInstance
 
 _getByPartial ::
   ( MockBuilder params (String -> m Int) (Param String)
@@ -177,16 +186,13 @@ _getByPartial ::
   , Verify.ResolvableParamsOf (String -> m Int) ~ Param String
   ) =>
   params ->
-  MockT m ()
+  MockT m (String -> m Int)
 _getByPartial p = MockT $ do
   mockInstance <- liftIO $ createNamedMockFnWithParams "getBy" p
-  resolved <- liftIO $ do
-    result <- Verify.resolveForVerification mockInstance
-    case result of
-      Just (maybeName, verifier) -> pure $ Verify.ResolvedMock maybeName verifier
-      Nothing -> Verify.verificationFailure
-  let verifyStub _ = Verify.verifyResolvedAny resolved
+  ensureVerifiable mockInstance
+  let verifyStub _ = pure ()
   addDefinition (Definition (Proxy :: Proxy "getBy") mockInstance verifyStub)
+  pure mockInstance
 
 _echoPartial ::
   ( MockBuilder params (String -> m ()) (Param String)
@@ -195,16 +201,13 @@ _echoPartial ::
   , Verify.ResolvableParamsOf (String -> m ()) ~ Param String
   ) =>
   params ->
-  MockT m ()
+  MockT m (String -> m ())
 _echoPartial p = MockT $ do
   mockInstance <- liftIO $ createNamedMockFnWithParams "echo" p
-  resolved <- liftIO $ do
-    result <- Verify.resolveForVerification mockInstance
-    case result of
-      Just (maybeName, verifier) -> pure $ Verify.ResolvedMock maybeName verifier
-      Nothing -> Verify.verificationFailure
-  let verifyStub _ = Verify.verifyResolvedAny resolved
+  ensureVerifiable mockInstance
+  let verifyStub _ = pure ()
   addDefinition (Definition (Proxy :: Proxy "echo") mockInstance verifyStub)
+  pure mockInstance
 
 findParam :: KnownSymbol sym => Proxy sym -> [Definition] -> Maybe a
 findParam pa definitions = do
@@ -233,22 +236,20 @@ _findIds ::
   ( Verify.ResolvableParamsOf r ~ ()
   , MonadIO m
   , Typeable r
-  ) =>r ->
-  MockT m ()
+  ) =>
+  r ->
+  MockT m r
 _findIds p = MockT $ do
   mockInstance <- liftIO $ createNamedMockFnWithParams "_findIds" (Head :> param p)
-  resolved <- liftIO $ do
-    result <- Verify.resolveForVerification mockInstance
-    case result of
-      Just (maybeName, verifier) -> pure $ Verify.ResolvedMock maybeName verifier
-      Nothing -> Verify.verificationFailure
-  let verifyStub _ = Verify.verifyResolvedAny resolved
+  ensureVerifiable mockInstance
+  let verifyStub _ = pure ()
   addDefinition
     ( Definition
         (Proxy :: Proxy "_findIds")
         mockInstance
         verifyStub
     )
+  pure mockInstance
 
 spec :: Spec
 spec = do
@@ -314,42 +315,56 @@ spec = do
   describe "verification failures" do
     it "fails when _readFile is defined but readFile is never called" do
       (runMockT @IO do
-        _readFile ("input.txt" |> pack "content")
+        _ <- _readFile ("input.txt" |> pack "content")
+          `expects` do
+            called once
         -- readFile is never called
-        pure ()) `shouldThrow` errorCall "It has never been applied function `readFile`"
+        pure ()) `shouldThrow` (missingCall "readFile")
 
     it "fails when _writeFile is defined but writeFile is never called" do
       (runMockT @IO do
-        _writeFile $ "output.txt" |> pack "content" |> ()
+        _ <- _writeFile ("output.txt" |> pack "content" |> ())
+          `expects` do
+            called once
         -- writeFile is never called
-        pure ()) `shouldThrow` errorCall "It has never been applied function `writeFile`"
+        pure ()) `shouldThrow` (missingCall "writeFile")
 
     it "fails when _getInput is defined but getInput is never called" do
       (runMockT @IO do
-        _getInput "value"
+        _ <- _getInput "value"
+          `expects` do
+            called once
         -- getInput is never called
-        pure ()) `shouldThrow` errorCall "It has never been applied function `getInput`"
+        pure ()) `shouldThrow` (missingCall "getInput")
 
     it "fails when _toUserInput is defined but toUserInput is never called" do
       (runMockT @IO do
-        _toUserInput $ "value" |> pure @IO (Just (UserInput "value"))
+        _ <- _toUserInput ("value" |> pure @IO (Just (UserInput "value")))
+          `expects` do
+            called once
         -- toUserInput is never called
-        pure ()) `shouldThrow` errorCall "It has never been applied function `toUserInput`"
+        pure ()) `shouldThrow` (missingCall "toUserInput")
 
     it "fails when _getByPartial is defined but getByExplicitPartial is never called" do
       (runMockT @IO do
-        _getByPartial $ "abc" |> pure @IO 123
+        _ <- _getByPartial ("abc" |> pure @IO 123)
+          `expects` do
+            called once
         -- getByExplicitPartial is never called
-        pure ()) `shouldThrow` errorCall "It has never been applied function `getBy`"
+        pure ()) `shouldThrow` (missingCall "getBy")
 
     it "fails when _echoPartial is defined but echoExplicitPartial is never called" do
       (runMockT @IO do
-        _echoPartial $ "3" |> pure @IO ()
+        _ <- _echoPartial ("3" |> pure @IO ())
+          `expects` do
+            called once
         -- echoExplicitPartial is never called
-        pure ()) `shouldThrow` errorCall "It has never been applied function `echo`"
+        pure ()) `shouldThrow` (missingCall "echo")
 
     it "fails when _findIds is defined but findIds is never called" do
       (runMockT @IO do
-        _findIds [1 :: Int, 2]
+        _ <- _findIds [1 :: Int, 2]
+          `expects` do
+            called once
         -- findIds is never called
-        pure ()) `shouldThrow` errorCall "It has never been applied function `_findIds`"
+        pure ()) `shouldThrow` (missingCall "_findIds")

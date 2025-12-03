@@ -1,6 +1,8 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -18,6 +20,7 @@ module Test.MockCat.Mock
   ( MockBuilder
   , build
   , mock
+  , mockM
   , createNamedMockFnWithParams
   , registerStub
   , stub
@@ -46,6 +49,7 @@ module Test.MockCat.Mock
 import Control.Concurrent.STM (TVar, atomically, writeTVar)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.State (get, put)
+import Data.Kind (Type)
 import Data.Proxy (Proxy(..))
 import Data.Type.Equality ((:~:) (Refl))
 import Data.Typeable (Typeable, eqT)
@@ -200,6 +204,45 @@ instance {-# OVERLAPPING #-}
 mock :: CreateMockFn a => a
 mock = mockImpl
 
+-- | Type class for creating monadic mock functions without unsafePerformIO.
+class CreateMockFnM a where
+  mockMImpl :: a
+
+instance
+  ( MonadIO m
+  , CreateMock p
+  , MockIOBuilder (ToMockParams p) fn verifyParams
+  , LiftFunTo fn fnM m
+  , Typeable verifyParams
+  , Typeable fnM
+  ) =>
+  CreateMockFnM (p -> m fnM)
+  where
+  mockMImpl p = do
+    let params = toParams p
+    (fnIO, verifier) <- buildIO Nothing params
+    let lifted = liftFunTo (Proxy :: Proxy m) fnIO
+    registerStub Nothing verifier lifted
+
+instance {-# OVERLAPPING #-}
+  ( MonadIO m
+  , CreateMock p
+  , MockIOBuilder (ToMockParams p) fn verifyParams
+  , LiftFunTo fn fnM m
+  , Typeable verifyParams
+  , Typeable fnM
+  ) =>
+  CreateMockFnM (Label -> p -> m fnM)
+  where
+  mockMImpl (Label name) p = do
+    let params = toParams p
+    (fnIO, verifier) <- buildIO (Just name) params
+    let lifted = liftFunTo (Proxy :: Proxy m) fnIO
+    registerStub (Just name) verifier lifted
+
+mockM :: CreateMockFnM a => a
+mockM = mockMImpl
+
 -- | Internal function for TH code that already has MockBuilder constraint.
 --   This avoids CreateNamedMock instance resolution issues in generated code.
 createNamedMockFnWithParams ::
@@ -275,6 +318,15 @@ cases a = Cases $ put a
 {- | IO variant of 'cases'. -}
 casesIO :: [a] -> Cases (IO a) ()
 casesIO = Cases . (put . map pure)
+
+class LiftFunTo funIO funM (m :: Type -> Type) | funIO m -> funM where
+  liftFunTo :: Proxy m -> funIO -> funM
+
+instance MonadIO m => LiftFunTo (IO r) (m r) m where
+  liftFunTo _ = liftIO
+
+instance LiftFunTo restIO restM m => LiftFunTo (a -> restIO) (a -> restM) m where
+  liftFunTo proxy f a = liftFunTo proxy (f a)
 
 registerStub ::
   forall m params fn.

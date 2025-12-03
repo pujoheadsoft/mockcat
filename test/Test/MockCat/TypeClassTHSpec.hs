@@ -9,6 +9,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 {-# OPTIONS_GHC -Wno-unused-top-binds #-}
+{-# OPTIONS_GHC -Wno-unused-do-bind #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 {-# LANGUAGE TypeApplications #-}
@@ -101,10 +102,20 @@ spec = do
 
     result `shouldBe` ()
 
+  it "Read, and output files" do
+    result <- runMockT do
+      _readFile $ "input.txt" |> pack "content"
+      _writeFile $ "output.txt" |> pack "content" |> ()
+      operationProgram "input.txt" "output.txt"
+
+    result `shouldBe` ()
+    
   it "Read, and output files (contain ng word)" do
     result <- runMockT do
       _readFile ("input.txt" |> pack "contains ngWord")
-      _writeFile ("output.txt" |> any |> ()) `applyTimesIs` 0
+      _writeFile ("output.txt" |> any |> ())
+        `expects` do
+          called never
       operationProgram "input.txt" "output.txt"
 
     result `shouldBe` ()
@@ -112,10 +123,19 @@ spec = do
   it "Read, and output files (contain ng word)2" do
     result <- runMockT do
       _readFile ("input.txt" |> pack "contains ngWord")
-      neverApply $ _writeFile ("output.txt" |> any |> ())
+      _writeFile ("output.txt" |> any |> ())
+        `expects` do
+          called never
       operationProgram "input.txt" "output.txt"
 
     result `shouldBe` ()
+
+  it "does not auto verify TH mocks without expects" do
+    ( runMockT do
+        _writeFile ("output.txt" |> pack "content" |> ())
+        pure ()
+      )
+      `shouldReturn` ()
 
   it "Read, and output files (with MonadReader)" do
     r <- runMockT do

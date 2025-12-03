@@ -70,7 +70,7 @@ import Test.MockCat.TH.ClassAnalysis
   ( VarAppliedType (..),
     updateType
   )
-import Test.MockCat.Verify (ResolvableParamsOf, resolveForVerification, verificationFailure, ResolvedMock(..), verifyResolvedAny)
+import Test.MockCat.Verify (ResolvableParamsOf, resolveForVerification, verificationFailure)
 import Data.Maybe (fromMaybe)
 import Data.Function ((&))
 import Data.Proxy (Proxy(..))
@@ -236,7 +236,7 @@ doCreateMockFnDecs mockType funNameStr mockFunName params funType monadVarName u
         resultType =
           AppT
             (AppT ArrowT (VarT params))
-            (AppT (AppT (ConT ''MockT) (VarT monadVarName)) (TupleT 0))
+            (AppT (AppT (ConT ''MockT) (VarT monadVarName)) funType)
     sigD mockFunName (pure (ForallT [] ctx resultType))
 
   createMockFn <- [|createNamedMockFnWithParams|]
@@ -259,7 +259,7 @@ doCreateConstantMockFnDecs Partial funNameStr mockFunName _ monadVarName = do
       resultType =
         AppT
           (AppT ArrowT (VarT stubVar))
-          (AppT (AppT (ConT ''MockT) (VarT monadVarName)) (TupleT 0))
+          (AppT (AppT (ConT ''MockT) (VarT monadVarName)) (VarT stubVar))
   newFunSig <-
     sigD
       mockFunName
@@ -289,7 +289,7 @@ doCreateConstantMockFnDecs Total funNameStr mockFunName ty monadVarName = do
           resultType =
             AppT
               (AppT ArrowT (VarT a))
-              (AppT (AppT (ConT ''MockT) (VarT monadVarName)) (TupleT 0))
+              (AppT (AppT (ConT ''MockT) (VarT monadVarName)) (VarT a))
       sigD
         mockFunName
         ( pure
@@ -325,7 +325,7 @@ doCreateConstantMockFnDecs Total funNameStr mockFunName ty monadVarName = do
           resultType =
             AppT
               (AppT ArrowT ty)
-              (AppT (AppT (ConT ''MockT) (VarT monadVarName)) (TupleT 0))
+              (AppT (AppT (ConT ''MockT) (VarT monadVarName)) ty)
       sigD mockFunName (pure (ForallT [PlainTV monadVarName SpecifiedSpec] ctx resultType))
   createMockFn <- [|createNamedMockFnWithParams|]
   headParam <- [|Head :> param p|]
@@ -355,7 +355,7 @@ doCreateEmptyVerifyParamMockFnDecs funNameStr mockFunName params funType monadVa
         resultType =
           AppT
             (AppT ArrowT (VarT params))
-            (AppT (AppT (ConT ''MockT) (VarT monadVarName)) (TupleT 0))
+            (AppT (AppT (ConT ''MockT) (VarT monadVarName)) funType)
     sigD mockFunName (pure (ForallT [] ctx resultType))
 
   createMockFn <- [|createNamedMockFnWithParams|]
@@ -371,17 +371,18 @@ createMockBody funNameStr createMockFn paramsExp =
   [|
     MockT $ do
       mockInstance <- liftIO $ $(pure createMockFn) $(litE (stringL funNameStr)) $(pure params)
-      resolved <- liftIO do
+      liftIO do
         resolveForVerification mockInstance >>= \case
-          Just (maybeName, verifier) -> pure $ ResolvedMock maybeName verifier
+          Just _ -> pure ()
           Nothing -> verificationFailure
-      let verifyStub _ = verifyResolvedAny resolved
+      let verifyStub _ = pure ()
       addDefinition
         ( Definition
             (Proxy :: Proxy $(litT (strTyLit funNameStr)))
             mockInstance
             verifyStub
         )
+      pure mockInstance
     |]
 
 createFnName :: Name -> MockOptions -> String

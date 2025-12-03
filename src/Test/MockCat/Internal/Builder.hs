@@ -49,10 +49,6 @@ class BuildCurried args r fn | args r -> fn where
 buildCurried :: forall args r fn. BuildCurried args r fn => (args -> IO r) -> fn
 buildCurried = buildCurriedImpl
 
--- | Build a curried function that returns a pure result.
-buildCurriedPure :: forall args r fn. BuildCurried args r fn => (args -> r) -> fn
-buildCurriedPure a2r = buildCurried (pure . a2r)
-
 instance (fn ~ (a -> r)) => BuildCurried (Param a) r fn where
   buildCurriedImpl f a = perform (f (param a))
 
@@ -64,6 +60,46 @@ instance
   where
   buildCurriedImpl input a =
     buildCurriedImpl @rest @r @fn (input . (\rest -> p a :> rest))
+
+-- | Class for building a curried pure function without relying on IO.
+class BuildCurriedPure args r fn | args r -> fn where
+  buildCurriedPureImpl :: (args -> r) -> fn
+
+-- | Build a curried function that returns a pure result.
+buildCurriedPure :: forall args r fn. BuildCurriedPure args r fn => (args -> r) -> fn
+buildCurriedPure = buildCurriedPureImpl
+
+instance (fn ~ (a -> r)) => BuildCurriedPure (Param a) r fn where
+  buildCurriedPureImpl f a = f (param a)
+
+instance
+  ( BuildCurriedPure rest r fn
+  , fn' ~ (a -> fn)
+  ) =>
+  BuildCurriedPure (Param a :> rest) r fn'
+  where
+  buildCurriedPureImpl input a =
+    buildCurriedPureImpl @rest @r @fn (input . (\rest -> p a :> rest))
+
+-- | Class for building a curried function whose result stays in IO.
+class BuildCurriedIO args r fn | args r -> fn where
+  buildCurriedIOImpl :: (args -> IO r) -> fn
+
+-- | Build a curried IO function without hiding the IO layer.
+buildCurriedIO :: forall args r fn. BuildCurriedIO args r fn => (args -> IO r) -> fn
+buildCurriedIO = buildCurriedIOImpl
+
+instance (fn ~ (a -> IO r)) => BuildCurriedIO (Param a) r fn where
+  buildCurriedIOImpl f a = f (param a)
+
+instance
+  ( BuildCurriedIO rest r fn
+  , fn' ~ (a -> fn)
+  ) =>
+  BuildCurriedIO (Param a :> rest) r fn'
+  where
+  buildCurriedIOImpl input a =
+    buildCurriedIOImpl @rest @r @fn (input . (\rest -> p a :> rest))
 
 -- | Class for creating a stub corresponding to the parameter description.
 class MockBuilder params fn verifyParams | params -> fn, params -> verifyParams where
@@ -145,6 +181,30 @@ instance {-# OVERLAPPABLE #-}
   build name params =
     buildWithRecorder (\ref inputParams -> executeInvocation ref (singleInvocationStep name params inputParams))
 
+-- | Class for building mocks whose resulting functions stay in IO.
+class MockIOBuilder params fn verifyParams | params -> fn, params -> verifyParams where
+  buildIO ::
+    MonadIO m =>
+    Maybe MockName ->
+    params ->
+    m (fn, Verifier verifyParams)
+
+instance {-# OVERLAPPABLE #-}
+  ( ParamConstraints params args r
+  , BuildCurriedIO args r fn
+  ) => MockIOBuilder (Cases params ()) fn args where
+  buildIO name cases = do
+    let paramsList = runCase cases
+    buildWithRecorderIO (\ref inputParams -> executeInvocation ref (casesInvocationStep name paramsList inputParams))
+
+instance {-# OVERLAPPABLE #-}
+  ( p ~ (Param a :> rest)
+  , ParamConstraints p args r
+  , BuildCurriedIO args r fn
+  ) => MockIOBuilder (Param a :> rest) fn args where
+  buildIO name params =
+    buildWithRecorderIO (\ref inputParams -> executeInvocation ref (singleInvocationStep name params inputParams))
+
 
 buildWithRecorder ::
   ( MonadIO m
@@ -155,6 +215,18 @@ buildWithRecorder ::
 buildWithRecorder handler = do
   ref <- liftIO $ newTVarIO appliedRecord
   let fn = buildCurried (handler ref)
+      verifier = Verifier ref VerifierFunction
+  pure (fn, verifier)
+
+buildWithRecorderIO ::
+  ( MonadIO m
+  , BuildCurriedIO args r fn
+  ) =>
+  (TVar (AppliedRecord args) -> args -> IO r) ->
+  m (fn, Verifier args)
+buildWithRecorderIO handler = do
+  ref <- liftIO $ newTVarIO appliedRecord
+  let fn = buildCurriedIO (handler ref)
       verifier = Verifier ref VerifierFunction
   pure (fn, verifier)
 
@@ -230,6 +302,7 @@ instance StubBuilder (Cases (IO a) ()) (IO a) where
 instance {-# OVERLAPPABLE #-}
   ( ParamConstraints params args r
   , BuildCurried args r fn
+  , BuildCurriedPure args r fn
   ) => StubBuilder (Cases params ()) fn where
   buildStub name cases = do
     let paramsList = runCase cases
@@ -239,6 +312,7 @@ instance {-# OVERLAPPABLE #-}
   ( p ~ (Param a :> rest)
   , ParamConstraints p args r
   , BuildCurried args r fn
+  , BuildCurriedPure args r fn
   ) => StubBuilder (Param a :> rest) fn where
   buildStub name params = buildCurriedPure (extractReturnValue name params)
 

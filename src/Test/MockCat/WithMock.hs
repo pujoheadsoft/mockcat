@@ -43,6 +43,7 @@ module Test.MockCat.WithMock
   , atLeast
   , anything
   , WithMockContext(..)
+  , MonadWithMockContext(..)
   , Expectation(..)
   , Expectations(..)
   ) where
@@ -82,6 +83,11 @@ import Data.Proxy (Proxy(..))
 --   types at registration time.
 newtype WithMockContext = WithMockContext (TVar [IO ()])
 
+class Monad m => MonadWithMockContext m where
+  askWithMockContext :: m WithMockContext
+
+instance {-# OVERLAPPABLE #-} (Monad m, MonadReader WithMockContext m) => MonadWithMockContext m where
+  askWithMockContext = ask
 
 -- | Expectation specification
 data Expectation params where
@@ -179,7 +185,7 @@ instance forall fn params. (ResolvableParamsOf fn ~ params) => BuildExpectations
 expects ::
   forall m fn exp params.
   ( MonadIO m
-  , MonadReader WithMockContext m
+  , MonadWithMockContext m
   , ResolvableMock fn
   , ResolvableParamsOf fn ~ params
   , ExtractParams exp
@@ -192,7 +198,7 @@ expects ::
   exp ->
   m fn
 expects mockFnM exp = do
-  (WithMockContext ctxVar) <- ask
+  (WithMockContext ctxVar) <- askWithMockContext
   -- Try to help type inference by using exp first
   let _ = extractParams exp :: Proxy params
   mockFn <- mockFnM

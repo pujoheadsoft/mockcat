@@ -30,9 +30,11 @@ prop_concurrent_total_apply_count =
     forAll (chooseInt (1,30)) $ \callsPerThread ->
       monadicIO $ do
         let totalCalls = threads * callsPerThread
-        -- runMockT 内で applyTimesIs により期待回数を事前宣言し、並行呼び出し後に自動検証させる
+        -- runMockT 内で expects により期待回数を事前宣言し、並行呼び出し後に自動検証させる
         run $ runMockT $ do
-          _propAction (MC.any |> (1 :: Int)) `applyTimesIs` totalCalls
+          _ <- _propAction (MC.any |> (1 :: Int))
+            `expects` do
+              called (times totalCalls)
           parallelInvoke threads callsPerThread
           pure ()
         assert True

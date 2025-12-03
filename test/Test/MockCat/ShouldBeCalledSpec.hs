@@ -585,6 +585,13 @@ spec = do
         evaluate $ f "a" "b"
         f `shouldBeCalled` (lessThan 3 `withArgs` ("a" |> "b"))
 
+  describe "mockM" do
+    it "records calls for monadic mocks" do
+      f <- mockM $ "a" |> True
+      result <- f "a"
+      result `shouldBe` True
+      f `shouldBeCalled` "a"
+
     describe "Edge cases and boundary conditions" do
       it "times 0 (never called)" do
         f <- mock $ "a" |> True

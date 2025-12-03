@@ -77,6 +77,7 @@ tests:
     dependencies:
     - mockcat
     - hspec >= 2.11 && < 2.13
+    - inspection-testing >= 0.4 && < 0.6
     - async >= 2.2.4 && < 2.3
     - QuickCheck >= 2.14 && < 2.17
     - hashable >= 1.4 && < 1.6
