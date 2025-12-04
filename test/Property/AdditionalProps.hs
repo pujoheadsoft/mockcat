@@ -8,7 +8,6 @@ module Property.AdditionalProps
   ( prop_predicate_param_match_counts
   , prop_multicase_progression
   , prop_runMockT_isolation
-  , prop_neverApply_unused
   , prop_partial_order_duplicates
   ) where
 
@@ -84,7 +83,7 @@ prop_multicase_progression = forAll genSeq $ \(arg, rs, extra) -> monadicIO $ do
 --------------------------------------------------------------------------------
 
 -- | Two independent runMockT invocations must not leak application counts.
--- First run uses expectApplyTimes 1; second run expects 0 for a freshly built mock.
+-- The first run enforces a single invocation; the second expects zero for a fresh mock.
 prop_runMockT_isolation :: Property
 prop_runMockT_isolation = monadicIO $ do
   -- Run 1: expect one application
@@ -104,29 +103,6 @@ prop_runMockT_isolation = monadicIO $ do
     Left (_ :: SomeException) -> assert False
     Right () -> assert True
 
---------------------------------------------------------------------------------
--- 24. neverApply unused property
---------------------------------------------------------------------------------
-
--- | A definition not invoked verifies zero applications while another is used.
-prop_neverApply_unused :: Property
-prop_neverApply_unused = forAll (chooseInt (0,5)) $ \n -> monadicIO $ do
-  r <- run $ try $ runMockT $ do
-    -- used mock
-    mUsed <- liftIO $ mock (param (0 :: Int) |> True)
-    addDefinition Definition { symbol = Proxy @"used", mockFunction = mUsed, verify = \m' -> m' `shouldBeCalled` times n }
-    -- unused mock
-    mUnused <- liftIO $ mock (param (42 :: Int) |> True)
-    addDefinition Definition { symbol = Proxy @"unused", mockFunction = mUnused, verify = \m' -> m' `shouldBeCalled` times 0 }
-    let f = mUsed
-    -- See NOTE [GHC9.4 duplicate-call counting] above: make each application
-    -- depend on the loop index to avoid sharing; case forces dependence.
-    liftIO $
-      forM_ [1 .. n] $ \i ->
-        evaluate (perCall i (f 0))
-  case r of
-    Left (_ :: SomeException) -> assert False
-    Right _ -> assert True
 
 --------------------------------------------------------------------------------
 -- 25. Partial order duplicates property

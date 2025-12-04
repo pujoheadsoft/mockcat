@@ -14,6 +14,9 @@ and this project adheres to the
 ### Documentation
 - Clarified the new expectation-driven flow in both README files.
 
+### Removed
+- Legacy `expectApplyTimes` / `applyTimesIs` / `neverApply` helpers along with their property tests, since `expects` / `shouldBeCalled` are now the single verification path.
+
 ## 0.6.0.0
 ### Changed
 - Removed the upper limit on variable arguments when creating stub functions. Previously, there was a restriction on the maximum number of arguments, but this limitation has been removed, allowing stub functions to accept an arbitrary number of arguments.

@@ -12,9 +12,6 @@
 module Test.MockCat.MockT (
   MockT(..), Definition(..),
   runMockT,
-  expectApplyTimes,
-  applyTimesIs,
-  neverApply,
   MonadMockDefs(..)
   ) where
 import Control.Concurrent.STM
@@ -30,8 +27,8 @@ import Control.Monad.Reader (ReaderT(..), runReaderT, asks)
 import GHC.TypeLits (KnownSymbol)
 import Data.Data (Proxy, Typeable)
 import UnliftIO (MonadUnliftIO(..))
-import Test.MockCat.Internal.Types (Verifier, CountVerifyMethod(..))
-import Test.MockCat.Verify (ResolvableParamsOf, resolveForVerification, verificationFailure, verifyAppliedCount)
+import Test.MockCat.Internal.Types (Verifier)
+import Test.MockCat.Verify (ResolvableParamsOf)
 import Test.MockCat.WithMock (WithMockContext(..), MonadWithMockContext(..))
 
 {- | MockT is a thin wrapper over @ReaderT MockTEnv@ providing
@@ -46,7 +43,7 @@ Concurrency safety (summary):
     appear in the verification log.
   * Order-sensitive checks reflect evaluation order, not necessarily wall-clock
     start order between threads.
-  * Perform verification (e.g. 'shouldApplyTimes', 'expectApplyTimes') after all
+  * Perform verification (e.g. 'shouldApplyTimes', `expects`) after all
     parallel work has completed; running it mid-flight may observe fewer calls
     simply because some results are still lazy.
   * Each 'runMockT' call uses a fresh TVar store; mocks are not shared across
@@ -135,79 +132,6 @@ runMockT (MockT r) = do
   liftIO $ sequence_ actions
   pure a
 
-{- | (Preferred: 'expectApplyTimes'; legacy: 'applyTimesIs')
-  Specify how many times a stub function (or group of stub definitions) must
-  be applied (to /any/ arguments). The function patches the verification
-  predicate for the provided stub definitions so that, after 'runMockT'
-  completes, the total number of evaluated applications is checked.
-
-  Concurrency & laziness notes:
-    * Counting is thread-safe: each evaluated application contributes exactly 1.
-    * An application is only counted once its return value is evaluated; ensure
-      your test forces (e.g. via @shouldBe@ or sequencing) all stub results
-      before relying on the count.
-    * Invoke 'expectApplyTimes' (or legacy 'applyTimesIs') inside the 'runMockT' block during setup; do not
-      call it after the block ends.
-
-  @
-  import Test.Hspec
-  import Test.MockCat
-  ...
-
-  class (Monad m) => FileOperation m where
-    writeFile :: FilePath -\> Text -\> m ()
-    readFile :: FilePath -\> m Text
-
-  operationProgram ::
-    FileOperation m =>
-    FilePath ->
-    FilePath ->
-    m ()
-  operationProgram inputPath outputPath = do
-    content <- readFile inputPath
-    when (content == pack "ng") $ writeFile outputPath content
-
-  makeMock [t|FileOperation|]
-
-  spec :: Spec
-  spec = do
-    it "test runMockT" do
-      result <- runMockT do
-        _readFile ("input.txt" |> pack "content")
-        _writeFile ("output.text" |> pack "content" |> ()) `expectApplyTimes` 0
-        operationProgram "input.txt" "output.text"
-
-      result `shouldBe` ()
-
-  @
-
--}
-expectApplyTimes :: MonadIO m => MockT m () -> Int -> MockT m ()
-expectApplyTimes = applyTimesIs
-
-applyTimesIs :: MonadIO m => MockT m () -> Int -> MockT m ()
-applyTimesIs (MockT inner) a = MockT $ ReaderT $ \env -> do
-  tmpDefs <- liftIO $ newTVarIO []
-  let nestedEnv = env { envDefinitions = tmpDefs }
-  _ <- runReaderT inner nestedEnv
-  defs <- liftIO $ readTVarIO tmpDefs
-  let patched = map (\(Definition s fn _) -> Definition s fn (`verifyApplyCount` (Equal a))) defs
-  liftIO $ atomically $ modifyTVar' (envDefinitions env) (++ patched)
-  pure ()
-
-neverApply :: MonadIO m => MockT m () -> MockT m ()
-neverApply (MockT inner) = MockT $ ReaderT $ \env -> do
-  tmpDefs <- liftIO $ newTVarIO []
-  let nestedEnv = env { envDefinitions = tmpDefs }
-  _ <- runReaderT inner nestedEnv
-  defs <- liftIO $ readTVarIO tmpDefs
-  let patched = map (\(Definition s m _) -> Definition s m (`verifyApplyCount` (Equal 0))) defs
-  liftIO $ atomically $ modifyTVar' (envDefinitions env) (++ patched)
-  pure ()
-
--- | Alias for 'neverApply' providing naming symmetry with 'expectApplyTimes'.
--- note: `expectNever` removed; use `neverApply`
-
 instance MonadIO m => MonadMockDefs (MockT m) where
   addDefinition d = MockT $ ReaderT $ \env ->
     liftIO $ atomically $ modifyTVar' (envDefinitions env) (++ [d])
@@ -217,19 +141,3 @@ instance MonadIO m => MonadMockDefs (ReaderT MockTEnv m) where
   addDefinition d = ReaderT $ \env ->
     liftIO $ atomically $ modifyTVar' (envDefinitions env) (++ [d])
   getDefinitions = ReaderT $ \env -> liftIO $ readTVarIO (envDefinitions env)
-verifyApplyCount ::
-  forall f params.
-  ( Typeable params
-  , params ~ ResolvableParamsOf f
-  , Typeable (Verifier params)
-  ) =>
-  f ->
-  CountVerifyMethod ->
-  IO ()
-verifyApplyCount stub method = do
-  result <- resolveForVerification stub
-  case result of
-    Just (maybeName, verifier) ->
-      verifyAppliedCount maybeName verifier method
-    Nothing ->
-      verificationFailure

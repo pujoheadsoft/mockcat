@@ -66,11 +66,10 @@ main = hspec $ do
       it "adjacent swap fails order verification" $ property OrderProps.prop_adjacent_swap_fails
       it "subset partial order succeeds" $ property OrderProps.prop_partial_order_subset_succeeds
       it "reversed pair fails partial order" $ property OrderProps.prop_partial_order_reversed_pair_fails
-    describe "Property Additional (Predicate / Multi-case / Isolation / Unused / Duplicates)" $ do
+    describe "Property Additional (Predicate / Multi-case / Isolation / Duplicates)" $ do
       it "predicate param counts match" $ property AdditionalProps.prop_predicate_param_match_counts
       it "multi-case progression saturates" $ property AdditionalProps.prop_multicase_progression
       it "runMockT isolation of counts" $ property AdditionalProps.prop_runMockT_isolation
-      it "neverApply (unused) passes" $ property AdditionalProps.prop_neverApply_unused
       it "partial order with duplicates behaves" $ property AdditionalProps.prop_partial_order_duplicates
     describe "Property Reinforcement (Negative predicate / Partial force / Interleave)" $ do
       it "predicate negative not counted" $ property ReinforcementProps.prop_predicate_negative_not_counted

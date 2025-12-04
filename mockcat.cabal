@@ -72,8 +72,8 @@ library
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -fprint-potential-instances -Wredundant-constraints
   build-depends:
       base >=4.7 && <5
-    , containers ==0.6.*
-    , mtl >=2.3.1 && <2.4
+    , containers >=0.6 && <0.8
+    , mtl >=2.2.2 && <2.4
     , stm ==2.5.*
     , template-haskell >=2.18 && <2.24
     , text >=2.0 && <2.2
@@ -130,12 +130,12 @@ test-suite mockcat-test
       QuickCheck >=2.14 && <2.17
     , async >=2.2.4 && <2.3
     , base >=4.7 && <5
-    , containers ==0.6.*
+    , containers >=0.6 && <0.8
     , hashable >=1.4 && <1.6
     , hspec >=2.11 && <2.13
     , inspection-testing >=0.4 && <0.6
     , mockcat
-    , mtl >=2.3.1 && <2.4
+    , mtl >=2.2.2 && <2.4
     , stm ==2.5.*
     , template-haskell >=2.18 && <2.24
     , text >=2.0 && <2.2

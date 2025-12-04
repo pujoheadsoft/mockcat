@@ -24,4 +24,4 @@ jobs:
           cabal v2-update
           cabal v2-build
       - name: Test
-        run: cabal v2-test --disable-optimization
+        run: cabal v2-test --enable-tests --disable-optimization
