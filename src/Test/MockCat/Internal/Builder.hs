@@ -107,7 +107,7 @@ class MockBuilder params fn verifyParams | params -> fn, params -> verifyParams 
     MonadIO m =>
     Maybe MockName ->
     params ->
-    m (fn, Verifier verifyParams)
+    m (fn, InvocationRecorder verifyParams)
 
 -- | New name for `build` to make intent explicit.
 --   `buildMock` constructs a mock function and its verifier.
@@ -117,7 +117,7 @@ buildMock ::
   ) =>
   Maybe MockName ->
   params ->
-  m (fn, Verifier verifyParams)
+  m (fn, InvocationRecorder verifyParams)
 buildMock = build
 
 -- | Instance for building a stub for a constant IO action.
@@ -125,54 +125,54 @@ instance
   MockBuilder (IO r) (IO r) ()
   where
   build _ action = do
-    ref <- liftIO $ newTVarIO appliedRecord
+    ref <- liftIO $ newTVarIO invocationRecord
     let fn = do
           result <- action
           liftIO $ appendAppliedParams ref ()
           pure result
-        verifier = Verifier ref VerifierIOConstant
-    pure (fn, verifier)
+        recorder = InvocationRecorder ref IOConstant
+    pure (fn, recorder)
 
 -- | Instance for building a stub for a constant value (with Head marker).
 instance
   MockBuilder (Head :> Param r) r ()
   where
   build _ (Head :> params) = do
-    ref <- liftIO $ newTVarIO appliedRecord
+    ref <- liftIO $ newTVarIO invocationRecord
     let v = value params
         fn = perform $ do
           liftIO $ appendAppliedParams ref ()
           pure v
-        verifier = Verifier ref VerifierPureConstant
-    pure (fn, verifier)
+        recorder = InvocationRecorder ref PureConstant
+    pure (fn, recorder)
 
 -- | Instance for building a stub for a value (backward compatibility).
 instance
   MockBuilder (Param r) r ()
   where
   build _ params = do
-    ref <- liftIO $ newTVarIO appliedRecord
+    ref <- liftIO $ newTVarIO invocationRecord
     let v = value params
         fn = perform $ do
           liftIO $ appendAppliedParams ref ()
           pure v
-        verifier = Verifier ref VerifierPureConstant
-    pure (fn, verifier)
+        recorder = InvocationRecorder ref PureConstant
+    pure (fn, recorder)
 
 -- | Instance for building a stub for `Cases (IO a) ()`.
 instance MockBuilder (Cases (IO a) ()) (IO a) () where
   build _ cases = do
     let params = runCase cases
-    ref <- liftIO $ newTVarIO appliedRecord
+    ref <- liftIO $ newTVarIO invocationRecord
     let fn = do
-          count <- readAppliedCount ref ()
+          count <- readInvocationCount ref ()
           let index = min count (length params - 1)
               r = safeIndex params index
           appendAppliedParams ref ()
-          incrementAppliedParamCount ref ()
+          incrementInvocationCount ref ()
           fromJust r
-        verifier = Verifier ref VerifierIOConstant
-    pure (fn, verifier)
+        recorder = InvocationRecorder ref IOConstant
+    pure (fn, recorder)
 
 -- | Overlapping instance for building a stub when parameters are provided as 'Cases'.
 instance {-# OVERLAPPABLE #-}
@@ -198,7 +198,7 @@ class MockIOBuilder params fn verifyParams | params -> fn, params -> verifyParam
     MonadIO m =>
     Maybe MockName ->
     params ->
-    m (fn, Verifier verifyParams)
+    m (fn, InvocationRecorder verifyParams)
 
 instance {-# OVERLAPPABLE #-}
   ( ParamConstraints params args r
@@ -221,55 +221,55 @@ buildWithRecorder ::
   ( MonadIO m
   , BuildCurried args r fn
   ) =>
-  (TVar (AppliedRecord args) -> args -> IO r) ->
-  m (fn, Verifier args)
+  (TVar (InvocationRecord args) -> args -> IO r) ->
+  m (fn, InvocationRecorder args)
 buildWithRecorder handler = do
-  ref <- liftIO $ newTVarIO appliedRecord
+  ref <- liftIO $ newTVarIO invocationRecord
   let fn = buildCurried (handler ref)
-      verifier = Verifier ref VerifierFunction
-  pure (fn, verifier)
+      recorder = InvocationRecorder ref ParametricFunction
+  pure (fn, recorder)
 
 buildWithRecorderIO ::
   ( MonadIO m
   , BuildCurriedIO args r fn
   ) =>
-  (TVar (AppliedRecord args) -> args -> IO r) ->
-  m (fn, Verifier args)
+  (TVar (InvocationRecord args) -> args -> IO r) ->
+  m (fn, InvocationRecorder args)
 buildWithRecorderIO handler = do
-  ref <- liftIO $ newTVarIO appliedRecord
+  ref <- liftIO $ newTVarIO invocationRecord
   let fn = buildCurriedIO (handler ref)
-      verifier = Verifier ref VerifierFunction
-  pure (fn, verifier)
+      recorder = InvocationRecorder ref ParametricFunction
+  pure (fn, recorder)
 
-appliedRecord :: AppliedRecord params
-appliedRecord =
-  AppliedRecord
-    { appliedParamsList = mempty
-    , appliedParamsCounter = empty
+invocationRecord :: InvocationRecord params
+invocationRecord =
+  InvocationRecord
+    { invocations = mempty
+    , invocationCounts = empty
     }
 
-appendAppliedParams :: TVar (AppliedRecord params) -> params -> IO ()
+appendAppliedParams :: TVar (InvocationRecord params) -> params -> IO ()
 appendAppliedParams ref inputParams =
   atomically $
     modifyTVar' ref $ \record ->
       record
-        { appliedParamsList = appliedParamsList record ++ [inputParams]
+        { invocations = invocations record ++ [inputParams]
         }
 
-readAppliedCount :: Eq params => TVar (AppliedRecord params) -> params -> IO Int
-readAppliedCount ref params = do
+readInvocationCount :: Eq params => TVar (InvocationRecord params) -> params -> IO Int
+readInvocationCount ref params = do
   record <- readTVarIO ref
-  pure $ fromMaybe 0 (lookup params (appliedParamsCounter record))
+  pure $ fromMaybe 0 (lookup params (invocationCounts record))
 
-incrementAppliedParamCount :: Eq params => TVar (AppliedRecord params) -> params -> IO ()
-incrementAppliedParamCount ref inputParams =
+incrementInvocationCount :: Eq params => TVar (InvocationRecord params) -> params -> IO ()
+incrementInvocationCount ref inputParams =
   atomically $
     modifyTVar' ref $ \record ->
       record
-        { appliedParamsCounter = incrementCount inputParams (appliedParamsCounter record)
+        { invocationCounts = incrementCount inputParams (invocationCounts record)
         }
 
-incrementCount :: Eq k => k -> AppliedParamsCounter k -> AppliedParamsCounter k
+incrementCount :: Eq k => k -> InvocationCounts k -> InvocationCounts k
 incrementCount key list =
   if member key list then update (+ 1) key list
   else insert key 1 list
@@ -299,13 +299,13 @@ instance
 instance StubBuilder (Cases (IO a) ()) (IO a) where
   buildStub _ cases = do
     let params = runCase cases
-    s <- liftIO $ newTVarIO appliedRecord
+    s <- liftIO $ newTVarIO invocationRecord
     (do
-      count <- readAppliedCount s ()
+      count <- readInvocationCount s ()
       let index = min count (length params - 1)
           r = safeIndex params index
       appendAppliedParams s ()
-      incrementAppliedParamCount s ()
+      incrementInvocationCount s ()
       fromJust r)
 
 -- | Overlapping instance for building a mock for a function with multiple parameters.
@@ -354,7 +354,7 @@ findReturnValueWithPure ::
   ( ParamConstraints params args r
   ) =>
   Maybe MockName ->
-  AppliedParamsList params ->
+  InvocationList params ->
   args ->
   r
 findReturnValueWithPure name paramsList inputParams = do
@@ -366,7 +366,7 @@ findReturnValueWithPure name paramsList inputParams = do
 findReturnValuePure ::
   ( ParamConstraints params args r
   ) =>
-  AppliedParamsList params ->
+  InvocationList params ->
   args ->
   Maybe r
 findReturnValuePure paramsList inputParams = do
@@ -376,10 +376,10 @@ findReturnValuePure paramsList inputParams = do
     _ -> do
       returnValue <$> safeIndex matchedParams 0
 
-type InvocationStep args r = AppliedRecord args -> (AppliedRecord args, Either Message r)
+type InvocationStep args r = InvocationRecord args -> (InvocationRecord args, Either Message r)
 
 executeInvocation ::
-  TVar (AppliedRecord args) ->
+  TVar (InvocationRecord args) ->
   InvocationStep args r ->
   IO r
 executeInvocation ref step = do
@@ -397,39 +397,39 @@ singleInvocationStep ::
   params ->
   args ->
   InvocationStep args r
-singleInvocationStep name params inputParams record@AppliedRecord {appliedParamsList, appliedParamsCounter} = do
+singleInvocationStep name params inputParams record@InvocationRecord {invocations, invocationCounts} = do
   let expected = projArgs params
   if expected == inputParams
     then
-      (AppliedRecord {
-        appliedParamsList = appliedParamsList ++ [inputParams]
-      , appliedParamsCounter = appliedParamsCounter
+      (InvocationRecord {
+        invocations = invocations ++ [inputParams]
+      , invocationCounts = invocationCounts
       }, Right (returnValue params))
     else (record, Left $ message name expected inputParams)
 
 casesInvocationStep ::
   ParamConstraints params args r =>
   Maybe MockName ->
-  AppliedParamsList params ->
+  InvocationList params ->
   args ->
   InvocationStep args r
-casesInvocationStep name paramsList inputParams AppliedRecord {appliedParamsList, appliedParamsCounter} = do
-  let newAppliedList = appliedParamsList ++ [inputParams]
+casesInvocationStep name paramsList inputParams InvocationRecord {invocations, invocationCounts} = do
+  let newInvocations = invocations ++ [inputParams]
       matchedParams = filter (\params -> projArgs params == inputParams) paramsList
       expectedArgs = projArgs <$> paramsList
    in case matchedParams of
         [] ->
-          ( AppliedRecord {appliedParamsList = newAppliedList, appliedParamsCounter},
+          ( InvocationRecord {invocations = newInvocations, invocationCounts},
             Left (messageForMultiMock name expectedArgs inputParams)
           )
         _ ->
-          let appliedCount = fromMaybe 0 (lookup inputParams appliedParamsCounter)
+          let appliedCount = fromMaybe 0 (lookup inputParams invocationCounts)
               index = min appliedCount (length matchedParams - 1)
-              nextCounter = incrementCount inputParams appliedParamsCounter
+              nextCounter = incrementCount inputParams invocationCounts
               nextRecord =
-                AppliedRecord
-                  { appliedParamsList = newAppliedList,
-                    appliedParamsCounter = nextCounter
+                InvocationRecord
+                  { invocations = newInvocations,
+                    invocationCounts = nextCounter
                   }
            in case safeIndex matchedParams index of
                 Nothing ->

@@ -45,14 +45,14 @@ verify ::
   VerifyMatchType (ResolvableParamsOf m) ->
   IO ()
 verify m matchType = do
-  ResolvedMock mockName verifier <- requireResolved m
-  appliedParamsList <- readAppliedParamsList (verifierRef verifier)
+  ResolvedMock mockName recorder <- requireResolved m
+  appliedParamsList <- readInvocationList (invocationRef recorder)
   case doVerify mockName appliedParamsList matchType of
     Nothing -> pure ()
     Just (VerifyFailed msg) ->
       errorWithoutStackTrace msg `seq` pure ()
 
-doVerify :: (Eq a, Show a) => Maybe MockName -> AppliedParamsList a -> VerifyMatchType a -> Maybe VerifyFailed
+doVerify :: (Eq a, Show a) => Maybe MockName -> InvocationList a -> VerifyMatchType a -> Maybe VerifyFailed
 doVerify name list (MatchAny a) = do
   guard $ notElem a list
   pure $ verifyFailedMessage name list a
@@ -60,16 +60,16 @@ doVerify name list (MatchAll a) = do
   guard $ Prelude.any (a /=) list
   pure $ verifyFailedMessage name list a
 
-readAppliedParamsList :: TVar (AppliedRecord params) -> IO (AppliedParamsList params)
-readAppliedParamsList ref = do
+readInvocationList :: TVar (InvocationRecord params) -> IO (InvocationList params)
+readInvocationList ref = do
   record <- readTVarIO ref
-  pure $ appliedParamsList record
+  pure $ invocations record
 
 -- | Verify that a resolved mock function was called at least once.
 --   This is used internally by typeclass mock verification.
 verifyResolvedAny :: ResolvedMock params -> IO ()
-verifyResolvedAny (ResolvedMock mockName verifier) = do
-  appliedParamsList <- readAppliedParamsList (verifierRef verifier)
+verifyResolvedAny (ResolvedMock mockName recorder) = do
+  appliedParamsList <- readInvocationList (invocationRef recorder)
   when (null appliedParamsList) $
     errorWithoutStackTrace $
       intercalate
@@ -95,8 +95,8 @@ verifyCount ::
   CountVerifyMethod ->
   IO ()
 verifyCount m v method = do
-  ResolvedMock mockName verifier <- requireResolved m
-  appliedParamsList <- readAppliedParamsList (verifierRef verifier)
+  ResolvedMock mockName recorder <- requireResolved m
+  appliedParamsList <- readInvocationList (invocationRef recorder)
   let appliedCount = length (filter (v ==) appliedParamsList)
   if compareCount method appliedCount
     then pure ()
@@ -125,8 +125,8 @@ verifyOrder ::
   [ResolvableParamsOf m] ->
   IO ()
 verifyOrder method m matchers = do
-  ResolvedMock mockName verifier <- requireResolved m
-  appliedParamsList <- readAppliedParamsList (verifierRef verifier)
+  ResolvedMock mockName recorder <- requireResolved m
+  appliedParamsList <- readInvocationList (invocationRef recorder)
   case doVerifyOrder method mockName appliedParamsList matchers of
     Nothing -> pure ()
     Just (VerifyFailed msg) ->
@@ -136,7 +136,7 @@ doVerifyOrder ::
   (Eq a, Show a) =>
   VerifyOrderMethod ->
   Maybe MockName ->
-  AppliedParamsList a ->
+  InvocationList a ->
   [a] ->
   Maybe VerifyFailed
 doVerifyOrder ExactlySequence name appliedValues expectedValues
@@ -153,7 +153,7 @@ doVerifyOrder PartiallySequence name appliedValues expectedValues
       guard $ isOrderNotMatched appliedValues expectedValues
       pure $ verifyFailedPartiallySequence name appliedValues expectedValues
 
-verifyFailedPartiallySequence :: Show a => Maybe MockName -> AppliedParamsList a -> [a] -> VerifyFailed
+verifyFailedPartiallySequence :: Show a => Maybe MockName -> InvocationList a -> [a] -> VerifyFailed
 verifyFailedPartiallySequence name appliedValues expectedValues =
   VerifyFailed $
     intercalate
@@ -165,7 +165,7 @@ verifyFailedPartiallySequence name appliedValues expectedValues =
         intercalate "\n" $ ("    " <>) . show <$> appliedValues
       ]
 
-isOrderNotMatched :: Eq a => AppliedParamsList a -> [a] -> Bool
+isOrderNotMatched :: Eq a => InvocationList a -> [a] -> Bool
 isOrderNotMatched appliedValues expectedValues =
   isNothing $
     foldl
@@ -177,7 +177,7 @@ isOrderNotMatched appliedValues expectedValues =
       (Just appliedValues)
       expectedValues
 
-verifyFailedOrderParamCountMismatch :: Maybe MockName -> AppliedParamsList a -> [a] -> VerifyFailed
+verifyFailedOrderParamCountMismatch :: Maybe MockName -> InvocationList a -> [a] -> VerifyFailed
 verifyFailedOrderParamCountMismatch name appliedValues expectedValues =
   VerifyFailed $
     intercalate
@@ -197,7 +197,7 @@ verifyFailedSequence name fails =
 
 
 
-collectUnExpectedOrder :: Eq a => AppliedParamsList a -> [a] -> [VerifyOrderResult a]
+collectUnExpectedOrder :: Eq a => InvocationList a -> [a] -> [VerifyOrderResult a]
 collectUnExpectedOrder appliedValues expectedValues =
   catMaybes $
     mapWithIndex
@@ -259,7 +259,7 @@ type family RequireCallableImpl (fn :: Symbol) (isPure :: Bool) target :: Constr
   RequireCallableImpl _ 'False _ = ()
 
 -- | Constraint alias for resolvable mock types.
-type ResolvableMock m = (Typeable (ResolvableParamsOf m), Typeable (Verifier (ResolvableParamsOf m)))
+type ResolvableMock m = (Typeable (ResolvableParamsOf m), Typeable (InvocationRecorder (ResolvableParamsOf m)))
 
 -- | Constraint alias for resolvable mock types with specific params.
 type ResolvableMockWithParams m params = (ResolvableParamsOf m ~ params, ResolvableMock m)
@@ -268,10 +268,10 @@ resolveForVerification ::
   forall target params.
   ( params ~ ResolvableParamsOf target
   , Typeable params
-  , Typeable (Verifier params)
+  , Typeable (InvocationRecorder params)
   ) =>
   target ->
-  IO (Maybe (Maybe MockName, Verifier params))
+  IO (Maybe (Maybe MockName, InvocationRecorder params))
 resolveForVerification target = do
   let fetch = lookupVerifierForFn target
   result <-
@@ -288,11 +288,11 @@ resolveForVerification target = do
 -- | Verify that a function was applied the expected number of times
 verifyAppliedCount ::
   Maybe MockName ->
-  Verifier params ->
+  InvocationRecorder params ->
   CountVerifyMethod ->
   IO ()
-verifyAppliedCount maybeName verifier method = do
-  appliedParamsList <- readAppliedParamsList (verifierRef verifier)
+verifyAppliedCount maybeName recorder method = do
+  appliedParamsList <- readInvocationList (invocationRef recorder)
   let appliedCount = length appliedParamsList
   when (not $ compareCount method appliedCount) $
     errorWithoutStackTrace $
@@ -320,20 +320,20 @@ verificationFailure =
 
 data ResolvedMock params = ResolvedMock {
   resolvedMockName :: Maybe MockName,
-  resolvedMockVerifier :: Verifier params
+  resolvedMockRecorder :: InvocationRecorder params
 }
 
 requireResolved ::
   forall target params.
   ( params ~ ResolvableParamsOf target
   , Typeable params
-  , Typeable (Verifier params)
+  , Typeable (InvocationRecorder params)
   ) =>
   target ->
   IO (ResolvedMock params)
 requireResolved target = do
   resolveForVerification target >>= \case
-    Just (name, verifier) -> pure $ ResolvedMock name verifier
+    Just (name, recorder) -> pure $ ResolvedMock name recorder
     Nothing -> verificationFailure
 
 verificationFailureMessage :: String
@@ -529,16 +529,16 @@ instance {-# OVERLAPPING #-}
       verifyCount m args method
     CountAnyVerification count -> 
       do
-        ResolvedMock mockName verifier <- requireResolved m
-        verifyAppliedCount mockName verifier count
+        ResolvedMock mockName recorder <- requireResolved m
+        verifyAppliedCount mockName recorder count
     OrderVerification method argsList -> 
       verifyOrder method m argsList
     SimpleVerification args -> 
       verify m (MatchAny args)
     AnyVerification -> 
       do
-        ResolvedMock mockName verifier <- requireResolved m
-        appliedParamsList <- readAppliedParamsList (verifierRef verifier)
+        ResolvedMock mockName recorder <- requireResolved m
+        appliedParamsList <- readInvocationList (invocationRef recorder)
         when (null appliedParamsList) $
           errorWithoutStackTrace $
             intercalate

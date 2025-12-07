@@ -17,23 +17,23 @@ import Test.MockCat.AssociationList (AssociationList)
 import Prelude hiding (lookup)
 import Control.Monad.State ( State )
 
-data Verifier params = Verifier
-  { verifierRef :: TVar (AppliedRecord params)
-  , verifierKind :: VerifierKind
+data InvocationRecorder params = InvocationRecorder
+  { invocationRef :: TVar (InvocationRecord params)
+  , functionNature :: FunctionNature
   }
 
-data VerifierKind
-  = VerifierPureConstant
-  | VerifierIOConstant
-  | VerifierFunction
+data FunctionNature
+  = PureConstant
+  | IOConstant
+  | ParametricFunction
   deriving (Eq, Show)
 
-type AppliedParamsList params = [params]
-type AppliedParamsCounter params = AssociationList params Int
+type InvocationList params = [params]
+type InvocationCounts params = AssociationList params Int
 
-data AppliedRecord params = AppliedRecord {
-  appliedParamsList :: AppliedParamsList params,
-  appliedParamsCounter :: AppliedParamsCounter params
+data InvocationRecord params = InvocationRecord {
+  invocations :: InvocationList params,
+  invocationCounts :: InvocationCounts params
 }
   deriving (Eq, Show)
 

@@ -141,7 +141,7 @@ verifyExpectation mockFn expectation = do
     CountExpectation method args ->
       verifyCount mockFn args method
     CountAnyExpectation count ->
-      verifyAppliedCount (resolvedMockName resolved) (resolvedMockVerifier resolved) count
+      verifyAppliedCount (resolvedMockName resolved) (resolvedMockRecorder resolved) count
     OrderExpectation method argsList ->
       verifyOrder method mockFn argsList
     SimpleExpectation _ ->

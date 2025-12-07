@@ -19,7 +19,7 @@ import Data.Typeable (Typeable)
 import Test.Hspec
 import Test.MockCat
 import qualified Test.MockCat.Verify as Verify
-import Test.MockCat.Internal.Types (Verifier)
+import Test.MockCat.Internal.Types (InvocationRecorder)
 import Test.MockCat.Cons (Head(..), (:>)(..))
 import Test.MockCat.Param (param)
 import Data.Text (Text, pack, isInfixOf)

@@ -332,27 +332,27 @@ registerStub ::
   forall m params fn.
   ( MonadIO m
   , Typeable params
-  , Typeable (Verifier params)
+  , Typeable (InvocationRecorder params)
   , Typeable fn
   ) =>
   Maybe MockName ->
-  Verifier params ->
+  InvocationRecorder params ->
   fn ->
   m fn
-registerStub name verifier@(Verifier {verifierRef = ref}) fn = do
+registerStub name recorder@(InvocationRecorder {invocationRef = ref}) fn = do
   baseValue <- liftIO $ evaluate fn
   case eqT :: Maybe (params :~: ()) of
     Just Refl -> do
       meta <- liftIO $ registerUnitMeta ref
-      liftIO $ atomically $ writeTVar ref appliedRecord
+      liftIO $ atomically $ writeTVar ref invocationRecord
       let trackedValue = wrapUnitStub ref meta baseValue
       liftIO $
         withUnitGuard meta $ do
-          attachVerifierToFn trackedValue (name, verifier)
-          attachVerifierToFn baseValue (name, verifier)
+          attachVerifierToFn trackedValue (name, recorder)
+          attachVerifierToFn baseValue (name, recorder)
       pure trackedValue
     Nothing -> do
-      liftIO $ attachVerifierToFn baseValue (name, verifier)
+      liftIO $ attachVerifierToFn baseValue (name, recorder)
       pure baseValue
 
 ioTyCon :: TyCon
@@ -361,7 +361,7 @@ ioTyCon = typeRepTyCon (typeRep @(IO ()))
 wrapUnitStub ::
   forall fn.
   Typeable fn =>
-  TVar (AppliedRecord ()) ->
+  TVar (InvocationRecord ()) ->
   UnitMeta ->
   fn ->
   fn

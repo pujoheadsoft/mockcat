@@ -41,7 +41,7 @@ quoteToken s
   | not (null s) && isLower (head s) = '"' : s ++ "\""
   | otherwise = s
 
-verifyFailedMessage :: Show a => Maybe MockName -> AppliedParamsList a -> a -> VerifyFailed
+verifyFailedMessage :: Show a => Maybe MockName -> InvocationList a -> a -> VerifyFailed
 verifyFailedMessage name appliedParams expected =
   VerifyFailed $
     intercalate
@@ -62,7 +62,7 @@ splitByComma s = case break (== ',') s of
   (a, ',' : rest) -> a : splitByComma rest
   (a, _) -> [a]
 
-formatAppliedParamsList :: Show a => AppliedParamsList a -> String
+formatAppliedParamsList :: Show a => InvocationList a -> String
 formatAppliedParamsList appliedParams
   | null appliedParams = "It has never been applied"
   | length appliedParams == 1 =

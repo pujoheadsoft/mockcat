@@ -27,7 +27,7 @@ import Control.Monad.Reader (ReaderT(..), runReaderT, asks)
 import GHC.TypeLits (KnownSymbol)
 import Data.Data (Proxy, Typeable)
 import UnliftIO (MonadUnliftIO(..))
-import Test.MockCat.Internal.Types (Verifier)
+import Test.MockCat.Internal.Types (InvocationRecorder)
 import Test.MockCat.Verify (ResolvableParamsOf)
 import Test.MockCat.WithMock (WithMockContext(..), MonadWithMockContext(..))
 
@@ -75,7 +75,7 @@ data Definition =
   , Typeable f
   , Typeable params
   , params ~ ResolvableParamsOf f
-  , Typeable (Verifier params)
+  , Typeable (InvocationRecorder params)
   ) =>
   Definition {
   symbol :: Proxy sym,

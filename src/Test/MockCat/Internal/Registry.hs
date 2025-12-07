@@ -27,7 +27,7 @@ import Control.Monad (forM_)
 import Data.Dynamic
 import Data.IntMap.Strict (IntMap, alter, empty, insert, lookup, elems)
 import System.IO.Unsafe (unsafePerformIO)
-import Test.MockCat.Internal.Types (MockName, Verifier)
+import Test.MockCat.Internal.Types (MockName, InvocationRecorder)
 import Unsafe.Coerce (unsafeCoerce)
 import System.Mem.StableName (StableName, eqStableName, hashStableName, makeStableName)
 import Prelude hiding (lookup)
@@ -69,9 +69,9 @@ registry = unsafePerformIO $ newTVarIO empty
 
 attachVerifierToFn ::
   forall fn params.
-  (Typeable (Verifier params)) =>
+  (Typeable (InvocationRecorder params)) =>
   fn ->
-  (Maybe MockName, Verifier params) ->
+  (Maybe MockName, InvocationRecorder params) ->
   IO ()
 attachVerifierToFn fn (name, payload) = attachDynamicVerifierToFn fn (name, toDyn payload)
 
