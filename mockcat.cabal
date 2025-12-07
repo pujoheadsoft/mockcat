@@ -52,7 +52,8 @@ library
       Test.MockCat.Cons
       Test.MockCat.Internal.Builder
       Test.MockCat.Internal.Message
-      Test.MockCat.Internal.Registry
+      Test.MockCat.Internal.MockRegistry
+      Test.MockCat.Internal.Registry.Core
       Test.MockCat.Internal.Types
       Test.MockCat.Mock
       Test.MockCat.MockT
@@ -103,7 +104,7 @@ test-suite mockcat-test
       Test.MockCat.ConsSpec
       Test.MockCat.ExampleSpec
       Test.MockCat.Impl
-      Test.MockCat.Internal.RegistrySpec
+      Test.MockCat.Internal.MockRegistrySpec
       Test.MockCat.MockSpec
       Test.MockCat.MockTSpec
       Test.MockCat.ParamSpec
