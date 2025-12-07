@@ -50,7 +50,7 @@ import Language.Haskell.TH
   )
 import Language.Haskell.TH.Lib
 import Language.Haskell.TH.Syntax (nameBase, Specificity (SpecifiedSpec))
-import Test.MockCat.Mock ( createNamedMockFnWithParams, MockBuilder, registerStub )
+import Test.MockCat.Mock ( MockBuilder, registerStub )
 import Test.MockCat.Internal.Builder (build)
 import Test.MockCat.Cons (Head(..), (:>)(..))
 import Test.MockCat.MockT
@@ -71,7 +71,7 @@ import Test.MockCat.TH.ClassAnalysis
   ( VarAppliedType (..),
     updateType
   )
-import Test.MockCat.Verify (ResolvableParamsOf, resolveForVerification, verificationFailure)
+import Test.MockCat.Verify (ResolvableParamsOf)
 import Data.Maybe (fromMaybe)
 import Data.Function ((&))
 import Data.Proxy (Proxy(..))
@@ -240,9 +240,7 @@ doCreateMockFnDecs mockType funNameStr mockFunName params funType monadVarName u
             (AppT (AppT (ConT ''MockT) (VarT monadVarName)) funType)
     sigD mockFunName (pure (ForallT [] ctx resultType))
 
-  createMockFn <- [|createNamedMockFnWithParams|]
-
-  mockBody <- createMockBody funNameStr createMockFn [|p|]
+  mockBody <- createMockBody funNameStr [|p|]
   newFun <- funD mockFunName [clause [varP $ mkName "p"] (normalB (pure mockBody)) []]
 
   pure $ newFunSig : [newFun]
@@ -273,9 +271,8 @@ doCreateConstantMockFnDecs Partial funNameStr mockFunName _ monadVarName = do
               resultType
           )
       )
-  createMockFn <- [|createNamedMockFnWithParams|]
   headParam <- [|Head :> param p|]
-  mockBody <- createMockBody funNameStr createMockFn (pure headParam)
+  mockBody <- createMockBody funNameStr (pure headParam)
   newFun <- funD mockFunName [clause [varP $ mkName "p"] (normalB (pure mockBody)) []]
   pure $ newFunSig : [newFun]
 doCreateConstantMockFnDecs Total funNameStr mockFunName ty monadVarName = do
@@ -328,9 +325,8 @@ doCreateConstantMockFnDecs Total funNameStr mockFunName ty monadVarName = do
               (AppT ArrowT ty)
               (AppT (AppT (ConT ''MockT) (VarT monadVarName)) ty)
       sigD mockFunName (pure (ForallT [PlainTV monadVarName SpecifiedSpec] ctx resultType))
-  createMockFn <- [|createNamedMockFnWithParams|]
   headParam <- [|Head :> param p|]
-  mockBody <- createMockBody funNameStr createMockFn (pure headParam)
+  mockBody <- createMockBody funNameStr (pure headParam)
   newFun <- funD mockFunName [clause [varP $ mkName "p"] (normalB (pure mockBody)) []]
   pure $ newFunSig : [newFun]
 
@@ -359,15 +355,13 @@ doCreateEmptyVerifyParamMockFnDecs funNameStr mockFunName params funType monadVa
             (AppT (AppT (ConT ''MockT) (VarT monadVarName)) funType)
     sigD mockFunName (pure (ForallT [] ctx resultType))
 
-  createMockFn <- [|createNamedMockFnWithParams|]
-
-  mockBody <- createMockBody funNameStr createMockFn [|p|]
+  mockBody <- createMockBody funNameStr [|p|]
   newFun <- funD mockFunName [clause [varP $ mkName "p"] (normalB (pure mockBody)) []]
 
   pure $ newFunSig : [newFun]
 
-createMockBody :: (Quote m) => String -> Exp -> m Exp -> m Exp
-createMockBody funNameStr createMockFn paramsExp =
+createMockBody :: (Quote m) => String -> m Exp -> m Exp
+createMockBody funNameStr paramsExp =
   paramsExp >>= \params ->
   [|
     MockT $ do
