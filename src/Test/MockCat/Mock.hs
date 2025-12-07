@@ -22,7 +22,7 @@ module Test.MockCat.Mock
   , mock
   , mockM
   , createNamedMockFnWithParams
-  , registerStub
+  , attachRecorderToFn
   , stub
   , shouldBeCalled
   , times
@@ -156,7 +156,7 @@ instance
   mockImpl p = do
     let params = toParams p
     BuiltMock { builtMockFn = fn, builtMockRecorder = recorder } <- buildMock Nothing params
-    registerStub Nothing recorder fn
+    attachRecorderToFn Nothing recorder fn
 
 -- | Create a named mock function (named version).
 --
@@ -181,7 +181,7 @@ instance {-# OVERLAPPING #-}
   mockImpl (Label name) p = do
     let params = toParams p
     BuiltMock { builtMockFn = fn, builtMockRecorder = recorder } <- buildMock (Just name) params
-    registerStub (Just name) recorder fn
+    attachRecorderToFn (Just name) recorder fn
 
 -- | Create a mock function with verification hooks attached.
 --
@@ -222,7 +222,7 @@ instance
     let params = toParams p
     BuiltMock { builtMockFn = fnIO, builtMockRecorder = verifier } <- buildIO Nothing params
     let lifted = liftFunTo (Proxy :: Proxy m) fnIO
-    registerStub Nothing verifier lifted
+    attachRecorderToFn Nothing verifier lifted
 
 instance {-# OVERLAPPING #-}
   ( MonadIO m
@@ -238,7 +238,7 @@ instance {-# OVERLAPPING #-}
     let params = toParams p
     BuiltMock { builtMockFn = fnIO, builtMockRecorder = verifier } <- buildIO (Just name) params
     let lifted = liftFunTo (Proxy :: Proxy m) fnIO
-    registerStub (Just name) verifier lifted
+    attachRecorderToFn (Just name) verifier lifted
 
 mockM :: CreateMockFnM a => a
 mockM = mockMImpl
@@ -256,7 +256,7 @@ createNamedMockFnWithParams ::
   m fn
 createNamedMockFnWithParams name params = do
   BuiltMock { builtMockFn = fn, builtMockRecorder = recorder } <- buildMock (Just name) params
-  registerStub (Just name) recorder fn
+  attachRecorderToFn (Just name) recorder fn
 
 
 -- | Create a pure stub function without verification hooks (unnamed version).
@@ -328,7 +328,7 @@ instance MonadIO m => LiftFunTo (IO r) (m r) m where
 instance LiftFunTo restIO restM m => LiftFunTo (a -> restIO) (a -> restM) m where
   liftFunTo proxy f a = liftFunTo proxy (f a)
 
-registerStub ::
+attachRecorderToFn ::
   forall m params fn.
   ( MonadIO m
   , Typeable params
@@ -339,7 +339,7 @@ registerStub ::
   InvocationRecorder params ->
   fn ->
   m fn
-registerStub name recorder@(InvocationRecorder {invocationRef = ref}) fn = do
+attachRecorderToFn name recorder@(InvocationRecorder {invocationRef = ref}) fn = do
   baseValue <- liftIO $ evaluate fn
   case eqT :: Maybe (params :~: ()) of
     Just Refl -> do

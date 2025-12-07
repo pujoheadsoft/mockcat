@@ -454,7 +454,7 @@ _fnState2 ::
   MockT m (String -> m ())
 _fnState2 p = MockT $ do
   BuiltMock { builtMockFn = mockInstance, builtMockRecorder = verifier } <- liftIO $ buildMock (Just "_fnState2") p
-  registeredFn <- liftIO $ registerStub (Just "_fnState2") verifier mockInstance
+  registeredFn <- liftIO $ attachRecorderToFn (Just "_fnState2") verifier mockInstance
   addDefinition (Definition (Proxy :: Proxy "_fnState2") registeredFn NoVerification)
   pure mockInstance
 
