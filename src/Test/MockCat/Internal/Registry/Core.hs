@@ -1,9 +1,8 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MonoLocalBinds #-}
-{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeOperators #-}
+
 module Test.MockCat.Internal.Registry.Core
   ( attachVerifierToFn
   , lookupVerifierForFn
@@ -29,18 +28,12 @@ import Control.Concurrent.STM
 import Control.Exception (bracket_)
 import Control.Monad (forM_)
 import Data.Dynamic
-import Data.Typeable (eqT)
-import Data.Type.Equality ((:~:) (Refl))
-import Data.Proxy (Proxy(..))
 import Data.IntMap.Strict (IntMap, alter, empty, insert, lookup, elems)
 import System.IO.Unsafe (unsafePerformIO)
-import Test.MockCat.Internal.Types (MockName, InvocationRecorder(..), InvocationRecord, perform)
+import Test.MockCat.Internal.Types (MockName, InvocationRecorder(..))
 import Unsafe.Coerce (unsafeCoerce)
 import System.Mem.StableName (StableName, eqStableName, hashStableName, makeStableName)
 import Prelude hiding (lookup)
-import GHC.IO (evaluate)
-import Test.MockCat.Internal.Builder (invocationRecord, appendAppliedParams)
-import Type.Reflection (TyCon, splitApps, typeRep, typeRepTyCon)
 
 data FnTag
 
