@@ -89,7 +89,7 @@ prop_runMockT_isolation = monadicIO $ do
   -- Run 1: expect one application
   r1 <- run $ try $ runMockT $ do
     f <- liftIO $ mock (param (1 :: Int) |> True)
-    addDefinition Definition { symbol = Proxy @"iso", mockFunction = f, verify = \m' -> m' `shouldBeCalled` times 1 }
+    addDefinition Definition { symbol = Proxy @"iso", mockFunction = f, verification = Verification (\m' -> m' `shouldBeCalled` times 1) }
     liftIO $ f 1 `seq` pure ()
   case r1 of
     Left (_ :: SomeException) -> assert False
@@ -97,7 +97,7 @@ prop_runMockT_isolation = monadicIO $ do
   -- Run 2: expect zero (if leaked, would see 1 and fail)
   r2 <- run $ try $ runMockT $ do
     f <- liftIO $ mock (param (1 :: Int) |> True)
-    addDefinition Definition { symbol = Proxy @"iso", mockFunction = f, verify = \m' -> m' `shouldBeCalled` times 0 }
+    addDefinition Definition { symbol = Proxy @"iso", mockFunction = f, verification = Verification (\m' -> m' `shouldBeCalled` times 0) }
     pure ()
   case r2 of
     Left (_ :: SomeException) -> assert False

@@ -10,7 +10,7 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE GADTs #-}
 module Test.MockCat.MockT (
-  MockT(..), Definition(..),
+  MockT(..), Definition(..), Verification(..),
   runMockT,
   MonadMockDefs(..)
   ) where
@@ -80,8 +80,12 @@ data Definition =
   Definition {
   symbol :: Proxy sym,
   mockFunction :: f,
-  verify :: f -> IO ()
+  verification :: Verification f
 }
+
+data Verification f
+  = NoVerification
+  | Verification (f -> IO ())
 
 {- | Run MockT monad.
   After run, verification is performed to see if the stub function has been applied.

@@ -134,7 +134,7 @@ _readFile p = MockT $ do
   mockInstance <- liftIO $ createNamedMockFnWithParams "readFile" p
   ensureVerifiable mockInstance
   let verifyStub _ = pure ()
-  addDefinition (Definition (Proxy :: Proxy "readFile") mockInstance verifyStub)
+  addDefinition (Definition (Proxy :: Proxy "readFile") mockInstance (Verification verifyStub))
   pure mockInstance
 
 _writeFile ::
@@ -147,7 +147,7 @@ _writeFile p = MockT $ do
   mockInstance <- liftIO $ createNamedMockFnWithParams "writeFile" p
   ensureVerifiable mockInstance
   let verifyStub _ = pure ()
-  addDefinition (Definition (Proxy :: Proxy "writeFile") mockInstance verifyStub)
+  addDefinition (Definition (Proxy :: Proxy "writeFile") mockInstance (Verification verifyStub))
   pure mockInstance
 
 _getInput ::
@@ -161,7 +161,7 @@ _getInput value = MockT $ do
   mockInstance <- liftIO $ createNamedMockFnWithParams "getInput" (Head :> param value)
   ensureVerifiable mockInstance
   let verifyStub _ = pure ()
-  addDefinition (Definition (Proxy :: Proxy "getInput") mockInstance verifyStub)
+  addDefinition (Definition (Proxy :: Proxy "getInput") mockInstance (Verification verifyStub))
   pure mockInstance
 
 _toUserInput ::
@@ -176,7 +176,7 @@ _toUserInput p = MockT $ do
   mockInstance <- liftIO $ createNamedMockFnWithParams "toUserInput" p
   ensureVerifiable mockInstance
   let verifyStub _ = pure ()
-  addDefinition (Definition (Proxy :: Proxy "toUserInput") mockInstance verifyStub)
+  addDefinition (Definition (Proxy :: Proxy "toUserInput") mockInstance (Verification verifyStub))
   pure mockInstance
 
 _getByPartial ::
@@ -191,7 +191,7 @@ _getByPartial p = MockT $ do
   mockInstance <- liftIO $ createNamedMockFnWithParams "getBy" p
   ensureVerifiable mockInstance
   let verifyStub _ = pure ()
-  addDefinition (Definition (Proxy :: Proxy "getBy") mockInstance verifyStub)
+  addDefinition (Definition (Proxy :: Proxy "getBy") mockInstance (Verification verifyStub))
   pure mockInstance
 
 _echoPartial ::
@@ -206,7 +206,7 @@ _echoPartial p = MockT $ do
   mockInstance <- liftIO $ createNamedMockFnWithParams "echo" p
   ensureVerifiable mockInstance
   let verifyStub _ = pure ()
-  addDefinition (Definition (Proxy :: Proxy "echo") mockInstance verifyStub)
+  addDefinition (Definition (Proxy :: Proxy "echo") mockInstance (Verification verifyStub))
   pure mockInstance
 
 findParam :: KnownSymbol sym => Proxy sym -> [Definition] -> Maybe a
@@ -247,7 +247,7 @@ _findIds p = MockT $ do
     ( Definition
         (Proxy :: Proxy "_findIds")
         mockInstance
-        verifyStub
+        (Verification verifyStub)
     )
   pure mockInstance
 

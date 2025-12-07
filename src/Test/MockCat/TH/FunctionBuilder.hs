@@ -374,7 +374,7 @@ createMockBody funNameStr paramsExp =
         ( Definition
             (Proxy :: Proxy $(litT (strTyLit funNameStr)))
             registeredFn
-            verifyStub
+            (Verification verifyStub)
         )
       pure mockInstance
     |]
