@@ -49,8 +49,9 @@ ensureVerifiable ::
   target ->
   m ()
 ensureVerifiable target =
-  liftIO $
-    Verify.resolveForVerification target >>= \case
+  liftIO $ do
+    m <- Verify.resolveForVerification target
+    case m of
       Just _ -> pure ()
       Nothing -> Verify.verificationFailure
 
@@ -114,8 +115,7 @@ _ask ::
 _ask p = MockT $ do
   mockInstance <- liftIO $ createNamedMockFnWithParams "ask" (Head :> param p)
   ensureVerifiable mockInstance
-  let verifyStub _ = pure ()
-  addDefinition (Definition (Proxy :: Proxy "ask") mockInstance (Verification verifyStub))
+  addDefinition (Definition (Proxy :: Proxy "ask") mockInstance NoVerification)
   pure mockInstance
 
 _readFile ::
@@ -127,8 +127,7 @@ _readFile ::
 _readFile p = MockT $ do
   mockInstance <- liftIO $ createNamedMockFnWithParams "readFile" p
   ensureVerifiable mockInstance
-  let verifyStub _ = pure ()
-  addDefinition (Definition (Proxy :: Proxy "readFile") mockInstance (Verification verifyStub))
+  addDefinition (Definition (Proxy :: Proxy "readFile") mockInstance NoVerification)
   pure mockInstance
 
 _writeFile ::
@@ -140,8 +139,7 @@ _writeFile ::
 _writeFile p = MockT $ do
   mockInstance <- liftIO $ createNamedMockFnWithParams "writeFile" p
   ensureVerifiable mockInstance
-  let verifyStub _ = pure ()
-  addDefinition (Definition (Proxy :: Proxy "writeFile") mockInstance (Verification verifyStub))
+  addDefinition (Definition (Proxy :: Proxy "writeFile") mockInstance NoVerification)
   pure mockInstance
 
 _post ::
@@ -153,8 +151,7 @@ _post ::
 _post p = MockT $ do
   mockFn <- liftIO $ createNamedMockFnWithParams "post" p
   ensureVerifiable mockFn
-  let verifyStub _ = pure ()
-  addDefinition (Definition (Proxy :: Proxy "post") mockFn (Verification verifyStub))
+  addDefinition (Definition (Proxy :: Proxy "post") mockFn NoVerification)
   pure mockFn
 
 findParam :: KnownSymbol sym => Proxy sym -> [Definition] -> Maybe a
@@ -333,8 +330,7 @@ _getBy ::
 _getBy p = MockT $ do
   mockInstance <- liftIO $ createNamedMockFnWithParams "_getBy" p
   ensureVerifiable mockInstance
-  let verifyStub _ = pure ()
-  addDefinition (Definition (Proxy :: Proxy "_getBy") mockInstance (Verification verifyStub))
+  addDefinition (Definition (Proxy :: Proxy "_getBy") mockInstance NoVerification)
   pure mockInstance
 
 _echo ::
@@ -348,8 +344,7 @@ _echo ::
 _echo p = MockT $ do
   mockInstance <- liftIO $ createNamedMockFnWithParams "_echo" p
   ensureVerifiable mockInstance
-  let verifyStub _ = pure ()
-  addDefinition (Definition (Proxy :: Proxy "_echo") mockInstance (Verification verifyStub))
+  addDefinition (Definition (Proxy :: Proxy "_echo") mockInstance NoVerification)
   pure mockInstance
 
 _fn2_1Sub ::
@@ -363,8 +358,7 @@ _fn2_1Sub ::
 _fn2_1Sub p = MockT $ do
   mockInstance <- liftIO $ createNamedMockFnWithParams "_fn2_1Sub" p
   ensureVerifiable mockInstance
-  let verifyStub _ = pure ()
-  addDefinition (Definition (Proxy :: Proxy "_fn2_1Sub") mockInstance (Verification verifyStub))
+  addDefinition (Definition (Proxy :: Proxy "_fn2_1Sub") mockInstance NoVerification)
   pure mockInstance
 
 _fn2_2Sub ::
@@ -378,8 +372,7 @@ _fn2_2Sub ::
 _fn2_2Sub p = MockT $ do
   mockInstance <- liftIO $ createNamedMockFnWithParams "_fn2_2Sub" p
   ensureVerifiable mockInstance
-  let verifyStub _ = pure ()
-  addDefinition (Definition (Proxy :: Proxy "_fn2_2Sub") mockInstance (Verification verifyStub))
+  addDefinition (Definition (Proxy :: Proxy "_fn2_2Sub") mockInstance NoVerification)
   pure mockInstance
 
 _fn3_1Sub ::
@@ -393,8 +386,7 @@ _fn3_1Sub ::
 _fn3_1Sub p = MockT $ do
   mockInstance <- liftIO $ createNamedMockFnWithParams "_fn3_1Sub" p
   ensureVerifiable mockInstance
-  let verifyStub _ = pure ()
-  addDefinition (Definition (Proxy :: Proxy "_fn3_1Sub") mockInstance (Verification verifyStub))
+  addDefinition (Definition (Proxy :: Proxy "_fn3_1Sub") mockInstance NoVerification)
   pure mockInstance
 
 _fn3_2Sub ::
@@ -408,8 +400,7 @@ _fn3_2Sub ::
 _fn3_2Sub p = MockT $ do
   mockInstance <- liftIO $ createNamedMockFnWithParams "_fn3_2Sub" p
   ensureVerifiable mockInstance
-  let verifyStub _ = pure ()
-  addDefinition (Definition (Proxy :: Proxy "_fn3_2Sub") mockInstance (Verification verifyStub))
+  addDefinition (Definition (Proxy :: Proxy "_fn3_2Sub") mockInstance NoVerification)
   pure mockInstance
 
 _fn3_3Sub ::
@@ -423,8 +414,7 @@ _fn3_3Sub ::
 _fn3_3Sub p = MockT $ do
   mockInstance <- liftIO $ createNamedMockFnWithParams "_fn3_3Sub" p
   ensureVerifiable mockInstance
-  let verifyStub _ = pure ()
-  addDefinition (Definition (Proxy :: Proxy "_fn3_3Sub") mockInstance (Verification verifyStub))
+  addDefinition (Definition (Proxy :: Proxy "_fn3_3Sub") mockInstance NoVerification)
   pure mockInstance
 
 _getValueBy ::
@@ -438,8 +428,7 @@ _getValueBy ::
 _getValueBy p = MockT $ do
   mockInstance <- liftIO $ createNamedMockFnWithParams "_getValueBy" p
   ensureVerifiable mockInstance
-  let verifyStub _ = pure ()
-  addDefinition (Definition (Proxy :: Proxy "_getValueBy") mockInstance (Verification verifyStub))
+  addDefinition (Definition (Proxy :: Proxy "_getValueBy") mockInstance NoVerification)
   pure mockInstance
 
 _fnState ::
@@ -455,8 +444,7 @@ _fnState p = MockT $ do
   -- Cases を使っている場合でも検証できるように、build から直接 verifier を取得
   (mockInstance, verifier) <- liftIO $ build (Just "_fnState") p
   registeredFn <- liftIO $ registerStub (Just "_fnState") verifier mockInstance
-  let verifyStub _ = pure ()
-  addDefinition (Definition (Proxy :: Proxy "_fnState") registeredFn (Verification verifyStub))
+  addDefinition (Definition (Proxy :: Proxy "_fnState") registeredFn NoVerification)
   pure mockInstance
 
 _fnState2 ::
@@ -470,8 +458,7 @@ _fnState2 ::
 _fnState2 p = MockT $ do
   (mockInstance, verifier) <- liftIO $ build (Just "_fnState2") p
   registeredFn <- liftIO $ registerStub (Just "_fnState2") verifier mockInstance
-  let verifyStub _ = pure ()
-  addDefinition (Definition (Proxy :: Proxy "_fnState2") registeredFn (Verification verifyStub))
+  addDefinition (Definition (Proxy :: Proxy "_fnState2") registeredFn NoVerification)
   pure mockInstance
 
 _fnParam3_1 ::
@@ -485,8 +472,7 @@ _fnParam3_1 ::
 _fnParam3_1 p = MockT $ do
   mockInstance <- liftIO $ createNamedMockFnWithParams "_fnParam3_1" p
   ensureVerifiable mockInstance
-  let verifyStub _ = pure ()
-  addDefinition (Definition (Proxy :: Proxy "_fnParam3_1") mockInstance (Verification verifyStub))
+  addDefinition (Definition (Proxy :: Proxy "_fnParam3_1") mockInstance NoVerification)
   pure mockInstance
 
 _fnParam3_2 ::
@@ -500,8 +486,7 @@ _fnParam3_2 ::
 _fnParam3_2 p = MockT $ do
   mockInstance <- liftIO $ createNamedMockFnWithParams "_fnParam3_2" p
   ensureVerifiable mockInstance
-  let verifyStub _ = pure ()
-  addDefinition (Definition (Proxy :: Proxy "_fnParam3_2") mockInstance (Verification verifyStub))
+  addDefinition (Definition (Proxy :: Proxy "_fnParam3_2") mockInstance NoVerification)
   pure mockInstance
 
 _fnParam3_3 ::
@@ -515,8 +500,7 @@ _fnParam3_3 ::
 _fnParam3_3 p = MockT $ do
   mockInstance <- liftIO $ createNamedMockFnWithParams "_fnParam3_3" p
   ensureVerifiable mockInstance
-  let verifyStub _ = pure ()
-  addDefinition (Definition (Proxy :: Proxy "_fnParam3_3") mockInstance (Verification verifyStub))
+  addDefinition (Definition (Proxy :: Proxy "_fnParam3_3") mockInstance NoVerification)
   pure mockInstance
 
 _getByExplicit ::
@@ -530,8 +514,7 @@ _getByExplicit ::
 _getByExplicit p = MockT $ do
   mockInstance <- liftIO $ createNamedMockFnWithParams "_getByExplicit" p
   ensureVerifiable mockInstance
-  let verifyStub _ = pure ()
-  addDefinition (Definition (Proxy :: Proxy "_getByExplicit") mockInstance (Verification verifyStub))
+  addDefinition (Definition (Proxy :: Proxy "_getByExplicit") mockInstance NoVerification)
   pure mockInstance
 
 _echoExplicit ::
@@ -545,8 +528,7 @@ _echoExplicit ::
 _echoExplicit p = MockT $ do
   mockInstance <- liftIO $ createNamedMockFnWithParams "_echoExplicit" p
   ensureVerifiable mockInstance
-  let verifyStub _ = pure ()
-  addDefinition (Definition (Proxy :: Proxy "_echoExplicit") mockInstance (Verification verifyStub))
+  addDefinition (Definition (Proxy :: Proxy "_echoExplicit") mockInstance NoVerification)
   pure mockInstance
 
 _defaultAction ::
@@ -559,8 +541,7 @@ _defaultAction ::
 _defaultAction value = MockT $ do
   mockInstance <- liftIO $ createNamedMockFnWithParams "_defaultAction" (Head :> param value)
   ensureVerifiable mockInstance
-  let verifyStub _ = pure ()
-  addDefinition (Definition (Proxy :: Proxy "_defaultAction") mockInstance (Verification verifyStub))
+  addDefinition (Definition (Proxy :: Proxy "_defaultAction") mockInstance NoVerification)
   pure mockInstance
 
 _produce ::
@@ -573,8 +554,7 @@ _produce ::
 _produce value = MockT $ do
   mockInstance <- liftIO $ createNamedMockFnWithParams "_produce" (Head :> param value)
   ensureVerifiable mockInstance
-  let verifyStub _ = pure ()
-  addDefinition (Definition (Proxy :: Proxy "_produce") mockInstance (Verification verifyStub))
+  addDefinition (Definition (Proxy :: Proxy "_produce") mockInstance NoVerification)
   pure mockInstance
 
 stubPostFn ::
@@ -586,8 +566,7 @@ stubPostFn ::
 stubPostFn p = MockT $ do
   mockInstance <- liftIO $ createNamedMockFnWithParams "stubPostFn" p
   ensureVerifiable mockInstance
-  let verifyStub _ = pure ()
-  addDefinition (Definition (Proxy :: Proxy "post") mockInstance (Verification verifyStub))
+  addDefinition (Definition (Proxy :: Proxy "post") mockInstance NoVerification)
 
 processFiles :: (MonadAsync m, FileOperation m) => [FilePath] -> m [Text]
 processFiles = mapConcurrently readFile
@@ -626,8 +605,7 @@ _readTTY ::
 _readTTY p = MockT $ do
   mockInstance <- liftIO $ createNamedMockFnWithParams "_readTTY" p
   ensureVerifiable mockInstance
-  let verifyStub _ = pure ()
-  addDefinition (Definition (Proxy :: Proxy "_readTTY") mockInstance (Verification verifyStub))
+  addDefinition (Definition (Proxy :: Proxy "_readTTY") mockInstance NoVerification)
   pure mockInstance
 
 _writeTTY ::
@@ -641,8 +619,7 @@ _writeTTY ::
 _writeTTY p = MockT $ do
   mockInstance <- liftIO $ createNamedMockFnWithParams "_writeTTY" p
   ensureVerifiable mockInstance
-  let verifyStub _ = pure ()
-  addDefinition (Definition (Proxy :: Proxy "_writeTTY") mockInstance (Verification verifyStub))
+  addDefinition (Definition (Proxy :: Proxy "_writeTTY") mockInstance NoVerification)
   pure mockInstance
 
 spec :: Spec

@@ -369,12 +369,11 @@ createMockBody funNameStr paramsExp =
       -- to the verifier value (avoids runtime type-mismatch when resolving).
       (mockInstance, verifier) <- liftIO $ build (Just $(litE (stringL funNameStr))) $(pure params)
       registeredFn <- liftIO $ registerStub (Just $(litE (stringL funNameStr))) verifier mockInstance
-      let verifyStub _ = pure ()
       addDefinition
         ( Definition
             (Proxy :: Proxy $(litT (strTyLit funNameStr)))
             registeredFn
-            (Verification verifyStub)
+            NoVerification
         )
       pure mockInstance
     |]
