@@ -50,8 +50,8 @@ import Data.Proxy (Proxy(..))
 import Data.Typeable (Typeable)
 import Prelude hiding (lookup)
 import Test.MockCat.Internal.Builder
-import qualified Test.MockCat.Internal.Registry as Registry
-  ( registerRecorderForFunction
+import qualified Test.MockCat.Internal.MockRegistry as Registry
+  ( register
   )
 import Test.MockCat.Internal.Types
 import Test.MockCat.Param
@@ -144,7 +144,7 @@ instance
   mockImpl p = do
     let params = toParams p
     BuiltMock { builtMockFn = fn, builtMockRecorder = recorder } <- buildMock Nothing params
-    _ <- liftIO $ Registry.registerRecorderForFunction Nothing recorder fn
+    _ <- liftIO $ Registry.register Nothing recorder fn
     pure fn
 
 -- | Create a named mock function (named version).
@@ -170,7 +170,7 @@ instance {-# OVERLAPPING #-}
   mockImpl (Label name) p = do
     let params = toParams p
     BuiltMock { builtMockFn = fn, builtMockRecorder = recorder } <- buildMock (Just name) params
-    _ <- liftIO $ Registry.registerRecorderForFunction (Just name) recorder fn
+    _ <- liftIO $ Registry.register (Just name) recorder fn
     pure fn
 
 -- | Create a mock function with verification hooks attached.
@@ -212,7 +212,7 @@ instance
     let params = toParams p
     BuiltMock { builtMockFn = fnIO, builtMockRecorder = verifier } <- buildIO Nothing params
     let lifted = liftFunTo (Proxy :: Proxy m) fnIO
-    _ <- liftIO $ Registry.registerRecorderForFunction Nothing verifier lifted
+    _ <- liftIO $ Registry.register Nothing verifier lifted
     pure lifted
 
 instance {-# OVERLAPPING #-}
@@ -229,7 +229,7 @@ instance {-# OVERLAPPING #-}
     let params = toParams p
     BuiltMock { builtMockFn = fnIO, builtMockRecorder = verifier } <- buildIO (Just name) params
     let lifted = liftFunTo (Proxy :: Proxy m) fnIO
-    _ <- liftIO $ Registry.registerRecorderForFunction (Just name) verifier lifted
+    _ <- liftIO $ Registry.register (Just name) verifier lifted
     pure lifted
 
 mockM :: CreateMockFnM a => a
@@ -248,7 +248,7 @@ createNamedMockFnWithParams ::
   m fn
 createNamedMockFnWithParams name params = do
   BuiltMock { builtMockFn = fn, builtMockRecorder = recorder } <- buildMock (Just name) params
-  _ <- liftIO $ Registry.registerRecorderForFunction (Just name) recorder fn
+  _ <- liftIO $ Registry.register (Just name) recorder fn
   pure fn
 
 

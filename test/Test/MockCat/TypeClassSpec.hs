@@ -37,7 +37,7 @@ import qualified Test.MockCat.Verify as Verify
 import Test.MockCat.SharedSpecDefs
 import Test.MockCat.TypeClassCommonSpec (specEcho, specFileOperation, specFileOperationReaderEnvironment, specApiRenaming, specTestClass, specMultiApply, specSubVars, specMonadState, specExplicitReturn, specDefaultMethod, specAssocType, specMonadAsync, specMonadReaderEnvironment)
 import Test.MockCat.Internal.Types (BuiltMock(..))
-import qualified Test.MockCat.Internal.Registry as Registry (registerRecorderForFunction)
+import qualified Test.MockCat.Internal.MockRegistry as Registry (register)
 
 missingCall :: String -> Selector ErrorCall
 missingCall name err =
@@ -455,7 +455,7 @@ _fnState2 ::
   MockT m (String -> m ())
 _fnState2 p = MockT $ do
   BuiltMock { builtMockFn = mockInstance, builtMockRecorder = verifier } <- liftIO $ buildMock (Just "_fnState2") p
-  registeredFn <- liftIO $ Registry.registerRecorderForFunction (Just "_fnState2") verifier mockInstance
+  registeredFn <- liftIO $ Registry.register (Just "_fnState2") verifier mockInstance
   addDefinition (Definition (Proxy :: Proxy "_fnState2") registeredFn NoVerification)
   pure mockInstance
 

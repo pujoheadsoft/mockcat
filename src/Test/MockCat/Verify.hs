@@ -29,7 +29,7 @@ import Test.MockCat.Internal.Message
 import Data.Kind (Type, Constraint)
 import Test.MockCat.Cons ((:>))
 import Data.Typeable (Typeable, eqT)
-import Test.MockCat.Internal.Registry (lookupVerifierForFn, withAllUnitGuards)
+import Test.MockCat.Internal.MockRegistry (lookupVerifierForFn, withAllUnitGuards)
 import Data.Type.Equality ((:~:) (Refl))
 import Data.Dynamic (fromDynamic)
 import GHC.TypeLits (TypeError, ErrorMessage(..), Symbol)
