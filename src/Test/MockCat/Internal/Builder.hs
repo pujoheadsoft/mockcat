@@ -107,7 +107,7 @@ class MockBuilder params fn verifyParams | params -> fn, params -> verifyParams 
     MonadIO m =>
     Maybe MockName ->
     params ->
-    m (fn, InvocationRecorder verifyParams)
+    m (BuiltMock fn verifyParams)
 
 -- | New name for `build` to make intent explicit.
 --   `buildMock` constructs a mock function and its verifier.
@@ -117,7 +117,7 @@ buildMock ::
   ) =>
   Maybe MockName ->
   params ->
-  m (fn, InvocationRecorder verifyParams)
+  m (BuiltMock fn verifyParams)
 buildMock = build
 
 -- | Instance for building a stub for a constant IO action.
@@ -126,12 +126,13 @@ instance
   where
   build _ action = do
     ref <- liftIO $ newTVarIO invocationRecord
-    let fn = do
-          result <- action
-          liftIO $ appendAppliedParams ref ()
-          pure result
-        recorder = InvocationRecorder ref IOConstant
-    pure (fn, recorder)
+    let
+      fn = do
+        result <- action
+        liftIO $ appendAppliedParams ref ()
+        pure result
+      recorder = InvocationRecorder ref IOConstant
+    pure (BuiltMock fn recorder)
 
 -- | Instance for building a stub for a constant value (with Head marker).
 instance
@@ -144,7 +145,7 @@ instance
           liftIO $ appendAppliedParams ref ()
           pure v
         recorder = InvocationRecorder ref PureConstant
-    pure (fn, recorder)
+    pure (BuiltMock fn recorder)
 
 -- | Instance for building a stub for a value (backward compatibility).
 instance
@@ -157,7 +158,7 @@ instance
           liftIO $ appendAppliedParams ref ()
           pure v
         recorder = InvocationRecorder ref PureConstant
-    pure (fn, recorder)
+    pure (BuiltMock fn recorder)
 
 -- | Instance for building a stub for `Cases (IO a) ()`.
 instance MockBuilder (Cases (IO a) ()) (IO a) () where
@@ -172,7 +173,7 @@ instance MockBuilder (Cases (IO a) ()) (IO a) () where
           incrementInvocationCount ref ()
           fromJust r
         recorder = InvocationRecorder ref IOConstant
-    pure (fn, recorder)
+    pure (BuiltMock fn recorder)
 
 -- | Overlapping instance for building a stub when parameters are provided as 'Cases'.
 instance {-# OVERLAPPABLE #-}
@@ -198,7 +199,7 @@ class MockIOBuilder params fn verifyParams | params -> fn, params -> verifyParam
     MonadIO m =>
     Maybe MockName ->
     params ->
-    m (fn, InvocationRecorder verifyParams)
+    m (BuiltMock fn verifyParams)
 
 instance {-# OVERLAPPABLE #-}
   ( ParamConstraints params args r
@@ -222,24 +223,24 @@ buildWithRecorder ::
   , BuildCurried args r fn
   ) =>
   (TVar (InvocationRecord args) -> args -> IO r) ->
-  m (fn, InvocationRecorder args)
+  m (BuiltMock fn args)
 buildWithRecorder handler = do
   ref <- liftIO $ newTVarIO invocationRecord
   let fn = buildCurried (handler ref)
       recorder = InvocationRecorder ref ParametricFunction
-  pure (fn, recorder)
+  pure (BuiltMock fn recorder)
 
 buildWithRecorderIO ::
   ( MonadIO m
   , BuildCurriedIO args r fn
   ) =>
   (TVar (InvocationRecord args) -> args -> IO r) ->
-  m (fn, InvocationRecorder args)
+  m (BuiltMock fn args)
 buildWithRecorderIO handler = do
   ref <- liftIO $ newTVarIO invocationRecord
   let fn = buildCurriedIO (handler ref)
       recorder = InvocationRecorder ref ParametricFunction
-  pure (fn, recorder)
+  pure (BuiltMock fn recorder)
 
 invocationRecord :: InvocationRecord params
 invocationRecord =

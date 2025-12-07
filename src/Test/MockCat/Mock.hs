@@ -155,8 +155,8 @@ instance
   where
   mockImpl p = do
     let params = toParams p
-    (fn, verifier) <- buildMock Nothing params
-    registerStub Nothing verifier fn
+    BuiltMock { builtMockFn = fn, builtMockRecorder = recorder } <- buildMock Nothing params
+    registerStub Nothing recorder fn
 
 -- | Create a named mock function (named version).
 --
@@ -180,8 +180,8 @@ instance {-# OVERLAPPING #-}
   where
   mockImpl (Label name) p = do
     let params = toParams p
-    (fn, verifier) <- buildMock (Just name) params
-    registerStub (Just name) verifier fn
+    BuiltMock { builtMockFn = fn, builtMockRecorder = recorder } <- buildMock (Just name) params
+    registerStub (Just name) recorder fn
 
 -- | Create a mock function with verification hooks attached.
 --
@@ -220,7 +220,7 @@ instance
   where
   mockMImpl p = do
     let params = toParams p
-    (fnIO, verifier) <- buildIO Nothing params
+    BuiltMock { builtMockFn = fnIO, builtMockRecorder = verifier } <- buildIO Nothing params
     let lifted = liftFunTo (Proxy :: Proxy m) fnIO
     registerStub Nothing verifier lifted
 
@@ -236,7 +236,7 @@ instance {-# OVERLAPPING #-}
   where
   mockMImpl (Label name) p = do
     let params = toParams p
-    (fnIO, verifier) <- buildIO (Just name) params
+    BuiltMock { builtMockFn = fnIO, builtMockRecorder = verifier } <- buildIO (Just name) params
     let lifted = liftFunTo (Proxy :: Proxy m) fnIO
     registerStub (Just name) verifier lifted
 
@@ -255,8 +255,8 @@ createNamedMockFnWithParams ::
   params ->
   m fn
 createNamedMockFnWithParams name params = do
-  (fn, verifier) <- buildMock (Just name) params
-  registerStub (Just name) verifier fn
+  BuiltMock { builtMockFn = fn, builtMockRecorder = recorder } <- buildMock (Just name) params
+  registerStub (Just name) recorder fn
 
 
 -- | Create a pure stub function without verification hooks (unnamed version).

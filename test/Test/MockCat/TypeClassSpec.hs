@@ -36,6 +36,7 @@ import Control.Monad.IO.Unlift (MonadUnliftIO)
 import qualified Test.MockCat.Verify as Verify
 import Test.MockCat.SharedSpecDefs
 import Test.MockCat.TypeClassCommonSpec (specEcho, specFileOperation, specFileOperationReaderEnvironment, specApiRenaming, specTestClass, specMultiApply, specSubVars, specMonadState, specExplicitReturn, specDefaultMethod, specAssocType, specMonadAsync, specMonadReaderEnvironment)
+import Test.MockCat.Internal.Types (BuiltMock(..))
 
 missingCall :: String -> Selector ErrorCall
 missingCall name err =
@@ -452,7 +453,7 @@ _fnState2 ::
   params ->
   MockT m (String -> m ())
 _fnState2 p = MockT $ do
-  (mockInstance, verifier) <- liftIO $ buildMock (Just "_fnState2") p
+  BuiltMock { builtMockFn = mockInstance, builtMockRecorder = verifier } <- liftIO $ buildMock (Just "_fnState2") p
   registeredFn <- liftIO $ registerStub (Just "_fnState2") verifier mockInstance
   addDefinition (Definition (Proxy :: Proxy "_fnState2") registeredFn NoVerification)
   pure mockInstance

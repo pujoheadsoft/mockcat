@@ -22,6 +22,12 @@ data InvocationRecorder params = InvocationRecorder
   , functionNature :: FunctionNature
   }
 
+-- | Result of building a mock: function plus its recorder.
+data BuiltMock fn params = BuiltMock
+  { builtMockFn :: fn
+  , builtMockRecorder :: InvocationRecorder params
+  }
+
 data FunctionNature
   = PureConstant
   | IOConstant
