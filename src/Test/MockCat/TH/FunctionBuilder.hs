@@ -51,7 +51,7 @@ import Language.Haskell.TH
 import Language.Haskell.TH.Lib
 import Language.Haskell.TH.Syntax (nameBase, Specificity (SpecifiedSpec))
 import Test.MockCat.Mock ( MockBuilder, registerStub )
-import Test.MockCat.Internal.Builder (build)
+import Test.MockCat.Internal.Builder (buildMock)
 import Test.MockCat.Cons (Head(..), (:>)(..))
 import Test.MockCat.MockT
   ( MockT (..),
@@ -367,7 +367,7 @@ createMockBody funNameStr paramsExp =
     MockT $ do
       -- Build the mock instance and its verifier directly so we have access
       -- to the verifier value (avoids runtime type-mismatch when resolving).
-      (mockInstance, verifier) <- liftIO $ build (Just $(litE (stringL funNameStr))) $(pure params)
+      (mockInstance, verifier) <- liftIO $ buildMock (Just $(litE (stringL funNameStr))) $(pure params)
       registeredFn <- liftIO $ registerStub (Just $(litE (stringL funNameStr))) verifier mockInstance
       addDefinition
         ( Definition

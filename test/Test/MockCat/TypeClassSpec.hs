@@ -51,9 +51,7 @@ ensureVerifiable ::
 ensureVerifiable target =
   liftIO $ do
     m <- Verify.resolveForVerification target
-    case m of
-      Just _ -> pure ()
-      Nothing -> Verify.verificationFailure
+    case m of { Just _ -> pure (); Nothing -> Verify.verificationFailure }
 
 apiFileOperationProgram ::
   (MonadReader String m, FileOperation m, ApiOperation m) =>
@@ -441,10 +439,8 @@ _fnState ::
   params ->
   MockT m (Maybe s -> m s)
 _fnState p = MockT $ do
-  -- Cases を使っている場合でも検証できるように、build から直接 verifier を取得
-  (mockInstance, verifier) <- liftIO $ build (Just "_fnState") p
-  registeredFn <- liftIO $ registerStub (Just "_fnState") verifier mockInstance
-  addDefinition (Definition (Proxy :: Proxy "_fnState") registeredFn NoVerification)
+  mockInstance <- liftIO $ createNamedMockFnWithParams "_fnState" p
+  addDefinition (Definition (Proxy :: Proxy "_fnState") mockInstance NoVerification)
   pure mockInstance
 
 _fnState2 ::
@@ -456,7 +452,7 @@ _fnState2 ::
   params ->
   MockT m (String -> m ())
 _fnState2 p = MockT $ do
-  (mockInstance, verifier) <- liftIO $ build (Just "_fnState2") p
+  (mockInstance, verifier) <- liftIO $ buildMock (Just "_fnState2") p
   registeredFn <- liftIO $ registerStub (Just "_fnState2") verifier mockInstance
   addDefinition (Definition (Proxy :: Proxy "_fnState2") registeredFn NoVerification)
   pure mockInstance

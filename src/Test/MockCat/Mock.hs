@@ -18,7 +18,7 @@ verified via the unified 'shouldBeCalled' API.
 -}
 module Test.MockCat.Mock
   ( MockBuilder
-  , build
+  , buildMock
   , mock
   , mockM
   , createNamedMockFnWithParams
@@ -155,7 +155,7 @@ instance
   where
   mockImpl p = do
     let params = toParams p
-    (fn, verifier) <- build Nothing params
+    (fn, verifier) <- buildMock Nothing params
     registerStub Nothing verifier fn
 
 -- | Create a named mock function (named version).
@@ -180,7 +180,7 @@ instance {-# OVERLAPPING #-}
   where
   mockImpl (Label name) p = do
     let params = toParams p
-    (fn, verifier) <- build (Just name) params
+    (fn, verifier) <- buildMock (Just name) params
     registerStub (Just name) verifier fn
 
 -- | Create a mock function with verification hooks attached.
@@ -255,7 +255,7 @@ createNamedMockFnWithParams ::
   params ->
   m fn
 createNamedMockFnWithParams name params = do
-  (fn, verifier) <- build (Just name) params
+  (fn, verifier) <- buildMock (Just name) params
   registerStub (Just name) verifier fn
 
 

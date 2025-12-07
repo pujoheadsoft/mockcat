@@ -109,6 +109,17 @@ class MockBuilder params fn verifyParams | params -> fn, params -> verifyParams 
     params ->
     m (fn, Verifier verifyParams)
 
+-- | New name for `build` to make intent explicit.
+--   `buildMock` constructs a mock function and its verifier.
+buildMock ::
+  ( MonadIO m
+  , MockBuilder params fn verifyParams
+  ) =>
+  Maybe MockName ->
+  params ->
+  m (fn, Verifier verifyParams)
+buildMock = build
+
 -- | Instance for building a stub for a constant IO action.
 instance
   MockBuilder (IO r) (IO r) ()
