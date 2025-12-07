@@ -2,11 +2,9 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
@@ -22,7 +20,6 @@ module Test.MockCat.Mock
   , mock
   , mockM
   , createNamedMockFnWithParams
-  , attachRecorderToFn
   , stub
   , shouldBeCalled
   , times
@@ -46,29 +43,20 @@ module Test.MockCat.Mock
   , Label
   ) where
 
-import Control.Concurrent.STM (TVar, atomically, writeTVar)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.State (get, put)
 import Data.Kind (Type)
 import Data.Proxy (Proxy(..))
-import Data.Type.Equality ((:~:) (Refl))
-import Data.Typeable (Typeable, eqT)
-import GHC.IO (evaluate)
+import Data.Typeable (Typeable)
 import Prelude hiding (lookup)
 import Test.MockCat.Internal.Builder
-import Test.MockCat.Internal.Registry
-  ( UnitMeta
-  , attachVerifierToFn
-  , isGuardActive
-  , markUnitUsed
-  , registerUnitMeta
-  , withUnitGuard
+import qualified Test.MockCat.Internal.Registry as Registry
+  ( registerRecorderForFunction
   )
 import Test.MockCat.Internal.Types
 import Test.MockCat.Param
 import Test.MockCat.Verify
 import Test.MockCat.Cons (Head(..), (:>)(..))
-import Type.Reflection (TyCon, splitApps, typeRep, typeRepTyCon)
 
 -- | Type family to convert raw values to mock parameters.
 --   Raw values (like "foo") are converted to Head :> Param a,
@@ -108,7 +96,7 @@ instance {-# OVERLAPPING #-} CreateMock (Head :> Param r) where
 -- Instance for raw values (fallback)
 -- This handles raw values by wrapping them with Head :> Param
 -- We need to ensure this doesn't match Param chains, Cases, IO, or Head types
-instance {-# OVERLAPPABLE #-} 
+instance {-# OVERLAPPABLE #-}
   ( ToMockParams b ~ (Head :> Param b)
   , Typeable b
   ) => CreateMock b where
@@ -156,7 +144,8 @@ instance
   mockImpl p = do
     let params = toParams p
     BuiltMock { builtMockFn = fn, builtMockRecorder = recorder } <- buildMock Nothing params
-    attachRecorderToFn Nothing recorder fn
+    _ <- liftIO $ Registry.registerRecorderForFunction Nothing recorder fn
+    pure fn
 
 -- | Create a named mock function (named version).
 --
@@ -181,7 +170,8 @@ instance {-# OVERLAPPING #-}
   mockImpl (Label name) p = do
     let params = toParams p
     BuiltMock { builtMockFn = fn, builtMockRecorder = recorder } <- buildMock (Just name) params
-    attachRecorderToFn (Just name) recorder fn
+    _ <- liftIO $ Registry.registerRecorderForFunction (Just name) recorder fn
+    pure fn
 
 -- | Create a mock function with verification hooks attached.
 --
@@ -222,7 +212,8 @@ instance
     let params = toParams p
     BuiltMock { builtMockFn = fnIO, builtMockRecorder = verifier } <- buildIO Nothing params
     let lifted = liftFunTo (Proxy :: Proxy m) fnIO
-    attachRecorderToFn Nothing verifier lifted
+    _ <- liftIO $ Registry.registerRecorderForFunction Nothing verifier lifted
+    pure lifted
 
 instance {-# OVERLAPPING #-}
   ( MonadIO m
@@ -238,7 +229,8 @@ instance {-# OVERLAPPING #-}
     let params = toParams p
     BuiltMock { builtMockFn = fnIO, builtMockRecorder = verifier } <- buildIO (Just name) params
     let lifted = liftFunTo (Proxy :: Proxy m) fnIO
-    attachRecorderToFn (Just name) verifier lifted
+    _ <- liftIO $ Registry.registerRecorderForFunction (Just name) verifier lifted
+    pure lifted
 
 mockM :: CreateMockFnM a => a
 mockM = mockMImpl
@@ -256,7 +248,8 @@ createNamedMockFnWithParams ::
   m fn
 createNamedMockFnWithParams name params = do
   BuiltMock { builtMockFn = fn, builtMockRecorder = recorder } <- buildMock (Just name) params
-  attachRecorderToFn (Just name) recorder fn
+  _ <- liftIO $ Registry.registerRecorderForFunction (Just name) recorder fn
+  pure fn
 
 
 -- | Create a pure stub function without verification hooks (unnamed version).
@@ -328,55 +321,4 @@ instance MonadIO m => LiftFunTo (IO r) (m r) m where
 instance LiftFunTo restIO restM m => LiftFunTo (a -> restIO) (a -> restM) m where
   liftFunTo proxy f a = liftFunTo proxy (f a)
 
-attachRecorderToFn ::
-  forall m params fn.
-  ( MonadIO m
-  , Typeable params
-  , Typeable (InvocationRecorder params)
-  , Typeable fn
-  ) =>
-  Maybe MockName ->
-  InvocationRecorder params ->
-  fn ->
-  m fn
-attachRecorderToFn name recorder@(InvocationRecorder {invocationRef = ref}) fn = do
-  baseValue <- liftIO $ evaluate fn
-  case eqT :: Maybe (params :~: ()) of
-    Just Refl -> do
-      meta <- liftIO $ registerUnitMeta ref
-      liftIO $ atomically $ writeTVar ref invocationRecord
-      let trackedValue = wrapUnitStub ref meta baseValue
-      liftIO $
-        withUnitGuard meta $ do
-          attachVerifierToFn trackedValue (name, recorder)
-          attachVerifierToFn baseValue (name, recorder)
-      pure trackedValue
-    Nothing -> do
-      liftIO $ attachVerifierToFn baseValue (name, recorder)
-      pure baseValue
 
-ioTyCon :: TyCon
-ioTyCon = typeRepTyCon (typeRep @(IO ()))
-
-wrapUnitStub ::
-  forall fn.
-  Typeable fn =>
-  TVar (InvocationRecord ()) ->
-  UnitMeta ->
-  fn ->
-  fn
-wrapUnitStub ref meta value =
-  let trackedValue = perform $ do
-        guardActive <- isGuardActive meta
-        if guardActive || isIOType (Proxy :: Proxy fn)
-          then pure value
-          else do
-            markUnitUsed meta
-            appendAppliedParams ref ()
-            pure value
-   in value `seq` trackedValue
-
-isIOType :: forall a. Typeable a => Proxy a -> Bool
-isIOType _ =
-  case splitApps (typeRep @a) of
-    (tc, _) -> tc == ioTyCon
