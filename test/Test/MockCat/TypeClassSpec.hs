@@ -35,6 +35,7 @@ import Control.Monad.State (MonadState (..), StateT, evalStateT)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import qualified Test.MockCat.Verify as Verify
 import Test.MockCat.SharedSpecDefs
+import Test.MockCat.TypeClassCommonSpec (specEcho, specFileOperation, specFileOperationReaderEnvironment, specApiRenaming, specTestClass, specMultiApply, specSubVars, specMonadState, specExplicitReturn, specDefaultMethod, specAssocType, specMonadAsync, specMonadReaderEnvironment)
 
 missingCall :: String -> Selector ErrorCall
 missingCall name err =
@@ -98,10 +99,10 @@ instance MonadIO m => MonadReader String (MockT m) where
     pure result
   local = undefined
 
-instance MonadState s m => MonadState s (MockT m) where
-  get = lift get
-  put = lift . put
-  state f = lift (state f)
+-- instance MonadState s m => MonadState s (MockT m) where
+--   get = lift get
+--   put = lift . put
+--   state f = lift (state f)
 
 _ask ::
   ( Verify.ResolvableParamsOf env ~ ()
@@ -974,3 +975,36 @@ spec = do
             called once
         -- writeTTY is never called
         pure ()) `shouldThrow` (missingCall "_writeTTY")
+
+  specEcho _readTTY _writeTTY
+  -- specFileOperationReaderEnvironment _ask _readFile _writeFile stub_post_fn
+  -- specApiRenaming stub_post_fn
+  -- specTestClass _getBy _echo
+  -- specMultiApply _getValueBy
+  -- specSubVars _fn2_1Sub _fn2_2Sub _fn3_1Sub _fn3_2Sub _fn3_3Sub
+  specMonadState _fnState _fnState2
+  -- -- specParamThreeMonad _fnParam3_1 _fnParam3_2 _fnParam3_3
+  -- specExplicitReturn _getByExplicit _echoExplicit
+  -- specDefaultMethod _defaultAction
+  -- specAssocType _produce
+  -- specMonadAsync _readFile
+  -- specMonadReaderEnvironment _ask _readFile _writeFile
+
+  -- -- Verification Failures
+  -- specVerifyFailureFileOp _readFile _writeFile
+  -- specVerifyFailureApi stub_post_fn
+  -- specVerifyFailureReaderEnvironment _ask
+  -- specVerifyFailureTestClass _getBy _echo
+  -- specVerifyFailureSubVars _fn2_1Sub _fn2_2Sub _fn3_1Sub _fn3_2Sub _fn3_3Sub
+  -- specVerifyFailureMultiApply _getValueBy
+  -- -- specVerifyFailureParam3 _fnParam3_1 _fnParam3_2 _fnParam3_3
+  -- specVerifyFailureExplicit _getByExplicit _echoExplicit
+  -- specVerifyFailureDefaultAndAssoc _defaultAction _produce
+  -- specVerifyFailureTTY _readTTY _writeTTY
+
+  -- describe "verification failures (State - Pending)" do
+  --   it "fails when _fnState is defined but fnState is never called" do
+  --     pendingWith "RegisterStub-based mocks require custom expectation handling"
+
+  --   it "fails when _fnState2 is defined but fnState2 is never called" do
+  --     pendingWith "RegisterStub-based mocks require custom expectation handling"

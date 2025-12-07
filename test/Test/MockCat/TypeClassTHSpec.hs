@@ -26,6 +26,7 @@ import Control.Monad (unless)
 import Control.Monad.IO.Unlift (withRunInIO, MonadUnliftIO)
 import Control.Concurrent.Async (async, wait)
 import Test.MockCat.SharedSpecDefs
+import Test.MockCat.TypeClassCommonSpec (specEcho, specFileOperation, specFileOperationReaderEnvironment, specApiRenaming, specTestClass, specMultiApply, specSubVars, specMonadState, specExplicitReturn, specDefaultMethod, specAssocType, specMonadAsync, specMonadReaderEnvironment)
 
 operationProgram ::
   FileOperation m =>
@@ -72,7 +73,10 @@ makeMock [t|FileOperation|]
 makeMockWithOptions [t|ApiOperation|] options { prefix = "stub_", suffix = "_fn" }
 
 makeMock [t|MultiApplyTest|]
-  
+
+makeMockWithOptions [t|MonadStateSub|] options { implicitMonadicReturn = False }
+makeMockWithOptions [t|MonadStateSub2|] options { implicitMonadicReturn = False }
+
 echoProgram :: ExplicitlyReturnMonadicValuesTest m => String -> m ()
 echoProgram s = do
   v <- getByExplicit s
@@ -220,4 +224,57 @@ spec = do
 
       processFiles ["file1.txt", "file2.txt"]
     result `shouldBe` [pack "content1", pack "content2"]
+
+
+
+  it "supports MonadStateSub pattern" do
+    let action = runMockT $ do
+          _fnState $ do
+            onCase $ Just "current" |> pure @(StateT String IO) "next"
+            onCase $ Nothing |> pure @(StateT String IO) "default"
+          fnState (Just "current")
+    result <- evalStateT action "seed"
+    result `shouldBe` "next"
+
+  it "supports MonadStateSub2 pattern" do
+    let action = runMockT $ do
+          _fnState2 $ "label" |> pure @(StateT String IO) ()
+          fnState2 @String "label"
+    result <- evalStateT action "initial"
+    result `shouldBe` ()
+
+
+
+  -- specEcho _readTTY _writeTTY
+  -- specFileOperationReaderEnvironment _ask _readFile _writeFile stub_post_fn
+  -- specApiRenaming stub_post_fn
+  -- specTestClass _getBy _echo
+  -- specMultiApply _getValueBy
+  -- specSubVars _fn2_1Sub _fn2_2Sub _fn3_1Sub _fn3_2Sub _fn3_3Sub
+  -- specMonadState _fnState undefined
+  -- -- specParamThreeMonad _fnParam3_1 _fnParam3_2 _fnParam3_3
+  -- specExplicitReturn _getByExplicit _echoExplicit
+  -- specDefaultMethod _defaultAction
+  -- specAssocType _produce
+  -- specMonadAsync _readFile
+  -- specMonadReaderEnvironment _ask _readFile _writeFile
+
+  -- -- Verification Failures
+  -- specVerifyFailureFileOp _readFile _writeFile
+  -- specVerifyFailureApi stub_post_fn
+  -- specVerifyFailureReaderEnvironment _ask
+  -- specVerifyFailureTestClass _getBy _echo
+  -- specVerifyFailureSubVars _fn2_1Sub _fn2_2Sub _fn3_1Sub _fn3_2Sub _fn3_3Sub
+  -- specVerifyFailureMultiApply _getValueBy
+  -- -- specVerifyFailureParam3 _fnParam3_1 _fnParam3_2 _fnParam3_3
+  -- specVerifyFailureExplicit _getByExplicit _echoExplicit
+  -- specVerifyFailureDefaultAndAssoc _defaultAction _produce
+  -- specVerifyFailureTTY _readTTY _writeTTY
+
+  -- describe "verification failures (State - Pending)" do
+  --   it "fails when _fnState is defined but fnState is never called" do
+  --     pendingWith "RegisterStub-based mocks require custom expectation handling"
+
+  --   it "fails when _fnState2 is defined but fnState2 is never called" do
+  --     pendingWith "RegisterStub-based mocks require custom expectation handling"
 

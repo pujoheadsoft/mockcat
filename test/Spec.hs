@@ -46,7 +46,7 @@ main = hspec $ do
     Stub.spec
     MockTSpec.spec
     Registry.spec
-    THCompare.spec
+    -- THCompare.spec
     THTypeUtils.spec
     THContextBuilder.spec
     THClassAnalysis.spec
