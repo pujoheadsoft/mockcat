@@ -28,7 +28,7 @@ import Control.Monad (unless)
 import Control.Monad.IO.Unlift (withRunInIO, MonadUnliftIO)
 import Control.Concurrent.Async (async, wait)
 import Test.MockCat.SharedSpecDefs
-import Test.MockCat.TypeClassCommonSpec (Environment(..), specEcho, specFileOperation, specFileOperationApi, specFileOperationReaderEnvironment, specApiRenaming, specTestClass, specMultiApply, specSubVars, specMonadState, specParamThreeMonad, specExplicitReturn, specDefaultMethod, specAssocType, specMonadAsync, specMonadReaderEnvironment, specVerifyFailureFileOp, specVerifyFailureApi, specVerifyFailureReaderEnvironment, specVerifyFailureTestClass, specVerifyFailureSubVars, specVerifyFailureMultiApply, specVerifyFailureParam3, specVerifyFailureExplicit, specVerifyFailureDefaultAndAssoc, specVerifyFailureTTY)
+import Test.MockCat.TypeClassCommonSpec (Environment(..), specSequentialIOStubbing, specBasicStubbingAndVerification, specMixedMockingStrategies, specMultipleTypeclassConstraints, specCustomMockNamingOptions, specImplicitMonadicReturnValues, specArgumentPatternMatching, specMultiParamTypeClassArity, specMonadStateTransformerSupport, specFunctionalDependenciesSupport, specExplicitMonadicReturnValues, specDefaultMethodMocking, specAssociatedTypeFamiliesSupport, specConcurrencyAndUnliftIO, specMonadReaderContextMocking, specBasicVerificationFailureDetection, specCustomNamingVerificationFailureDetection, specMonadReaderVerificationFailureDetection, specImplicitReturnVerificationFailureDetection, specMultiParamVerificationFailureDetection, specArgumentMatchingVerificationFailureDetection, specFunDepsVerificationFailureDetection, specExplicitReturnVerificationFailureDetection, specAdvancedTypesVerificationFailureDetection, specSequentialStubbingVerificationFailureDetection)
 import qualified Test.MockCat.Verify as Verify
 
 operationProgram ::
@@ -312,33 +312,33 @@ spec = do
 
 
 
-  specEcho _readTTY _writeTTY
-  specFileOperation _readFile _writeFile
-  specFileOperationApi _readFile _writeFile _post
-  specFileOperationReaderEnvironment _ask _readFile _writeFile _post
-  specApiRenaming _post
-  specTestClass _getBy _echo
-  specMultiApply _getValueBy
-  specSubVars _fn2_1SubIO _fn2_2SubIO _fn3_1SubIO _fn3_2SubIO _fn3_3SubIO
-  specMonadState _fnState _fnState2
-  specParamThreeMonad _fnParam3_1 _fnParam3_2 _fnParam3_3
-  specExplicitReturn _getByExplicit _echoExplicit
-  specDefaultMethod _defaultAction
-  specAssocType _produce
-  specMonadAsync _readFile
-  specMonadReaderEnvironment _ask _readFile _writeFile
+  specSequentialIOStubbing _readTTY _writeTTY
+  specBasicStubbingAndVerification _readFile _writeFile
+  specMixedMockingStrategies _readFile _writeFile _post
+  specMultipleTypeclassConstraints _ask _readFile _writeFile _post
+  specCustomMockNamingOptions _post
+  specImplicitMonadicReturnValues _getBy _echo
+  specArgumentPatternMatching _getValueBy
+  specMultiParamTypeClassArity _fn2_1SubIO _fn2_2SubIO _fn3_1SubIO _fn3_2SubIO _fn3_3SubIO
+  specMonadStateTransformerSupport _fnState _fnState2
+  specFunctionalDependenciesSupport _fnParam3_1 _fnParam3_2 _fnParam3_3
+  specExplicitMonadicReturnValues _getByExplicit _echoExplicit
+  specDefaultMethodMocking _defaultAction
+  specAssociatedTypeFamiliesSupport _produce
+  specConcurrencyAndUnliftIO _readFile
+  specMonadReaderContextMocking _ask _readFile _writeFile
 
   -- -- Verification Failures
-  specVerifyFailureFileOp _readFile _writeFile
-  specVerifyFailureApi _post
-  specVerifyFailureReaderEnvironment _ask
-  specVerifyFailureTestClass _getBy _echo
-  specVerifyFailureSubVars _fn2_1SubIO _fn2_2SubIO _fn3_1SubIO _fn3_2SubIO _fn3_3SubIO
-  specVerifyFailureMultiApply _getValueBy
-  specVerifyFailureParam3 _fnParam3_1 _fnParam3_2 _fnParam3_3
-  specVerifyFailureExplicit _getByExplicit _echoExplicit
-  specVerifyFailureDefaultAndAssoc _defaultAction _produce
-  specVerifyFailureTTY _readTTY _writeTTY
+  specBasicVerificationFailureDetection _readFile _writeFile
+  specCustomNamingVerificationFailureDetection _post
+  specMonadReaderVerificationFailureDetection _ask
+  specImplicitReturnVerificationFailureDetection _getBy _echo
+  specMultiParamVerificationFailureDetection _fn2_1SubIO _fn2_2SubIO _fn3_1SubIO _fn3_2SubIO _fn3_3SubIO
+  specArgumentMatchingVerificationFailureDetection _getValueBy
+  specFunDepsVerificationFailureDetection _fnParam3_1 _fnParam3_2 _fnParam3_3
+  specExplicitReturnVerificationFailureDetection _getByExplicit _echoExplicit
+  specAdvancedTypesVerificationFailureDetection _defaultAction _produce
+  specSequentialStubbingVerificationFailureDetection _readTTY _writeTTY
 
   -- describe "verification failures (State - Pending)" do
   --   it "fails when _fnState is defined but fnState is never called" do

@@ -119,14 +119,14 @@ echo2 = do
 
 -- Specs
 
-specFileOperation ::
+specBasicStubbingAndVerification ::
   ( FileOperation (MockT IO)
   ) =>
   (forall params. (MockBuilder params (FilePath -> Text) (Param FilePath)) => params -> MockT IO (FilePath -> Text)) ->
   (forall params. (MockBuilder params (FilePath -> Text -> ()) (Param FilePath :> Param Text)) => params -> MockT IO (FilePath -> Text -> ())) ->
   Spec
-specFileOperation _readFile _writeFile = do
-  it "Read, and output files (operationProgram)" do
+specBasicStubbingAndVerification _readFile _writeFile = do
+  it "positive: operationProgram reads and writes output" do
     result <- runMockT do
       _readFile $ "input.txt" |> pack "content"
       _writeFile $ "output.txt" |> pack "content" |> ()
@@ -134,7 +134,7 @@ specFileOperation _readFile _writeFile = do
 
     result `shouldBe` ()
     
-  it "Read, and output files (contain ng word)" do
+  it "positive: operationProgram skips write when contains ngWord" do
     result <- runMockT do
       _readFile ("input.txt" |> pack "contains ngWord")
       _writeFile ("output.txt" |> any |> ())
@@ -144,7 +144,7 @@ specFileOperation _readFile _writeFile = do
 
     result `shouldBe` ()
 
-specFileOperationApi ::
+specMixedMockingStrategies ::
   ( FileOperation (MockT IO)
   , ApiOperation (MockT IO)
   ) =>
@@ -152,8 +152,8 @@ specFileOperationApi ::
   (forall params. (MockBuilder params (FilePath -> Text -> ()) (Param FilePath :> Param Text)) => params -> MockT IO (FilePath -> Text -> ())) ->
   (forall params. (MockBuilder params (Text -> ()) (Param Text)) => params -> MockT IO (Text -> ())) ->
   Spec
-specFileOperationApi _readFile _writeFile _post = do
-  it "Read, edit, and output files2 (operationProgram2)" do
+specMixedMockingStrategies _readFile _writeFile _post = do
+  it "positive: operationProgram2 modifies content and posts" do
     modifyContentStub <- mock $ pack "content" |> pack "modifiedContent"
 
     result <- runMockT do
@@ -164,7 +164,7 @@ specFileOperationApi _readFile _writeFile _post = do
 
     result `shouldBe` ()
 
-specFileOperationReaderEnvironment ::
+specMultipleTypeclassConstraints ::
   ( FileOperation (MockT IO)
   , ApiOperation (MockT IO)
   , MonadReader Environment (MockT IO)
@@ -174,8 +174,8 @@ specFileOperationReaderEnvironment ::
   (forall params. (MockBuilder params (FilePath -> Text -> ()) (Param FilePath :> Param Text)) => params -> MockT IO (FilePath -> Text -> ())) ->
   (forall params. (MockBuilder params (Text -> ()) (Param Text)) => params -> MockT IO (Text -> ())) ->
   Spec
-specFileOperationReaderEnvironment _ask _readFile _writeFile _post = do
-  it "Read, edit, and output files (apiFileOperationProgram)" do
+specMultipleTypeclassConstraints _ask _readFile _writeFile _post = do
+  it "positive: composes FileOperation + ApiOperation + MonadReader(Environment) to run apiFileOperationProgram" do
     modifyContentStub <- mock $ pack "content" |> pack "modifiedContent"
     let env = Environment "input.txt" "output.text"
 
@@ -188,19 +188,19 @@ specFileOperationReaderEnvironment _ask _readFile _writeFile _post = do
 
     result `shouldBe` ()
 
-specApiRenaming ::
+specCustomMockNamingOptions ::
   ( ApiOperation (MockT IO)
   ) =>
   (forall params. (MockBuilder params (Text -> ()) (Param Text)) => params -> MockT IO (Text -> ())) ->
   Spec
-specApiRenaming _stubPost = do
-  it "supports makeMockWithOptions prefix and suffix" do
+specCustomMockNamingOptions _stubPost = do
+  it "positive: makeMockWithOptions respects prefix and suffix" do
     result <- runMockT do
       _stubPost (pack "payload" |> ())
       post (pack "payload")
     result `shouldBe` ()
 
-specMonadReaderEnvironment :: 
+specMonadReaderContextMocking :: 
   ( MonadReader Environment (MockT IO)
   , FileOperation (MockT IO)
   ) =>
@@ -208,8 +208,8 @@ specMonadReaderEnvironment ::
   (forall params. (MockBuilder params (FilePath -> Text) (Param FilePath)) => params -> MockT IO (FilePath -> Text)) ->
   (forall params. (MockBuilder params (FilePath -> Text -> ()) (Param FilePath :> Param Text)) => params -> MockT IO (FilePath -> Text -> ())) ->
   Spec
-specMonadReaderEnvironment _ask _readFile _writeFile = do
-  it "Read, and output files (with MonadReader Environment)" do
+specMonadReaderContextMocking _ask _readFile _writeFile = do
+  it "positive: operationProgram3 reads input from Environment and writes output" do
     r <- runMockT do
       _ask (Environment "input.txt" "output.txt")
       _readFile ("input.txt" |> pack "content")
@@ -217,28 +217,28 @@ specMonadReaderEnvironment _ask _readFile _writeFile = do
       operationProgram3
     r `shouldBe` ()
 
-specEcho ::
+specSequentialIOStubbing ::
   ( Teletype (MockT IO)
   ) =>
   (forall params. (MockBuilder params (IO String) ()) => params -> MockT IO (IO String)) ->
   (forall params. (MockBuilder params (String -> IO ()) (Param String)) => params -> MockT IO (String -> IO ())) ->
   Spec
-specEcho _readTTY _writeTTY = do
-  it "echo (readTTY/writeTTY)" do
+specSequentialIOStubbing _readTTY _writeTTY = do
+  it "positive: echo via TTY reads and writes" do
     result <- runMockT do
       _readTTY $ casesIO ["a", ""]
       _writeTTY $ "a" |> pure @IO ()
       echo2
     result `shouldBe` ()
 
-specTestClass ::
+specImplicitMonadicReturnValues ::
   ( TestClass (MockT IO)
   ) =>
   (forall params. (MockBuilder params (String -> IO Int) (Param String)) => params -> MockT IO (String -> IO Int)) ->
   (forall params. (MockBuilder params (String -> IO ()) (Param String)) => params -> MockT IO (String -> IO ())) ->
   Spec
-specTestClass _getBy _echo = do
-  it "return monadic value test" do
+specImplicitMonadicReturnValues _getBy _echo = do
+  it "positive: testclass returns monadic value and echoes" do
     result <- runMockT do
       _getBy $ "s" |> pure @IO (10 :: Int)
       _echo $ "10" |> pure @IO ()
@@ -246,13 +246,13 @@ specTestClass _getBy _echo = do
 
     result `shouldBe` ()
 
-specMultiApply ::
+specArgumentPatternMatching ::
   ( MultiApplyTest (MockT IO)
   ) =>
   (forall params. (MockBuilder params (String -> IO String) (Param String)) => params -> MockT IO (String -> IO String)) ->
   Spec
-specMultiApply _getValueBy = do
-  it "multi apply collects all results" do
+specArgumentPatternMatching _getValueBy = do
+  it "positive: multi apply collects all results" do
     result <- runMockT do
       _getValueBy $ do
         onCase $ "a" |> pure @IO "ax"
@@ -261,15 +261,15 @@ specMultiApply _getValueBy = do
       getValues ["a", "b", "c"]
     result `shouldBe` ["ax", "bx", "cx"]
 
-specMonadState ::
+specMonadStateTransformerSupport ::
   ( MonadStateSub String (MockT (StateT String IO))
   , MonadStateSub2 String (MockT (StateT String IO))
   ) =>
   (forall params. (MockBuilder params (Maybe String -> StateT String IO String) (Param (Maybe String))) => params -> MockT (StateT String IO) (Maybe String -> StateT String IO String)) ->
   (forall params. (MockBuilder params (String -> StateT String IO ()) (Param String)) => params -> MockT (StateT String IO) (String -> StateT String IO ())) ->
   Spec
-specMonadState _fnState _fnState2 = do
-  it "supports MonadStateSub pattern" do
+specMonadStateTransformerSupport _fnState _fnState2 = do
+  it "positive: MonadStateSub pattern" do
     let action = runMockT $ do
           _fnState $ do
             onCase $ Just "current" |> pure @(StateT String IO) "next"
@@ -278,14 +278,14 @@ specMonadState _fnState _fnState2 = do
     result <- evalStateT action "seed"
     result `shouldBe` "next"
 
-  it "supports MonadStateSub2 pattern" do
+  it "positive: MonadStateSub2 pattern" do
     let action = runMockT $ do
           _fnState2 $ "label" |> pure @(StateT String IO) ()
           fnState2 @String "label"
     result <- evalStateT action "initial"
     result `shouldBe` ()
 
-specSubVars ::
+specMultiParamTypeClassArity ::
   ( MonadVar2_1Sub (MockT IO) String
   , MonadVar2_2Sub String (MockT IO)
   , MonadVar3_1Sub (MockT IO) String String
@@ -298,46 +298,46 @@ specSubVars ::
   (forall params. (MockBuilder params (String -> IO ()) (Param String)) => params -> MockT IO (String -> IO ())) ->
   (forall params. (MockBuilder params (String -> IO ()) (Param String)) => params -> MockT IO (String -> IO ())) ->
   Spec
-specSubVars _fn2_1Sub _fn2_2Sub _fn3_1Sub _fn3_2Sub _fn3_3Sub = do
-  it "supports MonadVar2_1Sub pattern" do
+specMultiParamTypeClassArity _fn2_1Sub _fn2_2Sub _fn3_1Sub _fn3_2Sub _fn3_3Sub = do
+  it "positive: MonadVar2_1Sub pattern" do
     result <- runMockT do
       _fn2_1Sub $ "alpha" |> pure @IO ()
       fn2_1Sub @(MockT IO) @String "alpha"
     result `shouldBe` ()
 
-  it "supports MonadVar2_2Sub pattern" do
+  it "positive: MonadVar2_2Sub pattern" do
     result <- runMockT do
       _fn2_2Sub $ "beta" |> pure @IO ()
       fn2_2Sub @String @(MockT IO) "beta"
     result `shouldBe` ()
 
-  it "supports MonadVar3_1Sub pattern" do
+  it "positive: MonadVar3_1Sub pattern" do
     result <- runMockT do
       _fn3_1Sub $ "gamma" |> pure @IO ()
       fn3_1Sub @(MockT IO) @String @String "gamma"
     result `shouldBe` ()
 
-  it "supports MonadVar3_2Sub pattern" do
+  it "positive: MonadVar3_2Sub pattern" do
     result <- runMockT do
       _fn3_2Sub $ "delta" |> pure @IO ()
       fn3_2Sub @String @(MockT IO) @String "delta"
     result `shouldBe` ()
 
-  it "supports MonadVar3_3Sub pattern" do
+  it "positive: MonadVar3_3Sub pattern" do
     result <- runMockT do
       _fn3_3Sub $ "epsilon" |> pure @IO ()
       fn3_3Sub @String @String @(MockT IO) "epsilon"
     result `shouldBe` ()
 
-specParamThreeMonad ::
+specFunctionalDependenciesSupport ::
   ( ParamThreeMonad Int Bool (MockT IO)
   ) =>
   (forall params. (MockBuilder params (Int -> Bool -> IO String) (Param Int :> Param Bool)) => params -> MockT IO (Int -> Bool -> IO String)) ->
   (forall params. (MockBuilder params (IO Int) ()) => params -> MockT IO (IO Int)) ->
   (forall params. (MockBuilder params (IO Bool) ()) => params -> MockT IO (IO Bool)) ->
   Spec
-specParamThreeMonad _fnParam3_1 _fnParam3_2 _fnParam3_3 = do
-  it "supports ParamThreeMonad functional dependencies" do
+specFunctionalDependenciesSupport _fnParam3_1 _fnParam3_2 _fnParam3_3 = do
+  it "positive: ParamThreeMonad functional dependencies" do
     result <- runMockT $ do
       _fnParam3_1 $ do
         onCase $ (1 :: Int) |> True |> pure @IO "combined"
@@ -349,14 +349,14 @@ specParamThreeMonad _fnParam3_1 _fnParam3_2 _fnParam3_3 = do
       pure (r1, r2, r3)
     result `shouldBe` ("combined", 1, True)
 
-specExplicitReturn ::
+specExplicitMonadicReturnValues ::
   ( ExplicitlyReturnMonadicValuesTest (MockT IO)
   ) =>
   (forall params. (MockBuilder params (String -> IO Int) (Param String)) => params -> MockT IO (String -> IO Int)) ->
   (forall params. (MockBuilder params (String -> IO ()) (Param String)) => params -> MockT IO (String -> IO ())) ->
   Spec
-specExplicitReturn _getByExplicit _echoExplicit = do
-  it "supports ExplicitlyReturnMonadicValuesTest pattern" do
+specExplicitMonadicReturnValues _getByExplicit _echoExplicit = do
+  it "positive: ExplicitlyReturnMonadicValuesTest pattern" do
     result <- runMockT do
       _getByExplicit $ "key" |> pure @IO (42 :: Int)
       _echoExplicit $ "value" |> pure @IO ()
@@ -365,45 +365,45 @@ specExplicitReturn _getByExplicit _echoExplicit = do
       pure v
     result `shouldBe` 42
   
-  it "Return monadic value test (using helper)" do
+  it "positive: return monadic value test (using helper)" do
     result <- runMockT do
       _getByExplicit $ "s" |> pure @IO (10 :: Int)
       _echoExplicit $ "10" |> pure @IO ()
       echoProgramExplicit "s"
     result `shouldBe` ()
 
-specDefaultMethod ::
+specDefaultMethodMocking ::
   ( DefaultMethodTest (MockT IO)
   ) =>
   (Int -> MockT IO Int) ->
   Spec
-specDefaultMethod _defaultAction = do
+specDefaultMethodMocking _defaultAction = do
   it "supports DefaultMethodTest pattern" do
     result <- runMockT do
       _defaultAction (99 :: Int)
       defaultAction
     result `shouldBe` 99
 
-specAssocType ::
+specAssociatedTypeFamiliesSupport ::
   ( AssocTypeTest (MockT IO)
   , ResultType (MockT IO) ~ Int
   ) =>
   (Int -> MockT IO Int) ->
   Spec
-specAssocType _produce = do
+specAssociatedTypeFamiliesSupport _produce = do
   it "supports AssocTypeTest pattern" do
     value <- runMockT do
       _produce (321 :: Int)
       produce
     value `shouldBe` 321
 
-specMonadAsync ::
+specConcurrencyAndUnliftIO ::
   ( MonadAsync (MockT IO)
   , FileOperation (MockT IO)
   ) =>
   (forall params. (MockBuilder params (FilePath -> Text) (Param FilePath)) => params -> MockT IO (FilePath -> Text)) ->
   Spec
-specMonadAsync _readFile = do
+specConcurrencyAndUnliftIO _readFile = do
   it "supports MonadAsync pattern (processFiles)" do
     result <- runMockT do
       _readFile $ do
@@ -441,13 +441,13 @@ specMonadAsync _readFile = do
 
 -- Verification Failure Tests
 
-specVerifyFailureFileOp ::
+specBasicVerificationFailureDetection ::
   ( FileOperation (MockT IO)
   ) =>
   (forall params. (MockBuilder params (FilePath -> Text) (Param FilePath)) => params -> MockT IO (FilePath -> Text)) ->
   (forall params. (MockBuilder params (FilePath -> Text -> ()) (Param FilePath :> Param Text)) => params -> MockT IO (FilePath -> Text -> ())) ->
   Spec
-specVerifyFailureFileOp _readFile _writeFile = describe "verification failures (FileOperation)" do
+specBasicVerificationFailureDetection _readFile _writeFile = describe "verification failures (FileOperation)" do
     it "fails when _readFile is defined but readFile is never called" do
       (runMockT @IO do
         _ <- _readFile ("input.txt" |> pack "content")
@@ -485,12 +485,12 @@ specVerifyFailureFileOp _readFile _writeFile = describe "verification failures (
         do
           readFile "input.txt") `shouldThrow` (missingCall "writeFile")
 
-specVerifyFailureApi ::
+specCustomNamingVerificationFailureDetection ::
   ( ApiOperation (MockT IO)
   ) =>
   (forall params. (MockBuilder params (Text -> ()) (Param Text)) => params -> MockT IO (Text -> ())) ->
   Spec
-specVerifyFailureApi _post = describe "verification failures (Api)" do
+specCustomNamingVerificationFailureDetection _post = describe "verification failures (Api)" do
     it "fails when _post is defined but post is never called" do
       (runMockT @IO do
         _ <- _post (pack "content" |> ())
@@ -499,12 +499,12 @@ specVerifyFailureApi _post = describe "verification failures (Api)" do
         -- post is never called
         pure ()) `shouldThrow` (missingCall "post")
 
-specVerifyFailureReaderEnvironment ::
+specMonadReaderVerificationFailureDetection ::
   ( MonadReader Environment (MockT IO)
   ) =>
   (Environment -> MockT IO Environment) ->
   Spec
-specVerifyFailureReaderEnvironment _ask = describe "verification failures (Reader Environment)" do
+specMonadReaderVerificationFailureDetection _ask = describe "verification failures (Reader Environment)" do
     it "fails when _ask is defined but ask is never called" do
       (runMockT @IO do
         _ <- _ask (Environment "input.txt" "output.txt")
@@ -513,13 +513,13 @@ specVerifyFailureReaderEnvironment _ask = describe "verification failures (Reade
         -- ask is never called
         pure ()) `shouldThrow` (missingCall "ask")
 
-specVerifyFailureTestClass ::
+specImplicitReturnVerificationFailureDetection ::
   ( TestClass (MockT IO)
   ) =>
   (forall params. (MockBuilder params (String -> IO Int) (Param String)) => params -> MockT IO (String -> IO Int)) ->
   (forall params. (MockBuilder params (String -> IO ()) (Param String)) => params -> MockT IO (String -> IO ())) ->
   Spec
-specVerifyFailureTestClass _getBy _echo = describe "verification failures (TestClass)" do
+specImplicitReturnVerificationFailureDetection _getBy _echo = describe "verification failures (TestClass)" do
     it "fails when _getBy is defined but getBy is never called" do
       (runMockT @IO do
         _getBy ("s" |> pure @IO (10 :: Int))
@@ -534,7 +534,7 @@ specVerifyFailureTestClass _getBy _echo = describe "verification failures (TestC
             called once
         pure ()) `shouldThrow` (missingCall "_echo")
 
-specVerifyFailureSubVars ::
+specMultiParamVerificationFailureDetection ::
   ( MonadVar2_1Sub (MockT IO) String
   , MonadVar2_2Sub String (MockT IO)
   , MonadVar3_1Sub (MockT IO) String String
@@ -547,7 +547,7 @@ specVerifyFailureSubVars ::
   (forall params. (MockBuilder params (String -> IO ()) (Param String)) => params -> MockT IO (String -> IO ())) ->
   (forall params. (MockBuilder params (String -> IO ()) (Param String)) => params -> MockT IO (String -> IO ())) ->
   Spec
-specVerifyFailureSubVars _fn2_1Sub _fn2_2Sub _fn3_1Sub _fn3_2Sub _fn3_3Sub = describe "verification failures (SubVars)" do
+specMultiParamVerificationFailureDetection _fn2_1Sub _fn2_2Sub _fn3_1Sub _fn3_2Sub _fn3_3Sub = describe "verification failures (SubVars)" do
     it "fails when _fn2_1Sub is defined but fn2_1Sub is never called" do
       (runMockT @IO do
         _fn2_1Sub ("alpha" |> pure @IO ())
@@ -583,12 +583,12 @@ specVerifyFailureSubVars _fn2_1Sub _fn2_2Sub _fn3_1Sub _fn3_2Sub _fn3_3Sub = des
             called once
         pure ()) `shouldThrow` (missingCall "_fn3_3Sub")
 
-specVerifyFailureMultiApply ::
+specArgumentMatchingVerificationFailureDetection ::
   ( MultiApplyTest (MockT IO)
   ) =>
   (forall params. (MockBuilder params (String -> IO String) (Param String)) => params -> MockT IO (String -> IO String)) ->
   Spec
-specVerifyFailureMultiApply _getValueBy = describe "verification failures (MultiApply)" do
+specArgumentMatchingVerificationFailureDetection _getValueBy = describe "verification failures (MultiApply)" do
     it "fails when _getValueBy is defined but getValueBy is never called" do
       (runMockT @IO do
         _getValueBy (do onCase $ "a" |> pure @IO "ax")
@@ -596,14 +596,14 @@ specVerifyFailureMultiApply _getValueBy = describe "verification failures (Multi
             called once
         pure ()) `shouldThrow` (missingCall "_getValueBy")
 
-specVerifyFailureParam3 ::
+specFunDepsVerificationFailureDetection ::
   ( ParamThreeMonad Int Bool (MockT IO)
   ) =>
   (forall params. (MockBuilder params (Int -> Bool -> IO String) (Param Int :> Param Bool)) => params -> MockT IO (Int -> Bool -> IO String)) ->
   (forall params. (MockBuilder params (IO Int) ()) => params -> MockT IO (IO Int)) ->
   (forall params. (MockBuilder params (IO Bool) ()) => params -> MockT IO (IO Bool)) ->
   Spec
-specVerifyFailureParam3 _fnParam3_1 _fnParam3_2 _fnParam3_3 = describe "verification failures (ParamThreeMonad)" do
+specFunDepsVerificationFailureDetection _fnParam3_1 _fnParam3_2 _fnParam3_3 = describe "verification failures (ParamThreeMonad)" do
     it "fails when _fnParam3_1 is defined but fnParam3_1 is never called" do
       (runMockT @IO do
         _fnParam3_1 (do
@@ -626,13 +626,13 @@ specVerifyFailureParam3 _fnParam3_1 _fnParam3_2 _fnParam3_3 = describe "verifica
             called once
         pure ()) `shouldThrow` (missingCall "_fnParam3_3")
 
-specVerifyFailureExplicit ::
+specExplicitReturnVerificationFailureDetection ::
   ( ExplicitlyReturnMonadicValuesTest (MockT IO)
   ) =>
   (forall params. (MockBuilder params (String -> IO Int) (Param String)) => params -> MockT IO (String -> IO Int)) ->
   (forall params. (MockBuilder params (String -> IO ()) (Param String)) => params -> MockT IO (String -> IO ())) ->
   Spec
-specVerifyFailureExplicit _getByExplicit _echoExplicit = describe "verification failures (ExplicitReturn)" do
+specExplicitReturnVerificationFailureDetection _getByExplicit _echoExplicit = describe "verification failures (ExplicitReturn)" do
     it "fails when _getByExplicit is defined but getByExplicit is never called" do
       (runMockT @IO do
         _getByExplicit ("key" |> pure @IO (42 :: Int))
@@ -647,14 +647,14 @@ specVerifyFailureExplicit _getByExplicit _echoExplicit = describe "verification 
             called once
         pure ()) `shouldThrow` (missingCall "_echoExplicit")
 
-specVerifyFailureDefaultAndAssoc ::
+specAdvancedTypesVerificationFailureDetection ::
   ( DefaultMethodTest (MockT IO)
   , AssocTypeTest (MockT IO)
   ) =>
   (Int -> MockT IO Int) ->
   (Int -> MockT IO Int) ->
   Spec
-specVerifyFailureDefaultAndAssoc _defaultAction _produce = describe "verification failures (Default/Assoc)" do
+specAdvancedTypesVerificationFailureDetection _defaultAction _produce = describe "verification failures (Default/Assoc)" do
     it "fails when _defaultAction is defined but defaultAction is never called" do
       (runMockT @IO do
         _defaultAction (99 :: Int)
@@ -669,13 +669,13 @@ specVerifyFailureDefaultAndAssoc _defaultAction _produce = describe "verificatio
             called once
         pure ()) `shouldThrow` (missingCall "_produce")
 
-specVerifyFailureTTY ::
+specSequentialStubbingVerificationFailureDetection ::
   ( Teletype (MockT IO)
   ) =>
   (forall params. (MockBuilder params (IO String) ()) => params -> MockT IO (IO String)) ->
   (forall params. (MockBuilder params (String -> IO ()) (Param String)) => params -> MockT IO (String -> IO ())) ->
   Spec
-specVerifyFailureTTY _readTTY _writeTTY = describe "verification failures (TTY)" do
+specSequentialStubbingVerificationFailureDetection _readTTY _writeTTY = describe "verification failures (TTY)" do
     it "fails when _readTTY is defined but readTTY is never called" do
       (runMockT @IO do
         _readTTY (casesIO ["a", ""])
