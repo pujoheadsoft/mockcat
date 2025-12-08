@@ -28,7 +28,7 @@ import Control.Monad (unless)
 import Control.Monad.IO.Unlift (withRunInIO, MonadUnliftIO)
 import Control.Concurrent.Async (async, wait)
 import Test.MockCat.SharedSpecDefs
-import Test.MockCat.TypeClassCommonSpec (Environment(..), specSequentialIOStubbing, specBasicStubbingAndVerification, specMixedMockingStrategies, specMultipleTypeclassConstraints, specCustomMockNamingOptions, specImplicitMonadicReturnValues, specArgumentPatternMatching, specMultiParamTypeClassArity, specMonadStateTransformerSupport, specFunctionalDependenciesSupport, specExplicitMonadicReturnValues, specDefaultMethodMocking, specAssociatedTypeFamiliesSupport, specConcurrencyAndUnliftIO, specMonadReaderContextMocking, specBasicVerificationFailureDetection, specCustomNamingVerificationFailureDetection, specMonadReaderVerificationFailureDetection, specImplicitReturnVerificationFailureDetection, specMultiParamVerificationFailureDetection, specArgumentMatchingVerificationFailureDetection, specFunDepsVerificationFailureDetection, specExplicitReturnVerificationFailureDetection, specAdvancedTypesVerificationFailureDetection, specSequentialStubbingVerificationFailureDetection)
+import qualified Test.MockCat.TypeClassCommonSpec as SpecCommon
 import qualified Test.MockCat.Verify as Verify
 
 operationProgram ::
@@ -54,17 +54,17 @@ operationProgram2 inputPath outputPath modifyText = do
   post modifiedContent
 
 operationProgram3 ::
-  MonadReader Environment m =>
+  MonadReader SpecCommon.Environment m =>
   FileOperation m =>
   m ()
 operationProgram3 = do
-  (Environment inputPath outputPath) <- ask
+  (SpecCommon.Environment inputPath outputPath) <- ask
   content <- readFile inputPath
   writeFile outputPath content
 
 
 --makeMock [t|MonadReader Bool|]
-makeMock [t|MonadReader Environment|]
+makeMock [t|MonadReader SpecCommon.Environment|]
 makeMockWithOptions [t|MonadVar2_1Sub|] options { implicitMonadicReturn = True }
 makeMockWithOptions [t|MonadVar2_2Sub|] options { implicitMonadicReturn = True }
 makeMockWithOptions [t|MonadVar3_1Sub|] options { implicitMonadicReturn = True }
@@ -210,7 +210,7 @@ spec = do
 
   it "Read, and output files (with MonadReader)" do
     r <- runMockT do
-      _ask (Environment "input.txt" "output.text")
+      _ask (SpecCommon.Environment "input.txt" "output.text")
       _readFile ("input.txt" |> pack "content")
       _writeFile ("output.text" |> pack "content" |> ())
       operationProgram3
@@ -312,33 +312,33 @@ spec = do
 
 
 
-  specSequentialIOStubbing _readTTY _writeTTY
-  specBasicStubbingAndVerification _readFile _writeFile
-  specMixedMockingStrategies _readFile _writeFile _post
-  specMultipleTypeclassConstraints _ask _readFile _writeFile _post
-  specCustomMockNamingOptions _post
-  specImplicitMonadicReturnValues _getBy _echo
-  specArgumentPatternMatching _getValueBy
-  specMultiParamTypeClassArity _fn2_1SubIO _fn2_2SubIO _fn3_1SubIO _fn3_2SubIO _fn3_3SubIO
-  specMonadStateTransformerSupport _fnState _fnState2
-  specFunctionalDependenciesSupport _fnParam3_1 _fnParam3_2 _fnParam3_3
-  specExplicitMonadicReturnValues _getByExplicit _echoExplicit
-  specDefaultMethodMocking _defaultAction
-  specAssociatedTypeFamiliesSupport _produce
-  specConcurrencyAndUnliftIO _readFile
-  specMonadReaderContextMocking _ask _readFile _writeFile
+  SpecCommon.specSequentialIOStubbing _readTTY _writeTTY
+  SpecCommon.specBasicStubbingAndVerification (SpecCommon.BasicDeps _readFile _writeFile )
+  SpecCommon.specMixedMockingStrategies (SpecCommon.MixedDeps _readFile _writeFile _post)
+  SpecCommon.specMultipleTypeclassConstraints (SpecCommon.MultipleDeps _ask _readFile _writeFile _post)
+  SpecCommon.specCustomMockNamingOptions _post
+  SpecCommon.specImplicitMonadicReturnValues _getBy _echo
+  SpecCommon.specArgumentPatternMatching _getValueBy
+  SpecCommon.specMultiParamTypeClassArity _fn2_1SubIO _fn2_2SubIO _fn3_1SubIO _fn3_2SubIO _fn3_3SubIO
+  SpecCommon.specMonadStateTransformerSupport _fnState _fnState2
+  SpecCommon.specFunctionalDependenciesSupport _fnParam3_1 _fnParam3_2 _fnParam3_3
+  SpecCommon.specExplicitMonadicReturnValues _getByExplicit _echoExplicit
+  SpecCommon.specDefaultMethodMocking _defaultAction
+  SpecCommon.specAssociatedTypeFamiliesSupport _produce
+  SpecCommon.specConcurrencyAndUnliftIO _readFile
+  SpecCommon.specMonadReaderContextMocking _ask _readFile _writeFile
 
   -- -- Verification Failures
-  specBasicVerificationFailureDetection _readFile _writeFile
-  specCustomNamingVerificationFailureDetection _post
-  specMonadReaderVerificationFailureDetection _ask
-  specImplicitReturnVerificationFailureDetection _getBy _echo
-  specMultiParamVerificationFailureDetection _fn2_1SubIO _fn2_2SubIO _fn3_1SubIO _fn3_2SubIO _fn3_3SubIO
-  specArgumentMatchingVerificationFailureDetection _getValueBy
-  specFunDepsVerificationFailureDetection _fnParam3_1 _fnParam3_2 _fnParam3_3
-  specExplicitReturnVerificationFailureDetection _getByExplicit _echoExplicit
-  specAdvancedTypesVerificationFailureDetection _defaultAction _produce
-  specSequentialStubbingVerificationFailureDetection _readTTY _writeTTY
+  SpecCommon.specBasicVerificationFailureDetection _readFile _writeFile
+  SpecCommon.specCustomNamingVerificationFailureDetection _post
+  SpecCommon.specMonadReaderVerificationFailureDetection _ask
+  SpecCommon.specImplicitReturnVerificationFailureDetection _getBy _echo
+  SpecCommon.specMultiParamVerificationFailureDetection _fn2_1SubIO _fn2_2SubIO _fn3_1SubIO _fn3_2SubIO _fn3_3SubIO
+  SpecCommon.specArgumentMatchingVerificationFailureDetection _getValueBy
+  SpecCommon.specFunDepsVerificationFailureDetection _fnParam3_1 _fnParam3_2 _fnParam3_3
+  SpecCommon.specExplicitReturnVerificationFailureDetection _getByExplicit _echoExplicit
+  SpecCommon.specAdvancedTypesVerificationFailureDetection _defaultAction _produce
+  SpecCommon.specSequentialStubbingVerificationFailureDetection _readTTY _writeTTY
 
   -- describe "verification failures (State - Pending)" do
   --   it "fails when _fnState is defined but fnState is never called" do

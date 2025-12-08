@@ -12,6 +12,8 @@
 {-# LANGUAGE ConstraintKinds #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
+{-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE DuplicateRecordFields #-}
 
 module Test.MockCat.TypeClassCommonSpec where
 
@@ -126,17 +128,34 @@ type family ArgsOfF (f :: Type) :: Type where
 
 -- Generic Mock alias for a function type f
 type MockFor f = forall params. (MockBuilder params f (ArgsOfF f)) => params -> MockT IO f
-
 -- Generic Mock alias for an arbitrary base monad m
 type MockForM m f = forall params. (MockBuilder params f (ArgsOfF f)) => params -> MockT m f
+
+-- Per-spec dependency records to group required builders/mocks
+data BasicDeps = BasicDeps
+  { _readFile  :: MockFor (FilePath -> Text)
+  , _writeFile :: MockFor (FilePath -> Text -> ())
+  }
+  
+data MixedDeps = MixedDeps
+  { _readFile  :: MockFor (FilePath -> Text)
+  , _writeFile :: MockFor (FilePath -> Text -> ())
+  , _post      :: MockFor (Text -> ())
+  }
+
+data MultipleDeps = MultipleDeps
+  { _ask      :: Environment -> MockT IO Environment
+  , _readFile :: MockFor (FilePath -> Text)
+  , _writeFile:: MockFor (FilePath -> Text -> ())
+  , _post     :: MockFor (Text -> ())
+  }
 
 specBasicStubbingAndVerification ::
   ( FileOperation (MockT IO)
   ) =>
-  MockFor (FilePath -> Text) ->
-  MockFor (FilePath -> Text -> ()) ->
+  BasicDeps ->
   Spec
-specBasicStubbingAndVerification _readFile _writeFile = do
+specBasicStubbingAndVerification (BasicDeps { _readFile, _writeFile }) = do
   it "Program reads content and writes it to output path" do
     result <- runMockT do
       _ <- _readFile $ "input.txt" |> pack "content"
@@ -159,11 +178,9 @@ specMixedMockingStrategies ::
   ( FileOperation (MockT IO)
   , ApiOperation (MockT IO)
   ) =>
-  MockFor (FilePath -> Text) ->
-  MockFor (FilePath -> Text -> ()) ->
-  MockFor (Text -> ()) ->
+  MixedDeps ->
   Spec
-specMixedMockingStrategies _readFile _writeFile _post = do
+specMixedMockingStrategies (MixedDeps { _readFile, _writeFile, _post }) = do
   it "Program reads, modifies content via stub, writes, and posts result" do
     modifyContentStub <- mock $ pack "content" |> pack "modifiedContent"
 
@@ -180,12 +197,9 @@ specMultipleTypeclassConstraints ::
   , ApiOperation (MockT IO)
   , MonadReader Environment (MockT IO)
   ) =>
-  (Environment -> MockT IO Environment) ->
-  MockFor (FilePath -> Text) ->
-  MockFor (FilePath -> Text -> ()) ->
-  MockFor (Text -> ()) ->
+  MultipleDeps ->
   Spec
-specMultipleTypeclassConstraints _ask _readFile _writeFile _post = do
+specMultipleTypeclassConstraints (MultipleDeps { _ask, _readFile, _writeFile, _post }) = do
   it "Composed program successfully reads environment, processes file, and posts combined result" do
     modifyContentStub <- mock $ pack "content" |> pack "modifiedContent"
     let env = Environment "input.txt" "output.text"
