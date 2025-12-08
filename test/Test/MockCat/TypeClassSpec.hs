@@ -8,24 +8,21 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE GADTs #-}
-{-# LANGUAGE LambdaCase #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 {-# OPTIONS_GHC -Wno-unused-do-bind #-}
-{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 
 module Test.MockCat.TypeClassSpec (spec) where
 
-import Control.Exception (ErrorCall(..), displayException)
-import Data.Text (Text, pack)
-import Test.Hspec (Spec, it, shouldBe, shouldThrow, describe, Selector, pendingWith)
+import Data.Text (Text)
+import Test.Hspec (Spec)
 import Test.MockCat
 import Prelude hiding (readFile, writeFile)
 import Data.Data
-import Data.List (find, isInfixOf)
+import Data.List (find)
 import GHC.TypeLits (KnownSymbol, symbolVal)
 import Unsafe.Coerce (unsafeCoerce)
 import Data.Maybe (fromMaybe)
@@ -33,18 +30,13 @@ import Control.Monad.Reader (MonadReader)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Reader.Class (ask, MonadReader (local))
 import Control.Monad.Trans.Class (lift)
-import Control.Monad.State (MonadState (..), StateT, evalStateT)
+import Control.Monad.State (MonadState (..))
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import qualified Test.MockCat.Verify as Verify
 import Test.MockCat.SharedSpecDefs
 import qualified Test.MockCat.TypeClassCommonSpec as SpecCommon
 import Test.MockCat.Internal.Types (BuiltMock(..))
 import qualified Test.MockCat.Internal.MockRegistry as Registry (register)
-
-missingCall :: String -> Selector ErrorCall
-missingCall name err =
-  let needle = "function `" <> name <> "` was not applied the expected number of times."
-   in needle `isInfixOf` displayException err
 
 ensureVerifiable ::
   ( MonadIO m
@@ -57,16 +49,6 @@ ensureVerifiable target =
     m <- Verify.resolveForVerification target
     case m of { Just _ -> pure (); Nothing -> Verify.verificationFailure }
 
-apiFileOperationProgram ::
-  (MonadReader SpecCommon.Environment m, FileOperation m, ApiOperation m) =>
-  (Text -> Text) ->
-  m ()
-apiFileOperationProgram modifyText = do
-  e <- ask
-  content <- readFile (SpecCommon.inputPath e)
-  let modifiedContent = modifyText content
-  writeFile (SpecCommon.outputPath e) modifiedContent
-  post $ modifiedContent <> pack ("+" <> show e)
 
 instance MonadIO m => FileOperation (MockT m) where
   readFile path = MockT do
@@ -158,12 +140,6 @@ findParam :: KnownSymbol sym => Proxy sym -> [Definition] -> Maybe a
 findParam pa definitions = do
   let definition = find (\(Definition s _ _) -> symbolVal s == symbolVal pa) definitions
   fmap (\(Definition _ f _) -> unsafeCoerce f) definition
-
-echoProgram :: MonadIO m => TestClass m => String -> m ()
-echoProgram s = do
-  v <- getBy s
-  liftIO $ print v
-  echo $ show v
 
 instance AssocTypeTest IO where
   type ResultType IO = Int
@@ -554,28 +530,6 @@ _produce value = MockT $ do
   ensureVerifiable mockInstance
   addDefinition (Definition (Proxy :: Proxy "_produce") mockInstance NoVerification)
   pure mockInstance
-
-stubPostFn ::
-  ( MockBuilder params (Text -> ()) (Param Text)
-  , MonadIO m
-  ) =>
-  params ->
-  MockT m ()
-stubPostFn p = MockT $ do
-  mockInstance <- liftIO $ createNamedMockFnWithParams "stubPostFn" p
-  ensureVerifiable mockInstance
-  addDefinition (Definition (Proxy :: Proxy "post") mockInstance NoVerification)
-
-processFiles :: (MonadAsync m, FileOperation m) => [FilePath] -> m [Text]
-processFiles = mapConcurrently readFile
-
-
-echo2 :: Teletype m => m ()
-echo2 = do
-  i <- readTTY
-  case i of
-    "" -> pure ()
-    _  -> writeTTY i >> echo2
 
 instance MonadIO m => Teletype (MockT m) where
   readTTY = MockT do
