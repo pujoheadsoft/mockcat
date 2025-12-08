@@ -319,7 +319,7 @@ spec = do
   specApiRenaming _post
   specTestClass _getBy _echo
   specMultiApply _getValueBy
-  specSubVars _fn2_1Sub _fn2_2Sub _fn3_1Sub _fn3_2Sub _fn3_3Sub
+  specSubVars _fn2_1SubIO _fn2_2SubIO _fn3_1SubIO _fn3_2SubIO _fn3_3SubIO
   specMonadState _fnState _fnState2
   specParamThreeMonad _fnParam3_1 _fnParam3_2 _fnParam3_3
   specExplicitReturn _getByExplicit _echoExplicit

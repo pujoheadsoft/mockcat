@@ -36,7 +36,7 @@ import Control.Monad.State (MonadState (..), StateT, evalStateT)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import qualified Test.MockCat.Verify as Verify
 import Test.MockCat.SharedSpecDefs
-import Test.MockCat.TypeClassCommonSpec (Environment(..), specEcho, specFileOperation, specFileOperationApi, specFileOperationReaderEnvironment, specApiRenaming, specTestClass, specMultiApply, specSubVars, specMonadState, specExplicitReturn, specDefaultMethod, specAssocType, specMonadAsync, specMonadReaderEnvironment, specVerifyFailureFileOp, specVerifyFailureApi, specVerifyFailureReaderEnvironment, specVerifyFailureTestClass, specVerifyFailureSubVars, specVerifyFailureMultiApply, specVerifyFailureParam3, specVerifyFailureExplicit, specVerifyFailureDefaultAndAssoc, specVerifyFailureTTY)
+import Test.MockCat.TypeClassCommonSpec (Environment(..), specEcho, specFileOperation, specFileOperationApi, specFileOperationReaderEnvironment, specApiRenaming, specTestClass, specMultiApply, specSubVars, specMonadState, specParamThreeMonad, specExplicitReturn, specDefaultMethod, specAssocType, specMonadAsync, specMonadReaderEnvironment, specVerifyFailureFileOp, specVerifyFailureApi, specVerifyFailureReaderEnvironment, specVerifyFailureTestClass, specVerifyFailureSubVars, specVerifyFailureMultiApply, specVerifyFailureParam3, specVerifyFailureExplicit, specVerifyFailureDefaultAndAssoc, specVerifyFailureTTY)
 import Test.MockCat.Internal.Types (BuiltMock(..))
 import qualified Test.MockCat.Internal.MockRegistry as Registry (register)
 
@@ -1051,13 +1051,20 @@ spec = do
         pure ()) `shouldThrow` (missingCall "_writeTTY")
 
   specEcho _readTTY _writeTTY
+  specFileOperation _readFileIO _writeFileIO
   specFileOperationApi _readFile _writeFile _post
+  specFileOperationReaderEnvironment _ask _readFileIO _writeFileIO _postIO
   specApiRenaming _post
+  specTestClass _getByIO _echoIO
+  specMultiApply _getValueByIO
+  specSubVars _fn2_1SubIO _fn2_2SubIO _fn3_1SubIO _fn3_2SubIO _fn3_3SubIO
+  specMonadState _fnState _fnState2
+  specParamThreeMonad _fnParam3_1 _fnParam3_2 _fnParam3_3
   specExplicitReturn _getByExplicit _echoExplicit
   specDefaultMethod _defaultAction
   specAssocType _produce
   specMonadAsync _readFile
-  specMonadState _fnState _fnState2
+  specMonadReaderEnvironment _ask _readFileIO _writeFileIO
 
   -- -- Verification Failures
   specVerifyFailureFileOp _readFile _writeFile

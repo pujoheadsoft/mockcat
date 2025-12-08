@@ -292,40 +292,40 @@ specSubVars ::
   , MonadVar3_2Sub String (MockT IO) String
   , MonadVar3_3Sub String String (MockT IO)
   ) =>
-  (forall params. (MockBuilder params (String -> ()) (Param String)) => params -> MockT IO (String -> ())) ->
-  (forall params. (MockBuilder params (String -> ()) (Param String)) => params -> MockT IO (String -> ())) ->
-  (forall params. (MockBuilder params (String -> ()) (Param String)) => params -> MockT IO (String -> ())) ->
-  (forall params. (MockBuilder params (String -> ()) (Param String)) => params -> MockT IO (String -> ())) ->
-  (forall params. (MockBuilder params (String -> ()) (Param String)) => params -> MockT IO (String -> ())) ->
+  (forall params. (MockBuilder params (String -> IO ()) (Param String)) => params -> MockT IO (String -> IO ())) ->
+  (forall params. (MockBuilder params (String -> IO ()) (Param String)) => params -> MockT IO (String -> IO ())) ->
+  (forall params. (MockBuilder params (String -> IO ()) (Param String)) => params -> MockT IO (String -> IO ())) ->
+  (forall params. (MockBuilder params (String -> IO ()) (Param String)) => params -> MockT IO (String -> IO ())) ->
+  (forall params. (MockBuilder params (String -> IO ()) (Param String)) => params -> MockT IO (String -> IO ())) ->
   Spec
 specSubVars _fn2_1Sub _fn2_2Sub _fn3_1Sub _fn3_2Sub _fn3_3Sub = do
   it "supports MonadVar2_1Sub pattern" do
     result <- runMockT do
-      _fn2_1Sub $ "alpha" |> ()
+      _fn2_1Sub $ "alpha" |> pure @IO ()
       fn2_1Sub @(MockT IO) @String "alpha"
     result `shouldBe` ()
 
   it "supports MonadVar2_2Sub pattern" do
     result <- runMockT do
-      _fn2_2Sub $ "beta" |> ()
+      _fn2_2Sub $ "beta" |> pure @IO ()
       fn2_2Sub @String @(MockT IO) "beta"
     result `shouldBe` ()
 
   it "supports MonadVar3_1Sub pattern" do
     result <- runMockT do
-      _fn3_1Sub $ "gamma" |> ()
+      _fn3_1Sub $ "gamma" |> pure @IO ()
       fn3_1Sub @(MockT IO) @String @String "gamma"
     result `shouldBe` ()
 
   it "supports MonadVar3_2Sub pattern" do
     result <- runMockT do
-      _fn3_2Sub $ "delta" |> ()
+      _fn3_2Sub $ "delta" |> pure @IO ()
       fn3_2Sub @String @(MockT IO) @String "delta"
     result `shouldBe` ()
 
   it "supports MonadVar3_3Sub pattern" do
     result <- runMockT do
-      _fn3_3Sub $ "epsilon" |> ()
+      _fn3_3Sub $ "epsilon" |> pure @IO ()
       fn3_3Sub @String @String @(MockT IO) "epsilon"
     result `shouldBe` ()
 
