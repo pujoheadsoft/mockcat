@@ -1066,7 +1066,7 @@ spec = do
   specVerifyFailureTestClass _getBy _echo
   specVerifyFailureSubVars _fn2_1Sub _fn2_2Sub _fn3_1Sub _fn3_2Sub _fn3_3Sub
   specVerifyFailureMultiApply _getValueBy
-  -- specVerifyFailureParam3 _fnParam3_1 _fnParam3_2 _fnParam3_3
+  specVerifyFailureParam3 _fnParam3_1 _fnParam3_2 _fnParam3_3
   specVerifyFailureExplicit _getByExplicit _echoExplicit
   specVerifyFailureDefaultAndAssoc _defaultAction _produce
   specVerifyFailureTTY _readTTY _writeTTY

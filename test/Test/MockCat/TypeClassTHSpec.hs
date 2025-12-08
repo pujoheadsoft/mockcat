@@ -29,6 +29,7 @@ import Control.Monad.IO.Unlift (withRunInIO, MonadUnliftIO)
 import Control.Concurrent.Async (async, wait)
 import Test.MockCat.SharedSpecDefs
 import Test.MockCat.TypeClassCommonSpec (Environment(..), specEcho, specFileOperation, specFileOperationApi, specFileOperationReaderEnvironment, specApiRenaming, specTestClass, specMultiApply, specSubVars, specMonadState, specParamThreeMonad, specExplicitReturn, specDefaultMethod, specAssocType, specMonadAsync, specMonadReaderEnvironment, specVerifyFailureFileOp, specVerifyFailureApi, specVerifyFailureReaderEnvironment, specVerifyFailureTestClass, specVerifyFailureSubVars, specVerifyFailureMultiApply, specVerifyFailureParam3, specVerifyFailureExplicit, specVerifyFailureDefaultAndAssoc, specVerifyFailureTTY)
+import qualified Test.MockCat.Verify as Verify
 
 operationProgram ::
   FileOperation m =>
@@ -100,6 +101,21 @@ instance AssocTypeTest IO where
 
 processFiles :: MonadAsync m => FileOperation m => [FilePath] -> m [Text]
 processFiles = mapConcurrently readFile
+
+ 
+
+ 
+
+ensureVerifiable ::
+  ( MonadIO m
+  , Verify.ResolvableMock target
+  ) =>
+  target ->
+  m ()
+ensureVerifiable target =
+  liftIO $ do
+    m <- Verify.resolveForVerification target
+    case m of { Just _ -> pure (); Nothing -> Verify.verificationFailure }
 
 -- IO wrappers for subvars (TH generates pure-returning builders here)
 _fn2_1SubIO ::
@@ -305,7 +321,7 @@ spec = do
   specMultiApply _getValueBy
   specSubVars _fn2_1Sub _fn2_2Sub _fn3_1Sub _fn3_2Sub _fn3_3Sub
   specMonadState _fnState _fnState2
-  -- specParamThreeMonad _fnParam3_1 _fnParam3_2 _fnParam3_3
+  specParamThreeMonad _fnParam3_1 _fnParam3_2 _fnParam3_3
   specExplicitReturn _getByExplicit _echoExplicit
   specDefaultMethod _defaultAction
   specAssocType _produce
@@ -319,7 +335,7 @@ spec = do
   specVerifyFailureTestClass _getBy _echo
   specVerifyFailureSubVars _fn2_1SubIO _fn2_2SubIO _fn3_1SubIO _fn3_2SubIO _fn3_3SubIO
   specVerifyFailureMultiApply _getValueBy
-  -- specVerifyFailureParam3 _fnParam3_1 _fnParam3_2 _fnParam3_3
+  specVerifyFailureParam3 _fnParam3_1 _fnParam3_2 _fnParam3_3
   specVerifyFailureExplicit _getByExplicit _echoExplicit
   specVerifyFailureDefaultAndAssoc _defaultAction _produce
   specVerifyFailureTTY _readTTY _writeTTY

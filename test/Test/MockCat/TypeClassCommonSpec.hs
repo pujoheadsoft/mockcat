@@ -332,7 +332,7 @@ specSubVars _fn2_1Sub _fn2_2Sub _fn3_1Sub _fn3_2Sub _fn3_3Sub = do
 specParamThreeMonad ::
   ( ParamThreeMonad Int Bool (MockT IO)
   ) =>
-  (forall params. (MockBuilder params (Int -> Bool -> String) (Param Int :> Param Bool)) => params -> MockT IO (Int -> Bool -> String)) ->
+  (forall params. (MockBuilder params (Int -> Bool -> IO String) (Param Int :> Param Bool)) => params -> MockT IO (Int -> Bool -> IO String)) ->
   (forall params. (MockBuilder params (IO Int) ()) => params -> MockT IO (IO Int)) ->
   (forall params. (MockBuilder params (IO Bool) ()) => params -> MockT IO (IO Bool)) ->
   Spec
@@ -340,7 +340,7 @@ specParamThreeMonad _fnParam3_1 _fnParam3_2 _fnParam3_3 = do
   it "supports ParamThreeMonad functional dependencies" do
     result <- runMockT $ do
       _fnParam3_1 $ do
-        onCase $ (1 :: Int) |> True |> "combined"
+        onCase $ (1 :: Int) |> True |> pure @IO "combined"
       _fnParam3_2 $ casesIO [1 :: Int]
       _fnParam3_3 $ casesIO [True]
       r1 <- fnParam3_1 (1 :: Int) True
@@ -599,7 +599,7 @@ specVerifyFailureMultiApply _getValueBy = describe "verification failures (Multi
 specVerifyFailureParam3 ::
   ( ParamThreeMonad Int Bool (MockT IO)
   ) =>
-  (forall params. (MockBuilder params (Int -> Bool -> String) (Param Int :> Param Bool)) => params -> MockT IO (Int -> Bool -> String)) ->
+  (forall params. (MockBuilder params (Int -> Bool -> IO String) (Param Int :> Param Bool)) => params -> MockT IO (Int -> Bool -> IO String)) ->
   (forall params. (MockBuilder params (IO Int) ()) => params -> MockT IO (IO Int)) ->
   (forall params. (MockBuilder params (IO Bool) ()) => params -> MockT IO (IO Bool)) ->
   Spec
@@ -607,7 +607,7 @@ specVerifyFailureParam3 _fnParam3_1 _fnParam3_2 _fnParam3_3 = describe "verifica
     it "fails when _fnParam3_1 is defined but fnParam3_1 is never called" do
       (runMockT @IO do
         _fnParam3_1 (do
-               onCase $ (1 :: Int) |> True |> "combined")
+               onCase $ (1 :: Int) |> True |> pure @IO "combined")
           `expects` do
             called once
         pure ()) `shouldThrow` (missingCall "_fnParam3_1")
