@@ -36,7 +36,7 @@ import Control.Monad.State (MonadState (..), StateT, evalStateT)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import qualified Test.MockCat.Verify as Verify
 import Test.MockCat.SharedSpecDefs
-import Test.MockCat.TypeClassCommonSpec (Environment, specEcho, specFileOperation, specFileOperationApi, specFileOperationReaderEnvironment, specApiRenaming, specTestClass, specMultiApply, specSubVars, specMonadState, specExplicitReturn, specDefaultMethod, specAssocType, specMonadAsync, specMonadReaderEnvironment, specVerifyFailureFileOp, specVerifyFailureApi, specVerifyFailureReaderEnvironment, specVerifyFailureTestClass, specVerifyFailureSubVars, specVerifyFailureMultiApply, specVerifyFailureParam3, specVerifyFailureExplicit, specVerifyFailureDefaultAndAssoc, specVerifyFailureTTY)
+import Test.MockCat.TypeClassCommonSpec (Environment(..), specEcho, specFileOperation, specFileOperationApi, specFileOperationReaderEnvironment, specApiRenaming, specTestClass, specMultiApply, specSubVars, specMonadState, specExplicitReturn, specDefaultMethod, specAssocType, specMonadAsync, specMonadReaderEnvironment, specVerifyFailureFileOp, specVerifyFailureApi, specVerifyFailureReaderEnvironment, specVerifyFailureTestClass, specVerifyFailureSubVars, specVerifyFailureMultiApply, specVerifyFailureParam3, specVerifyFailureExplicit, specVerifyFailureDefaultAndAssoc, specVerifyFailureTTY)
 import Test.MockCat.Internal.Types (BuiltMock(..))
 import qualified Test.MockCat.Internal.MockRegistry as Registry (register)
 
@@ -57,17 +57,15 @@ ensureVerifiable target =
     case m of { Just _ -> pure (); Nothing -> Verify.verificationFailure }
 
 apiFileOperationProgram ::
-  (MonadReader String m, FileOperation m, ApiOperation m) =>
-  FilePath ->
-  FilePath ->
+  (MonadReader Environment m, FileOperation m, ApiOperation m) =>
   (Text -> Text) ->
   m ()
-apiFileOperationProgram inputPath outputPath modifyText = do
+apiFileOperationProgram modifyText = do
   e <- ask
-  content <- readFile inputPath
+  content <- readFile (inputPath e)
   let modifiedContent = modifyText content
-  writeFile outputPath modifiedContent
-  post $ modifiedContent <> pack ("+" <> e)
+  writeFile (outputPath e) modifiedContent
+  post $ modifiedContent <> pack ("+" <> show e)
 
 instance MonadIO m => FileOperation (MockT m) where
   readFile path = MockT do
@@ -92,7 +90,7 @@ instance MonadIO m => ApiOperation (MockT m) where
       !result = mockFn content
     pure result
 
-instance MonadIO m => MonadReader String (MockT m) where
+instance MonadIO m => MonadReader Environment (MockT m) where
   ask = MockT do
     defs <- getDefinitions
     let
@@ -737,11 +735,11 @@ spec = do
     modifyContentStub <- mock $ pack "content" |> pack "modifiedContent"
 
     result <- runMockT do
-      _ask "environment"
+      _ask (Environment "input.txt" "output.text")
       _readFile ("input.txt" |> pack "content")
       _writeFile $ "output.text" |> pack "modifiedContent" |> ()
-      _post $ pack "modifiedContent+environment" |> ()
-      apiFileOperationProgram "input.txt" "output.text" modifyContentStub
+      _post $ pack ("modifiedContent+" <> show (Environment "input.txt" "output.text")) |> ()
+      apiFileOperationProgram modifyContentStub
 
     result `shouldBe` ()
 
@@ -874,7 +872,7 @@ spec = do
 
     it "fails when _ask is defined but ask is never called" do
       (runMockT @IO do
-        _ <- _ask "environment"
+        _ <- _ask (Environment "input.txt" "output.txt")
           `expects` do
             called once
         -- ask is never called

@@ -500,14 +500,14 @@ specVerifyFailureApi _post = describe "verification failures (Api)" do
         pure ()) `shouldThrow` (missingCall "post")
 
 specVerifyFailureReaderEnvironment ::
-  ( MonadReader String (MockT IO)
+  ( MonadReader Environment (MockT IO)
   ) =>
-  (String -> MockT IO String) ->
+  (Environment -> MockT IO Environment) ->
   Spec
 specVerifyFailureReaderEnvironment _ask = describe "verification failures (Reader Environment)" do
     it "fails when _ask is defined but ask is never called" do
       (runMockT @IO do
-        _ <- _ask "environment"
+        _ <- _ask (Environment "input.txt" "output.txt")
           `expects` do
             called once
         -- ask is never called

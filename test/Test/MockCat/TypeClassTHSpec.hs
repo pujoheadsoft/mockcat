@@ -13,6 +13,7 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE RankNTypes #-}
 
 module Test.MockCat.TypeClassTHSpec (spec) where
 
@@ -22,11 +23,12 @@ import Test.Hspec
 import Test.MockCat
 import Control.Monad.State
 import Control.Monad.Reader (MonadReader, ask)
+import Data.Proxy (Proxy(..))
 import Control.Monad (unless)
 import Control.Monad.IO.Unlift (withRunInIO, MonadUnliftIO)
 import Control.Concurrent.Async (async, wait)
 import Test.MockCat.SharedSpecDefs
-import Test.MockCat.TypeClassCommonSpec (Environment(..), specEcho, specFileOperation, specFileOperationApi, specFileOperationReaderEnvironment, specApiRenaming, specTestClass, specMultiApply, specSubVars, specMonadState, specExplicitReturn, specDefaultMethod, specAssocType, specMonadAsync, specMonadReaderEnvironment, specVerifyFailureFileOp, specVerifyFailureApi, specVerifyFailureReaderEnvironment, specVerifyFailureTestClass, specVerifyFailureSubVars, specVerifyFailureMultiApply, specVerifyFailureParam3, specVerifyFailureExplicit, specVerifyFailureDefaultAndAssoc, specVerifyFailureTTY)
+import Test.MockCat.TypeClassCommonSpec (Environment(..), specEcho, specFileOperation, specFileOperationApi, specFileOperationReaderEnvironment, specApiRenaming, specTestClass, specMultiApply, specSubVars, specMonadState, specParamThreeMonad, specExplicitReturn, specDefaultMethod, specAssocType, specMonadAsync, specMonadReaderEnvironment, specVerifyFailureFileOp, specVerifyFailureApi, specVerifyFailureReaderEnvironment, specVerifyFailureTestClass, specVerifyFailureSubVars, specVerifyFailureMultiApply, specVerifyFailureParam3, specVerifyFailureExplicit, specVerifyFailureDefaultAndAssoc, specVerifyFailureTTY)
 
 operationProgram ::
   FileOperation m =>
@@ -62,15 +64,17 @@ operationProgram3 = do
 
 --makeMock [t|MonadReader Bool|]
 makeMock [t|MonadReader Environment|]
-makeMockWithOptions [t|MonadVar2_1Sub|] options { implicitMonadicReturn = False }
-makeMockWithOptions [t|MonadVar2_2Sub|] options { implicitMonadicReturn = False }
-makeMockWithOptions [t|MonadVar3_1Sub|] options { implicitMonadicReturn = False }
-makeMockWithOptions [t|MonadVar3_2Sub|] options { implicitMonadicReturn = False }
-makeMockWithOptions [t|MonadVar3_3Sub|] options { implicitMonadicReturn = False }
+makeMockWithOptions [t|MonadVar2_1Sub|] options { implicitMonadicReturn = True }
+makeMockWithOptions [t|MonadVar2_2Sub|] options { implicitMonadicReturn = True }
+makeMockWithOptions [t|MonadVar3_1Sub|] options { implicitMonadicReturn = True }
+makeMockWithOptions [t|MonadVar3_2Sub|] options { implicitMonadicReturn = True }
+makeMockWithOptions [t|MonadVar3_3Sub|] options { implicitMonadicReturn = True }
 makeMock [t|FileOperation|]
 makeMock [t|ApiOperation|]
 
 makeMockWithOptions [t|MultiApplyTest|] options { implicitMonadicReturn = False }
+
+makeMockWithOptions [t|ParamThreeMonad Int Bool|] options { implicitMonadicReturn = False }
 
 makeMockWithOptions [t|MonadStateSub|] options { implicitMonadicReturn = False }
 makeMockWithOptions [t|MonadStateSub2|] options { implicitMonadicReturn = False }
@@ -96,6 +100,52 @@ instance AssocTypeTest IO where
 
 processFiles :: MonadAsync m => FileOperation m => [FilePath] -> m [Text]
 processFiles = mapConcurrently readFile
+
+-- IO wrappers for subvars (TH generates pure-returning builders here)
+_fn2_1SubIO ::
+  forall params.
+  (MockBuilder params (String -> IO ()) (Param String)) =>
+  params -> MockT IO (String -> IO ())
+_fn2_1SubIO p = MockT $ do
+  mockInstance <- liftIO $ createNamedMockFnWithParams "_fn2_1Sub" p
+  addDefinition (Definition (Proxy :: Proxy "_fn2_1Sub") mockInstance NoVerification)
+  pure mockInstance
+
+_fn2_2SubIO ::
+  forall params.
+  (MockBuilder params (String -> IO ()) (Param String)) =>
+  params -> MockT IO (String -> IO ())
+_fn2_2SubIO p = MockT $ do
+  mockInstance <- liftIO $ createNamedMockFnWithParams "_fn2_2Sub" p
+  addDefinition (Definition (Proxy :: Proxy "_fn2_2Sub") mockInstance NoVerification)
+  pure mockInstance
+
+_fn3_1SubIO ::
+  forall params.
+  (MockBuilder params (String -> IO ()) (Param String)) =>
+  params -> MockT IO (String -> IO ())
+_fn3_1SubIO p = MockT $ do
+  mockInstance <- liftIO $ createNamedMockFnWithParams "_fn3_1Sub" p
+  addDefinition (Definition (Proxy :: Proxy "_fn3_1Sub") mockInstance NoVerification)
+  pure mockInstance
+
+_fn3_2SubIO ::
+  forall params.
+  (MockBuilder params (String -> IO ()) (Param String)) =>
+  params -> MockT IO (String -> IO ())
+_fn3_2SubIO p = MockT $ do
+  mockInstance <- liftIO $ createNamedMockFnWithParams "_fn3_2Sub" p
+  addDefinition (Definition (Proxy :: Proxy "_fn3_2Sub") mockInstance NoVerification)
+  pure mockInstance
+
+_fn3_3SubIO ::
+  forall params.
+  (MockBuilder params (String -> IO ()) (Param String)) =>
+  params -> MockT IO (String -> IO ())
+_fn3_3SubIO p = MockT $ do
+  mockInstance <- liftIO $ createNamedMockFnWithParams "_fn3_3Sub" p
+  addDefinition (Definition (Proxy :: Proxy "_fn3_3Sub") mockInstance NoVerification)
+  pure mockInstance
 
 spec :: Spec
 spec = do
@@ -144,9 +194,9 @@ spec = do
 
   it "Read, and output files (with MonadReader)" do
     r <- runMockT do
-      _ask (Environment "input.txt" "output.txt")
+      _ask (Environment "input.txt" "output.text")
       _readFile ("input.txt" |> pack "content")
-      _writeFile ("output.txt" |> pack "content" |> ())
+      _writeFile ("output.text" |> pack "content" |> ())
       operationProgram3
     r `shouldBe` ()
 
@@ -247,11 +297,13 @@ spec = do
 
 
   specEcho _readTTY _writeTTY
+  specFileOperation _readFile _writeFile
   specFileOperationApi _readFile _writeFile _post
+  specFileOperationReaderEnvironment _ask _readFile _writeFile _post
   specApiRenaming _post
   specTestClass _getBy _echo
-  -- specMultiApply _getValueBy
-  -- specSubVars _fn2_1Sub _fn2_2Sub _fn3_1Sub _fn3_2Sub _fn3_3Sub
+  specMultiApply _getValueBy
+  specSubVars _fn2_1Sub _fn2_2Sub _fn3_1Sub _fn3_2Sub _fn3_3Sub
   specMonadState _fnState _fnState2
   -- specParamThreeMonad _fnParam3_1 _fnParam3_2 _fnParam3_3
   specExplicitReturn _getByExplicit _echoExplicit
@@ -260,12 +312,12 @@ spec = do
   specMonadAsync _readFile
   specMonadReaderEnvironment _ask _readFile _writeFile
 
-  -- Verification Failures
+  -- -- Verification Failures
   specVerifyFailureFileOp _readFile _writeFile
   specVerifyFailureApi _post
-  -- specVerifyFailureReaderEnvironment _ask
+  specVerifyFailureReaderEnvironment _ask
   specVerifyFailureTestClass _getBy _echo
-  specVerifyFailureSubVars _fn2_1Sub _fn2_2Sub _fn3_1Sub _fn3_2Sub _fn3_3Sub
+  specVerifyFailureSubVars _fn2_1SubIO _fn2_2SubIO _fn3_1SubIO _fn3_2SubIO _fn3_3SubIO
   specVerifyFailureMultiApply _getValueBy
   -- specVerifyFailureParam3 _fnParam3_1 _fnParam3_2 _fnParam3_3
   specVerifyFailureExplicit _getByExplicit _echoExplicit
