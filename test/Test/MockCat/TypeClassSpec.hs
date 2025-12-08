@@ -620,106 +620,6 @@ _writeTTY p = MockT $ do
   addDefinition (Definition (Proxy :: Proxy "_writeTTY") mockInstance NoVerification)
   pure mockInstance
  
--- Concrete specializations to `MockT IO` for common spec helpers
-_askIO :: SpecCommon.Environment -> MockT IO SpecCommon.Environment
-_askIO = _ask
-
-_readFileIO ::
-  forall params.
-  (MockBuilder params (FilePath -> Text) (Param FilePath)) =>
-  params -> MockT IO (FilePath -> Text)
-_readFileIO = _readFile
-
-_writeFileIO ::
-  forall params.
-  (MockBuilder params (FilePath -> Text -> ()) (Param FilePath :> Param Text)) =>
-  params -> MockT IO (FilePath -> Text -> ())
-_writeFileIO = _writeFile
-
-_postIO ::
-  forall params.
-  (MockBuilder params (Text -> ()) (Param Text)) =>
-  params -> MockT IO (Text -> ())
-_postIO = _post
-
-_getByIO ::
-  forall params.
-  (MockBuilder params (String -> IO Int) (Param String)) =>
-  params -> MockT IO (String -> IO Int)
-_getByIO = _getBy
-
-_echoIO ::
-  forall params.
-  (MockBuilder params (String -> IO ()) (Param String)) =>
-  params -> MockT IO (String -> IO ())
-_echoIO = _echo
-
-_getValueByIO ::
-  forall params.
-  (MockBuilder params (String -> IO String) (Param String)) =>
-  params -> MockT IO (String -> IO String)
-_getValueByIO = _getValueBy
-
-_fn2_1SubIO ::
-  forall params.
-  (MockBuilder params (String -> IO ()) (Param String)) =>
-  params -> MockT IO (String -> IO ())
-_fn2_1SubIO = _fn2_1Sub
-
-_fn2_2SubIO ::
-  forall params.
-  (MockBuilder params (String -> IO ()) (Param String)) =>
-  params -> MockT IO (String -> IO ())
-_fn2_2SubIO = _fn2_2Sub
-
-_fn3_1SubIO ::
-  forall params.
-  (MockBuilder params (String -> IO ()) (Param String)) =>
-  params -> MockT IO (String -> IO ())
-_fn3_1SubIO = _fn3_1Sub
-
-_fn3_2SubIO ::
-  forall params.
-  (MockBuilder params (String -> IO ()) (Param String)) =>
-  params -> MockT IO (String -> IO ())
-_fn3_2SubIO = _fn3_2Sub
-
-_fn3_3SubIO ::
-  forall params.
-  (MockBuilder params (String -> IO ()) (Param String)) =>
-  params -> MockT IO (String -> IO ())
-_fn3_3SubIO = _fn3_3Sub
-
-_getByExplicitIO ::
-  forall params.
-  (MockBuilder params (String -> IO Int) (Param String)) =>
-  params -> MockT IO (String -> IO Int)
-_getByExplicitIO = _getByExplicit
-
-_echoExplicitIO ::
-  forall params.
-  (MockBuilder params (String -> IO ()) (Param String)) =>
-  params -> MockT IO (String -> IO ())
-_echoExplicitIO = _echoExplicit
-
-_defaultActionIO :: Int -> MockT IO Int
-_defaultActionIO = _defaultAction
-
-_produceIO :: Int -> MockT IO Int
-_produceIO = _produce
-
-_readTTYIO ::
-  forall params.
-  (MockBuilder params (IO String) ()) =>
-  params -> MockT IO (IO String)
-_readTTYIO = _readTTY
-
-_writeTTYIO ::
-  forall params.
-  (MockBuilder params (String -> IO ()) (Param String)) =>
-  params -> MockT IO (String -> IO ())
-_writeTTYIO = _writeTTY
-
 spec :: Spec
 spec = do
   it "echo" do
@@ -1052,20 +952,20 @@ spec = do
         pure ()) `shouldThrow` (missingCall "_writeTTY")
 
   SpecCommon.specSequentialIOStubbing _readTTY _writeTTY
-  SpecCommon.specBasicStubbingAndVerification (SpecCommon.BasicDeps _readFileIO _writeFileIO)
+  SpecCommon.specBasicStubbingAndVerification (SpecCommon.BasicDeps _readFile _writeFile)
   SpecCommon.specMixedMockingStrategies (SpecCommon.MixedDeps _readFile _writeFile _post)
-  SpecCommon.specMultipleTypeclassConstraints (SpecCommon.MultipleDeps _ask _readFileIO _writeFileIO _postIO)
+  SpecCommon.specMultipleTypeclassConstraints (SpecCommon.MultipleDeps _ask _readFile _writeFile _post)
   SpecCommon.specCustomMockNamingOptions _post
-  SpecCommon.specImplicitMonadicReturnValues _getByIO _echoIO
-  SpecCommon.specArgumentPatternMatching _getValueByIO
-  SpecCommon.specMultiParamTypeClassArity _fn2_1SubIO _fn2_2SubIO _fn3_1SubIO _fn3_2SubIO _fn3_3SubIO
+  SpecCommon.specImplicitMonadicReturnValues _getBy _echo
+  SpecCommon.specArgumentPatternMatching _getValueBy
+  SpecCommon.specMultiParamTypeClassArity _fn2_1Sub _fn2_2Sub _fn3_1Sub _fn3_2Sub _fn3_3Sub
   SpecCommon.specMonadStateTransformerSupport _fnState _fnState2
   SpecCommon.specFunctionalDependenciesSupport _fnParam3_1 _fnParam3_2 _fnParam3_3
   SpecCommon.specExplicitMonadicReturnValues _getByExplicit _echoExplicit
   SpecCommon.specDefaultMethodMocking _defaultAction
   SpecCommon.specAssociatedTypeFamiliesSupport _produce
   SpecCommon.specConcurrencyAndUnliftIO _readFile
-  SpecCommon.specMonadReaderContextMocking _ask _readFileIO _writeFileIO
+  SpecCommon.specMonadReaderContextMocking _ask _readFile _writeFile
 
   -- -- Verification Failures
   SpecCommon.specBasicVerificationFailureDetection _readFile _writeFile
