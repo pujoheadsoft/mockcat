@@ -14,6 +14,7 @@
 {-# OPTIONS_GHC -Wno-unused-do-bind #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE RankNTypes #-}
 
 module Test.MockCat.TypeClassSpec (spec) where
 
@@ -35,7 +36,7 @@ import Control.Monad.State (MonadState (..), StateT, evalStateT)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import qualified Test.MockCat.Verify as Verify
 import Test.MockCat.SharedSpecDefs
-import Test.MockCat.TypeClassCommonSpec (specEcho, specFileOperation, specFileOperationReaderEnvironment, specApiRenaming, specTestClass, specMultiApply, specSubVars, specMonadState, specExplicitReturn, specDefaultMethod, specAssocType, specMonadAsync, specMonadReaderEnvironment)
+import Test.MockCat.TypeClassCommonSpec (Environment, specEcho, specFileOperation, specFileOperationApi, specFileOperationReaderEnvironment, specApiRenaming, specTestClass, specMultiApply, specSubVars, specMonadState, specExplicitReturn, specDefaultMethod, specAssocType, specMonadAsync, specMonadReaderEnvironment, specVerifyFailureFileOp, specVerifyFailureApi, specVerifyFailureReaderEnvironment, specVerifyFailureTestClass, specVerifyFailureSubVars, specVerifyFailureMultiApply, specVerifyFailureParam3, specVerifyFailureExplicit, specVerifyFailureDefaultAndAssoc, specVerifyFailureTTY)
 import Test.MockCat.Internal.Types (BuiltMock(..))
 import qualified Test.MockCat.Internal.MockRegistry as Registry (register)
 
@@ -619,6 +620,106 @@ _writeTTY p = MockT $ do
   ensureVerifiable mockInstance
   addDefinition (Definition (Proxy :: Proxy "_writeTTY") mockInstance NoVerification)
   pure mockInstance
+ 
+-- Concrete specializations to `MockT IO` for common spec helpers
+_askIO :: Environment -> MockT IO Environment
+_askIO = _ask
+
+_readFileIO ::
+  forall params.
+  (MockBuilder params (FilePath -> Text) (Param FilePath)) =>
+  params -> MockT IO (FilePath -> Text)
+_readFileIO = _readFile
+
+_writeFileIO ::
+  forall params.
+  (MockBuilder params (FilePath -> Text -> ()) (Param FilePath :> Param Text)) =>
+  params -> MockT IO (FilePath -> Text -> ())
+_writeFileIO = _writeFile
+
+_postIO ::
+  forall params.
+  (MockBuilder params (Text -> ()) (Param Text)) =>
+  params -> MockT IO (Text -> ())
+_postIO = _post
+
+_getByIO ::
+  forall params.
+  (MockBuilder params (String -> IO Int) (Param String)) =>
+  params -> MockT IO (String -> IO Int)
+_getByIO = _getBy
+
+_echoIO ::
+  forall params.
+  (MockBuilder params (String -> IO ()) (Param String)) =>
+  params -> MockT IO (String -> IO ())
+_echoIO = _echo
+
+_getValueByIO ::
+  forall params.
+  (MockBuilder params (String -> IO String) (Param String)) =>
+  params -> MockT IO (String -> IO String)
+_getValueByIO = _getValueBy
+
+_fn2_1SubIO ::
+  forall params.
+  (MockBuilder params (String -> IO ()) (Param String)) =>
+  params -> MockT IO (String -> IO ())
+_fn2_1SubIO = _fn2_1Sub
+
+_fn2_2SubIO ::
+  forall params.
+  (MockBuilder params (String -> IO ()) (Param String)) =>
+  params -> MockT IO (String -> IO ())
+_fn2_2SubIO = _fn2_2Sub
+
+_fn3_1SubIO ::
+  forall params.
+  (MockBuilder params (String -> IO ()) (Param String)) =>
+  params -> MockT IO (String -> IO ())
+_fn3_1SubIO = _fn3_1Sub
+
+_fn3_2SubIO ::
+  forall params.
+  (MockBuilder params (String -> IO ()) (Param String)) =>
+  params -> MockT IO (String -> IO ())
+_fn3_2SubIO = _fn3_2Sub
+
+_fn3_3SubIO ::
+  forall params.
+  (MockBuilder params (String -> IO ()) (Param String)) =>
+  params -> MockT IO (String -> IO ())
+_fn3_3SubIO = _fn3_3Sub
+
+_getByExplicitIO ::
+  forall params.
+  (MockBuilder params (String -> IO Int) (Param String)) =>
+  params -> MockT IO (String -> IO Int)
+_getByExplicitIO = _getByExplicit
+
+_echoExplicitIO ::
+  forall params.
+  (MockBuilder params (String -> IO ()) (Param String)) =>
+  params -> MockT IO (String -> IO ())
+_echoExplicitIO = _echoExplicit
+
+_defaultActionIO :: Int -> MockT IO Int
+_defaultActionIO = _defaultAction
+
+_produceIO :: Int -> MockT IO Int
+_produceIO = _produce
+
+_readTTYIO ::
+  forall params.
+  (MockBuilder params (IO String) ()) =>
+  params -> MockT IO (IO String)
+_readTTYIO = _readTTY
+
+_writeTTYIO ::
+  forall params.
+  (MockBuilder params (String -> IO ()) (Param String)) =>
+  params -> MockT IO (String -> IO ())
+_writeTTYIO = _writeTTY
 
 spec :: Spec
 spec = do
@@ -952,30 +1053,25 @@ spec = do
         pure ()) `shouldThrow` (missingCall "_writeTTY")
 
   specEcho _readTTY _writeTTY
-  -- specFileOperationReaderEnvironment _ask _readFile _writeFile stub_post_fn
-  -- specApiRenaming stub_post_fn
-  -- specTestClass _getBy _echo
-  -- specMultiApply _getValueBy
-  -- specSubVars _fn2_1Sub _fn2_2Sub _fn3_1Sub _fn3_2Sub _fn3_3Sub
+  specFileOperationApi _readFile _writeFile _post
+  specApiRenaming _post
+  specExplicitReturn _getByExplicit _echoExplicit
+  specDefaultMethod _defaultAction
+  specAssocType _produce
+  specMonadAsync _readFile
   specMonadState _fnState _fnState2
-  -- -- specParamThreeMonad _fnParam3_1 _fnParam3_2 _fnParam3_3
-  -- specExplicitReturn _getByExplicit _echoExplicit
-  -- specDefaultMethod _defaultAction
-  -- specAssocType _produce
-  -- specMonadAsync _readFile
-  -- specMonadReaderEnvironment _ask _readFile _writeFile
 
   -- -- Verification Failures
-  -- specVerifyFailureFileOp _readFile _writeFile
-  -- specVerifyFailureApi stub_post_fn
-  -- specVerifyFailureReaderEnvironment _ask
-  -- specVerifyFailureTestClass _getBy _echo
-  -- specVerifyFailureSubVars _fn2_1Sub _fn2_2Sub _fn3_1Sub _fn3_2Sub _fn3_3Sub
-  -- specVerifyFailureMultiApply _getValueBy
-  -- -- specVerifyFailureParam3 _fnParam3_1 _fnParam3_2 _fnParam3_3
-  -- specVerifyFailureExplicit _getByExplicit _echoExplicit
-  -- specVerifyFailureDefaultAndAssoc _defaultAction _produce
-  -- specVerifyFailureTTY _readTTY _writeTTY
+  specVerifyFailureFileOp _readFile _writeFile
+  specVerifyFailureApi _post
+  specVerifyFailureReaderEnvironment _ask
+  specVerifyFailureTestClass _getBy _echo
+  specVerifyFailureSubVars _fn2_1Sub _fn2_2Sub _fn3_1Sub _fn3_2Sub _fn3_3Sub
+  specVerifyFailureMultiApply _getValueBy
+  -- specVerifyFailureParam3 _fnParam3_1 _fnParam3_2 _fnParam3_3
+  specVerifyFailureExplicit _getByExplicit _echoExplicit
+  specVerifyFailureDefaultAndAssoc _defaultAction _produce
+  specVerifyFailureTTY _readTTY _writeTTY
 
   -- describe "verification failures (State - Pending)" do
   --   it "fails when _fnState is defined but fnState is never called" do

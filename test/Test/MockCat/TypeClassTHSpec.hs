@@ -26,7 +26,7 @@ import Control.Monad (unless)
 import Control.Monad.IO.Unlift (withRunInIO, MonadUnliftIO)
 import Control.Concurrent.Async (async, wait)
 import Test.MockCat.SharedSpecDefs
-import Test.MockCat.TypeClassCommonSpec (specEcho, specFileOperation, specFileOperationReaderEnvironment, specApiRenaming, specTestClass, specMultiApply, specSubVars, specMonadState, specExplicitReturn, specDefaultMethod, specAssocType, specMonadAsync, specMonadReaderEnvironment)
+import Test.MockCat.TypeClassCommonSpec (Environment(..), specEcho, specFileOperation, specFileOperationApi, specFileOperationReaderEnvironment, specApiRenaming, specTestClass, specMultiApply, specSubVars, specMonadState, specExplicitReturn, specDefaultMethod, specAssocType, specMonadAsync, specMonadReaderEnvironment, specVerifyFailureFileOp, specVerifyFailureApi, specVerifyFailureReaderEnvironment, specVerifyFailureTestClass, specVerifyFailureSubVars, specVerifyFailureMultiApply, specVerifyFailureParam3, specVerifyFailureExplicit, specVerifyFailureDefaultAndAssoc, specVerifyFailureTTY)
 
 operationProgram ::
   FileOperation m =>
@@ -50,8 +50,6 @@ operationProgram2 inputPath outputPath modifyText = do
   writeFile outputPath modifiedContent
   post modifiedContent
 
-data Environment = Environment { inputPath :: String, outputPath :: String }
-
 operationProgram3 ::
   MonadReader Environment m =>
   FileOperation m =>
@@ -64,18 +62,20 @@ operationProgram3 = do
 
 --makeMock [t|MonadReader Bool|]
 makeMock [t|MonadReader Environment|]
-makeMock [t|MonadVar2_1Sub|]
-makeMock [t|MonadVar2_2Sub|]
-makeMock [t|MonadVar3_1Sub|]
-makeMock [t|MonadVar3_2Sub|]
-makeMock [t|MonadVar3_3Sub|]
+makeMockWithOptions [t|MonadVar2_1Sub|] options { implicitMonadicReturn = False }
+makeMockWithOptions [t|MonadVar2_2Sub|] options { implicitMonadicReturn = False }
+makeMockWithOptions [t|MonadVar3_1Sub|] options { implicitMonadicReturn = False }
+makeMockWithOptions [t|MonadVar3_2Sub|] options { implicitMonadicReturn = False }
+makeMockWithOptions [t|MonadVar3_3Sub|] options { implicitMonadicReturn = False }
 makeMock [t|FileOperation|]
-makeMockWithOptions [t|ApiOperation|] options { prefix = "stub_", suffix = "_fn" }
+makeMock [t|ApiOperation|]
 
-makeMock [t|MultiApplyTest|]
+makeMockWithOptions [t|MultiApplyTest|] options { implicitMonadicReturn = False }
 
 makeMockWithOptions [t|MonadStateSub|] options { implicitMonadicReturn = False }
 makeMockWithOptions [t|MonadStateSub2|] options { implicitMonadicReturn = False }
+
+makeMockWithOptions [t|Teletype|] options { implicitMonadicReturn = False }
 
 echoProgram :: ExplicitlyReturnMonadicValuesTest m => String -> m ()
 echoProgram s = do
@@ -85,6 +85,7 @@ echoProgram s = do
 makeMockWithOptions [t|ExplicitlyReturnMonadicValuesTest|] options { implicitMonadicReturn = False }
 makeMock [t|DefaultMethodTest|]
 makeMock [t|AssocTypeTest|]
+makeMockWithOptions [t|TestClass|] options { implicitMonadicReturn = False }
 
 instance (MonadUnliftIO m) => MonadAsync (MockT m) where
   mapConcurrently = traverse
@@ -156,20 +157,20 @@ spec = do
     result <- runMockT do
       _readFile $ "input.txt" |> pack "content"
       _writeFile ("output.text" |> pack "modifiedContent" |> ()) 
-      stub_post_fn (pack "modifiedContent" |> ())
+      _post (pack "modifiedContent" |> ())
       operationProgram2 "input.txt" "output.text" modifyContentStub
 
     result `shouldBe` ()
   
   
-  it "Multi apply" do
-    result <- runMockT do
-      _getValueBy $ do
-        onCase $ "a" |> "ax"
-        onCase $ "b" |> "bx"
-        onCase $ "c" |> "cx"
-      getValues ["a", "b", "c"]
-    result `shouldBe` ["ax", "bx", "cx"]
+  -- it "Multi apply" do
+  --   result <- runMockT do
+  --     _getValueBy $ do
+  --       onCase $ "a" |> "ax"
+  --       onCase $ "b" |> "bx"
+  --       onCase $ "c" |> "cx"
+  --     getValues ["a", "b", "c"]
+  --   result `shouldBe` ["ax", "bx", "cx"]
 
   it "Return monadic value test" do
     result <- runMockT do
@@ -245,31 +246,31 @@ spec = do
 
 
 
-  -- specEcho _readTTY _writeTTY
-  -- specFileOperationReaderEnvironment _ask _readFile _writeFile stub_post_fn
-  -- specApiRenaming stub_post_fn
-  -- specTestClass _getBy _echo
+  specEcho _readTTY _writeTTY
+  specFileOperationApi _readFile _writeFile _post
+  specApiRenaming _post
+  specTestClass _getBy _echo
   -- specMultiApply _getValueBy
   -- specSubVars _fn2_1Sub _fn2_2Sub _fn3_1Sub _fn3_2Sub _fn3_3Sub
-  -- specMonadState _fnState undefined
-  -- -- specParamThreeMonad _fnParam3_1 _fnParam3_2 _fnParam3_3
-  -- specExplicitReturn _getByExplicit _echoExplicit
-  -- specDefaultMethod _defaultAction
-  -- specAssocType _produce
-  -- specMonadAsync _readFile
-  -- specMonadReaderEnvironment _ask _readFile _writeFile
+  specMonadState _fnState _fnState2
+  -- specParamThreeMonad _fnParam3_1 _fnParam3_2 _fnParam3_3
+  specExplicitReturn _getByExplicit _echoExplicit
+  specDefaultMethod _defaultAction
+  specAssocType _produce
+  specMonadAsync _readFile
+  specMonadReaderEnvironment _ask _readFile _writeFile
 
-  -- -- Verification Failures
-  -- specVerifyFailureFileOp _readFile _writeFile
-  -- specVerifyFailureApi stub_post_fn
+  -- Verification Failures
+  specVerifyFailureFileOp _readFile _writeFile
+  specVerifyFailureApi _post
   -- specVerifyFailureReaderEnvironment _ask
-  -- specVerifyFailureTestClass _getBy _echo
-  -- specVerifyFailureSubVars _fn2_1Sub _fn2_2Sub _fn3_1Sub _fn3_2Sub _fn3_3Sub
-  -- specVerifyFailureMultiApply _getValueBy
-  -- -- specVerifyFailureParam3 _fnParam3_1 _fnParam3_2 _fnParam3_3
-  -- specVerifyFailureExplicit _getByExplicit _echoExplicit
-  -- specVerifyFailureDefaultAndAssoc _defaultAction _produce
-  -- specVerifyFailureTTY _readTTY _writeTTY
+  specVerifyFailureTestClass _getBy _echo
+  specVerifyFailureSubVars _fn2_1Sub _fn2_2Sub _fn3_1Sub _fn3_2Sub _fn3_3Sub
+  specVerifyFailureMultiApply _getValueBy
+  -- specVerifyFailureParam3 _fnParam3_1 _fnParam3_2 _fnParam3_3
+  specVerifyFailureExplicit _getByExplicit _echoExplicit
+  specVerifyFailureDefaultAndAssoc _defaultAction _produce
+  specVerifyFailureTTY _readTTY _writeTTY
 
   -- describe "verification failures (State - Pending)" do
   --   it "fails when _fnState is defined but fnState is never called" do

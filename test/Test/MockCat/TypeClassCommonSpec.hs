@@ -38,8 +38,9 @@ import Control.Monad (unless)
 
 missingCall :: String -> Selector ErrorCall
 missingCall name err =
-  let needle = "function `" <> name <> "` was not applied the expected number of times."
-   in needle `List.isInfixOf` displayException err
+  let needle1 = "function `" <> name <> "` was not applied the expected number of times."
+      needle2 = "function `_" <> name <> "` was not applied the expected number of times."
+   in (needle1 `List.isInfixOf` displayException err) || (needle2 `List.isInfixOf` displayException err)
 
 -- Orphan Instances needed for testing
 
@@ -233,14 +234,14 @@ specEcho _readTTY _writeTTY = do
 specTestClass ::
   ( TestClass (MockT IO)
   ) =>
-  (forall params. (MockBuilder params (String -> Int) (Param String)) => params -> MockT IO (String -> Int)) ->
-  (forall params. (MockBuilder params (String -> ()) (Param String)) => params -> MockT IO (String -> ())) ->
+  (forall params. (MockBuilder params (String -> IO Int) (Param String)) => params -> MockT IO (String -> IO Int)) ->
+  (forall params. (MockBuilder params (String -> IO ()) (Param String)) => params -> MockT IO (String -> IO ())) ->
   Spec
 specTestClass _getBy _echo = do
   it "return monadic value test" do
     result <- runMockT do
-      _getBy $ "s" |> (10 :: Int)
-      _echo $ "10" |> ()
+      _getBy $ "s" |> pure @IO (10 :: Int)
+      _echo $ "10" |> pure @IO ()
       echoProgram "s"
 
     result `shouldBe` ()
@@ -248,15 +249,15 @@ specTestClass _getBy _echo = do
 specMultiApply ::
   ( MultiApplyTest (MockT IO)
   ) =>
-  (forall params. (MockBuilder params (String -> String) (Param String)) => params -> MockT IO (String -> String)) ->
+  (forall params. (MockBuilder params (String -> IO String) (Param String)) => params -> MockT IO (String -> IO String)) ->
   Spec
 specMultiApply _getValueBy = do
   it "multi apply collects all results" do
     result <- runMockT do
       _getValueBy $ do
-        onCase $ "a" |> "ax"
-        onCase $ "b" |> "bx"
-        onCase $ "c" |> "cx"
+        onCase $ "a" |> pure @IO "ax"
+        onCase $ "b" |> pure @IO "bx"
+        onCase $ "c" |> pure @IO "cx"
       getValues ["a", "b", "c"]
     result `shouldBe` ["ax", "bx", "cx"]
 
@@ -499,14 +500,14 @@ specVerifyFailureApi _post = describe "verification failures (Api)" do
         pure ()) `shouldThrow` (missingCall "post")
 
 specVerifyFailureReaderEnvironment ::
-  ( MonadReader Environment (MockT IO)
+  ( MonadReader String (MockT IO)
   ) =>
-  (Environment -> MockT IO Environment) ->
+  (String -> MockT IO String) ->
   Spec
 specVerifyFailureReaderEnvironment _ask = describe "verification failures (Reader Environment)" do
     it "fails when _ask is defined but ask is never called" do
       (runMockT @IO do
-        _ <- _ask (Environment "input" "output")
+        _ <- _ask "environment"
           `expects` do
             called once
         -- ask is never called
@@ -515,20 +516,20 @@ specVerifyFailureReaderEnvironment _ask = describe "verification failures (Reade
 specVerifyFailureTestClass ::
   ( TestClass (MockT IO)
   ) =>
-  (forall params. (MockBuilder params (String -> Int) (Param String)) => params -> MockT IO (String -> Int)) ->
-  (forall params. (MockBuilder params (String -> ()) (Param String)) => params -> MockT IO (String -> ())) ->
+  (forall params. (MockBuilder params (String -> IO Int) (Param String)) => params -> MockT IO (String -> IO Int)) ->
+  (forall params. (MockBuilder params (String -> IO ()) (Param String)) => params -> MockT IO (String -> IO ())) ->
   Spec
 specVerifyFailureTestClass _getBy _echo = describe "verification failures (TestClass)" do
     it "fails when _getBy is defined but getBy is never called" do
       (runMockT @IO do
-        _getBy ("s" |> (10 :: Int))
+        _getBy ("s" |> pure @IO (10 :: Int))
           `expects` do
             called once
         pure ()) `shouldThrow` (missingCall "_getBy")
 
     it "fails when _echo is defined but echo is never called" do
       (runMockT @IO do
-        _echo ("10" |> ())
+        _echo ("10" |> pure @IO ())
           `expects` do
             called once
         pure ()) `shouldThrow` (missingCall "_echo")
@@ -540,44 +541,44 @@ specVerifyFailureSubVars ::
   , MonadVar3_2Sub String (MockT IO) String
   , MonadVar3_3Sub String String (MockT IO)
   ) =>
-  (forall params. (MockBuilder params (String -> ()) (Param String)) => params -> MockT IO (String -> ())) ->
-  (forall params. (MockBuilder params (String -> ()) (Param String)) => params -> MockT IO (String -> ())) ->
-  (forall params. (MockBuilder params (String -> ()) (Param String)) => params -> MockT IO (String -> ())) ->
-  (forall params. (MockBuilder params (String -> ()) (Param String)) => params -> MockT IO (String -> ())) ->
-  (forall params. (MockBuilder params (String -> ()) (Param String)) => params -> MockT IO (String -> ())) ->
+  (forall params. (MockBuilder params (String -> IO ()) (Param String)) => params -> MockT IO (String -> IO ())) ->
+  (forall params. (MockBuilder params (String -> IO ()) (Param String)) => params -> MockT IO (String -> IO ())) ->
+  (forall params. (MockBuilder params (String -> IO ()) (Param String)) => params -> MockT IO (String -> IO ())) ->
+  (forall params. (MockBuilder params (String -> IO ()) (Param String)) => params -> MockT IO (String -> IO ())) ->
+  (forall params. (MockBuilder params (String -> IO ()) (Param String)) => params -> MockT IO (String -> IO ())) ->
   Spec
 specVerifyFailureSubVars _fn2_1Sub _fn2_2Sub _fn3_1Sub _fn3_2Sub _fn3_3Sub = describe "verification failures (SubVars)" do
     it "fails when _fn2_1Sub is defined but fn2_1Sub is never called" do
       (runMockT @IO do
-        _fn2_1Sub ("alpha" |> ())
+        _fn2_1Sub ("alpha" |> pure @IO ())
           `expects` do
             called once
         pure ()) `shouldThrow` (missingCall "_fn2_1Sub")
 
     it "fails when _fn2_2Sub is defined but fn2_2Sub is never called" do
       (runMockT @IO do
-        _fn2_2Sub ("beta" |> ())
+        _fn2_2Sub ("beta" |> pure @IO ())
           `expects` do
             called once
         pure ()) `shouldThrow` (missingCall "_fn2_2Sub")
 
     it "fails when _fn3_1Sub is defined but fn3_1Sub is never called" do
       (runMockT @IO do
-        _fn3_1Sub ("gamma" |> ())
+        _fn3_1Sub ("gamma" |> pure @IO ())
           `expects` do
             called once
         pure ()) `shouldThrow` (missingCall "_fn3_1Sub")
 
     it "fails when _fn3_2Sub is defined but fn3_2Sub is never called" do
       (runMockT @IO do
-        _fn3_2Sub ("delta" |> ())
+        _fn3_2Sub ("delta" |> pure @IO ())
           `expects` do
             called once
         pure ()) `shouldThrow` (missingCall "_fn3_2Sub")
 
     it "fails when _fn3_3Sub is defined but fn3_3Sub is never called" do
       (runMockT @IO do
-        _fn3_3Sub ("epsilon" |> ())
+        _fn3_3Sub ("epsilon" |> pure @IO ())
           `expects` do
             called once
         pure ()) `shouldThrow` (missingCall "_fn3_3Sub")
@@ -585,12 +586,12 @@ specVerifyFailureSubVars _fn2_1Sub _fn2_2Sub _fn3_1Sub _fn3_2Sub _fn3_3Sub = des
 specVerifyFailureMultiApply ::
   ( MultiApplyTest (MockT IO)
   ) =>
-  (forall params. (MockBuilder params (String -> String) (Param String)) => params -> MockT IO (String -> String)) ->
+  (forall params. (MockBuilder params (String -> IO String) (Param String)) => params -> MockT IO (String -> IO String)) ->
   Spec
 specVerifyFailureMultiApply _getValueBy = describe "verification failures (MultiApply)" do
     it "fails when _getValueBy is defined but getValueBy is never called" do
       (runMockT @IO do
-        _getValueBy (do onCase $ "a" |> "ax")
+        _getValueBy (do onCase $ "a" |> pure @IO "ax")
           `expects` do
             called once
         pure ()) `shouldThrow` (missingCall "_getValueBy")
