@@ -14,6 +14,9 @@
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE OverloadedRecordDot #-}
+{- HLINT ignore "Use newtype instead of data" -}
 
 module Test.MockCat.TypeClassCommonSpec where
 
@@ -136,7 +139,7 @@ data BasicDeps = BasicDeps
   { _readFile  :: MockFor (FilePath -> Text)
   , _writeFile :: MockFor (FilePath -> Text -> ())
   }
-  
+
 data MixedDeps = MixedDeps
   { _readFile  :: MockFor (FilePath -> Text)
   , _writeFile :: MockFor (FilePath -> Text -> ())
@@ -149,6 +152,185 @@ data MultipleDeps = MultipleDeps
   , _writeFile:: MockFor (FilePath -> Text -> ())
   , _post     :: MockFor (Text -> ())
   }
+
+-- Additional per-spec deps
+data CustomNamingDeps = CustomNamingDeps
+  { _post :: MockFor (Text -> ()) }
+
+data ReaderContextDeps = ReaderContextDeps
+  { _ask      :: Environment -> MockT IO Environment
+  , _readFile :: MockFor (FilePath -> Text)
+  , _writeFile:: MockFor (FilePath -> Text -> ())
+  }
+
+data SequentialIODeps = SequentialIODeps
+  { _readTTY  :: MockFor (IO String)
+  , _writeTTY :: MockFor (String -> IO ())
+  }
+
+data ImplicitMonadicReturnDeps = ImplicitMonadicReturnDeps
+  { _getBy :: MockFor (String -> IO Int)
+  , _echo  :: MockFor (String -> IO ())
+  }
+
+data ArgumentPatternMatchingDeps = ArgumentPatternMatchingDeps
+  { _getValueBy :: MockFor (String -> IO String)
+  }
+
+data MonadStateTransformerDeps = MonadStateTransformerDeps
+  { _fnState  :: MockForM (StateT String IO) (Maybe String -> StateT String IO String)
+  , _fnState2 :: MockForM (StateT String IO) (String -> StateT String IO ())
+  }
+
+data MultiParamTypeClassArityDeps = MultiParamTypeClassArityDeps
+  { _fn2_1Sub :: MockFor (String -> IO ())
+  , _fn2_2Sub :: MockFor (String -> IO ())
+  , _fn3_1Sub :: MockFor (String -> IO ())
+  , _fn3_2Sub :: MockFor (String -> IO ())
+  , _fn3_3Sub :: MockFor (String -> IO ())
+  }
+
+data FunctionalDependenciesDeps = FunctionalDependenciesDeps
+  { _fnParam3_1 :: MockFor (Int -> Bool -> IO String)
+  , _fnParam3_2 :: MockFor (IO Int)
+  , _fnParam3_3 :: MockFor (IO Bool)
+  }
+
+data ExplicitMonadicReturnDeps = ExplicitMonadicReturnDeps
+  { _getByExplicit :: MockFor (String -> IO Int)
+  , _echoExplicit  :: MockFor (String -> IO ())
+  }
+
+data DefaultMethodDeps = DefaultMethodDeps
+  { _defaultAction :: Int -> MockT IO Int
+  }
+
+data AssociatedTypeFamiliesDeps = AssociatedTypeFamiliesDeps
+  { _produce :: Int -> MockT IO Int
+  }
+
+data ConcurrencyAndUnliftIODeps = ConcurrencyAndUnliftIODeps
+  { _readFile :: MockFor (FilePath -> Text)
+  }
+
+-- backward-compatible constructor pattern synonyms (preserve old names used by test modules)
+pattern TtyDeps :: MockFor (IO String) -> MockFor (String -> IO ()) -> SequentialIODeps
+pattern TtyDeps r w <- SequentialIODeps { _readTTY = r, _writeTTY = w }
+  where TtyDeps r w = SequentialIODeps { _readTTY = r, _writeTTY = w }
+
+pattern TestClassDeps :: MockFor (String -> IO Int) -> MockFor (String -> IO ()) -> ImplicitMonadicReturnDeps
+pattern TestClassDeps g e <- ImplicitMonadicReturnDeps { _getBy = g, _echo = e }
+  where TestClassDeps g e = ImplicitMonadicReturnDeps { _getBy = g, _echo = e }
+
+pattern MultiApplyDeps :: MockFor (String -> IO String) -> ArgumentPatternMatchingDeps
+pattern MultiApplyDeps f <- ArgumentPatternMatchingDeps { _getValueBy = f }
+  where MultiApplyDeps f = ArgumentPatternMatchingDeps { _getValueBy = f }
+
+pattern StateDeps :: MockForM (StateT String IO) (Maybe String -> StateT String IO String) -> MockForM (StateT String IO) (String -> StateT String IO ()) -> MonadStateTransformerDeps
+pattern StateDeps s s2 <- MonadStateTransformerDeps { _fnState = s, _fnState2 = s2 }
+  where StateDeps s s2 = MonadStateTransformerDeps { _fnState = s, _fnState2 = s2 }
+
+pattern MultiParamDeps :: MockFor (String -> IO ()) -> MockFor (String -> IO ()) -> MockFor (String -> IO ()) -> MockFor (String -> IO ()) -> MockFor (String -> IO ()) -> MultiParamTypeClassArityDeps
+pattern MultiParamDeps a b c d e <- MultiParamTypeClassArityDeps { _fn2_1Sub = a, _fn2_2Sub = b, _fn3_1Sub = c, _fn3_2Sub = d, _fn3_3Sub = e }
+  where MultiParamDeps a b c d e = MultiParamTypeClassArityDeps { _fn2_1Sub = a, _fn2_2Sub = b, _fn3_1Sub = c, _fn3_2Sub = d, _fn3_3Sub = e }
+
+pattern FunDeps :: MockFor (Int -> Bool -> IO String) -> MockFor (IO Int) -> MockFor (IO Bool) -> FunctionalDependenciesDeps
+pattern FunDeps a b c <- FunctionalDependenciesDeps { _fnParam3_1 = a, _fnParam3_2 = b, _fnParam3_3 = c }
+  where FunDeps a b c = FunctionalDependenciesDeps { _fnParam3_1 = a, _fnParam3_2 = b, _fnParam3_3 = c }
+
+pattern ExplicitReturnDeps :: MockFor (String -> IO Int) -> MockFor (String -> IO ()) -> ExplicitMonadicReturnDeps
+pattern ExplicitReturnDeps a b <- ExplicitMonadicReturnDeps { _getByExplicit = a, _echoExplicit = b }
+  where ExplicitReturnDeps a b = ExplicitMonadicReturnDeps { _getByExplicit = a, _echoExplicit = b }
+
+pattern AssocTypeDeps :: (Int -> MockT IO Int) -> AssociatedTypeFamiliesDeps
+pattern AssocTypeDeps f <- AssociatedTypeFamiliesDeps { _produce = f }
+  where AssocTypeDeps f = AssociatedTypeFamiliesDeps { _produce = f }
+
+pattern ConcurrencyDeps :: MockFor (FilePath -> Text) -> ConcurrencyAndUnliftIODeps
+pattern ConcurrencyDeps r <- ConcurrencyAndUnliftIODeps { _readFile = r }
+  where ConcurrencyDeps r = ConcurrencyAndUnliftIODeps { _readFile = r }
+
+-- Aggregate all per-spec dependency groups + standalone mocks into one record
+data SpecDeps = SpecDeps
+  { basicDeps                         :: BasicDeps
+  , mixedDeps                         :: MixedDeps
+  , multipleDeps                      :: MultipleDeps
+  , customNamingDeps                  :: CustomNamingDeps
+  , readerContextDeps                 :: ReaderContextDeps
+  , sequentialIODeps                  :: SequentialIODeps
+  , ttyDeps                           :: SequentialIODeps
+  , implicitMonadicReturnDeps         :: ImplicitMonadicReturnDeps
+  , testClassDeps                     :: ImplicitMonadicReturnDeps
+  , argumentPatternMatchingDeps       :: ArgumentPatternMatchingDeps
+  , multiApplyDeps                    :: ArgumentPatternMatchingDeps
+  , monadStateTransformerDeps         :: MonadStateTransformerDeps
+  , stateDeps                         :: MonadStateTransformerDeps
+  , multiParamTypeClassArityDeps      :: MultiParamTypeClassArityDeps
+  , multiParamDeps                    :: MultiParamTypeClassArityDeps
+  , functionalDependenciesDeps        :: FunctionalDependenciesDeps
+  , funDeps                           :: FunctionalDependenciesDeps
+  , explicitMonadicReturnDeps         :: ExplicitMonadicReturnDeps
+  , explicitReturnDeps                :: ExplicitMonadicReturnDeps
+  , defaultMethodDeps                 :: DefaultMethodDeps
+  , assocTypeDeps                     :: AssociatedTypeFamiliesDeps
+  , associatedTypeFamiliesDeps        :: AssociatedTypeFamiliesDeps
+  , concurrencyAndUnliftIODeps        :: ConcurrencyAndUnliftIODeps
+  , concurrencyDeps                   :: ConcurrencyAndUnliftIODeps
+  }
+
+-- SpecDeps is defined above; test modules construct a `SpecDeps` and call the individual specs
+-- Aggregated entry point: call all specs from a single SpecDeps
+spec ::
+  ( Teletype (MockT IO)
+  , FileOperation (MockT IO)
+  , ApiOperation (MockT IO)
+  , MonadReader Environment (MockT IO)
+  , TestClass (MockT IO)
+  , MultiApplyTest (MockT IO)
+  , MonadVar2_1Sub (MockT IO) String
+  , MonadVar2_2Sub String (MockT IO)
+  , MonadVar3_1Sub (MockT IO) String String
+  , MonadVar3_2Sub String (MockT IO) String
+  , MonadVar3_3Sub String String (MockT IO)
+  , MonadStateSub String (MockT (StateT String IO))
+  , MonadStateSub2 String (MockT (StateT String IO))
+  , ParamThreeMonad Int Bool (MockT IO)
+  , ExplicitlyReturnMonadicValuesTest (MockT IO)
+  , DefaultMethodTest (MockT IO)
+  , AssocTypeTest (MockT IO)
+  , ResultType (MockT IO) ~ Int
+  , MonadAsync (MockT IO)
+  ) =>
+  SpecDeps ->
+  Spec
+spec deps = do
+  specSequentialIOStubbing deps.sequentialIODeps
+  specBasicStubbingAndVerification deps.basicDeps
+  specMixedMockingStrategies deps.mixedDeps
+  specMultipleTypeclassConstraints deps.multipleDeps
+  specCustomMockNamingOptions deps.customNamingDeps
+  specImplicitMonadicReturnValues deps.implicitMonadicReturnDeps
+  specArgumentPatternMatching deps.argumentPatternMatchingDeps
+  specMultiParamTypeClassArity deps.multiParamTypeClassArityDeps
+  specMonadStateTransformerSupport deps.monadStateTransformerDeps
+  specFunctionalDependenciesSupport deps.functionalDependenciesDeps
+  specExplicitMonadicReturnValues deps.explicitMonadicReturnDeps
+  specDefaultMethodMocking deps.defaultMethodDeps
+  specAssociatedTypeFamiliesSupport deps.associatedTypeFamiliesDeps
+  specConcurrencyAndUnliftIO deps.concurrencyAndUnliftIODeps
+  specMonadReaderContextMocking deps.readerContextDeps
+
+  -- Verification failures
+  specBasicVerificationFailureDetection deps.basicDeps
+  specCustomNamingVerificationFailureDetection deps.customNamingDeps
+  specMonadReaderVerificationFailureDetection deps.readerContextDeps
+  specImplicitReturnVerificationFailureDetection deps.implicitMonadicReturnDeps
+  specMultiParamVerificationFailureDetection deps.multiParamTypeClassArityDeps
+  specArgumentMatchingVerificationFailureDetection deps.argumentPatternMatchingDeps
+  specFunDepsVerificationFailureDetection deps.functionalDependenciesDeps
+  specExplicitReturnVerificationFailureDetection deps.explicitMonadicReturnDeps
+  specAdvancedTypesVerificationFailureDetection deps.defaultMethodDeps deps.associatedTypeFamiliesDeps
+  specSequentialStubbingVerificationFailureDetection deps.sequentialIODeps
 
 specBasicStubbingAndVerification ::
   ( FileOperation (MockT IO)
@@ -216,24 +398,22 @@ specMultipleTypeclassConstraints (MultipleDeps { _ask, _readFile, _writeFile, _p
 specCustomMockNamingOptions ::
   ( ApiOperation (MockT IO)
   ) =>
-  MockFor (Text -> ()) ->
+  CustomNamingDeps ->
   Spec
-specCustomMockNamingOptions _stubPost = do
+specCustomMockNamingOptions (CustomNamingDeps { _post }) = do
   it "Mock names generated by makeMockWithOptions are correctly registered for verification" do
     result <- runMockT do
-      _ <- _stubPost (pack "payload" |> ())
+      _ <- _post (pack "payload" |> ())
       post (pack "payload")
     result `shouldBe` ()
 
 specMonadReaderContextMocking ::
- ( MonadReader Environment (MockT IO)
- , FileOperation (MockT IO)
- ) =>
- (Environment -> MockT IO Environment) ->
- MockFor (FilePath -> Text) ->
- MockFor (FilePath -> Text -> ()) ->
- Spec
-specMonadReaderContextMocking _ask _readFile _writeFile = do
+  ( MonadReader Environment (MockT IO)
+  , FileOperation (MockT IO)
+  ) =>
+  ReaderContextDeps ->
+  Spec
+specMonadReaderContextMocking (ReaderContextDeps { _ask, _readFile, _writeFile }) = do
   it "Program successfully uses MonadReader to find paths and executes FileOperation" do
     r <- runMockT do
       _ <- _ask (Environment "input.txt" "output.txt")
@@ -245,10 +425,9 @@ specMonadReaderContextMocking _ask _readFile _writeFile = do
 specSequentialIOStubbing ::
   ( Teletype (MockT IO)
   ) =>
-  MockFor (IO String) ->
-  MockFor (String -> IO ()) ->
+  SequentialIODeps ->
   Spec
-specSequentialIOStubbing _readTTY _writeTTY = do
+specSequentialIOStubbing (SequentialIODeps { _readTTY, _writeTTY }) = do
   it "Recursive program echo2 reads sequential input and writes output until empty string" do
     result <- runMockT do
       _ <- _readTTY $ casesIO ["a", ""]
@@ -259,10 +438,9 @@ specSequentialIOStubbing _readTTY _writeTTY = do
 specImplicitMonadicReturnValues ::
   ( TestClass (MockT IO)
   ) =>
-  MockFor (String -> IO Int) ->
-  MockFor (String -> IO ()) ->
+  ImplicitMonadicReturnDeps ->
   Spec
-specImplicitMonadicReturnValues _getBy _echo = do
+specImplicitMonadicReturnValues (ImplicitMonadicReturnDeps { _getBy, _echo }) = do
   it "Program correctly uses and echoes the implicitly stubbed monadic return value" do
     result <- runMockT do
       _ <- _getBy $ "s" |> pure @IO (10 :: Int)
@@ -274,9 +452,9 @@ specImplicitMonadicReturnValues _getBy _echo = do
 specArgumentPatternMatching ::
   ( MultiApplyTest (MockT IO)
   ) =>
-  MockFor (String -> IO String) ->
+  ArgumentPatternMatchingDeps ->
   Spec
-specArgumentPatternMatching _getValueBy = do
+specArgumentPatternMatching (ArgumentPatternMatchingDeps { _getValueBy }) = do
   it "Multi-case stubbing correctly dispatches and collects results for distinct arguments" do
     result <- runMockT do
       _ <- _getValueBy $ do
@@ -290,10 +468,9 @@ specMonadStateTransformerSupport ::
   ( MonadStateSub String (MockT (StateT String IO))
   , MonadStateSub2 String (MockT (StateT String IO))
   ) =>
-  MockForM (StateT String IO) (Maybe String -> StateT String IO String) ->
-  MockForM (StateT String IO) (String -> StateT String IO ()) ->
+  MonadStateTransformerDeps ->
   Spec
-specMonadStateTransformerSupport _fnState _fnState2 = do
+specMonadStateTransformerSupport (MonadStateTransformerDeps { _fnState, _fnState2 }) = do
   it "Mock with StateT correctly consumes input and returns next value" do
     let action = runMockT $ do
           _ <- _fnState $ do
@@ -317,13 +494,9 @@ specMultiParamTypeClassArity ::
   , MonadVar3_2Sub String (MockT IO) String
   , MonadVar3_3Sub String String (MockT IO)
   ) =>
-  MockFor (String -> IO ()) ->
-  MockFor (String -> IO ()) ->
-  MockFor (String -> IO ()) ->
-  MockFor (String -> IO ()) ->
-  MockFor (String -> IO ()) ->
+  MultiParamTypeClassArityDeps ->
   Spec
-specMultiParamTypeClassArity _fn2_1Sub _fn2_2Sub _fn3_1Sub _fn3_2Sub _fn3_3Sub = do
+specMultiParamTypeClassArity (MultiParamTypeClassArityDeps { _fn2_1Sub, _fn2_2Sub, _fn3_1Sub, _fn3_2Sub, _fn3_3Sub }) = do
   it "Type variable MonadVar2_1Sub is correctly resolved and mocked" do
     result <- runMockT do
       _ <- _fn2_1Sub $ "alpha" |> pure @IO ()
@@ -357,11 +530,9 @@ specMultiParamTypeClassArity _fn2_1Sub _fn2_2Sub _fn3_1Sub _fn3_2Sub _fn3_3Sub =
 specFunctionalDependenciesSupport ::
   ( ParamThreeMonad Int Bool (MockT IO)
   ) =>
-  MockFor (Int -> Bool -> IO String) ->
-  MockFor (IO Int) ->
-  MockFor (IO Bool) ->
+  FunctionalDependenciesDeps ->
   Spec
-specFunctionalDependenciesSupport _fnParam3_1 _fnParam3_2 _fnParam3_3 = do
+specFunctionalDependenciesSupport (FunctionalDependenciesDeps { _fnParam3_1, _fnParam3_2, _fnParam3_3 }) = do
   it "FunDeps are correctly resolved allowing multiple actions to return values" do
     result <- runMockT $ do
       _ <- _fnParam3_1 $ do
@@ -377,10 +548,9 @@ specFunctionalDependenciesSupport _fnParam3_1 _fnParam3_2 _fnParam3_3 = do
 specExplicitMonadicReturnValues ::
   ( ExplicitlyReturnMonadicValuesTest (MockT IO)
   ) =>
-  MockFor (String -> IO Int) ->
-  MockFor (String -> IO ()) ->
+  ExplicitMonadicReturnDeps ->
   Spec
-specExplicitMonadicReturnValues _getByExplicit _echoExplicit = do
+specExplicitMonadicReturnValues (ExplicitMonadicReturnDeps { _getByExplicit, _echoExplicit }) = do
   it "Explicitly stubbed function returns value and subsequent action is verified" do
     result <- runMockT do
       _ <- _getByExplicit $ "key" |> pure @IO (42 :: Int)
@@ -400,9 +570,9 @@ specExplicitMonadicReturnValues _getByExplicit _echoExplicit = do
 specDefaultMethodMocking ::
   ( DefaultMethodTest (MockT IO)
   ) =>
-  (Int -> MockT IO Int) ->
+  DefaultMethodDeps ->
   Spec
-specDefaultMethodMocking _defaultAction = do
+specDefaultMethodMocking (DefaultMethodDeps { _defaultAction }) = do
   it "Default method is successfully overridden and stubbed value is returned" do
     result <- runMockT do
       _ <- _defaultAction (99 :: Int)
@@ -413,9 +583,9 @@ specAssociatedTypeFamiliesSupport ::
   ( AssocTypeTest (MockT IO)
   , ResultType (MockT IO) ~ Int
   ) =>
-  (Int -> MockT IO Int) ->
+  AssociatedTypeFamiliesDeps ->
   Spec
-specAssociatedTypeFamiliesSupport _produce = do
+specAssociatedTypeFamiliesSupport (AssociatedTypeFamiliesDeps { _produce }) = do
   it "Associated Type family is correctly resolved and mocked stub value is returned" do
     v <- runMockT do
       _ <- _produce (321 :: Int)
@@ -426,9 +596,9 @@ specConcurrencyAndUnliftIO ::
   ( MonadAsync (MockT IO)
   , FileOperation (MockT IO)
   ) =>
-  MockFor (FilePath -> Text) ->
+  ConcurrencyAndUnliftIODeps ->
   Spec
-specConcurrencyAndUnliftIO _readFile = do
+specConcurrencyAndUnliftIO (ConcurrencyAndUnliftIODeps { _readFile }) = do
   it "Concurrent execution (mapConcurrently) correctly calls and collects results from mocks" do
     result <- runMockT do
       _ <- _readFile $ do
@@ -469,10 +639,9 @@ specConcurrencyAndUnliftIO _readFile = do
 specBasicVerificationFailureDetection ::
   ( FileOperation (MockT IO)
   ) =>
-  MockFor (FilePath -> Text) ->
-  MockFor (FilePath -> Text -> ()) ->
+  BasicDeps ->
   Spec
-specBasicVerificationFailureDetection _readFile _writeFile = describe "verification failures (FileOperation)" do
+specBasicVerificationFailureDetection (BasicDeps { _readFile, _writeFile }) = describe "verification failures (FileOperation)" do
     it "Error when read stub is defined but target function readFile is never called" do
       (runMockT @IO do
         _ <- _readFile ("input.txt" |> pack "content")
@@ -513,9 +682,9 @@ specBasicVerificationFailureDetection _readFile _writeFile = describe "verificat
 specCustomNamingVerificationFailureDetection ::
   ( ApiOperation (MockT IO)
   ) =>
-  MockFor (Text -> ()) ->
+  CustomNamingDeps ->
   Spec
-specCustomNamingVerificationFailureDetection _post = describe "verification failures (Api)" do
+specCustomNamingVerificationFailureDetection (CustomNamingDeps { _post }) = describe "verification failures (Api)" do
     it "Error when custom-named stub _post is defined but target function post is never called" do
       (runMockT @IO do
         _ <- _post (pack "content" |> ())
@@ -527,9 +696,9 @@ specCustomNamingVerificationFailureDetection _post = describe "verification fail
 specMonadReaderVerificationFailureDetection ::
   ( MonadReader Environment (MockT IO)
   ) =>
-  (Environment -> MockT IO Environment) ->
+  ReaderContextDeps ->
   Spec
-specMonadReaderVerificationFailureDetection _ask = describe "verification failures (Reader Environment)" do
+specMonadReaderVerificationFailureDetection (ReaderContextDeps { _ask }) = describe "verification failures (Reader Environment)" do
     it "Error when MonadReader stub _ask is defined but target function ask is never called" do
       (runMockT @IO do
         _ <- _ask (Environment "input.txt" "output.txt")
@@ -541,10 +710,9 @@ specMonadReaderVerificationFailureDetection _ask = describe "verification failur
 specImplicitReturnVerificationFailureDetection ::
   ( TestClass (MockT IO)
   ) =>
-  MockFor (String -> IO Int) ->
-  MockFor (String -> IO ()) ->
+  ImplicitMonadicReturnDeps ->
   Spec
-specImplicitReturnVerificationFailureDetection _getBy _echo = describe "verification failures (TestClass)" do
+specImplicitReturnVerificationFailureDetection (ImplicitMonadicReturnDeps { _getBy, _echo }) = describe "verification failures (TestClass)" do
     it "Error when _getBy stub expects call but getBy is never executed" do
       (runMockT @IO do
         _ <- _getBy ("s" |> pure @IO (10 :: Int))
@@ -563,13 +731,9 @@ specMultiParamVerificationFailureDetection ::
   ( MonadVar2_1Sub (MockT IO) String
   , MonadVar3_1Sub (MockT IO) String String
   ) =>
-  MockFor (String -> IO ()) ->
-  MockFor (String -> IO ()) ->
-  MockFor (String -> IO ()) ->
-  MockFor (String -> IO ()) ->
-  MockFor (String -> IO ()) ->
+  MultiParamTypeClassArityDeps ->
   Spec
-specMultiParamVerificationFailureDetection _fn2_1Sub _fn2_2Sub _fn3_1Sub _fn3_2Sub _fn3_3Sub = describe "verification failures (SubVars)" do
+specMultiParamVerificationFailureDetection (MultiParamTypeClassArityDeps { _fn2_1Sub, _fn2_2Sub, _fn3_1Sub, _fn3_2Sub, _fn3_3Sub }) = describe "verification failures (SubVars)" do
     it "Error when _fn2_1Sub stub expects call but fn2_1Sub is never executed" do
       (runMockT @IO do
         _ <- _fn2_1Sub ("alpha" |> pure @IO ())
@@ -608,9 +772,9 @@ specMultiParamVerificationFailureDetection _fn2_1Sub _fn2_2Sub _fn3_1Sub _fn3_2S
 specArgumentMatchingVerificationFailureDetection ::
   ( MultiApplyTest (MockT IO)
   ) =>
-  MockFor (String -> IO String) ->
+  ArgumentPatternMatchingDeps ->
   Spec
-specArgumentMatchingVerificationFailureDetection _getValueBy = describe "verification failures (MultiApply)" do
+specArgumentMatchingVerificationFailureDetection (ArgumentPatternMatchingDeps { _getValueBy }) = describe "verification failures (MultiApply)" do
     it "Error when multi-case stub _getValueBy expects call but getValueBy is never executed" do
       (runMockT @IO do
         _ <- _getValueBy (do onCase $ "a" |> pure @IO "ax")
@@ -621,11 +785,9 @@ specArgumentMatchingVerificationFailureDetection _getValueBy = describe "verific
 specFunDepsVerificationFailureDetection ::
   ( ParamThreeMonad Int Bool (MockT IO)
   ) =>
-  MockFor (Int -> Bool -> IO String) ->
-  MockFor (IO Int) ->
-  MockFor (IO Bool) ->
+  FunctionalDependenciesDeps ->
   Spec
-specFunDepsVerificationFailureDetection _fnParam3_1 _fnParam3_2 _fnParam3_3 = describe "verification failures (ParamThreeMonad)" do
+specFunDepsVerificationFailureDetection (FunctionalDependenciesDeps { _fnParam3_1, _fnParam3_2, _fnParam3_3 }) = describe "verification failures (ParamThreeMonad)" do
     it "Error when FunDep stub _fnParam3_1 expects call but fnParam3_1 is never executed" do
       (runMockT @IO do
         _ <- _fnParam3_1 (do
@@ -651,10 +813,9 @@ specFunDepsVerificationFailureDetection _fnParam3_1 _fnParam3_2 _fnParam3_3 = de
 specExplicitReturnVerificationFailureDetection ::
   ( ExplicitlyReturnMonadicValuesTest (MockT IO)
   ) =>
-  MockFor (String -> IO Int) ->
-  MockFor (String -> IO ()) ->
+  ExplicitMonadicReturnDeps ->
   Spec
-specExplicitReturnVerificationFailureDetection _getByExplicit _echoExplicit = describe "verification failures (ExplicitReturn)" do
+specExplicitReturnVerificationFailureDetection (ExplicitMonadicReturnDeps { _getByExplicit, _echoExplicit }) = describe "verification failures (ExplicitReturn)" do
     it "Error when explicit stub _getByExplicit expects call but getByExplicit is never executed" do
       (runMockT @IO do
         _ <- _getByExplicit ("key" |> pure @IO (42 :: Int))
@@ -672,10 +833,10 @@ specExplicitReturnVerificationFailureDetection _getByExplicit _echoExplicit = de
 specAdvancedTypesVerificationFailureDetection ::
   ( DefaultMethodTest (MockT IO)
   ) =>
-  (Int -> MockT IO Int) ->
-  (Int -> MockT IO Int) ->
+  DefaultMethodDeps ->
+  AssociatedTypeFamiliesDeps ->
   Spec
-specAdvancedTypesVerificationFailureDetection _defaultAction _produce = describe "verification failures (Default/Assoc)" do
+specAdvancedTypesVerificationFailureDetection (DefaultMethodDeps { _defaultAction }) (AssociatedTypeFamiliesDeps { _produce }) = describe "verification failures (Default/Assoc)" do
     it "Error when default method stub _defaultAction expects call but defaultAction is never executed" do
       (runMockT @IO do
         _ <- _defaultAction (99 :: Int)
@@ -693,10 +854,9 @@ specAdvancedTypesVerificationFailureDetection _defaultAction _produce = describe
 specSequentialStubbingVerificationFailureDetection ::
   ( Teletype (MockT IO)
   ) =>
-  MockFor (IO String) ->
-  MockFor (String -> IO ()) ->
+  SequentialIODeps ->
   Spec
-specSequentialStubbingVerificationFailureDetection _readTTY _writeTTY = describe "verification failures (TTY)" do
+specSequentialStubbingVerificationFailureDetection (SequentialIODeps { _readTTY, _writeTTY }) = describe "verification failures (TTY)" do
     it "Error when sequential stub _readTTY expects call but readTTY is never executed" do
       (runMockT @IO do
         _ <- _readTTY (casesIO ["a", ""])

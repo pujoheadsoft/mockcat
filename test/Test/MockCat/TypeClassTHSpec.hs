@@ -165,180 +165,34 @@ _fn3_3SubIO p = MockT $ do
 
 spec :: Spec
 spec = do
-  it "Read, and output files" do
-    result <- runMockT do
-      _readFile $ "input.txt" |> pack "content"
-      _writeFile $ "output.txt" |> pack "content" |> ()
-      operationProgram "input.txt" "output.txt"
-
-    result `shouldBe` ()
-
-  it "Read, and output files" do
-    result <- runMockT do
-      _readFile $ "input.txt" |> pack "content"
-      _writeFile $ "output.txt" |> pack "content" |> ()
-      operationProgram "input.txt" "output.txt"
-
-    result `shouldBe` ()
-    
-  it "Read, and output files (contain ng word)" do
-    result <- runMockT do
-      _readFile ("input.txt" |> pack "contains ngWord")
-      _writeFile ("output.txt" |> any |> ())
-        `expects` do
-          called never
-      operationProgram "input.txt" "output.txt"
-
-    result `shouldBe` ()
-
-  it "Read, and output files (contain ng word)2" do
-    result <- runMockT do
-      _readFile ("input.txt" |> pack "contains ngWord")
-      _writeFile ("output.txt" |> any |> ())
-        `expects` do
-          called never
-      operationProgram "input.txt" "output.txt"
-
-    result `shouldBe` ()
-
-  it "does not auto verify TH mocks without expects" do
-    ( runMockT do
-        _writeFile ("output.txt" |> pack "content" |> ())
-        pure ()
-      )
-      `shouldReturn` ()
-
-  it "Read, and output files (with MonadReader)" do
-    r <- runMockT do
-      _ask (SpecCommon.Environment "input.txt" "output.text")
-      _readFile ("input.txt" |> pack "content")
-      _writeFile ("output.text" |> pack "content" |> ())
-      operationProgram3
-    r `shouldBe` ()
-
-
-  it "Read, edit, and output files2" do
-    modifyContentStub <- mock $ pack "content" |> pack "modifiedContent"
-
-    result <- runMockT do
-      _readFile $ "input.txt" |> pack "content"
-      _writeFile ("output.text" |> pack "modifiedContent" |> ()) 
-      _post (pack "modifiedContent" |> ())
-      operationProgram2 "input.txt" "output.text" modifyContentStub
-
-    result `shouldBe` ()
-  
-  
-  -- it "Multi apply" do
-  --   result <- runMockT do
-  --     _getValueBy $ do
-  --       onCase $ "a" |> "ax"
-  --       onCase $ "b" |> "bx"
-  --       onCase $ "c" |> "cx"
-  --     getValues ["a", "b", "c"]
-  --   result `shouldBe` ["ax", "bx", "cx"]
-
-  it "Return monadic value test" do
-    result <- runMockT do
-      _getByExplicit $ "s" |> pure @IO (10 :: Int)
-      _echoExplicit $ "10" |> pure @IO ()
-      echoProgram "s"
-
-    result `shouldBe` ()
-
-  it "Default method can be stubbed" do
-    result <- runMockT do
-      _defaultAction (99 :: Int)
-      defaultAction
-    result `shouldBe` 99
-
-  it "Associated type can be stubbed" do
-    result <- runMockT do
-      _produce (321 :: Int)
-      produce
-    result `shouldBe` 321
-
-  it "MonadUnliftIO instance works correctly" do
-    result <- runMockT do
-      _readFile ("test.txt" |> pack "content")
-
-      content <- withRunInIO $ \runInIO -> do
-        asyncAction <- async $ runInIO (readFile "test.txt")
-        wait asyncAction
-
-      liftIO $ content `shouldBe` pack "content"
-      pure content
-
-    result `shouldBe` pack "content"
-
-  it "MonadUnliftIO basic functionality" do
-    result <- runMockT do
-      _readFile ("test.txt" |> pack "test content")
-      
-      content <- withRunInIO $ \runInIO -> do
-        runInIO (readFile "test.txt")
-      
-      liftIO $ content `shouldBe` pack "test content"
-      pure content
-
-    result `shouldBe` pack "test content"
-  
-  it "MonadAsync type class can be instantiated for MockT" do
-    result <- runMockT do
-      _readFile $ do
-        onCase $ "file1.txt" |> pack "content1"
-        onCase $ "file2.txt" |> pack "content2"
-
-      processFiles ["file1.txt", "file2.txt"]
-    result `shouldBe` [pack "content1", pack "content2"]
-
-
-
-  it "supports MonadStateSub pattern" do
-    let action = runMockT $ do
-          _fnState $ do
-            onCase $ Just "current" |> pure @(StateT String IO) "next"
-            onCase $ Nothing |> pure @(StateT String IO) "default"
-          fnState (Just "current")
-    result <- evalStateT action "seed"
-    result `shouldBe` "next"
-
-  it "supports MonadStateSub2 pattern" do
-    let action = runMockT $ do
-          _fnState2 $ "label" |> pure @(StateT String IO) ()
-          fnState2 @String "label"
-    result <- evalStateT action "initial"
-    result `shouldBe` ()
-
-
-
-  SpecCommon.specSequentialIOStubbing _readTTY _writeTTY
-  SpecCommon.specBasicStubbingAndVerification (SpecCommon.BasicDeps _readFile _writeFile )
-  SpecCommon.specMixedMockingStrategies (SpecCommon.MixedDeps _readFile _writeFile _post)
-  SpecCommon.specMultipleTypeclassConstraints (SpecCommon.MultipleDeps _ask _readFile _writeFile _post)
-  SpecCommon.specCustomMockNamingOptions _post
-  SpecCommon.specImplicitMonadicReturnValues _getBy _echo
-  SpecCommon.specArgumentPatternMatching _getValueBy
-  SpecCommon.specMultiParamTypeClassArity _fn2_1SubIO _fn2_2SubIO _fn3_1SubIO _fn3_2SubIO _fn3_3SubIO
-  SpecCommon.specMonadStateTransformerSupport _fnState _fnState2
-  SpecCommon.specFunctionalDependenciesSupport _fnParam3_1 _fnParam3_2 _fnParam3_3
-  SpecCommon.specExplicitMonadicReturnValues _getByExplicit _echoExplicit
-  SpecCommon.specDefaultMethodMocking _defaultAction
-  SpecCommon.specAssociatedTypeFamiliesSupport _produce
-  SpecCommon.specConcurrencyAndUnliftIO _readFile
-  SpecCommon.specMonadReaderContextMocking _ask _readFile _writeFile
-
-  -- -- Verification Failures
-  SpecCommon.specBasicVerificationFailureDetection _readFile _writeFile
-  SpecCommon.specCustomNamingVerificationFailureDetection _post
-  SpecCommon.specMonadReaderVerificationFailureDetection _ask
-  SpecCommon.specImplicitReturnVerificationFailureDetection _getBy _echo
-  SpecCommon.specMultiParamVerificationFailureDetection _fn2_1SubIO _fn2_2SubIO _fn3_1SubIO _fn3_2SubIO _fn3_3SubIO
-  SpecCommon.specArgumentMatchingVerificationFailureDetection _getValueBy
-  SpecCommon.specFunDepsVerificationFailureDetection _fnParam3_1 _fnParam3_2 _fnParam3_3
-  SpecCommon.specExplicitReturnVerificationFailureDetection _getByExplicit _echoExplicit
-  SpecCommon.specAdvancedTypesVerificationFailureDetection _defaultAction _produce
-  SpecCommon.specSequentialStubbingVerificationFailureDetection _readTTY _writeTTY
+  -- build SpecDeps and call aggregated spec entrypoint
+  let deps = SpecCommon.SpecDeps
+        { SpecCommon.basicDeps          = SpecCommon.BasicDeps _readFile _writeFile
+        , SpecCommon.mixedDeps          = SpecCommon.MixedDeps _readFile _writeFile _post
+        , SpecCommon.multipleDeps       = SpecCommon.MultipleDeps _ask _readFile _writeFile _post
+        , SpecCommon.customNamingDeps   = SpecCommon.CustomNamingDeps _post
+        , SpecCommon.readerContextDeps  = SpecCommon.ReaderContextDeps _ask _readFile _writeFile
+        , SpecCommon.sequentialIODeps            = SpecCommon.SequentialIODeps _readTTY _writeTTY
+        , SpecCommon.ttyDeps                      = SpecCommon.TtyDeps _readTTY _writeTTY
+        , SpecCommon.implicitMonadicReturnDeps    = SpecCommon.ImplicitMonadicReturnDeps _getBy _echo
+        , SpecCommon.testClassDeps                = SpecCommon.TestClassDeps _getBy _echo
+        , SpecCommon.argumentPatternMatchingDeps  = SpecCommon.ArgumentPatternMatchingDeps _getValueBy
+        , SpecCommon.multiApplyDeps               = SpecCommon.MultiApplyDeps _getValueBy
+        , SpecCommon.monadStateTransformerDeps    = SpecCommon.MonadStateTransformerDeps _fnState _fnState2
+        , SpecCommon.stateDeps                    = SpecCommon.StateDeps _fnState _fnState2
+        , SpecCommon.multiParamTypeClassArityDeps = SpecCommon.MultiParamTypeClassArityDeps _fn2_1SubIO _fn2_2SubIO _fn3_1SubIO _fn3_2SubIO _fn3_3SubIO
+        , SpecCommon.multiParamDeps               = SpecCommon.MultiParamDeps _fn2_1SubIO _fn2_2SubIO _fn3_1SubIO _fn3_2SubIO _fn3_3SubIO
+        , SpecCommon.functionalDependenciesDeps   = SpecCommon.FunctionalDependenciesDeps _fnParam3_1 _fnParam3_2 _fnParam3_3
+        , SpecCommon.funDeps                      = SpecCommon.FunDeps _fnParam3_1 _fnParam3_2 _fnParam3_3
+        , SpecCommon.explicitMonadicReturnDeps    = SpecCommon.ExplicitMonadicReturnDeps _getByExplicit _echoExplicit
+        , SpecCommon.explicitReturnDeps           = SpecCommon.ExplicitReturnDeps _getByExplicit _echoExplicit
+        , SpecCommon.defaultMethodDeps            = SpecCommon.DefaultMethodDeps _defaultAction
+        , SpecCommon.associatedTypeFamiliesDeps   = SpecCommon.AssociatedTypeFamiliesDeps _produce
+        , SpecCommon.assocTypeDeps                = SpecCommon.AssocTypeDeps _produce
+        , SpecCommon.concurrencyAndUnliftIODeps   = SpecCommon.ConcurrencyAndUnliftIODeps _readFile
+        , SpecCommon.concurrencyDeps              = SpecCommon.ConcurrencyDeps _readFile
+        }
+  SpecCommon.spec deps
 
   -- describe "verification failures (State - Pending)" do
   --   it "fails when _fnState is defined but fnState is never called" do
