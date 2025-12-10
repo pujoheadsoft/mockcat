@@ -4,6 +4,7 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE GADTs #-}
 module Test.MockCat.Internal.MockRegistry
   ( attachVerifierToFn
   , lookupVerifierForFn
