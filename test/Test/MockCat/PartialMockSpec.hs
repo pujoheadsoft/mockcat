@@ -244,6 +244,25 @@ _findIds p = MockT $ do
     )
   pure mockInstance
 
+_findById ::
+  ( MockBuilder params (Int -> String) (Param Int)
+  , MonadIO m
+  , Typeable (Int -> String)
+  , Verify.ResolvableParamsOf (Int -> String) ~ Param Int
+  ) =>
+  params ->
+  MockT m (Int -> String)
+_findById p = MockT $ do
+  mockInstance <- liftIO $ createNamedMockFnWithParams "_findById" p
+  ensureVerifiable mockInstance
+  addDefinition
+    ( Definition
+        (Proxy :: Proxy "_findById")
+        mockInstance
+        NoVerification
+    )
+  pure mockInstance
+
 spec :: Spec
 spec = do
   it "Get user input (has input)" do
@@ -304,6 +323,53 @@ spec = do
           _findIds [1 :: Int, 2]
           findValue
         values `shouldBe` ["{id: 1}", "{id: 2}"]
+
+  describe "Partial Mock Test (TH)" do
+    it "MaybeT" do
+      result <- runMaybeT do
+        runMockT $ do
+          _writeFile $ "output.text" |> pack "MaybeT content" |> ()
+          program "input.txt" "output.text"
+      result `shouldBe` Just ()
+
+    it "IO" do
+      result <- runMockT $ do
+        _writeFile $ "output.text" |> pack "IO content" |> ()
+        program "input.txt" "output.text"
+      result `shouldBe` ()
+
+    it "ReaderT" do
+      result <- flip runReaderT "foo" $ do
+        runMockT $ do
+          _writeFile $ "output.text" |> pack "ReaderT content foo" |> ()
+          program "input.txt" "output.text"
+      result `shouldBe` ()
+
+    describe "MultiParamType" do
+      it "all real function" do
+        values <- runMockT findValue
+        values `shouldBe` ["{id: 1}", "{id: 2}", "{id: 3}"]
+
+      it "partial findIds" do
+        values <- runMockT $ do
+          _findIds [1 :: Int, 2]
+          findValue
+        values `shouldBe` ["{id: 1}", "{id: 2}"]
+
+      it "partial findById" do
+        values <- runMockT $ do
+          _findById $ do
+            onCase $ (1 :: Int) |> "id1"
+            onCase $ (2 :: Int) |> "id2"
+            onCase $ (3 :: Int) |> "id3"
+          findValue
+        values `shouldBe` ["id1", "id2", "id3"]
+
+    it "Return monadic value test" do
+      result <- runMockT $ do
+        _echoPartial $ "3" |> pure @IO ()
+        echoProgramPartial "abc"
+      result `shouldBe` ()
 
   describe "verification failures" do
     it "fails when _readFile is defined but readFile is never called" do
