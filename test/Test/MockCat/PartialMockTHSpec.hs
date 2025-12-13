@@ -1,3 +1,5 @@
+{-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -16,7 +18,9 @@
 module Test.MockCat.PartialMockTHSpec (spec) where
 
 import Data.Text (pack)
-import Test.Hspec (Spec, it, shouldBe, describe)
+import Control.Exception (ErrorCall(..), displayException)
+import Data.List (isInfixOf)
+import Test.Hspec (Spec, it, shouldBe, describe, shouldThrow, Selector)
 import Test.MockCat
 
 import Test.MockCat.SharedSpecDefs
@@ -78,6 +82,69 @@ spec = do
         program "input.txt" "output.text"
 
       result `shouldBe` ()
+
+    describe "verification failures" $ do
+      let missingCall :: String -> Selector ErrorCall
+          missingCall name = \(err :: ErrorCall) ->
+            let needle1 = "function `" <> name <> "` was not applied the expected number of times."
+                needle2 = "function `_" <> name <> "` was not applied the expected number of times."
+             in needle1 `isInfixOf` displayException err || needle2 `isInfixOf` displayException err
+
+      it "fails when _readFile is defined but readFile is never called" $ do
+        (runMockT @IO do
+          _ <- _readFile ("input.txt" |> pack "content")
+            `expects` do
+              called once
+          -- readFile is never called
+          pure ()) `shouldThrow` (missingCall "readFile")
+
+      it "fails when _writeFile is defined but writeFile is never called" $ do
+        (runMockT @IO do
+          _ <- _writeFile ("output.txt" |> pack "content" |> ())
+            `expects` do
+              called once
+          -- writeFile is never called
+          pure ()) `shouldThrow` (missingCall "writeFile")
+
+      it "fails when _getInput is defined but getInput is never called" $ do
+        (runMockT @IO do
+          _ <- _getInput "value"
+            `expects` do
+              called once
+          -- getInput is never called
+          pure ()) `shouldThrow` (missingCall "getInput")
+
+      it "fails when _toUserInput is defined but toUserInput is never called" $ do
+        (runMockT @IO do
+          _ <- _toUserInput ("value" |> (Just (UserInput "value")))
+            `expects` do
+              called once
+          -- toUserInput is never called
+          pure ()) `shouldThrow` (missingCall "toUserInput")
+
+      it "fails when _getByExplicitPartial is defined but getByExplicitPartial is never called" $ do
+        (runMockT @IO do
+          _ <- _getByExplicitPartial ("abc" |> pure @IO 123)
+            `expects` do
+              called once
+          -- getByExplicitPartial is never called
+          pure ()) `shouldThrow` (missingCall "getByExplicitPartial")
+
+      it "fails when _echoExplicitPartial is defined but echoExplicitPartial is never called" $ do
+        (runMockT @IO do
+          _ <- _echoExplicitPartial ("3" |> pure @IO ())
+            `expects` do
+              called once
+          -- echoExplicitPartial is never called
+          pure ()) `shouldThrow` (missingCall "echoExplicitPartial")
+
+      it "fails when _findIds is defined but findIds is never called" $ do
+        (runMockT @IO do
+          _ <- _findIds [1 :: Int, 2]
+            `expects` do
+              called once
+          -- findIds is never called
+          pure ()) `shouldThrow` (missingCall "_findIds")
 
     it "ReaderT" $ do
       result <- flip runReaderT "foo" $ do
