@@ -142,8 +142,8 @@ instance
   mockImpl p = do
     let params = toParams p
     BuiltMock { builtMockFn = fn, builtMockRecorder = recorder } <- buildMock Nothing params
-    _ <- liftIO $ MockRegistry.register Nothing recorder fn
-    pure fn
+    regFn <- liftIO $ MockRegistry.register Nothing recorder fn
+    pure regFn
 
 -- | Create a named mock function (named version).
 --
@@ -168,8 +168,8 @@ instance {-# OVERLAPPING #-}
   mockImpl (Label name) p = do
     let params = toParams p
     BuiltMock { builtMockFn = fn, builtMockRecorder = recorder } <- buildMock (Just name) params
-    _ <- liftIO $ MockRegistry.register (Just name) recorder fn
-    pure fn
+    regFn <- liftIO $ MockRegistry.register (Just name) recorder fn
+    pure regFn
 
 -- | Create a mock function with verification hooks attached.
 --
@@ -210,8 +210,8 @@ instance
     let params = toParams p
     BuiltMock { builtMockFn = fnIO, builtMockRecorder = verifier } <- buildIO Nothing params
     let lifted = liftFunTo (Proxy :: Proxy m) fnIO
-    _ <- liftIO $ MockRegistry.register Nothing verifier lifted
-    pure lifted
+    regLn <- liftIO $ MockRegistry.register Nothing verifier lifted
+    pure regLn
 
 instance {-# OVERLAPPING #-}
   ( MonadIO m
@@ -227,8 +227,8 @@ instance {-# OVERLAPPING #-}
     let params = toParams p
     BuiltMock { builtMockFn = fnIO, builtMockRecorder = verifier } <- buildIO (Just name) params
     let lifted = liftFunTo (Proxy :: Proxy m) fnIO
-    _ <- liftIO $ MockRegistry.register (Just name) verifier lifted
-    pure lifted
+    regLn <- liftIO $ MockRegistry.register (Just name) verifier lifted
+    pure regLn
 
 mockM :: CreateMockFnM a => a
 mockM = mockMImpl

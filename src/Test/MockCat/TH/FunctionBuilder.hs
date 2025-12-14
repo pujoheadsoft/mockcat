@@ -377,7 +377,7 @@ createMockBody funNameStr paramsExp =
             registeredFn
             NoVerification
         )
-      pure mockInstance
+      pure registeredFn
     |]
 
 createFnName :: Name -> MockOptions -> String
