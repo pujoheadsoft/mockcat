@@ -22,7 +22,7 @@ import Control.Exception (ErrorCall(..), displayException)
 import Data.List (isInfixOf)
 import Test.Hspec (Spec, it, shouldBe, describe, shouldThrow, Selector)
 import Test.MockCat
-import Test.MockCat.PartialMockCommonSpec (specUserInputGetterPoly, specExplicitReturnPoly, specFileOperationPoly, specMultiParamPartial1, specMultiParamPartialFindById, specMultiParamAllReal, specPartialHandwrittenIO, specPartialHandwrittenMaybeT)
+import Test.MockCat.PartialMockCommonSpec (specUserInputGetterPoly, specExplicitReturnPoly, specFileOperationPoly, specMultiParamPartial1, specMultiParamPartialFindById, specMultiParamAllReal, specPartialHandwrittenIO, specPartialHandwrittenMaybeT, specVerificationFailureFindIds)
 import Test.MockCat.SharedSpecDefs
 import Test.MockCat.Impl ()
 import Prelude hiding (readFile, writeFile)
@@ -64,6 +64,7 @@ spec = do
   specMultiParamAllReal
   specPartialHandwrittenIO _writeFile (program "input.txt" "output.text")
   specPartialHandwrittenMaybeT _writeFile
+  specVerificationFailureFindIds _findIds
   
   it "Get user input (has input)" $ do
     a <- runMockT $ do

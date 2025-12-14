@@ -19,10 +19,11 @@ module Test.MockCat.PartialMockCommonSpec
   , specMultiParamAllReal
   , specPartialHandwrittenIO
   , specPartialHandwrittenMaybeT
+  , specVerificationFailureFindIds
   ) where
 
 import Prelude hiding (readFile, writeFile)
-import Test.Hspec (Spec, it, shouldBe, describe)
+import Test.Hspec (Spec, it, shouldBe, describe, shouldThrow, Selector)
 import Test.MockCat
 import Test.MockCat.SharedSpecDefs
 import qualified Test.MockCat.Verify as Verify
@@ -30,6 +31,8 @@ import Test.MockCat.Impl ()
 import Control.Monad.IO.Class (MonadIO)
 import Data.Typeable (Typeable)
 import Data.Text (Text, pack)
+import Control.Exception (ErrorCall(..), displayException)
+import Data.List (isInfixOf)
 import Control.Monad.Trans.Maybe (MaybeT (..))
 import Control.Monad.Trans.Reader (ReaderT, runReaderT)
 
@@ -181,3 +184,20 @@ specPartialHandwrittenMaybeT writeFileBuilder = describe "Partial Mock Test - ha
         _ <- writeFileBuilder (("output.text" :: FilePath) |> pack ("MaybeT content" :: String) |> ())
         pure ()
     result `shouldBe` Just ()
+
+
+specVerificationFailureFindIds
+  :: ( forall r m. ( Verify.ResolvableParamsOf r ~ (), MonadIO m, Typeable r ) => r -> MockT m r )
+  -> Spec
+specVerificationFailureFindIds findIdsBuilder = describe "verification failures - findIds" do
+  let missingCall name err =
+        let needle = "function `" <> name <> "` was not applied the expected number of times."
+         in needle `isInfixOf` displayException (err :: ErrorCall)
+
+  it "fails when _findIds is defined but findIds is never called" do
+    (runMockT @IO do
+      _ <- findIdsBuilder ([1 :: Int, 2] :: [Int])
+        `expects` do
+          called once
+      -- findIds is never called
+      pure ()) `shouldThrow` (missingCall "_findIds")
