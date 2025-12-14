@@ -34,6 +34,9 @@ import Data.List (isInfixOf)
 import Control.Monad.Trans.Maybe (MaybeT (..))
 import Control.Monad.Trans.Reader (ReaderT, runReaderT)
 import Data.Kind (Type)
+import qualified Test.MockCat.Verify as Verify
+import Control.Monad.IO.Class (MonadIO)
+import Data.Typeable (Typeable)
 
 -- Type-level utilities to derive MockBuilder arg-lists from function types
 type family PrependParam (p :: Type) (rest :: Type) :: Type where
@@ -66,37 +69,149 @@ missingCall name err =
 
 -- Per-spec dependency records to group required builders/mocks
 data UserInputGetterDeps = UserInputGetterDeps
-  { _getInput    :: MockFor String
-  , _toUserInput :: MockFor (String -> IO (Maybe UserInput))
+  { _getInput ::
+      forall r m.
+      ( Verify.ResolvableParamsOf r ~ ()
+      , MonadIO m
+      , Typeable r
+      ) =>
+      r ->
+      MockT m r
+  , _toUserInput ::
+      forall params m.
+      ( MockBuilder params (String -> m (Maybe UserInput)) (ArgsOfF (String -> m (Maybe UserInput)))
+      , MonadIO m
+      , Typeable (String -> m (Maybe UserInput))
+      , Verify.ResolvableParamsOf (String -> m (Maybe UserInput)) ~ Param String
+      ) =>
+      params ->
+      MockT m (String -> m (Maybe UserInput))
   }
 
 data ExplicitReturnDeps = ExplicitReturnDeps
-  { _getByPartial :: MockFor (String -> IO Int)
-  , _echoPartial  :: MockFor (String -> IO ())
+  { _getByPartial ::
+      forall params m.
+      ( MockBuilder params (String -> m Int) (ArgsOfF (String -> m Int))
+      , MonadIO m
+      , Typeable (String -> m Int)
+      , Verify.ResolvableParamsOf (String -> m Int) ~ Param String
+      ) =>
+      params ->
+      MockT m (String -> m Int)
+  , _echoPartial ::
+      forall params m.
+      ( MockBuilder params (String -> m ()) (ArgsOfF (String -> m ()))
+      , MonadIO m
+      , Typeable (String -> m ())
+      , Verify.ResolvableParamsOf (String -> m ()) ~ Param String
+      ) =>
+      params ->
+      MockT m (String -> m ())
   }
 
 data FileOperationDeps = FileOperationDeps
-  { _writeFile :: MockFor (FilePath -> Text -> ())
+  { _writeFile ::
+      forall params m.
+      ( MockBuilder params (FilePath -> Text -> ()) (ArgsOfF (FilePath -> Text -> ()))
+      , MonadIO m
+      ) =>
+      params ->
+      MockT m (FilePath -> Text -> ())
   }
 
 data FileOperationMonadTransformerDeps = FileOperationMonadTransformerDeps
-  { _writeFileMaybeT :: MockForM (MaybeT IO) (FilePath -> Text -> ())
-  , _writeFileReaderT :: MockForM (ReaderT String IO) (FilePath -> Text -> ())
+  { _writeFileMaybeT ::
+      forall params.
+      ( MockBuilder params (FilePath -> Text -> ()) (ArgsOfF (FilePath -> Text -> ()))
+      ) =>
+      params ->
+      MockT (MaybeT IO) (FilePath -> Text -> ())
+  , _writeFileReaderT ::
+      forall params.
+      ( MockBuilder params (FilePath -> Text -> ()) (ArgsOfF (FilePath -> Text -> ()))
+      ) =>
+      params ->
+      MockT (ReaderT String IO) (FilePath -> Text -> ())
   }
 
 data FinderDeps = FinderDeps
-  { _findIds  :: MockFor [Int]
-  , _findById :: MockFor (Int -> String)
+  { _findIds ::
+      forall r m.
+      ( Verify.ResolvableParamsOf r ~ ()
+      , MonadIO m
+      , Typeable r
+      ) =>
+      r ->
+      MockT m r
+  , _findById ::
+      forall params m.
+      ( MockBuilder params (Int -> String) (ArgsOfF (Int -> String))
+      , MonadIO m
+      , Typeable (Int -> String)
+      , Verify.ResolvableParamsOf (Int -> String) ~ Param Int
+      ) =>
+      params ->
+      MockT m (Int -> String)
   }
 
 data VerificationFailureDeps = VerificationFailureDeps
-  { _readFile        :: MockFor (FilePath -> Text)
-  , _writeFile       :: MockFor (FilePath -> Text -> ())
-  , _getInput        :: MockFor String
-  , _toUserInput     :: MockFor (String -> IO (Maybe UserInput))
-  , _getByPartial    :: MockFor (String -> IO Int)
-  , _echoPartial     :: MockFor (String -> IO ())
-  , _findIds         :: MockFor [Int]
+  { _readFile ::
+      forall params m.
+      ( MockBuilder params (FilePath -> Text) (ArgsOfF (FilePath -> Text))
+      , MonadIO m
+      ) =>
+      params ->
+      MockT m (FilePath -> Text)
+  , _writeFile ::
+      forall params m.
+      ( MockBuilder params (FilePath -> Text -> ()) (ArgsOfF (FilePath -> Text -> ()))
+      , MonadIO m
+      ) =>
+      params ->
+      MockT m (FilePath -> Text -> ())
+  , _getInput ::
+      forall r m.
+      ( Verify.ResolvableParamsOf r ~ ()
+      , MonadIO m
+      , Typeable r
+      ) =>
+      r ->
+      MockT m r
+  , _toUserInput ::
+      forall params m.
+      ( MockBuilder params (String -> m (Maybe UserInput)) (ArgsOfF (String -> m (Maybe UserInput)))
+      , MonadIO m
+      , Typeable (String -> m (Maybe UserInput))
+      , Verify.ResolvableParamsOf (String -> m (Maybe UserInput)) ~ Param String
+      ) =>
+      params ->
+      MockT m (String -> m (Maybe UserInput))
+  , _getByPartial ::
+      forall params m.
+      ( MockBuilder params (String -> m Int) (ArgsOfF (String -> m Int))
+      , MonadIO m
+      , Typeable (String -> m Int)
+      , Verify.ResolvableParamsOf (String -> m Int) ~ Param String
+      ) =>
+      params ->
+      MockT m (String -> m Int)
+  , _echoPartial ::
+      forall params m.
+      ( MockBuilder params (String -> m ()) (ArgsOfF (String -> m ()))
+      , MonadIO m
+      , Typeable (String -> m ())
+      , Verify.ResolvableParamsOf (String -> m ()) ~ Param String
+      ) =>
+      params ->
+      MockT m (String -> m ())
+  , _findIds ::
+      forall r m.
+      ( Verify.ResolvableParamsOf r ~ ()
+      , MonadIO m
+      , Typeable r
+      ) =>
+      r ->
+      MockT m r
   }
 
 -- Aggregate all per-spec dependency groups into one record
@@ -135,13 +250,13 @@ specUserInputGetter ::
 specUserInputGetter (UserInputGetterDeps { _getInput, _toUserInput }) = describe "UserInputGetter" do
   it "Get user input (has input)" do
     result <- runMockT do
-      _ <- _getInput (param ("value" :: String))
+      _ <- _getInput ("value" :: String)
       getUserInput
     result `shouldBe` Just (UserInput "value")
 
   it "Get user input (no input)" do
     result <- runMockT do
-      _ <- _getInput (param ("" :: String))
+      _ <- _getInput ("" :: String)
       getUserInput
     result `shouldBe` Nothing
 
@@ -208,7 +323,7 @@ specFinder (FinderDeps { _findIds, _findById }) = describe "Finder" do
 
   it "partial findIds" do
     values <- runMockT $ do
-      _ <- _findIds (param ([1 :: Int, 2] :: [Int]))
+      _ <- _findIds ([1 :: Int, 2])
       findValue @Int @String
     values `shouldBe` ["{id: 1}", "{id: 2}"]
 
@@ -247,7 +362,7 @@ specVerificationFailures (VerificationFailureDeps { _readFile, _writeFile, _getI
 
   it "fails when _getInput is defined but getInput is never called" do
     (runMockT @IO do
-      _ <- _getInput (param "value")
+      _ <- _getInput ("value" :: String)
         `expects` do
           called once
       -- getInput is never called
@@ -279,7 +394,7 @@ specVerificationFailures (VerificationFailureDeps { _readFile, _writeFile, _getI
 
   it "fails when _findIds is defined but findIds is never called" do
     (runMockT @IO do
-      _ <- _findIds (param ([1 :: Int, 2] :: [Int]))
+      _ <- _findIds ([1 :: Int, 2])
         `expects` do
           called once
       -- findIds is never called
