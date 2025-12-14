@@ -27,3 +27,8 @@ instance Monad m => FileOperation (ReaderT String m) where
 instance Finder Int String IO where
   findIds = pure [1 :: Int, 2 :: Int, 3 :: Int]
   findById id = pure $ "{id: " <> show id <> "}"
+
+-- Provide FinderNoImplicit fallback instance for tests that use explicit monadic returns
+instance FinderNoImplicit Int String IO where
+  findIdsNI = pure [1 :: Int, 2 :: Int, 3 :: Int]
+  findByIdNI i = pure $ "{id: " <> show i <> "}"

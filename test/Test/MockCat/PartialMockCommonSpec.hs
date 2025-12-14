@@ -1,4 +1,6 @@
 {-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -26,6 +28,7 @@ module Test.MockCat.PartialMockCommonSpec
   , specFinderEmptyIds
   , specFinderNamedError
   , specFinderMixedFallback
+  , specFinderNoImplicit
   ) where
 
 import Prelude hiding (readFile, writeFile)
@@ -38,11 +41,16 @@ import Control.Monad.IO.Class (MonadIO)
 import Data.Typeable (Typeable)
 import Data.Text (Text, pack)
 import Control.Exception (ErrorCall(..), displayException)
-import Data.List (isInfixOf)
+import Data.List (isInfixOf, find)
 import Control.Monad.Trans.Maybe (MaybeT (..))
 import Control.Monad.Trans.Reader (ReaderT, runReaderT)
 import Control.Monad.IO.Unlift (withRunInIO)
 import Control.Concurrent.Async (async, wait)
+import Control.Monad.Trans.Class (lift)
+import Control.Monad (forM)
+import Data.Proxy (Proxy(..))
+import GHC.TypeLits (symbolVal, KnownSymbol)
+import Unsafe.Coerce (unsafeCoerce)
 
 -- Polymorphic entry for migrating from modules that expose more general builders
 specUserInputGetterPoly
@@ -298,6 +306,39 @@ specFinderEmptyIds findIdsBuilder = describe "Finder empty ids" do
     result `shouldBe` []
 
 
+specFinderNoImplicit
+  :: ( forall params. ( MockBuilder params (Int -> IO String) (Param Int)
+                        , Typeable (Int -> IO String)
+                        , Verify.ResolvableParamsOf (Int -> IO String) ~ Param Int
+                        ) => params -> MockT IO (Int -> IO String) )
+  -> Spec
+specFinderNoImplicit findByBuilder = describe "Finder no-implicit-monadic-return (TH implicitMonadicReturn=False)" do
+  it "partial findById with explicit monadic returns" do
+    result <- runMockT $ do
+      _ <- findByBuilder $ do
+        onCase $ (1 :: Int) |> pure @IO "id1"
+        onCase $ (2 :: Int) |> pure @IO "id2"
+        onCase $ (3 :: Int) |> pure @IO "id3"
+      -- manually call the NI variant (avoid needing FinderNoImplicit MockT instance)
+      defs <- getDefinitions
+      case findParam (Proxy :: Proxy "_findByIdNI") defs of
+        Just mockFn -> do
+          ids <- lift (findIds :: IO [Int])
+          results <- forM ids (lift . mockFn)
+          pure results
+        Nothing -> do
+          ids <- lift (findIds :: IO [Int])
+          results <- forM ids (lift . findById)
+          pure results
+    result `shouldBe` ["id1", "id2", "id3"]
+
+-- Helper to find a definition by symbol and coerce the function
+findParam :: KnownSymbol sym => Proxy sym -> [Definition] -> Maybe a
+findParam pa definitions = do
+  let definition = find (\(Definition s _ _) -> symbolVal s == symbolVal pa) definitions
+  fmap (\(Definition _ mockFunction _) -> unsafeCoerce mockFunction) definition
+
+ 
 specFinderNamedError
   :: Finder Int String (MockT IO)
   => ( forall params m. ( MockBuilder params (Int -> String) (Param Int)

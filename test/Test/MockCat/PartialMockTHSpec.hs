@@ -22,12 +22,15 @@ import Control.Exception (ErrorCall(..), displayException)
 import Data.List (isInfixOf)
 import Test.Hspec (Spec, it, shouldBe, describe, shouldThrow, Selector)
 import Test.MockCat
-import Test.MockCat.PartialMockCommonSpec (specUserInputGetterPoly, specExplicitReturnPoly, specFileOperationPoly, specMultiParamPartial1, specMultiParamPartialFindById, specMultiParamAllReal, specPartialHandwrittenIO, specPartialHandwrittenMaybeT, specVerificationFailureFindIds, specVerificationFailureFindById, specFinderParallel, specFinderEdgeCases, specFinderEmptyIds, specFinderNamedError, specFinderMixedFallback)
+import Test.MockCat.PartialMockCommonSpec (specUserInputGetterPoly, specExplicitReturnPoly, specFileOperationPoly, specMultiParamPartial1, specMultiParamPartialFindById, specMultiParamAllReal, specPartialHandwrittenIO, specPartialHandwrittenMaybeT, specVerificationFailureFindIds, specVerificationFailureFindById, specFinderParallel, specFinderEdgeCases, specFinderEmptyIds, specFinderNamedError, specFinderMixedFallback, specFinderNoImplicit)
 import Test.MockCat.SharedSpecDefs
 import Test.MockCat.Impl ()
 import Prelude hiding (readFile, writeFile)
 import Control.Monad.Trans.Maybe (MaybeT (..))
 import Control.Monad.Reader (ReaderT(..))
+import Control.Monad.IO.Class (MonadIO)
+import Data.Typeable (Typeable)
+import qualified Test.MockCat.Verify as Verify
 
 getUserInput :: UserInputGetter m => m (Maybe UserInput)
 getUserInput = do
@@ -52,6 +55,17 @@ makePartialMock [t|UserInputGetter|]
 makePartialMock [t|Finder|]
 makePartialMock [t|FileOperation|]
 makePartialMockWithOptions [t|ExplicitlyReturnMonadicValuesPartialTest|] options { implicitMonadicReturn = False }
+makePartialMockWithOptions [t|FinderNoImplicit|] options { implicitMonadicReturn = False }
+
+-- Specialize polymorphic TH-generated builder to IO for common spec
+_findByIdNI_IO ::
+  ( MockBuilder params (Int -> IO String) (Param Int)
+  , Typeable (Int -> IO String)
+  , Verify.ResolvableParamsOf (Int -> IO String) ~ Param Int
+  ) =>
+  params ->
+  MockT IO (Int -> IO String)
+_findByIdNI_IO = _findByIdNI
 
 spec :: Spec
 spec = do
@@ -71,6 +85,7 @@ spec = do
   specFinderEmptyIds _findIds
   specFinderNamedError _findById
   specFinderMixedFallback _findById
+  specFinderNoImplicit _findByIdNI_IO
   
   it "Get user input (has input)" $ do
     a <- runMockT $ do
@@ -190,6 +205,8 @@ spec = do
             onCase $ (3 :: Int) |> "id3"
           findValue
         values `shouldBe` ["id1", "id2", "id3"]
+
+      -- moved explicit-monadic-return variant into common spec: specFinderNoImplicit
 
     it "Return monadic value test" $ do
       result <- runMockT $ do

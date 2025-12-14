@@ -21,7 +21,7 @@ import Data.List (find, isInfixOf)
 import Test.Hspec (Spec, it, shouldBe, describe, shouldThrow, Selector)
 import Test.MockCat
 import Test.MockCat.SharedSpecDefs
-import Test.MockCat.PartialMockCommonSpec (specUserInputGetterPoly, specExplicitReturnPoly, specFileOperationPoly, specMultiParamPartial1, specMultiParamPartialFindById, specMultiParamAllReal, specPartialHandwrittenIO, specPartialHandwrittenMaybeT, specVerificationFailureFindIds, specVerificationFailureFindById, specFinderParallel, specFinderEdgeCases, specFinderEmptyIds, specFinderNamedError, specFinderMixedFallback)
+import Test.MockCat.PartialMockCommonSpec (specUserInputGetterPoly, specExplicitReturnPoly, specFileOperationPoly, specMultiParamPartial1, specMultiParamPartialFindById, specMultiParamAllReal, specPartialHandwrittenIO, specPartialHandwrittenMaybeT, specVerificationFailureFindIds, specVerificationFailureFindById, specFinderParallel, specFinderEdgeCases, specFinderEmptyIds, specFinderNamedError, specFinderMixedFallback, specFinderNoImplicit)
 import Test.MockCat.Impl ()
 import Prelude hiding (readFile, writeFile)
 import Data.Data
@@ -227,6 +227,8 @@ instance (MonadIO m, Finder a b m) => Finder a b (MockT m) where
         pure result
       Nothing -> lift $ findById id
 
+ 
+
 _findIds ::
   ( Verify.ResolvableParamsOf r ~ ()
   , MonadIO m
@@ -264,6 +266,23 @@ _findById p = MockT $ do
     )
   pure mockInstance
 
+_findByIdNI ::
+  ( MockBuilder params (Int -> IO String) (Param Int)
+  , MonadIO m
+  ) =>
+  params ->
+  MockT m (Int -> IO String)
+_findByIdNI p = MockT $ do
+  mockInstance <- liftIO $ createNamedMockFnWithParams "_findByIdNI" p
+  ensureVerifiable mockInstance
+  addDefinition
+    ( Definition
+        (Proxy :: Proxy "_findByIdNI")
+        mockInstance
+        NoVerification
+    )
+  pure mockInstance
+
 spec :: Spec
 spec = do
   specUserInputGetterPoly _getInput
@@ -282,6 +301,7 @@ spec = do
   specFinderEmptyIds _findIds
   specFinderNamedError _findById
   specFinderMixedFallback _findById
+  specFinderNoImplicit _findByIdNI
   
   it "Get user input (has input)" do
     result <- runMockT do

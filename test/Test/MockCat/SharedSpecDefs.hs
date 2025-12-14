@@ -16,6 +16,8 @@ module Test.MockCat.SharedSpecDefs
     program,
     Finder(..),
     findValue,
+    FinderNoImplicit(..),
+    findValueNI,
     ApiOperation(..),
     MonadStateSub(..),
     MonadStateSub2(..),
@@ -146,3 +148,13 @@ newtype UserInput = UserInput String deriving (Show, Eq)
 class Monad m => UserInputGetter m where
   getInput :: m String
   toUserInput :: String -> m (Maybe UserInput)
+
+-- Duplicate Finder variant without implicit monadic return (for TH tests)
+class Monad m => FinderNoImplicit a b m | a -> b, b -> a where
+  findIdsNI :: m [a]
+  findByIdNI :: a -> m b
+
+findValueNI :: FinderNoImplicit a b m => m [b]
+findValueNI = do
+  ids <- findIdsNI
+  mapM findByIdNI ids
