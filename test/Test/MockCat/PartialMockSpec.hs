@@ -21,6 +21,7 @@ import Data.List (find, isInfixOf)
 import Test.Hspec (Spec, it, shouldBe, describe, shouldThrow, Selector)
 import Test.MockCat
 import Test.MockCat.SharedSpecDefs
+import Test.MockCat.PartialMockCommonSpec (specUserInputGetterPoly, specExplicitReturnPoly)
 import Test.MockCat.Impl ()
 import Prelude hiding (readFile, writeFile)
 import Data.Data
@@ -265,6 +266,9 @@ _findById p = MockT $ do
 
 spec :: Spec
 spec = do
+  specUserInputGetterPoly _getInput
+  specExplicitReturnPoly _getByPartial _echoPartial
+  
   it "Get user input (has input)" do
     result <- runMockT do
       _getInput "value"
