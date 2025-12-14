@@ -14,6 +14,7 @@ module Test.MockCat.PartialMockCommonSpec
   ( specUserInputGetterPoly
   , specExplicitReturnPoly
   , specFileOperationPoly
+  , specMultiParamPartial1
   ) where
 
 import Prelude hiding (readFile, writeFile)
@@ -103,3 +104,15 @@ specFileOperationPoly writeFileBuilder = describe "FileOperation" do
         _ <- writeFileBuilder (("output.text" :: FilePath) |> pack ("ReaderT content foo" :: String) |> ())
         pure ()
     result `shouldBe` ()
+
+
+specMultiParamPartial1
+  :: Finder Int String (MockT IO)
+  => (forall r m. (Verify.ResolvableParamsOf r ~ (), MonadIO m, Typeable r) => r -> MockT m r)
+  -> Spec
+specMultiParamPartial1 findIdsBuilder = describe "MultiParamType" do
+  it "partial 1" do
+    values <- runMockT $ do
+      _ <- findIdsBuilder ([1 :: Int, 2] :: [Int])
+      findValue @Int @String
+    values `shouldBe` ["{id: 1}", "{id: 2}"]

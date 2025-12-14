@@ -21,7 +21,7 @@ import Data.List (find, isInfixOf)
 import Test.Hspec (Spec, it, shouldBe, describe, shouldThrow, Selector)
 import Test.MockCat
 import Test.MockCat.SharedSpecDefs
-import Test.MockCat.PartialMockCommonSpec (specUserInputGetterPoly, specExplicitReturnPoly, specFileOperationPoly)
+import Test.MockCat.PartialMockCommonSpec (specUserInputGetterPoly, specExplicitReturnPoly, specFileOperationPoly, specMultiParamPartial1)
 import Test.MockCat.Impl ()
 import Prelude hiding (readFile, writeFile)
 import Data.Data
@@ -270,6 +270,7 @@ spec = do
   specExplicitReturnPoly _getByPartial _echoPartial
   -- FileOperation: keep originals, but also call common poly with polymorphic builder
   specFileOperationPoly _writeFile
+  specMultiParamPartial1 _findIds
   
   it "Get user input (has input)" do
     result <- runMockT do
