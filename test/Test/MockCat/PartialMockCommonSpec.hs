@@ -24,6 +24,7 @@ module Test.MockCat.PartialMockCommonSpec
   , specFinderParallel
   , specFinderEdgeCases
   , specFinderEmptyIds
+  , specFinderNamedError
   ) where
 
 import Prelude hiding (readFile, writeFile)
@@ -294,3 +295,21 @@ specFinderEmptyIds findIdsBuilder = describe "Finder empty ids" do
       _ <- findIdsBuilder ([] :: [Int])
       findValue @Int @String
     result `shouldBe` []
+
+
+specFinderNamedError
+  :: Finder Int String (MockT IO)
+  => ( forall params m. ( MockBuilder params (Int -> String) (Param Int)
+                        , MonadIO m
+                        , Typeable (Int -> String)
+                        , Verify.ResolvableParamsOf (Int -> String) ~ Param Int
+                        ) => params -> MockT m (Int -> String) )
+  -> Spec
+specFinderNamedError findByBuilder = describe "Finder named error messages" do
+  it "error message contains mock name when unexpected arg is used" do
+    let nameMsg = "function `_findById` was not applied to the expected arguments"
+    (runMockT @IO do
+      _ <- findByBuilder $ do
+        onCase $ (1 :: Int) |> "id1"
+      -- call with unexpected arg to trigger message
+      findById (2 :: Int)) `shouldThrow` (\(err :: ErrorCall) -> nameMsg `isInfixOf` displayException err)
