@@ -17,6 +17,7 @@ module Test.MockCat.PartialMockCommonSpec
   , specMultiParamPartial1
   , specMultiParamPartialFindById
   , specMultiParamAllReal
+  , specPartialHandwrittenIO
   ) where
 
 import Prelude hiding (readFile, writeFile)
@@ -24,6 +25,7 @@ import Test.Hspec (Spec, it, shouldBe, describe)
 import Test.MockCat
 import Test.MockCat.SharedSpecDefs
 import qualified Test.MockCat.Verify as Verify
+import Test.MockCat.Impl ()
 import Control.Monad.IO.Class (MonadIO)
 import Data.Typeable (Typeable)
 import Data.Text (Text, pack)
@@ -146,3 +148,19 @@ specMultiParamAllReal = describe "MultiParamType" do
   it "all real function" do
     values <- runMockT findValue
     values `shouldBe` ["{id: 1}", "{id: 2}", "{id: 3}"]
+
+
+specPartialHandwrittenIO
+  :: ( forall params m. ( MockBuilder params (FilePath -> Text -> ()) (Param FilePath :> Param Text)
+                        , MonadIO m
+                        , Typeable (FilePath -> Text -> ())
+                        , Verify.ResolvableParamsOf (FilePath -> Text -> ()) ~ (Param FilePath :> Param Text)
+                        ) => params -> MockT m (FilePath -> Text -> ()))
+  -> MockT IO ()
+  -> Spec
+specPartialHandwrittenIO writeFileBuilder runAction = describe "Partial Mock Test - handwritten" do
+  it "IO" do
+    result <- runMockT do
+      _ <- writeFileBuilder (("output.text" :: FilePath) |> pack ("IO content" :: String) |> ())
+      runAction
+    result `shouldBe` ()
