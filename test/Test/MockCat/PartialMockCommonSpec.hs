@@ -16,6 +16,7 @@ module Test.MockCat.PartialMockCommonSpec
   , specFileOperationPoly
   , specMultiParamPartial1
   , specMultiParamPartialFindById
+  , specMultiParamAllReal
   ) where
 
 import Prelude hiding (readFile, writeFile)
@@ -136,3 +137,12 @@ specMultiParamPartialFindById findByBuilder = describe "MultiParamType" do
         onCase $ (3 :: Int) |> "id3"
       findValue @Int @String
     values `shouldBe` ["id1", "id2", "id3"]
+
+
+specMultiParamAllReal
+  :: Finder Int String (MockT IO)
+  => Spec
+specMultiParamAllReal = describe "MultiParamType" do
+  it "all real function" do
+    values <- runMockT findValue
+    values `shouldBe` ["{id: 1}", "{id: 2}", "{id: 3}"]
