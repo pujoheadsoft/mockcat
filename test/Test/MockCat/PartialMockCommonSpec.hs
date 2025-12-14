@@ -20,6 +20,7 @@ module Test.MockCat.PartialMockCommonSpec
   , specPartialHandwrittenIO
   , specPartialHandwrittenMaybeT
   , specVerificationFailureFindIds
+  , specVerificationFailureFindById
   ) where
 
 import Prelude hiding (readFile, writeFile)
@@ -201,3 +202,27 @@ specVerificationFailureFindIds findIdsBuilder = describe "verification failures 
           called once
       -- findIds is never called
       pure ()) `shouldThrow` (missingCall "_findIds")
+
+
+specVerificationFailureFindById
+  :: ( forall params m. ( MockBuilder params (Int -> String) (Param Int)
+                        , MonadIO m
+                        , Typeable (Int -> String)
+                        , Verify.ResolvableParamsOf (Int -> String) ~ Param Int
+                        ) => params -> MockT m (Int -> String) )
+  -> Spec
+specVerificationFailureFindById findByBuilder = describe "verification failures - findById" do
+  let missingCall name err =
+        let needle = "function `" <> name <> "` was not applied the expected number of times."
+         in needle `isInfixOf` displayException (err :: ErrorCall)
+
+  it "fails when _findById is defined but findById is never called" do
+    (runMockT @IO do
+      let cases = do
+            onCase $ (1 :: Int) |> "id1"
+            onCase $ (2 :: Int) |> "id2"
+            onCase $ (3 :: Int) |> "id3"
+      _ <- findByBuilder cases `expects` do
+        called once
+      -- findById is never called
+      pure ()) `shouldThrow` (missingCall "_findById")
