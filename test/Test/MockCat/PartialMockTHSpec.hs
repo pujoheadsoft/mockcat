@@ -22,7 +22,7 @@ import Control.Exception (ErrorCall(..), displayException)
 import Data.List (isInfixOf)
 import Test.Hspec (Spec, it, shouldBe, describe, shouldThrow, Selector)
 import Test.MockCat
-import Test.MockCat.PartialMockCommonSpec (specUserInputGetterPoly, specExplicitReturnPoly, specFileOperationPoly, specMultiParamPartial1)
+import Test.MockCat.PartialMockCommonSpec (specUserInputGetterPoly, specExplicitReturnPoly, specFileOperationPoly, specMultiParamPartial1, specMultiParamPartialFindById)
 import Test.MockCat.SharedSpecDefs
 import Test.MockCat.Impl ()
 import Prelude hiding (readFile, writeFile)
@@ -60,6 +60,7 @@ spec = do
   -- FileOperation common tests (call common poly in addition to existing originals)
   specFileOperationPoly _writeFile
   specMultiParamPartial1 _findIds
+  specMultiParamPartialFindById _findById
   
   it "Get user input (has input)" $ do
     a <- runMockT $ do
