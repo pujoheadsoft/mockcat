@@ -25,6 +25,7 @@ module Test.MockCat.PartialMockCommonSpec
   , specFinderEdgeCases
   , specFinderEmptyIds
   , specFinderNamedError
+  , specFinderMixedFallback
   ) where
 
 import Prelude hiding (readFile, writeFile)
@@ -313,3 +314,23 @@ specFinderNamedError findByBuilder = describe "Finder named error messages" do
         onCase $ (1 :: Int) |> "id1"
       -- call with unexpected arg to trigger message
       findById (2 :: Int)) `shouldThrow` (\(err :: ErrorCall) -> nameMsg `isInfixOf` displayException err)
+
+
+specFinderMixedFallback
+  :: Finder Int String (MockT IO)
+  => ( forall params m. ( MockBuilder params (Int -> String) (Param Int)
+                        , MonadIO m
+                        , Typeable (Int -> String)
+                        , Verify.ResolvableParamsOf (Int -> String) ~ Param Int
+                        ) => params -> MockT m (Int -> String) )
+  -> Spec
+specFinderMixedFallback findByBuilder = describe "Finder mixed fallback" do
+  it "when a per-id mock exists, unexpected args produce an argument error (no fallback)" do
+    let argError :: Selector ErrorCall
+        argError err = "was not applied to the expected arguments" `isInfixOf` displayException (err :: ErrorCall)
+    (runMockT @IO do
+      _ <- findByBuilder $ do
+        onCase $ (1 :: Int) |> "id1"
+      -- calling findValue will hit findById for id 2 which is not covered by mock,
+      -- and because a mock function exists for _findById, it will error rather than fallback.
+      findValue @Int @String) `shouldThrow` argError
