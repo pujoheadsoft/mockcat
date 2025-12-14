@@ -22,6 +22,7 @@ module Test.MockCat.PartialMockCommonSpec
   , specVerificationFailureFindIds
   , specVerificationFailureFindById
   , specFinderParallel
+  , specFinderEdgeCases
   ) where
 
 import Prelude hiding (readFile, writeFile)
@@ -253,3 +254,30 @@ specFinderParallel findByBuilder = describe "Finder concurrency" do
         r2 <- wait a2
         pure [r1, r2]
     result `shouldBe` ["id1", "id2"]
+
+
+specFinderEdgeCases
+  :: Finder Int String (MockT IO)
+  => ( forall params m. ( MockBuilder params (Int -> String) (Param Int)
+                        , MonadIO m
+                        , Typeable (Int -> String)
+                        , Verify.ResolvableParamsOf (Int -> String) ~ Param Int
+                        ) => params -> MockT m (Int -> String) )
+  -> Spec
+specFinderEdgeCases findByBuilder = describe "Finder edge cases" do
+  it "partial mock that doesn't cover all ids causes argument error" do
+    let argError :: Selector ErrorCall
+        argError err = "was not applied to the expected arguments" `isInfixOf` displayException (err :: ErrorCall)
+    (runMockT @IO do
+      _ <- findByBuilder $ do
+        onCase $ (1 :: Int) |> "id1"
+      -- calling findValue will hit findById for id 2 which is not covered by mock
+      findValue @Int @String) `shouldThrow` argError
+
+  it "duplicate cases prefer first" do
+    result <- runMockT $ do
+      _ <- findByBuilder $ do
+        onCase $ (1 :: Int) |> "first"
+        onCase $ (1 :: Int) |> "second"
+      findById 1
+    result `shouldBe` "first"
