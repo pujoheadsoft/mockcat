@@ -22,7 +22,7 @@ import Control.Exception (ErrorCall(..), displayException)
 import Data.List (isInfixOf)
 import Test.Hspec (Spec, it, shouldBe, describe, shouldThrow, Selector)
 import Test.MockCat
-import Test.MockCat.PartialMockCommonSpec (specUserInputGetterPoly, specExplicitReturnPoly)
+import Test.MockCat.PartialMockCommonSpec (specUserInputGetterPoly, specExplicitReturnPoly, specFileOperationPoly)
 import Test.MockCat.SharedSpecDefs
 import Test.MockCat.Impl ()
 import Prelude hiding (readFile, writeFile)
@@ -57,6 +57,8 @@ spec :: Spec
 spec = do
   specUserInputGetterPoly _getInput
   specExplicitReturnPoly _getByExplicitPartial _echoExplicitPartial
+  -- FileOperation common tests (call common poly in addition to existing originals)
+  specFileOperationPoly _writeFile
   
   it "Get user input (has input)" $ do
     a <- runMockT $ do

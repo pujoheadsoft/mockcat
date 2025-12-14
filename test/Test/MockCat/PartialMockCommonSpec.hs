@@ -13,6 +13,7 @@
 module Test.MockCat.PartialMockCommonSpec
   ( specUserInputGetterPoly
   , specExplicitReturnPoly
+  , specFileOperationPoly
   ) where
 
 import Prelude hiding (readFile, writeFile)
@@ -22,6 +23,9 @@ import Test.MockCat.SharedSpecDefs
 import qualified Test.MockCat.Verify as Verify
 import Control.Monad.IO.Class (MonadIO)
 import Data.Typeable (Typeable)
+import Data.Text (Text, pack)
+import Control.Monad.Trans.Maybe (MaybeT (..))
+import Control.Monad.Trans.Reader (ReaderT, runReaderT)
 
 -- Polymorphic entry for migrating from modules that expose more general builders
 specUserInputGetterPoly
@@ -70,3 +74,32 @@ specExplicitReturnPoly getByF echoF = describe "ExplicitlyReturnMonadicValuesPar
       _ <- getByF $ ("abc" :: String) |> pure @IO (123 :: Int)
       getByExplicitPartial "abc"
     result `shouldBe` 123
+
+
+specFileOperationPoly
+  :: ( forall params m. ( MockBuilder params (FilePath -> Text -> ()) (Param FilePath :> Param Text)
+                        , MonadIO m
+                        , Typeable (FilePath -> Text -> ())
+                        , Verify.ResolvableParamsOf (FilePath -> Text -> ()) ~ (Param FilePath :> Param Text)
+                        ) => params -> MockT m (FilePath -> Text -> ()))
+  -> Spec
+specFileOperationPoly writeFileBuilder = describe "FileOperation" do
+  it "IO" do
+    result <- runMockT do
+      _ <- writeFileBuilder (("output.text" :: FilePath) |> pack ("IO content" :: String) |> ())
+      pure ()
+    result `shouldBe` ()
+
+  it "MaybeT" do
+    result <- runMaybeT do
+      runMockT do
+        _ <- writeFileBuilder (("output.text" :: FilePath) |> pack ("MaybeT content" :: String) |> ())
+        pure ()
+    result `shouldBe` Just ()
+
+  it "ReaderT" do
+    result <- flip runReaderT "foo" do
+      runMockT do
+        _ <- writeFileBuilder (("output.text" :: FilePath) |> pack ("ReaderT content foo" :: String) |> ())
+        pure ()
+    result `shouldBe` ()
