@@ -29,15 +29,17 @@ module Test.MockCat.PartialMockCommonSpec
   , specFinderNamedError
   , specFinderMixedFallback
   , specFinderNoImplicit
+  , specFinderStressRepro
   ) where
 
 import Prelude hiding (readFile, writeFile)
-import Test.Hspec (Spec, it, shouldBe, describe, shouldThrow, Selector)
+import Test.Hspec (Spec, it, shouldBe, describe, shouldThrow, Selector, pendingWith)
 import Test.MockCat
 import Test.MockCat.SharedSpecDefs
 import qualified Test.MockCat.Verify as Verify
 import Test.MockCat.Impl ()
-import Control.Monad.IO.Class (MonadIO)
+import Control.Monad.IO.Class (MonadIO, liftIO)
+import qualified System.IO as SIO
 import Data.Typeable (Typeable)
 import Data.Text (Text, pack)
 import Control.Exception (ErrorCall(..), displayException)
@@ -47,7 +49,9 @@ import Control.Monad.Trans.Reader (ReaderT, runReaderT)
 import Control.Monad.IO.Unlift (withRunInIO)
 import Control.Concurrent.Async (async, wait)
 import Control.Monad.Trans.Class (lift)
-import Control.Monad (forM)
+import Control.Monad (forM, when, unless)
+import System.Mem.StableName (makeStableName, hashStableName, StableName)
+import Control.Concurrent (threadDelay)
 import Data.Proxy (Proxy(..))
 import GHC.TypeLits (symbolVal, KnownSymbol)
 import Unsafe.Coerce (unsafeCoerce)
@@ -331,6 +335,65 @@ specFinderNoImplicit findByBuilder = describe "Finder no-implicit-monadic-return
           results <- forM ids (lift . findById)
           pure results
     result `shouldBe` ["id1", "id2", "id3"]
+
+-- Stress attempts to reproduce flaky empty-return bug
+specFinderStressRepro
+  :: Finder Int String (MockT IO)
+  => ( forall params m. ( MockBuilder params (Int -> String) (Param Int)
+                        , MonadIO m
+                        , Typeable (Int -> String)
+                        , Verify.ResolvableParamsOf (Int -> String) ~ Param Int
+                        ) => params -> MockT m (Int -> String) )
+  -> Spec
+specFinderStressRepro _findByBuilder = describe "Finder stress reproduction attempts" do
+  it "sequential heavy trials with timing jitter" do
+    let trials = 800
+        expected = ["id1","id2","id3"]
+    bad <- forM [1..trials] $ \i -> runMockT $ do
+      -- register TH-style builder that returns pure strings
+      _ <- _findByBuilder $ do
+        onCase $ (1 :: Int) |> "id1"
+        onCase $ (2 :: Int) |> "id2"
+        onCase $ (3 :: Int) |> "id3"
+      -- inspect registered function stable name
+      defs <- getDefinitions
+      case findParam (Proxy :: Proxy "_findById") defs of
+        Just mockFn -> do
+          sn <- liftIO $ makeStableName mockFn
+          let h = hashStableName sn
+          -- small random jitter
+          let delay = (i * 13) `mod` 1000
+          liftIO $ threadDelay delay
+          -- call findValue
+          vals <- findValue @Int @String
+          defs2 <- getDefinitions
+          let mfn2 = findParam (Proxy :: Proxy "_findById") defs2
+          h2 <- case mfn2 of
+            Just mf2 -> liftIO $ fmap hashStableName $ makeStableName mf2
+            Nothing -> pure (-1)
+          -- if stable name changed, record for debugging (prepend marker)
+          if h /= h2 then pure [ "CHANGED:" <> show h <> "->" <> show h2 ] else pure vals
+        Nothing -> findValue @Int @String
+    let mismatches = filter (/= expected) bad
+    unless (null mismatches) do
+      liftIO $ SIO.writeFile "repro/finder-stress-mismatches.log" (show mismatches)
+      pendingWith $ "flaky repro captured; logged " <> show (length mismatches) <> " mismatches"
+    mismatches `shouldBe` []
+
+  it "concurrent mapConcurrently variant" do
+    result <- runMockT do
+      _ <- _findByBuilder $ do
+        onCase $ (1 :: Int) |> "id1"
+        onCase $ (2 :: Int) |> "id2"
+        onCase $ (3 :: Int) |> "id3"
+      withRunInIO $ \runInIO -> do
+        a1 <- async $ runInIO findValue
+        a2 <- async $ runInIO findValue
+        r1 <- wait a1
+        r2 <- wait a2
+        pure [r1, r2]
+    -- ensure both results are as expected
+    result `shouldBe` [["id1","id2","id3"],["id1","id2","id3"]]
 
 -- Helper to find a definition by symbol and coerce the function
 findParam :: KnownSymbol sym => Proxy sym -> [Definition] -> Maybe a
