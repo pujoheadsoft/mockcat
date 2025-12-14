@@ -18,6 +18,7 @@ module Test.MockCat.PartialMockCommonSpec
   , specMultiParamPartialFindById
   , specMultiParamAllReal
   , specPartialHandwrittenIO
+  , specPartialHandwrittenMaybeT
   ) where
 
 import Prelude hiding (readFile, writeFile)
@@ -164,3 +165,19 @@ specPartialHandwrittenIO writeFileBuilder runAction = describe "Partial Mock Tes
       _ <- writeFileBuilder (("output.text" :: FilePath) |> pack ("IO content" :: String) |> ())
       runAction
     result `shouldBe` ()
+
+
+specPartialHandwrittenMaybeT
+  :: ( forall params m. ( MockBuilder params (FilePath -> Text -> ()) (Param FilePath :> Param Text)
+                        , MonadIO m
+                        , Typeable (FilePath -> Text -> ())
+                        , Verify.ResolvableParamsOf (FilePath -> Text -> ()) ~ (Param FilePath :> Param Text)
+                        ) => params -> MockT m (FilePath -> Text -> ()))
+  -> Spec
+specPartialHandwrittenMaybeT writeFileBuilder = describe "Partial Mock Test - handwritten" do
+  it "MaybeT" do
+    result <- runMaybeT do
+      runMockT do
+        _ <- writeFileBuilder (("output.text" :: FilePath) |> pack ("MaybeT content" :: String) |> ())
+        pure ()
+    result `shouldBe` Just ()
