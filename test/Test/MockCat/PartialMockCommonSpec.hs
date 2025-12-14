@@ -23,6 +23,7 @@ module Test.MockCat.PartialMockCommonSpec
   , specVerificationFailureFindById
   , specFinderParallel
   , specFinderEdgeCases
+  , specFinderEmptyIds
   ) where
 
 import Prelude hiding (readFile, writeFile)
@@ -281,3 +282,15 @@ specFinderEdgeCases findByBuilder = describe "Finder edge cases" do
         onCase $ (1 :: Int) |> "second"
       findById 1
     result `shouldBe` "first"
+
+
+specFinderEmptyIds
+  :: Finder Int String (MockT IO)
+  => ( forall r m. ( Verify.ResolvableParamsOf r ~ (), MonadIO m, Typeable r ) => r -> MockT m r )
+  -> Spec
+specFinderEmptyIds findIdsBuilder = describe "Finder empty ids" do
+  it "findValue returns empty when findIds returns empty list" do
+    result <- runMockT $ do
+      _ <- findIdsBuilder ([] :: [Int])
+      findValue @Int @String
+    result `shouldBe` []
