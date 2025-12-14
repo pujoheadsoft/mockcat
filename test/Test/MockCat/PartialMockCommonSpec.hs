@@ -86,7 +86,7 @@ data FileOperationMonadTransformerDeps = FileOperationMonadTransformerDeps
 
 data FinderDeps = FinderDeps
   { _findIds  :: MockFor [Int]
-  , _findById :: MockFor (Int -> IO String)
+  , _findById :: MockFor (Int -> String)
   }
 
 data VerificationFailureDeps = VerificationFailureDeps
@@ -215,15 +215,14 @@ specFinder (FinderDeps { _findIds, _findById }) = describe "Finder" do
   it "partial findById" do
     values <- runMockT $ do
       _ <- _findById $ do
-        onCase $ (1 :: Int) |> pure @IO "id1"
-        onCase $ (2 :: Int) |> pure @IO "id2"
-        onCase $ (3 :: Int) |> pure @IO "id3"
+        onCase $ (1 :: Int) |> "id1"
+        onCase $ (2 :: Int) |> "id2"
+        onCase $ (3 :: Int) |> "id3"
       findValue @Int @String
     values `shouldBe` ["id1", "id2", "id3"]
 
 specVerificationFailures ::
   ( FileOperation (MockT IO)
-  , UserInputGetter (MockT IO)
   , ExplicitlyReturnMonadicValuesPartialTest (MockT IO)
   , Finder Int String (MockT IO)
   ) =>
