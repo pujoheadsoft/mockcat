@@ -21,6 +21,7 @@ module Test.MockCat.PartialMockCommonSpec
   , specPartialHandwrittenMaybeT
   , specVerificationFailureFindIds
   , specVerificationFailureFindById
+  , specFinderParallel
   ) where
 
 import Prelude hiding (readFile, writeFile)
@@ -36,6 +37,8 @@ import Control.Exception (ErrorCall(..), displayException)
 import Data.List (isInfixOf)
 import Control.Monad.Trans.Maybe (MaybeT (..))
 import Control.Monad.Trans.Reader (ReaderT, runReaderT)
+import Control.Monad.IO.Unlift (withRunInIO)
+import Control.Concurrent.Async (async, wait)
 
 -- Polymorphic entry for migrating from modules that expose more general builders
 specUserInputGetterPoly
@@ -226,3 +229,27 @@ specVerificationFailureFindById findByBuilder = describe "verification failures 
         called once
       -- findById is never called
       pure ()) `shouldThrow` (missingCall "_findById")
+
+
+specFinderParallel
+  :: ( Finder Int String (MockT IO)
+     , Verify.ResolvableParamsOf (Int -> String) ~ Param Int
+     ) =>
+  ( forall params m. ( MockBuilder params (Int -> String) (Param Int)
+                     , MonadIO m
+                     , Typeable (Int -> String)
+                     ) => params -> MockT m (Int -> String) )
+  -> Spec
+specFinderParallel findByBuilder = describe "Finder concurrency" do
+  it "Concurrent execution correctly calls and collects results from mocks (async)" do
+    result <- runMockT do
+      _ <- findByBuilder $ do
+        onCase $ (1 :: Int) |> "id1"
+        onCase $ (2 :: Int) |> "id2"
+      withRunInIO $ \runInIO -> do
+        a1 <- async $ runInIO (findById 1)
+        a2 <- async $ runInIO (findById 2)
+        r1 <- wait a1
+        r2 <- wait a2
+        pure [r1, r2]
+    result `shouldBe` ["id1", "id2"]
