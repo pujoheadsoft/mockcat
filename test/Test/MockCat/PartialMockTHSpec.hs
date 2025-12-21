@@ -17,25 +17,15 @@
 
 module Test.MockCat.PartialMockTHSpec (spec) where
 
-import Data.Text (Text, pack)
-import Control.Exception (ErrorCall(..), displayException)
-import Data.List (isInfixOf)
-import Test.Hspec (Spec, it, shouldBe, describe, shouldThrow, Selector)
 import Test.MockCat
 import Test.MockCat.PartialMockCommonSpec (specUserInputGetterPoly, specExplicitReturnPoly, specFileOperationPoly, specMultiParamPartial1, specMultiParamPartialFindById, specMultiParamAllReal, specPartialHandwrittenIO, specPartialHandwrittenMaybeT, specVerificationFailureFindIds, specVerificationFailureFindById, specFinderParallel, specFinderEdgeCases, specFinderEmptyIds, specFinderNamedError, specFinderMixedFallback, specFinderNoImplicit)
 import Test.MockCat.SharedSpecDefs
 import Test.MockCat.Impl ()
 import Prelude hiding (readFile, writeFile)
-import Control.Monad.Trans.Maybe (MaybeT (..))
-import Control.Monad.Reader (ReaderT(..))
-import Control.Monad.IO.Class (MonadIO)
 import Data.Typeable (Typeable)
 import qualified Test.MockCat.Verify as Verify
-
-getUserInput :: UserInputGetter m => m (Maybe UserInput)
-getUserInput = do
-  i <- getInput
-  toUserInput i
+import Data.List (find)
+import Test.Hspec (Spec)
 
 instance UserInputGetter IO where
   getInput = getLine
@@ -45,11 +35,7 @@ instance UserInputGetter IO where
 instance ExplicitlyReturnMonadicValuesPartialTest IO where
   echoExplicitPartial _ = pure () 
   getByExplicitPartial s = pure $ length s
-  
-echoProgram :: ExplicitlyReturnMonadicValuesPartialTest m => String -> m ()
-echoProgram s = do
-  v <- getByExplicitPartial s
-  echoExplicitPartial $ show v
+
 
 makePartialMock [t|UserInputGetter|]
 makePartialMock [t|Finder|]
@@ -87,130 +73,3 @@ spec = do
   specFinderMixedFallback _findById
   specFinderNoImplicit _findByIdNI_IO
   
-  it "Get user input (has input)" $ do
-    a <- runMockT $ do
-      _getInput "value"
-      getUserInput
-    a `shouldBe` Just (UserInput "value")
-
-  it "Get user input (no input)" $ do
-    a <- runMockT $ do
-      _getInput ""
-      getUserInput
-    a `shouldBe` Nothing
-
-  describe "Partial Mock Test (TH)" $ do
-    it "MaybeT" $ do
-      result <- runMaybeT $ do
-        runMockT $ do
-          _writeFile $ "output.text" |> pack "MaybeT content" |> ()
-          program "input.txt" "output.text"
-
-      result `shouldBe` Just ()
-
-    it "IO" $ do
-      result <- runMockT $ do
-        _writeFile $ "output.text" |> pack "IO content" |> ()
-        program "input.txt" "output.text"
-
-      result `shouldBe` ()
-
-    describe "verification failures" $ do
-      let missingCall :: String -> Selector ErrorCall
-          missingCall name = \(err :: ErrorCall) ->
-            let needle1 = "function `" <> name <> "` was not applied the expected number of times."
-                needle2 = "function `_" <> name <> "` was not applied the expected number of times."
-             in needle1 `isInfixOf` displayException err || needle2 `isInfixOf` displayException err
-
-      it "fails when _readFile is defined but readFile is never called" $ do
-        (runMockT @IO do
-          _ <- _readFile ("input.txt" |> pack "content")
-            `expects` do
-              called once
-          -- readFile is never called
-          pure ()) `shouldThrow` (missingCall "readFile")
-
-      it "fails when _writeFile is defined but writeFile is never called" $ do
-        (runMockT @IO do
-          _ <- _writeFile ("output.txt" |> pack "content" |> ())
-            `expects` do
-              called once
-          -- writeFile is never called
-          pure ()) `shouldThrow` (missingCall "writeFile")
-
-      it "fails when _getInput is defined but getInput is never called" $ do
-        (runMockT @IO do
-          _ <- _getInput "value"
-            `expects` do
-              called once
-          -- getInput is never called
-          pure ()) `shouldThrow` (missingCall "getInput")
-
-      it "fails when _toUserInput is defined but toUserInput is never called" $ do
-        (runMockT @IO do
-          _ <- _toUserInput ("value" |> (Just (UserInput "value")))
-            `expects` do
-              called once
-          -- toUserInput is never called
-          pure ()) `shouldThrow` (missingCall "toUserInput")
-
-      it "fails when _getByExplicitPartial is defined but getByExplicitPartial is never called" $ do
-        (runMockT @IO do
-          _ <- _getByExplicitPartial ("abc" |> pure @IO 123)
-            `expects` do
-              called once
-          -- getByExplicitPartial is never called
-          pure ()) `shouldThrow` (missingCall "getByExplicitPartial")
-
-      it "fails when _echoExplicitPartial is defined but echoExplicitPartial is never called" $ do
-        (runMockT @IO do
-          _ <- _echoExplicitPartial ("3" |> pure @IO ())
-            `expects` do
-              called once
-          -- echoExplicitPartial is never called
-          pure ()) `shouldThrow` (missingCall "echoExplicitPartial")
-
-      it "fails when _findIds is defined but findIds is never called" $ do
-        (runMockT @IO do
-          _ <- _findIds [1 :: Int, 2]
-            `expects` do
-              called once
-          -- findIds is never called
-          pure ()) `shouldThrow` (missingCall "_findIds")
-
-    it "ReaderT" $ do
-      result <- flip runReaderT "foo" $ do
-        runMockT $ do
-          _writeFile $ "output.text" |> pack "ReaderT content foo" |> ()
-          program "input.txt" "output.text"
-
-      result `shouldBe` ()
-
-    describe "MultiParamType" $ do
-      it "all real function" $ do
-        values <- runMockT findValue
-        values `shouldBe` ["{id: 1}", "{id: 2}", "{id: 3}"]
-
-      it "partial findIds" $ do
-        values <- runMockT $ do
-          _findIds [1 :: Int, 2]
-          findValue
-        values `shouldBe` ["{id: 1}", "{id: 2}"]
-
-      it "partial findById" $ do
-        values <- runMockT $ do
-          _findById $ do
-            onCase $ (1 :: Int) |> "id1"
-            onCase $ (2 :: Int) |> "id2"
-            onCase $ (3 :: Int) |> "id3"
-          findValue
-        values `shouldBe` ["id1", "id2", "id3"]
-
-      -- moved explicit-monadic-return variant into common spec: specFinderNoImplicit
-
-    it "Return monadic value test" $ do
-      result <- runMockT $ do
-        _echoExplicitPartial $ "3" |> pure @IO ()
-        echoProgram "abc"
-
-      result `shouldBe` ()
