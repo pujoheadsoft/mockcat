@@ -13,13 +13,13 @@ import Test.MockCat.SharedSpecDefs (UserInput(..))
 spec :: Spec
 spec = do
   describe "createMockBuilderVerifyParams" $ do
-    it "単一引数の関数では Param が1つだけ付く" $ do
+    it "returns a single Param for a function with a single argument" $ do
       let m = mkName "m"
           funType = AppT (AppT ArrowT (ConT ''String)) (AppT (VarT m) (TupleT 0))
       createMockBuilderVerifyParams funType
         `shouldBe` AppT (ConT ''Param) (ConT ''String)
 
-    it "複数引数の関数では Param が :> で連結される" $ do
+    it "connects Params with :> for functions with multiple arguments" $ do
       let m = mkName "m"
           rest = AppT (AppT ArrowT (ConT ''Int)) (AppT (VarT m) (TupleT 0))
           funType = AppT (AppT ArrowT (ConT ''String)) rest
@@ -29,24 +29,24 @@ spec = do
               (AppT (ConT ''Param) (ConT ''Int))
       createMockBuilderVerifyParams funType `shouldBe` expected
 
-    it "引数が無い場合は () を返す" $ do
+    it "returns () when there are no arguments" $ do
       let m = mkName "m"
       createMockBuilderVerifyParams (AppT (VarT m) (TupleT 0))
         `shouldBe` TupleT 0
 
   describe "createMockBuilderFnType" $ do
-    it "モナド引数を取り除き純粋な関数型にする" $ do
+    it "removes monad arguments to make a pure function type" $ do
       let m = mkName "m"
           funType = AppT (AppT ArrowT (ConT ''String)) (AppT (VarT m) (ConT ''Int))
           expected = AppT (AppT ArrowT (ConT ''String)) (ConT ''Int)
       createMockBuilderFnType m funType `shouldBe` expected
 
-    it "モナド変数以外の戻り値は変更しない" $ do
+    it "does not change return values other than the monad variable" $ do
       let m = mkName "m"
           funType = AppT (AppT ArrowT (ConT ''String)) (AppT (ConT ''IO) (ConT ''Int))
       createMockBuilderFnType m funType `shouldBe` funType
 
-    it "forall を含む型でもモナド変数を取り除く" $ do
+    it "removes the monad variable even in types containing forall" $ do
       let m = mkName "m"
           a = mkName "a"
           body = AppT (VarT m) (VarT a)
@@ -54,7 +54,7 @@ spec = do
       createMockBuilderFnType m funType `shouldBe` VarT a
 
   describe "partialAdditionalPredicates (migrated from THMockFnContextSpec)" $ do
-    it "ポリモーフィックな関数では検証用パラメータのTypeableと等式制約を付与する" $ do
+    it "adds Typeable and equality constraints for verification parameters in polymorphic functions" $ do
       let a = mkName "a"
           b = mkName "b"
           funType = AppT (AppT ArrowT (VarT a)) (VarT b)
@@ -64,7 +64,7 @@ spec = do
         [ "ResolvableParamsOf (a -> b) ~ Param a"
         ]
 
-    it "戻り値にのみ型変数が含まれる場合、検証用パラメータのTypeableは付与されない (funTypeのTypeableは呼び出し側で付与される)" $ do
+    it "does not add Typeable for verification parameters when type variables only appear in the return value" $ do
       let a = mkName "a"
           funType = AppT (AppT ArrowT (ConT ''String)) (VarT a)
           verifyParams = AppT (ConT ''Param) (ConT ''String)
@@ -73,7 +73,7 @@ spec = do
         [ "ResolvableParamsOf (String -> a) ~ Param String"
         ]
 
-    it "同じ型変数が複数回現れてもTypeableは重複しない" $ do
+    it "does not duplicate Typeable even if the same type variable appears multiple times" $ do
       let a = mkName "a"
           funType = AppT (AppT ArrowT (VarT a)) (VarT a)
           verifyParams = AppT (ConT ''Param) (VarT a)
@@ -82,7 +82,7 @@ spec = do
         [ "ResolvableParamsOf (a -> a) ~ Param a"
         ]
 
-    it "具象型の関数では冗長な制約を付与しない" $ do
+    it "does not add redundant constraints for functions with concrete types" $ do
       let funType =
             AppT
               (AppT ArrowT (ConT ''String))
@@ -92,7 +92,7 @@ spec = do
       normalize preds `shouldBe` []
 
   describe "createTypeablePreds" $ do
-    it "型変数が含まれる型を分解して抽出し、重複を除去する" $ do
+    it "decomposes and extracts types containing type variables and removes duplicates" $ do
       let a = mkName "a"
           b = mkName "b"
           funType = AppT (AppT ArrowT (VarT a)) (VarT b)
@@ -103,7 +103,7 @@ spec = do
         , "Typeable b"
         ]
 
-    it "型家族などは分解せずに抽出する" $ do
+    it "extracts type families without decomposing them" $ do
       let m = mkName "m"
           assoc = AppT (ConT (mkName "ResultType")) (VarT m)
           preds = createTypeablePreds [assoc]
@@ -111,7 +111,7 @@ spec = do
         [ "Typeable (ResultType m)"
         ]
 
-    it "具象型のみの場合は何も生成しない" $ do
+    it "generates nothing for concrete types only" $ do
       let ty = AppT (ConT ''Maybe) (ConT ''Int)
           preds = createTypeablePreds [ty]
       normalize preds `shouldBe` []

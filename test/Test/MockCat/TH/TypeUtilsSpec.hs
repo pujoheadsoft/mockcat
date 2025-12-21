@@ -10,12 +10,12 @@ import Test.MockCat.TH.TypeUtils
 spec :: Spec
 spec = do
   describe "splitApps" $ do
-    it "関数型の引数を順に展開する" $ do
+    it "expands function type arguments in order" $ do
       let a = mkName "a"
           ty = AppT (AppT ArrowT (ConT ''Int)) (VarT a)
       splitApps ty `shouldBe` (ArrowT, [ConT ''Int, VarT a])
 
-    it "入れ子の型適用を最上位と引数列に分解する" $ do
+    it "decomposes nested type applications into top-level and argument list" $ do
       let a = mkName "a"
           b = mkName "b"
           ty =
@@ -27,11 +27,11 @@ spec = do
                    , [AppT (AppT (ConT ''Either) (VarT a)) (VarT b)]
                    )
 
-    it "適用の無い型はそのまま返す" $ do
+    it "returns types without application as they are" $ do
       splitApps (ConT ''Bool) `shouldBe` (ConT ''Bool, [])
 
   describe "substituteType" $ do
-    it "VarTをマップの型で置き換える" $ do
+    it "replaces VarT with types from the map" $ do
       let a = mkName "a"
           b = mkName "b"
           ty = AppT (VarT a) (VarT b)
@@ -42,7 +42,7 @@ spec = do
               ]
       substituteType subMap ty `shouldBe` AppT (ConT ''Int) (ConT ''Bool)
 
-    it "ForallT内の制約と本体にも再帰的に適用される" $ do
+    it "recursively applies to constraints and body within ForallT" $ do
       let a = mkName "a"
           b = mkName "b"
           ty =
@@ -62,20 +62,20 @@ spec = do
               (AppT (ConT ''Maybe) (ConT ''Char))
       substituteType subMap ty `shouldBe` expected
 
-    it "マップに無い型変数はそのまま残す" $ do
+    it "leaves type variables not in the map as they are" $ do
       let a = mkName "a"
           ty = VarT a
       substituteType Map.empty ty `shouldBe` VarT a
 
   describe "isNotConstantFunctionType" $ do
-    it "矢印を含む型は True" $ do
+    it "is True for types containing arrows" $ do
       let ty = AppT (AppT ArrowT (ConT ''Int)) (ConT ''Bool)
       isNotConstantFunctionType ty `shouldBe` True
 
-    it "タプルは False" $ do
+    it "is False for tuples" $ do
       isNotConstantFunctionType (TupleT 0) `shouldBe` False
 
-    it "forall で包まれていても判定できる" $ do
+    it "can judge even when wrapped in forall" $ do
       let a = mkName "a"
           body = AppT (AppT ArrowT (VarT a)) (ConT ''Int)
           ty = ForallT [PlainTV a SpecifiedSpec] [] body

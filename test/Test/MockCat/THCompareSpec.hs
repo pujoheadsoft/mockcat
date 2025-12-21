@@ -365,7 +365,7 @@ spec = describe "TH generated vs handwritten instances" do
             Map.lookup "_toUserInput" generatedUserInputSigMap
       case genSig of
         Nothing ->
-          expectationFailure "TH生成シグネチャが見つかりません: _toUserInput"
+          expectationFailure "TH generated signature not found: _toUserInput"
         Just sig ->
           normalizeSignature sig
             `shouldSatisfy` not . T.isInfixOf (T.pack "ResolvableParamsOf") . T.pack
@@ -415,12 +415,12 @@ assertInstancesEquivalent manualPath className generatedStr = do
       sortedGen = sort gen
   if null hand
     then expectationFailure $
-      "手書きのインスタンスが見つかりません: " ++ className ++ " in " ++ manualPath
+      "Handwritten instance not found: " ++ className ++ " in " ++ manualPath
     else pure ()
   if null gen
     then expectationFailure $
-      "TH生成インスタンスが見つかりません: " ++ className
-        ++ "\n生成結果(先頭のみ):\n"
+      "TH generated instance not found: " ++ className
+        ++ "\nGenerated result (prefix only):\n"
         ++ take 1000 generatedStr
     else pure ()
   sortedGen `shouldBe` sortedHand
@@ -489,7 +489,7 @@ assertHelperSigMatches manualPath generatedSigMap funName = do
     case manualSigM of
       Nothing -> do
         expectationFailure $
-          "手書きのシグネチャが見つかりません: "
+          "Handwritten signature not found: "
             ++ funName
             ++ " in "
             ++ manualPath
@@ -499,7 +499,7 @@ assertHelperSigMatches manualPath generatedSigMap funName = do
     case Map.lookup funName generatedSigMap of
       Nothing -> do
         expectationFailure $
-          "TH生成シグネチャが見つかりません: "
+          "TH generated signature not found: "
             ++ funName
         pure ""
       Just sig -> pure sig

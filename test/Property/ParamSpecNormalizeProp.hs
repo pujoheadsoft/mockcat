@@ -60,7 +60,7 @@ spec = do
     it "acceptance equivalence on sample domain" $ prop_acceptance_equivalence
     it "enum duplicate equivalence" $ prop_enum_duplicate_equivalence
 
--- Property A: Enum に重複があっても正規化後の形が期待通り (単一点→NExact / 複数→NEnum uniq)
+-- Property A: Verify that the normalized form is as expected even if Enum has duplicates (single point -> NExact / multiple -> NEnum uniq)
 prop_enum_duplicate_equivalence :: Property
 prop_enum_duplicate_equivalence = forAll genDupEnum $ \(xs :: [Int]) ->
   let n = normalise (PSEnum xs)

@@ -11,14 +11,14 @@ import Test.MockCat.MockT (MockT)
 spec :: Spec
 spec = describe "ClassAnalysis helpers" $ do
   describe "toClassInfo" $ do
-    it "単一引数のクラス制約から変数名を収集する" $ do
+    it "collects variable names from single-argument class constraints" $ do
       let a = mkName "a"
           predicate = AppT (ConT ''Monad) (VarT a)
           ClassName2VarNames name vars = toClassInfo predicate
       name `shouldBe` ''Monad
       vars `shouldBe` [a]
 
-    it "ネストした制約でも順に変数を集める" $ do
+    it "collects variables in order even from nested constraints" $ do
       let env = mkName "env"
           m = mkName "m"
           predicate = AppT (AppT (ConT ''MonadReader) (VarT env)) (VarT m)
@@ -27,7 +27,7 @@ spec = describe "ClassAnalysis helpers" $ do
       vars `shouldBe` [env, m]
 
   describe "filterClassInfo" $ do
-    it "対象の型変数を含むクラスのみ残す" $ do
+    it "keeps only classes that contain the target type variable" $ do
       let a = mkName "a"
           b = mkName "b"
           infos =
@@ -38,7 +38,7 @@ spec = describe "ClassAnalysis helpers" $ do
         `shouldBe` [(''Monad, [a])]
 
   describe "filterMonadicVarInfos" $ do
-    it "Monad 制約を持つ変数のみ残す" $ do
+    it "keeps only variables with Monad constraints" $ do
       let vars =
             [ VarName2ClassNames (mkName "m") [''Monad, ''MonadIO]
             , VarName2ClassNames (mkName "x") [''Applicative]
@@ -47,16 +47,16 @@ spec = describe "ClassAnalysis helpers" $ do
         `shouldBe` [(mkName "m", [''Monad, ''MonadIO])]
 
   describe "getClassName / getClassNames" $ do
-    it "最上位のクラス名を取得する" $ do
+    it "gets the top-level class name" $ do
       getClassName (AppT (ConT ''MonadReader) (VarT (mkName "env"))) `shouldBe` ''MonadReader
 
-    it "ネストしたクラス適用から全ての名前を取得する" $ do
+    it "gets all names from nested class applications" $ do
       let a = mkName "a"
           ty = AppT (AppT (ConT ''Either) (ConT ''String)) (VarT a)
       getClassNames ty `shouldBe` [''Either, ''String]
 
   describe "VarApplied helpers" $ do
-    it "applyVarAppliedTypes は型変数をクラス名に置き換える" $ do
+    it "applyVarAppliedTypes replaces type variables with class names" $ do
       let m = mkName "m"
           a = mkName "a"
           mapping =
@@ -67,7 +67,7 @@ spec = describe "ClassAnalysis helpers" $ do
           expected = AppT (AppT ArrowT (ConT ''Maybe)) (VarT a)
       applyVarAppliedTypes mapping ty `shouldBe` expected
 
-    it "updateType は VarT の組み合わせをクラス名へ差し替える" $ do
+    it "updateType replaces VarT combinations with class names" $ do
       let m = mkName "m"
           a = mkName "a"
           mapping =

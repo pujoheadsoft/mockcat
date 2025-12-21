@@ -6,7 +6,7 @@ import Test.QuickCheck
 import Support.ParamSpec (ParamSpec(..))
 import Support.ParamSpecNormalize
 
--- ランダムに Range / Exact を生成し normaliseManyInt の受理集合と元集合の OR が一致するか検証
+-- Generates Range / Exact randomly and verifies that the OR of the accepted set of normaliseManyInt matches the original set.
 spec :: Spec
 spec = describe "ParamSpec Int range merge randomized" $ do
   it "acceptance equivalence on sampled domain" $ property prop_range_merge_acceptance
