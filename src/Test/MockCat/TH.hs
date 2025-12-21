@@ -156,7 +156,7 @@ expectByExpr qf = do
 --
 --  - MockT instance of the given typeclass
 --  - A stub function corresponding to a function of the original class type.
--- The name of stub function is the name of the original function with a “_” appended.
+-- The name of stub function is the name of the original function with a "_" appended.
 --
 --  @
 --  class (Monad m) => FileOperation m where
@@ -182,7 +182,7 @@ makeMockWithOptions = flip doMakeMock Total
 --
 --  - MockT instance of the given typeclass
 --  - A stub function corresponding to a function of the original class type.
--- The name of stub function is the name of the original function with a “_” appended.
+-- The name of stub function is the name of the original function with a "_" appended.
 --
 --  The prefix can be changed.
 --  In that case, use `makeMockWithOptions`.
@@ -213,7 +213,7 @@ makeMock t = doMakeMock t Total options
 --
 --  - MockT instance of the given typeclass
 --  - A stub function corresponding to a function of the original class type.
--- The name of stub function is the name of the original function with a “_” appended.
+-- The name of stub function is the name of the original function with a "_" appended.
 --
 --  For functions that are not stubbed in the test, the real function is used as appropriate for the context.
 --
@@ -521,8 +521,8 @@ createInstanceFnDec mockType options (SigD fnName funType) = do
       fnNameStr = createFnName fnName options
 
       fnBody = case mockType of
-        Total -> generateInstanceMockFnBody fnNameStr args r options funType
-        Partial -> generateInstanceRealFnBody fnName fnNameStr args r options funType
+        Total -> generateInstanceMockFnBody fnNameStr args r options
+        Partial -> generateInstanceRealFnBody fnName fnNameStr args r options
 
       fnClause = clause params (normalB fnBody) []
   funD fnName [fnClause]

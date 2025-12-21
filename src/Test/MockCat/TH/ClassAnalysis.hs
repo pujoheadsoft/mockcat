@@ -29,7 +29,6 @@ import Language.Haskell.TH
     Type (..),
   )
 
--- From former ClassInfo.hs
 data ClassName2VarNames = ClassName2VarNames Name [Name]
 
 instance Show ClassName2VarNames where
@@ -90,7 +89,6 @@ splitLast delimiter = last . split delimiter
 split :: String -> String -> [String]
 split delimiter str = unpack <$> splitOn (pack delimiter) (pack str)
 
--- From former VarApplied.hs
 data VarAppliedType = VarAppliedType Name (Maybe Name)
   deriving (Show)
 

@@ -13,7 +13,7 @@ data MockOptions = MockOptions {prefix :: String, suffix :: String, implicitMona
 
 -- | Default Options.
 --
---  Stub function names are prefixed with “_”.
+--  Stub function names are prefixed with "_".
 options :: MockOptions
 options = MockOptions {prefix = "_", suffix = "", implicitMonadicReturn = True}
 

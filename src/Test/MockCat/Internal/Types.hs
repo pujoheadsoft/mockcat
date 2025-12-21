@@ -86,7 +86,6 @@ data VerifyOrderResult a = VerifyOrderResult
 
 type Message = String
 
--- verify
 data VerifyMatchType a = MatchAny a | MatchAll a
 
 type MockName = String

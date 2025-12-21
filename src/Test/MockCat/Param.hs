@@ -10,9 +10,8 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
--- | This module is a parameter of the mock function.
---
--- This parameter can be used when creating and verifying the mock.
+-- | This module provides types and functions for representing mock parameters.
+-- Parameters are used both for setting up expectations and for verification.
 module Test.MockCat.Param
   ( Param(..),
     value,
@@ -79,7 +78,7 @@ instance (ShowParam (Param a)) => Show (Param a) where
 
 value :: Param v -> v
 value (ExpectValue a) = a
-value _ = error "not implement"
+value _ = error "not implemented"
 
 param :: v -> Param v
 param = ExpectValue

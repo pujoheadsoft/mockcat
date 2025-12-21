@@ -85,7 +85,6 @@ import Unsafe.Coerce (unsafeCoerce)
 import GHC.TypeLits (KnownSymbol, symbolVal)
  
 
--- copy of createMockBuilder functions
 import Test.MockCat.Param (Param, param)
 import Test.MockCat.TH.Types (MockOptions(..))
 
@@ -121,7 +120,7 @@ partialAdditionalPredicates funType verifyParams =
   | not (null (collectTypeVars funType))
   ]
 
--- helper to create Typeable predicates using the smart collection logic
+-- Helper to create Typeable predicates using the smart collection logic
 createTypeablePreds :: [Type] -> [Pred]
 createTypeablePreds targets =
   [ AppT (ConT ''Typeable) t
@@ -129,7 +128,6 @@ createTypeablePreds targets =
   , needsTypeable t
   ]
 
--- The following are copies of the function generation utilities from TH.hs
 
 data MockFnContext = MockFnContext
   { mockType :: MockType,
@@ -365,76 +363,41 @@ safeIndex (_ : xs) n
   | n < 0 = Nothing
   | otherwise = safeIndex xs (n - 1)
 
--- | Check whether a TH Type contains a type variable (VarT)
-containsVarT :: Type -> Bool
-containsVarT (VarT _) = True
-containsVarT (AppT a b) = containsVarT a || containsVarT b
-containsVarT (SigT t _) = containsVarT t
-containsVarT (ForallT _ _ t) = containsVarT t
-containsVarT _ = False
 
-generateInstanceMockFnBody :: String -> [Q Exp] -> Name -> MockOptions -> Type -> Q Exp
-generateInstanceMockFnBody fnNameStr args r opts funType = do
+generateInstanceMockFnBody :: String -> [Q Exp] -> Name -> MockOptions -> Q Exp
+generateInstanceMockFnBody fnNameStr args r opts = do
   returnExp <- if opts.implicitMonadicReturn
     then [| pure $(varE r) |]
     else [| lift $(varE r) |]
 
-  if containsVarT funType
-    then
-      [|
-        MockT $ do
-          defs <- getDefinitions
-          let findDef = find (\(Definition s _ _) -> symbolVal s == $(litE (stringL fnNameStr))) defs
-          case findDef of
-            Just (Definition _ mf _) -> do
-              let mock = unsafeCoerce mf
-              let $(bangP $ varP r) = $(generateStubFn args [|mock|])
-              $(pure returnExp)
-            Nothing -> error $ "no answer found stub function `" ++ fnNameStr ++ "`."
-        |]
-    else
-      [|
-        MockT $ do
-          defs <- getDefinitions
-          let findDef = find (\(Definition s _ _) -> symbolVal s == $(litE (stringL fnNameStr))) defs
-          case findDef of
-            Just (Definition _ mf _) -> do
-              let mock = unsafeCoerce mf
-              let $(bangP $ varP r) = $(generateStubFn args [|mock|])
-              $(pure returnExp)
-            Nothing -> error $ "no answer found stub function `" ++ fnNameStr ++ "`."
-        |]
+  [|
+    MockT $ do
+      defs <- getDefinitions
+      let findDef = find (\(Definition s _ _) -> symbolVal s == $(litE (stringL fnNameStr))) defs
+      case findDef of
+        Just (Definition _ mf _) -> do
+          let mock = unsafeCoerce mf
+          let $(bangP $ varP r) = $(generateStubFn args [|mock|])
+          $(pure returnExp)
+        Nothing -> error $ "no answer found stub function `" ++ fnNameStr ++ "`."
+    |]
 
-generateInstanceRealFnBody :: Name -> String -> [Q Exp] -> Name -> MockOptions -> Type -> Q Exp
-generateInstanceRealFnBody fnName fnNameStr args r opts funType = do
+generateInstanceRealFnBody :: Name -> String -> [Q Exp] -> Name -> MockOptions -> Q Exp
+generateInstanceRealFnBody fnName fnNameStr args r opts = do
   returnExp <- if opts.implicitMonadicReturn
     then [| pure $(varE r) |]
     else [| lift $(varE r) |]
-  if containsVarT funType
-    then
-      [|
-        MockT $ do
-          defs <- getDefinitions
-          let findDef = find (\(Definition s _ _) -> symbolVal s == $(litE (stringL fnNameStr))) defs
-          case findDef of
-            Just (Definition _ mf _) -> do
-              let mock = unsafeCoerce mf
-              let $(bangP $ varP r) = $(generateStubFn args [|mock|])
-              $(pure returnExp)
-            Nothing -> lift $ $(foldl appE (varE fnName) args)
-        |]
-    else
-      [|
-        MockT $ do
-          defs <- getDefinitions
-          let findDef = find (\(Definition s _ _) -> symbolVal s == $(litE (stringL fnNameStr))) defs
-          case findDef of
-            Just (Definition _ mf _) -> do
-              let mock = unsafeCoerce mf
-              let $(bangP $ varP r) = $(generateStubFn args [|mock|])
-              $(pure returnExp)
-            Nothing -> lift $ $(foldl appE (varE fnName) args)
-        |]
+  [|
+    MockT $ do
+      defs <- getDefinitions
+      let findDef = find (\(Definition s _ _) -> symbolVal s == $(litE (stringL fnNameStr))) defs
+      case findDef of
+        Just (Definition _ mf _) -> do
+          let mock = unsafeCoerce mf
+          let $(bangP $ varP r) = $(generateStubFn args [|mock|])
+          $(pure returnExp)
+        Nothing -> lift $ $(foldl appE (varE fnName) args)
+    |]
 
 generateStubFn :: [Q Exp] -> Q Exp -> Q Exp
 generateStubFn [] mock = mock
