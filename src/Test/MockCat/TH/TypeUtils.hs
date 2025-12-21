@@ -1,34 +1,36 @@
+{-# LANGUAGE TemplateHaskellQuotes #-}
 module Test.MockCat.TH.TypeUtils
   ( splitApps,
     substituteType,
     isNotConstantFunctionType,
     collectTypeVars,
-    needsTypeable
+    needsTypeable,
+    collectTypeableTargets,
+    isStandardTypeCon
   )
 where
 
 import qualified Data.Map.Strict as Map
-import Language.Haskell.TH
-  ( Name,
-    Type (..),
-  )
+import Language.Haskell.TH (Name, Type (..))
+import Test.MockCat.Param (Param)
+import Test.MockCat.Cons ((:>))
 
 splitApps :: Type -> (Type, [Type])
 splitApps ty = go ty []
   where
-    go (AppT t1 t2) acc = go t1 (t2 : acc)
+    go (Language.Haskell.TH.AppT t1 t2) acc = go t1 (t2 : acc)
     go t acc = (t, acc)
 
-substituteType :: Map.Map Name Type -> Type -> Type
+substituteType :: Map.Map Language.Haskell.TH.Name Language.Haskell.TH.Type -> Language.Haskell.TH.Type -> Language.Haskell.TH.Type
 substituteType subMap = go
   where
-    go (VarT name) = Map.findWithDefault (VarT name) name subMap
-    go (AppT t1 t2) = AppT (go t1) (go t2)
-    go (SigT t k) = SigT (go t) k
-    go (ParensT t) = ParensT (go t)
-    go (InfixT t1 n t2) = InfixT (go t1) n (go t2)
-    go (UInfixT t1 n t2) = UInfixT (go t1) n (go t2)
-    go (ForallT tvs ctx t) = ForallT tvs (map go ctx) (go t)
+    go (Language.Haskell.TH.VarT name) = Map.findWithDefault (Language.Haskell.TH.VarT name) name subMap
+    go (Language.Haskell.TH.AppT t1 t2) = Language.Haskell.TH.AppT (go t1) (go t2)
+    go (Language.Haskell.TH.SigT t k) = Language.Haskell.TH.SigT (go t) k
+    go (Language.Haskell.TH.ParensT t) = Language.Haskell.TH.ParensT (go t)
+    go (Language.Haskell.TH.InfixT t1 n t2) = Language.Haskell.TH.InfixT (go t1) n (go t2)
+    go (Language.Haskell.TH.UInfixT t1 n t2) = Language.Haskell.TH.UInfixT (go t1) n (go t2)
+    go (Language.Haskell.TH.ForallT tvs ctx t) = Language.Haskell.TH.ForallT tvs (map go ctx) (go t)
     go t = t
 
 isNotConstantFunctionType :: Type -> Bool
@@ -61,4 +63,39 @@ collectTypeVars (UInfixT t1 _ t2) = collectTypeVars t1 ++ collectTypeVars t2
 collectTypeVars (ForallT _ _ t) = collectTypeVars t
 collectTypeVars (ImplicitParamT _ t) = collectTypeVars t
 collectTypeVars _ = []
+
+collectTypeableTargets :: Type -> [Type]
+collectTypeableTargets ty =
+  case ty of
+    VarT _ -> [ty]
+    AppT _ _ ->
+      let (f, args) = splitApps ty
+      in if isStandardTypeCon f
+         then concatMap collectTypeableTargets args
+         else [ty]
+    SigT t _ -> collectTypeableTargets t
+    ParensT t -> collectTypeableTargets t
+    InfixT t1 _ t2 -> collectTypeableTargets t1 ++ collectTypeableTargets t2
+    UInfixT t1 _ t2 -> collectTypeableTargets t1 ++ collectTypeableTargets t2
+    ForallT _ _ t -> collectTypeableTargets t
+    _ -> []
+
+isStandardTypeCon :: Type -> Bool
+isStandardTypeCon ArrowT = True
+isStandardTypeCon ListT = True
+isStandardTypeCon (TupleT _) = True
+isStandardTypeCon (ConT n) =
+  n `elem`
+    [ ''Maybe
+    , ''IO
+    , ''Either
+    , ''[]
+    , ''(,)
+    , ''(,,)
+    , ''(,,,)
+    , ''(,,,,)
+    , ''Param
+    , ''(:>)
+    ]
+isStandardTypeCon _ = False
 

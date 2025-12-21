@@ -23,20 +23,16 @@ import Test.MockCat
 import Test.MockCat.SharedSpecDefs
 import qualified Test.MockCat.Verify as Verify
 import Test.MockCat.Impl ()
-import Control.Monad.IO.Class (MonadIO, liftIO)
-import qualified System.IO as SIO
+import Control.Monad.IO.Class (MonadIO)
 import Data.Typeable (Typeable)
 import Data.Text (Text, pack)
 import Control.Exception (ErrorCall(..), displayException)
 import Data.List (isInfixOf, find)
 import Control.Monad.Trans.Maybe (MaybeT (..))
-import Control.Monad.Trans.Reader (ReaderT, runReaderT)
+import Control.Monad.Trans.Reader (runReaderT)
 import Control.Monad.IO.Unlift (withRunInIO)
 import Control.Monad.Trans.Class (lift)
-import Control.Monad (forM, when, unless)
-import System.Environment (lookupEnv)
-import System.Mem.StableName (makeStableName, hashStableName, StableName)
-import Control.Concurrent (threadDelay)
+import Control.Monad (forM)
 import Control.Concurrent.Async (async, wait)
 import Data.Proxy (Proxy(..))
 import GHC.TypeLits (symbolVal, KnownSymbol)
@@ -76,7 +72,6 @@ spec ::
   ( UserInputGetter (MockT IO)
   , ExplicitlyReturnMonadicValuesPartialTest (MockT IO)
   , Finder Int String (MockT IO)
-  , FileOperation (MockT IO)
   , Verify.ResolvableParamsOf (Int -> String) ~ Param Int
   ) =>
   PartialMockDeps ->
@@ -91,7 +86,6 @@ spec deps programAction = do
 -- Group: Basic Partial Mocking (UserInput, FileOperation)
 specBasicPartialMocking ::
   ( UserInputGetter (MockT IO)
-  , FileOperation (MockT IO)
   ) =>
   PartialMockDeps ->
   MockT IO () ->

@@ -20,6 +20,8 @@ module Test.MockCat.TH.FunctionBuilder
   , doCreateConstantMockFnDecs
   , doCreateEmptyVerifyParamMockFnDecs
   , createMockBody
+  , createTypeablePreds
+  , partialAdditionalPredicates
   , createFnName
   , findParam
   , typeToNames
@@ -27,7 +29,6 @@ module Test.MockCat.TH.FunctionBuilder
   , generateInstanceMockFnBody
   , generateInstanceRealFnBody
   , generateStubFn
-  , partialAdditionalPredicates
   )
 where
 
@@ -64,7 +65,8 @@ import Test.MockCat.MockT
 import Test.MockCat.TH.TypeUtils
   ( isNotConstantFunctionType,
     needsTypeable,
-    collectTypeVars
+    collectTypeVars,
+    collectTypeableTargets
   )
 import Test.MockCat.TH.ContextBuilder
   ( MockType (..)
@@ -113,33 +115,19 @@ createMockBuilderFnType _ ty = ty
 
 partialAdditionalPredicates :: Type -> Type -> [Pred]
 partialAdditionalPredicates funType verifyParams =
-  typeablePreds ++ eqConstraint
-  where
-    typeablePreds =
-      [ AppT (ConT ''Typeable) verifyParams
-      | verifyParams /= TupleT 0
-      , needsTypeable verifyParams
-      ]
-    eqConstraint =
-      [ AppT
-          (AppT EqualityT (AppT (ConT ''ResolvableParamsOf) funType))
-          verifyParams
-      | not (null (collectTypeVars funType))
-      ]
+  [ AppT
+      (AppT EqualityT (AppT (ConT ''ResolvableParamsOf) funType))
+      verifyParams
+  | not (null (collectTypeVars funType))
+  ]
 
--- remove Typeable () (unit) and duplicate preds (comparing pretty-printed)
-filterTypeablePreds :: [Pred] -> [Pred]
-filterTypeablePreds preds =
-  nubBy (\a b -> pprint a == pprint b) $ filter (not . isUnitTypePred) preds
-
-isUnitTypePred :: Pred -> Bool
-isUnitTypePred (AppT (ConT _) t) = isUnitType t
-isUnitTypePred _ = False
-
-isUnitType :: Type -> Bool
-isUnitType (TupleT 0) = True
-isUnitType (ParensT t) = isUnitType t
-isUnitType _ = False
+-- helper to create Typeable predicates using the smart collection logic
+createTypeablePreds :: [Type] -> [Pred]
+createTypeablePreds targets =
+  [ AppT (ConT ''Typeable) t
+  | t <- nubBy (\a b -> pprint a == pprint b) (concatMap collectTypeableTargets targets)
+  , needsTypeable t
+  ]
 
 -- The following are copies of the function generation utilities from TH.hs
 
@@ -220,24 +208,12 @@ doCreateMockFnDecs mockType funNameStr mockFunName params funType monadVarName u
         baseCtx =
           ([mockBuilderPred | verifyParams /= TupleT 0])
             ++ [AppT (ConT ''MonadIO) (VarT monadVarName)]
-            ++ [AppT (ConT ''Typeable) funType]
+        typeablePreds = createTypeablePreds [funType, verifyParams]
         ctx = case mockType of
           Partial ->
-            baseCtx ++ partialAdditionalPredicates funType verifyParams
+            baseCtx ++ partialAdditionalPredicates funType verifyParams ++ typeablePreds
           Total ->
-            let typeableTargetsBase =
-                  [ funType
-                  , verifyParams
-                  ]
-                typeableTargets =
-                  typeableTargetsBase
-                    ++ (if null eqConstraint then [AppT (ConT ''ResolvableParamsOf) funType] else [])
-                typeablePreds =
-                  [ AppT (ConT ''Typeable) target
-                  | target <- typeableTargets
-                  , needsTypeable target
-                  ]
-             in baseCtx ++ eqConstraint ++ filterTypeablePreds typeablePreds
+            baseCtx ++ eqConstraint ++ typeablePreds
         resultType =
           AppT
             (AppT ArrowT (VarT params))
@@ -304,27 +280,13 @@ doCreateConstantMockFnDecs Total funNameStr mockFunName ty monadVarName = do
       pure (sig, VarT a)
     _ -> do
       let headParamType = AppT (AppT (ConT ''(:>)) (ConT ''Head)) (AppT (ConT ''Param) ty)
-          typeableTargets =
-            [ ty
-            , AppT (ConT ''ResolvableParamsOf) ty
-            ]
-          typeablePreds =
-            [ AppT (ConT ''Typeable) target
-            | target <- typeableTargets
-            , needsTypeable target
-            ]
           verifyParams' = createMockBuilderVerifyParams ty
           mockBuilderPred' = AppT (AppT (AppT (ConT ''MockBuilder) headParamType) ty) (TupleT 0)
-          typeablePreds' =
-            [ AppT (ConT ''Typeable) ty
-            | needsTypeable ty
-            ]
-            ++ typeablePreds
           ctx =
             [ AppT (ConT ''MonadIO) (VarT monadVarName)
             ]
             ++ ([mockBuilderPred' | verifyParams' /= TupleT 0])
-            ++ typeablePreds'
+            ++ createTypeablePreds [ty]
           resultType =
             AppT
               (AppT ArrowT ty)
@@ -340,21 +302,18 @@ doCreateEmptyVerifyParamMockFnDecs :: (Quote m) => String -> Name -> Name -> Typ
 doCreateEmptyVerifyParamMockFnDecs funNameStr mockFunName params funType monadVarName updatedType = do
   newFunSig <- do
     let verifyParams = createMockBuilderVerifyParams updatedType
-        typeableTargets =
-          [ funType
-          , verifyParams
-          , AppT (ConT ''ResolvableParamsOf) funType
-          ]
-        typeablePreds =
-          [ AppT (ConT ''Typeable) target
-          | target <- typeableTargets
-          , needsTypeable target
-          ]
         mockBuilderPred = AppT (AppT (AppT (ConT ''MockBuilder) (VarT params)) funType) verifyParams
+        eqConstraint =
+          [ AppT
+              (AppT EqualityT (AppT (ConT ''ResolvableParamsOf) funType))
+              verifyParams
+          | not (null (collectTypeVars funType))
+          ]
         ctx =
           [mockBuilderPred]
             ++ [AppT (ConT ''MonadIO) (VarT monadVarName)]
-            ++ filterTypeablePreds typeablePreds
+            ++ eqConstraint
+            ++ createTypeablePreds [funType, verifyParams]
         resultType =
           AppT
             (AppT ArrowT (VarT params))

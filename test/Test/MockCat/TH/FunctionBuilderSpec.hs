@@ -61,8 +61,7 @@ spec = do
           verifyParams = AppT (ConT ''Param) (VarT a)
           preds = partialAdditionalPredicates funType verifyParams
       normalize preds `shouldMatchList`
-        [ "Typeable (Param a)"
-        , "ResolvableParamsOf (a -> b) ~ Param a"
+        [ "ResolvableParamsOf (a -> b) ~ Param a"
         ]
 
     it "戻り値にのみ型変数が含まれる場合、検証用パラメータのTypeableは付与されない (funTypeのTypeableは呼び出し側で付与される)" $ do
@@ -80,8 +79,7 @@ spec = do
           verifyParams = AppT (ConT ''Param) (VarT a)
           preds = partialAdditionalPredicates funType verifyParams
       normalize preds `shouldMatchList`
-        [ "Typeable (Param a)"
-        , "ResolvableParamsOf (a -> a) ~ Param a"
+        [ "ResolvableParamsOf (a -> a) ~ Param a"
         ]
 
     it "具象型の関数では冗長な制約を付与しない" $ do
@@ -91,6 +89,31 @@ spec = do
               (AppT (ConT ''Maybe) (ConT ''UserInput))
           verifyParams = AppT (ConT ''Param) (ConT ''String)
           preds = partialAdditionalPredicates funType verifyParams
+      normalize preds `shouldBe` []
+
+  describe "createTypeablePreds" $ do
+    it "型変数が含まれる型を分解して抽出し、重複を除去する" $ do
+      let a = mkName "a"
+          b = mkName "b"
+          funType = AppT (AppT ArrowT (VarT a)) (VarT b)
+          verifyParams = AppT (ConT ''Param) (VarT a)
+          preds = createTypeablePreds [funType, verifyParams]
+      normalize preds `shouldMatchList`
+        [ "Typeable a"
+        , "Typeable b"
+        ]
+
+    it "型家族などは分解せずに抽出する" $ do
+      let m = mkName "m"
+          assoc = AppT (ConT (mkName "ResultType")) (VarT m)
+          preds = createTypeablePreds [assoc]
+      normalize preds `shouldMatchList`
+        [ "Typeable (ResultType m)"
+        ]
+
+    it "具象型のみの場合は何も生成しない" $ do
+      let ty = AppT (ConT ''Maybe) (ConT ''Int)
+          preds = createTypeablePreds [ty]
       normalize preds `shouldBe` []
 
 normalize :: [Pred] -> [String]
