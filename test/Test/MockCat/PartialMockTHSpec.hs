@@ -19,7 +19,6 @@ module Test.MockCat.PartialMockTHSpec (spec) where
 
 import Test.MockCat
 import qualified Test.MockCat.PartialMockCommonSpec as PartialMockCommonSpec
-import Test.MockCat.PartialMockCommonSpec (PartialMockDeps)
 import Test.MockCat.SharedSpecDefs
 import Test.MockCat.Impl ()
 import Prelude hiding (readFile, writeFile)

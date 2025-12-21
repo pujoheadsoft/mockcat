@@ -54,16 +54,24 @@ spec = do
       createMockBuilderFnType m funType `shouldBe` VarT a
 
   describe "partialAdditionalPredicates (migrated from THMockFnContextSpec)" $ do
-    it "ポリモーフィックな関数では型変数分のTypeableと等式制約を付与する" $ do
+    it "ポリモーフィックな関数では検証用パラメータのTypeableと等式制約を付与する" $ do
       let a = mkName "a"
           b = mkName "b"
           funType = AppT (AppT ArrowT (VarT a)) (VarT b)
           verifyParams = AppT (ConT ''Param) (VarT a)
           preds = partialAdditionalPredicates funType verifyParams
       normalize preds `shouldMatchList`
-        [ "Typeable a"
-        , "Typeable b"
-        , "Test.MockCat.Verify.ResolvableParamsOf (a -> b) ~ Test.MockCat.Param.Param a"
+        [ "Typeable (Param a)"
+        , "ResolvableParamsOf (a -> b) ~ Param a"
+        ]
+
+    it "戻り値にのみ型変数が含まれる場合、検証用パラメータのTypeableは付与されない (funTypeのTypeableは呼び出し側で付与される)" $ do
+      let a = mkName "a"
+          funType = AppT (AppT ArrowT (ConT ''String)) (VarT a)
+          verifyParams = AppT (ConT ''Param) (ConT ''String)
+          preds = partialAdditionalPredicates funType verifyParams
+      normalize preds `shouldMatchList`
+        [ "ResolvableParamsOf (String -> a) ~ Param String"
         ]
 
     it "同じ型変数が複数回現れてもTypeableは重複しない" $ do
@@ -72,8 +80,8 @@ spec = do
           verifyParams = AppT (ConT ''Param) (VarT a)
           preds = partialAdditionalPredicates funType verifyParams
       normalize preds `shouldMatchList`
-        [ "Typeable a"
-        , "Test.MockCat.Verify.ResolvableParamsOf (a -> a) ~ Test.MockCat.Param.Param a"
+        [ "Typeable (Param a)"
+        , "ResolvableParamsOf (a -> a) ~ Param a"
         ]
 
     it "具象型の関数では冗長な制約を付与しない" $ do
@@ -93,7 +101,8 @@ normalize = fmap (cleanup . pprint)
         . T.replace (T.pack "\n") (T.pack " ")
         . T.replace (T.pack "Data.Typeable.Internal.") (T.pack "")
         . T.replace (T.pack "GHC.Internal.") (T.pack "")
+        . T.replace (T.pack "GHC.Base.") (T.pack "")
+        . T.replace (T.pack "GHC.Types.") (T.pack "")
+        . T.replace (T.pack "Test.MockCat.Param.") (T.pack "")
+        . T.replace (T.pack "Test.MockCat.Verify.") (T.pack "")
         . T.pack
-
-
-

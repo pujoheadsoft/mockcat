@@ -76,7 +76,7 @@ import Test.MockCat.TH.ClassAnalysis
 import Test.MockCat.Verify (ResolvableParamsOf)
 import Data.Dynamic (Dynamic, toDyn)
 import Data.Proxy (Proxy(..))
-import Data.List (find, nub, nubBy)
+import Data.List (find, nubBy)
 import Data.Typeable (Typeable)
 import Language.Haskell.TH.Ppr (pprint)
 import Unsafe.Coerce (unsafeCoerce)
@@ -116,8 +116,9 @@ partialAdditionalPredicates funType verifyParams =
   typeablePreds ++ eqConstraint
   where
     typeablePreds =
-      [ AppT (ConT ''Typeable) (VarT varName)
-      | varName <- nub (collectTypeVars funType ++ collectTypeVars verifyParams)
+      [ AppT (ConT ''Typeable) verifyParams
+      | verifyParams /= TupleT 0
+      , needsTypeable verifyParams
       ]
     eqConstraint =
       [ AppT
