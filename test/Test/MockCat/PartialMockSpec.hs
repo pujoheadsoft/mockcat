@@ -6,7 +6,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE UndecidableInstances #-}
@@ -24,7 +23,6 @@ import Control.Monad.Trans.Class (lift)
 import Test.MockCat
 import Test.MockCat.SharedSpecDefs
 import qualified Test.MockCat.PartialMockCommonSpec as PartialMockCommonSpec
-import Test.MockCat.PartialMockCommonSpec (PartialMockDeps)
 import Test.MockCat.Impl ()
 import Prelude hiding (readFile, writeFile)
 import Data.Data
