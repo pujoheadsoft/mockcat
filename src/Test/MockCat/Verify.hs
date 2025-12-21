@@ -31,16 +31,10 @@ import Data.Kind (Type, Constraint)
 import Test.MockCat.Cons ((:>))
 import Data.Typeable (Typeable, eqT)
 import Test.MockCat.Internal.MockRegistry (lookupVerifierForFn, withAllUnitGuards)
-import qualified Test.MockCat.Internal.Registry.Core as Registry
-import qualified Data.Map.Strict as Map
-import qualified Data.IntMap.Strict as IntMap
 import Data.Type.Equality ((:~:) (Refl))
-import Data.Dynamic (fromDynamic, dynTypeRep)
+import Data.Dynamic (fromDynamic)
 import GHC.TypeLits (TypeError, ErrorMessage(..), Symbol)
 import Unsafe.Coerce (unsafeCoerce)
-import Control.Exception (SomeException, catch)
-import System.CPUTime (getCPUTime)
-import System.Mem.StableName (makeStableName, hashStableName)
 
 -- | Class for verifying mock function.
 verify ::
@@ -280,46 +274,17 @@ resolveForVerification ::
   target ->
   IO (Maybe (Maybe MockName, InvocationRecorder params))
 resolveForVerification target = do
-  -- instrumentation: log the stable-name/hash of the target being verified (H200)
-  -- This helps correlate which function value is being looked up when crashes occur.
-  let logPathV = "/home/kenji/source/haskell/mockcat/.cursor/debug.log"
-  (do
-      -- Use the target directly for a stable-name; avoid unsafeCoerce which can
-      -- corrupt runtime representation and lead to internal errors.
-      snT <- makeStableName target
-      let hk = hashStableName snT
-      tsV <- fmap (\t -> fromIntegral (t `div` 1000000) :: Integer) getCPUTime
-      appendFile logPathV ( "{\"sessionId\":\"debug-session\",\"runId\":\"pre-fix\",\"hypothesisId\":\"H200\",\"location\":\"Verify.resolveForVerification\",\"message\":\"resolve-target\",\"data\":{\"targetHash\":" ++ show hk ++ "},\"timestamp\":" ++ show tsV ++ "}\n" ) `catch` ((\_ -> pure ()) :: SomeException -> IO ())
-    ) `catch` (\(_ :: SomeException) -> pure ())
   let fetch = lookupVerifierForFn target
   result <-
     case eqT :: Maybe (params :~: ()) of
       Just Refl -> withAllUnitGuards fetch
       Nothing -> fetch
-  -- instrumentation: log whether fetch returned something and its dynamic type (H202)
-  (do
-      let logPathV = "/home/kenji/source/haskell/mockcat/.cursor/debug.log"
-      case result of
-        Nothing -> do
-          tsR <- fmap (\t -> fromIntegral (t `div` 1000000) :: Integer) getCPUTime
-          appendFile logPathV ( "{\"sessionId\":\"debug-session\",\"runId\":\"pre-fix\",\"hypothesisId\":\"H202\",\"location\":\"Verify.resolveForVerification\",\"message\":\"fetch-result-none\",\"data\":{},\"timestamp\":" ++ show tsR ++ "}\n" ) `catch` ((\_ -> pure ()) :: SomeException -> IO ())
-        Just (_name, dynVerifier) -> do
-          tsR <- fmap (\t -> fromIntegral (t `div` 1000000) :: Integer) getCPUTime
-          let dynTypeStr = show (dynTypeRep dynVerifier)
-          appendFile logPathV ( "{\"sessionId\":\"debug-session\",\"runId\":\"pre-fix\",\"hypothesisId\":\"H202\",\"location\":\"Verify.resolveForVerification\",\"message\":\"fetch-result-some\",\"data\":{\"dynType\":" ++ show dynTypeStr ++ "},\"timestamp\":" ++ show tsR ++ "}\n" ) `catch` ((\_ -> pure ()) :: SomeException -> IO ())
-    ) `catch` (\(_ :: SomeException) -> pure ())
   case result of
     Nothing -> pure Nothing
     Just (name, dynVerifier) ->
       case fromDynamic @(InvocationRecorder params) dynVerifier of
         Just verifier -> pure $ Just (name, verifier)
-        Nothing -> do
-          -- instrumentation: failed to cast verifier dynamic to expected type (H201)
-          let logPathV = "/home/kenji/source/haskell/mockcat/.cursor/debug.log"
-          tsFail <- fmap (\t -> fromIntegral (t `div` 1000000) :: Integer) getCPUTime
-          let dynTypeStr = show (dynTypeRep dynVerifier)
-          appendFile logPathV ( "{\"sessionId\":\"debug-session\",\"runId\":\"pre-fix\",\"hypothesisId\":\"H201\",\"location\":\"Verify.resolveForVerification\",\"message\":\"fromDynamic-failed\",\"data\":{\"dynType\":" ++ show dynTypeStr ++ "},\"timestamp\":" ++ show tsFail ++ "}\n" ) `catch` ((\_ -> pure ()) :: SomeException -> IO ())
-          pure Nothing
+        Nothing -> pure Nothing
  
 
 -- | Verify that a function was applied the expected number of times

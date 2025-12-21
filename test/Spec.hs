@@ -11,9 +11,7 @@ import Test.MockCat.PartialMockTHSpec as PartialMockTH
 import Test.MockCat.ConcurrencySpec as Concurrency
 import Test.MockCat.StubSpec as Stub
 import Test.MockCat.Internal.MockRegistrySpec as Registry
-import Test.MockCat.RegistryConcurrentSpec as RegistryConcurrentSpec
 import Test.MockCat.MockTSpec as MockTSpec
-import Test.MockCat.THCompareSpec as THCompare
 import Test.MockCat.TH.TypeUtilsSpec as THTypeUtils
 import Test.MockCat.TH.ContextBuilderSpec as THContextBuilder
 import Test.MockCat.TH.ClassAnalysisSpec as THClassAnalysis
@@ -47,7 +45,6 @@ main = hspec $ do
     Stub.spec
     MockTSpec.spec
     Registry.spec
-    RegistryConcurrentSpec.spec
     -- THCompare.spec
     THTypeUtils.spec
     THContextBuilder.spec

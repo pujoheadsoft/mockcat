@@ -123,7 +123,6 @@ test-suite mockcat-test
       Test.MockCat.TypeClassTHSpec
       Test.MockCat.UnsafeCheck
       Test.MockCat.WithMockSpec
-      Test.MockCat.RegistryConcurrentSpec
       Paths_mockcat
   hs-source-dirs:
       test

@@ -28,7 +28,7 @@ import Control.Monad.Reader (ReaderT(..), runReaderT, asks)
 import GHC.TypeLits (KnownSymbol, symbolVal)
 import Data.Data (Proxy, Typeable)
 import Data.IORef (newIORef, IORef)
-import Data.Dynamic (Dynamic, toDyn, fromDynamic, dynTypeRep)
+import Data.Dynamic (Dynamic)
 import UnliftIO (MonadUnliftIO(..))
 import Test.MockCat.Internal.Types (InvocationRecorder)
 import Test.MockCat.Verify (ResolvableParamsOf)
@@ -152,21 +152,12 @@ runMockT (MockT r) = do
 
 instance MonadIO m => MonadMockDefs (MockT m) where
   addDefinition d = MockT $ ReaderT $ \env -> liftIO $ do
-    d' <- case d of
-      Definition sym mf v -> do
-        let name = symbolVal sym
-        -- Prefer using the canonical wrapper from the central registry when available.
-        -- Prefer the local mf directly; avoid attempting to coerce Dynamic to the
-        -- existentially-bound function type which is not representable with
-        -- visible type applications here.
-        Registry.lookupFnByName name
-        pure (Definition sym mf v)
     atomically $ modifyTVar' (envDefinitions env) $ \xs ->
-      case d' of
+      case d of
         Definition sym _ _ ->
           let name = symbolVal sym
               exists = any (\(Definition sym' _ _) -> symbolVal sym' == name) xs
-           in if exists then xs else xs ++ [d']
+           in if exists then xs else xs ++ [d]
     pure ()
   getDefinitions = MockT $ ReaderT $ \env -> liftIO $ readTVarIO (envDefinitions env)
 
@@ -178,7 +169,5 @@ instance MonadIO m => MonadMockDefs (ReaderT MockTEnv m) where
           let name = symbolVal sym
               exists = any (\(Definition sym' _ _) -> symbolVal sym' == name) xs
            in if exists then xs else xs ++ [d]
-        _ -> xs ++ [d]
   getDefinitions = ReaderT $ \env -> liftIO $ readTVarIO (envDefinitions env)
-  -- Note: ReaderT variant intentionally returns raw store (used by internal runners).
   -- Note: ReaderT variant intentionally returns raw store (used by internal runners).

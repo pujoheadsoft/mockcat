@@ -74,11 +74,9 @@ import Test.MockCat.TH.ClassAnalysis
     updateType
   )
 import Test.MockCat.Verify (ResolvableParamsOf)
-import Data.Dynamic (Dynamic, toDyn, fromDynamic, dynTypeRep)
-import Data.Maybe (fromMaybe)
-import Data.Function ((&))
+import Data.Dynamic (Dynamic, toDyn)
 import Data.Proxy (Proxy(..))
-import Data.List (find, nub, nubBy, isInfixOf)
+import Data.List (find, nub, nubBy)
 import Data.Typeable (Typeable)
 import Language.Haskell.TH.Ppr (pprint)
 import Unsafe.Coerce (unsafeCoerce)
@@ -420,12 +418,6 @@ generateInstanceMockFnBody fnNameStr args r opts funType = do
   returnExp <- if opts.implicitMonadicReturn
     then [| pure $(varE r) |]
     else [| lift $(varE r) |]
-  let containsVarT :: Type -> Bool
-      containsVarT (VarT _) = True
-      containsVarT (AppT a b) = containsVarT a || containsVarT b
-      containsVarT (SigT t _) = containsVarT t
-      containsVarT (ForallT _ _ t) = containsVarT t
-      containsVarT _ = False
 
   if containsVarT funType
     then
