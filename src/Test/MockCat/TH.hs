@@ -521,8 +521,8 @@ createInstanceFnDec mockType options (SigD fnName funType) = do
       fnNameStr = createFnName fnName options
 
       fnBody = case mockType of
-        Total -> generateInstanceMockFnBody fnNameStr args r options
-        Partial -> generateInstanceRealFnBody fnName fnNameStr args r options
+        Total -> generateInstanceMockFnBody fnNameStr args r options funType
+        Partial -> generateInstanceRealFnBody fnName fnNameStr args r options funType
 
       fnClause = clause params (normalB fnBody) []
   funD fnName [fnClause]

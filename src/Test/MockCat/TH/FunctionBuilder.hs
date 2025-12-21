@@ -74,14 +74,16 @@ import Test.MockCat.TH.ClassAnalysis
     updateType
   )
 import Test.MockCat.Verify (ResolvableParamsOf)
+import Data.Dynamic (Dynamic, toDyn, fromDynamic, dynTypeRep)
 import Data.Maybe (fromMaybe)
 import Data.Function ((&))
 import Data.Proxy (Proxy(..))
-import Data.List (find, nub, nubBy)
+import Data.List (find, nub, nubBy, isInfixOf)
 import Data.Typeable (Typeable)
 import Language.Haskell.TH.Ppr (pprint)
 import Unsafe.Coerce (unsafeCoerce)
 import GHC.TypeLits (KnownSymbol, symbolVal)
+ 
 
 -- copy of createMockBuilder functions
 import Test.MockCat.Param (Param, param)
@@ -219,6 +221,7 @@ doCreateMockFnDecs mockType funNameStr mockFunName params funType monadVarName u
         baseCtx =
           ([mockBuilderPred | verifyParams /= TupleT 0])
             ++ [AppT (ConT ''MonadIO) (VarT monadVarName)]
+            ++ [AppT (ConT ''Typeable) funType]
         ctx = case mockType of
           Partial ->
             baseCtx ++ partialAdditionalPredicates funType verifyParams
@@ -242,7 +245,7 @@ doCreateMockFnDecs mockType funNameStr mockFunName params funType monadVarName u
             (AppT (AppT (ConT ''MockT) (VarT monadVarName)) funType)
     sigD mockFunName (pure (ForallT [] ctx resultType))
 
-  mockBody <- createMockBody funNameStr [|p|]
+  mockBody <- createMockBody funNameStr [|p|] funType
   newFun <- funD mockFunName [clause [varP $ mkName "p"] (normalB (pure mockBody)) []]
 
   pure $ newFunSig : [newFun]
@@ -274,11 +277,11 @@ doCreateConstantMockFnDecs Partial funNameStr mockFunName _ monadVarName = do
           )
       )
   headParam <- [|Head :> param p|]
-  mockBody <- createMockBody funNameStr (pure headParam)
+  mockBody <- createMockBody funNameStr (pure headParam) (VarT stubVar)
   newFun <- funD mockFunName [clause [varP $ mkName "p"] (normalB (pure mockBody)) []]
   pure $ newFunSig : [newFun]
 doCreateConstantMockFnDecs Total funNameStr mockFunName ty monadVarName = do
-  newFunSig <- case ty of
+  (newFunSig, funTypeForBody) <- case ty of
     AppT (ConT _) (VarT mv) | mv == monadVarName -> do
       a <- newName "a"
       let ctx =
@@ -290,7 +293,7 @@ doCreateConstantMockFnDecs Total funNameStr mockFunName ty monadVarName = do
             AppT
               (AppT ArrowT (VarT a))
               (AppT (AppT (ConT ''MockT) (VarT monadVarName)) (VarT a))
-      sigD
+      sig <- sigD
         mockFunName
         ( pure
             (ForallT
@@ -299,6 +302,7 @@ doCreateConstantMockFnDecs Total funNameStr mockFunName ty monadVarName = do
                 resultType
             )
         )
+      pure (sig, VarT a)
     _ -> do
       let headParamType = AppT (AppT (ConT ''(:>)) (ConT ''Head)) (AppT (ConT ''Param) ty)
           typeableTargets =
@@ -326,9 +330,10 @@ doCreateConstantMockFnDecs Total funNameStr mockFunName ty monadVarName = do
             AppT
               (AppT ArrowT ty)
               (AppT (AppT (ConT ''MockT) (VarT monadVarName)) ty)
-      sigD mockFunName (pure (ForallT [PlainTV monadVarName SpecifiedSpec] ctx resultType))
+      sig <- sigD mockFunName (pure (ForallT [PlainTV monadVarName SpecifiedSpec] ctx resultType))
+      pure (sig, ty)
   headParam <- [|Head :> param p|]
-  mockBody <- createMockBody funNameStr (pure headParam)
+  mockBody <- createMockBody funNameStr (pure headParam) funTypeForBody
   newFun <- funD mockFunName [clause [varP $ mkName "p"] (normalB (pure mockBody)) []]
   pure $ newFunSig : [newFun]
 
@@ -357,37 +362,38 @@ doCreateEmptyVerifyParamMockFnDecs funNameStr mockFunName params funType monadVa
             (AppT (AppT (ConT ''MockT) (VarT monadVarName)) funType)
     sigD mockFunName (pure (ForallT [] ctx resultType))
 
-  mockBody <- createMockBody funNameStr [|p|]
+  mockBody <- createMockBody funNameStr [|p|] funType
   newFun <- funD mockFunName [clause [varP $ mkName "p"] (normalB (pure mockBody)) []]
 
   pure $ newFunSig : [newFun]
 
-createMockBody :: (Quote m) => String -> m Exp -> m Exp
-createMockBody funNameStr paramsExp =
-  paramsExp >>= \params ->
+createMockBody :: (Quote m) => String -> m Exp -> Type -> m Exp
+createMockBody funNameStr paramsExp _funType = do
+  params <- paramsExp
   [|
     MockT $ do
       -- Build the mock instance and its verifier directly so we have access
       -- to the verifier value (avoids runtime type-mismatch when resolving).
       BuiltMock { builtMockFn = mockInstance, builtMockRecorder = verifier } <- liftIO $ buildMock (Just $(litE (stringL funNameStr))) $(pure params)
-      registeredFn <- liftIO $ Registry.register (Just $(litE (stringL funNameStr))) verifier mockInstance
+      -- Register and get the canonical wrapper (preserved for async safety)
+      canonicalInstance <- liftIO $ Registry.register (Just $(litE (stringL funNameStr))) verifier mockInstance
       addDefinition
         ( Definition
             (Proxy :: Proxy $(litT (strTyLit funNameStr)))
-            registeredFn
+            canonicalInstance
             NoVerification
         )
-      pure registeredFn
+      pure canonicalInstance
     |]
 
 createFnName :: Name -> MockOptions -> String
 createFnName funName opts = do
   opts.prefix <> nameBase funName <> opts.suffix
 
-findParam :: (KnownSymbol sym) => Proxy sym -> [Definition] -> Maybe a
+findParam :: KnownSymbol sym => Proxy sym -> [Definition] -> Maybe Dynamic
 findParam pa definitions = do
   let definition = find (\(Definition s _ _) -> symbolVal s == symbolVal pa) definitions
-  fmap (\(Definition _ mockFunction _) -> unsafeCoerce mockFunction) definition
+  fmap (\(Definition _ mockFunction _) -> toDyn mockFunction) definition
 
 typeToNames :: Type -> [Q Name]
 typeToNames (AppT (AppT ArrowT _) t2) = newName "a" : typeToNames t2
@@ -401,36 +407,82 @@ safeIndex (_ : xs) n
   | n < 0 = Nothing
   | otherwise = safeIndex xs (n - 1)
 
-generateInstanceMockFnBody :: String -> [Q Exp] -> Name -> MockOptions -> Q Exp
-generateInstanceMockFnBody fnNameStr args r opts = do
-  returnExp <- if opts.implicitMonadicReturn
-    then [| pure $(varE r) |]
-    else [| lift $(varE r) |]
-  [|
-    MockT $ do
-      defs <- getDefinitions
-      let _mock =
-            defs
-              & findParam (Proxy :: Proxy $(litT (strTyLit fnNameStr)))
-              & fromMaybe (error $ "no answer found stub function `" ++ fnNameStr ++ "`.")
-          $(bangP $ varP r) = $(generateStubFn args [|_mock|])
-      $(pure returnExp)
-    |]
+-- | Check whether a TH Type contains a type variable (VarT)
+containsVarT :: Type -> Bool
+containsVarT (VarT _) = True
+containsVarT (AppT a b) = containsVarT a || containsVarT b
+containsVarT (SigT t _) = containsVarT t
+containsVarT (ForallT _ _ t) = containsVarT t
+containsVarT _ = False
 
-generateInstanceRealFnBody :: Name -> String -> [Q Exp] -> Name -> MockOptions -> Q Exp
-generateInstanceRealFnBody fnName fnNameStr args r opts = do
+generateInstanceMockFnBody :: String -> [Q Exp] -> Name -> MockOptions -> Type -> Q Exp
+generateInstanceMockFnBody fnNameStr args r opts funType = do
   returnExp <- if opts.implicitMonadicReturn
     then [| pure $(varE r) |]
     else [| lift $(varE r) |]
-  [|
-    MockT $ do
-      defs <- getDefinitions
-      case findParam (Proxy :: Proxy $(litT (strTyLit fnNameStr))) defs of
-        Just mock -> do
-          let $(bangP $ varP r) = $(generateStubFn args [|mock|])
-          $(pure returnExp)
-        Nothing -> lift $ $(foldl appE (varE fnName) args)
-    |]
+  let containsVarT :: Type -> Bool
+      containsVarT (VarT _) = True
+      containsVarT (AppT a b) = containsVarT a || containsVarT b
+      containsVarT (SigT t _) = containsVarT t
+      containsVarT (ForallT _ _ t) = containsVarT t
+      containsVarT _ = False
+
+  if containsVarT funType
+    then
+      [|
+        MockT $ do
+          defs <- getDefinitions
+          let findDef = find (\(Definition s _ _) -> symbolVal s == $(litE (stringL fnNameStr))) defs
+          case findDef of
+            Just (Definition _ mf _) -> do
+              let mock = unsafeCoerce mf
+              let $(bangP $ varP r) = $(generateStubFn args [|mock|])
+              $(pure returnExp)
+            Nothing -> error $ "no answer found stub function `" ++ fnNameStr ++ "`."
+        |]
+    else
+      [|
+        MockT $ do
+          defs <- getDefinitions
+          let findDef = find (\(Definition s _ _) -> symbolVal s == $(litE (stringL fnNameStr))) defs
+          case findDef of
+            Just (Definition _ mf _) -> do
+              let mock = unsafeCoerce mf
+              let $(bangP $ varP r) = $(generateStubFn args [|mock|])
+              $(pure returnExp)
+            Nothing -> error $ "no answer found stub function `" ++ fnNameStr ++ "`."
+        |]
+
+generateInstanceRealFnBody :: Name -> String -> [Q Exp] -> Name -> MockOptions -> Type -> Q Exp
+generateInstanceRealFnBody fnName fnNameStr args r opts funType = do
+  returnExp <- if opts.implicitMonadicReturn
+    then [| pure $(varE r) |]
+    else [| lift $(varE r) |]
+  if containsVarT funType
+    then
+      [|
+        MockT $ do
+          defs <- getDefinitions
+          let findDef = find (\(Definition s _ _) -> symbolVal s == $(litE (stringL fnNameStr))) defs
+          case findDef of
+            Just (Definition _ mf _) -> do
+              let mock = unsafeCoerce mf
+              let $(bangP $ varP r) = $(generateStubFn args [|mock|])
+              $(pure returnExp)
+            Nothing -> lift $ $(foldl appE (varE fnName) args)
+        |]
+    else
+      [|
+        MockT $ do
+          defs <- getDefinitions
+          let findDef = find (\(Definition s _ _) -> symbolVal s == $(litE (stringL fnNameStr))) defs
+          case findDef of
+            Just (Definition _ mf _) -> do
+              let mock = unsafeCoerce mf
+              let $(bangP $ varP r) = $(generateStubFn args [|mock|])
+              $(pure returnExp)
+            Nothing -> lift $ $(foldl appE (varE fnName) args)
+        |]
 
 generateStubFn :: [Q Exp] -> Q Exp -> Q Exp
 generateStubFn [] mock = mock

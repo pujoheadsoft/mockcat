@@ -9,6 +9,7 @@ module Test.MockCat.Internal.MockRegistry
   ( attachVerifierToFn
   , lookupVerifierForFn
   , register
+  , lookupFnByName
   , registerUnitMeta
   , lookupUnitMeta
   , UnitMeta
@@ -21,6 +22,7 @@ module Test.MockCat.Internal.MockRegistry
 import Test.MockCat.Internal.Registry.Core
   ( attachVerifierToFn
   , lookupVerifierForFn
+  , lookupFnByName
   , registerUnitMeta
   , lookupUnitMeta
   , UnitMeta
@@ -28,6 +30,10 @@ import Test.MockCat.Internal.Registry.Core
   , withAllUnitGuards
   , markUnitUsed
   , isGuardActive
+  , registerNameWithCreator
+  , registerNameAndHash
+  , registerNameAndFn
+  , registerNameForce
   )
 import GHC.IO (evaluate)
 import Control.Concurrent.STM (TVar, atomically, writeTVar)
@@ -42,7 +48,6 @@ import Unsafe.Coerce (unsafeCoerce)
 import Data.IORef (newIORef, readIORef, IORef)
 import Data.Dynamic (toDyn, fromDynamic)
 import System.Mem.StableName (makeStableName, hashStableName)
-import System.IO.Unsafe (unsafePerformIO)
 
 ioTyCon :: TyCon
 ioTyCon = typeRepTyCon (typeRep @(IO ()))
@@ -72,7 +77,8 @@ wrapUnitStub ref meta value =
             markUnitUsed meta
             appendAppliedParams ref ()
             pure value
-   in value `seq` trackedValue
+  in
+    trackedValue
 
 
 -- | Register a recorder for a function in the global mock registry.
@@ -101,14 +107,22 @@ register name recorder@(InvocationRecorder {invocationRef = ref}) fn = do
         attachVerifierToFn baseValue (name, recorder)
       pure trackedValue
     Nothing -> do
-      -- Create a stable forwarding wrapper that captures an IORef holding the baseValue.
-      -- The wrapper is a single closure (captures refHolder) and forwards calls to the current baseValue.
-      refHolder :: IORef fn <- newIORef baseValue
-      let wrapper :: fn
-          wrapper = unsafeCoerce (\arg -> unsafePerformIO $ do
-            f <- readIORef refHolder
-            pure (unsafeCoerce f arg))
-      -- ensure the wrapper and baseValue are both registered for lookup
-      attachVerifierToFn wrapper (name, recorder)
-      attachVerifierToFn baseValue (name, recorder)
-      pure wrapper
+      case name of
+        Just n -> do
+          let storedWrapper = baseValue
+          -- Register mappings to allow lookup by name or by StableName of either
+          -- the canonical wrapper or the transient baseValue.
+          registerNameAndHash storedWrapper n (toDyn recorder)
+          registerNameAndHash baseValue n (toDyn recorder)
+          registerNameAndFn storedWrapper n
+          registerNameForce n (toDyn storedWrapper)
+
+          -- Attach verifiers so shouldApply/expects work via either closure path.
+          attachVerifierToFn storedWrapper (Just n, recorder)
+          attachVerifierToFn baseValue (Just n, recorder)
+          pure storedWrapper
+        Nothing -> do
+          -- No name: Attach verifier to baseValue and return it.
+          attachVerifierToFn baseValue (name, recorder)
+          pure baseValue
+

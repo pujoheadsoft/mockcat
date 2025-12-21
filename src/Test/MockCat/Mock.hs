@@ -246,8 +246,8 @@ createNamedMockFnWithParams ::
   m fn
 createNamedMockFnWithParams name params = do
   BuiltMock { builtMockFn = fn, builtMockRecorder = recorder } <- buildMock (Just name) params
-  _ <- liftIO $ MockRegistry.register (Just name) recorder fn
-  pure fn
+  regFn <- liftIO $ MockRegistry.register (Just name) recorder fn
+  pure regFn
 
 
 -- | Create a pure stub function without verification hooks (unnamed version).

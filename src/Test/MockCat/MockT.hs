@@ -8,6 +8,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE GADTs #-}
 module Test.MockCat.MockT (
   MockT(..), Definition(..), Verification(..),
@@ -24,12 +25,17 @@ import Control.Concurrent.STM
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans.Class (MonadTrans(..))
 import Control.Monad.Reader (ReaderT(..), runReaderT, asks)
-import GHC.TypeLits (KnownSymbol)
+import GHC.TypeLits (KnownSymbol, symbolVal)
 import Data.Data (Proxy, Typeable)
+import Data.IORef (newIORef, IORef)
+import Data.Dynamic (Dynamic, toDyn, fromDynamic, dynTypeRep)
 import UnliftIO (MonadUnliftIO(..))
 import Test.MockCat.Internal.Types (InvocationRecorder)
 import Test.MockCat.Verify (ResolvableParamsOf)
 import Test.MockCat.WithMock (WithMockContext(..), MonadWithMockContext(..))
+import Control.Concurrent.MVar (MVar)
+import qualified Data.Map.Strict as Map
+import qualified Test.MockCat.Internal.Registry.Core as Registry
 
 {- | MockT is a thin wrapper over @ReaderT MockTEnv@ providing
      mock/stub registration and post-run verification.
@@ -52,6 +58,7 @@ Concurrency safety (summary):
 data MockTEnv = MockTEnv
   { envDefinitions :: TVar [Definition]
   , envWithMockContext :: WithMockContext
+  , envNameForwarders :: IORef (Map.Map String (Either Dynamic (MVar Dynamic)))
   }
 
 newtype MockT m a = MockT { unMockT :: ReaderT MockTEnv m a }
@@ -79,7 +86,7 @@ data Definition =
   ) =>
   Definition {
   symbol :: Proxy sym,
-  mockFunction :: f,
+  mockFunction :: f,  -- Restore to f for type safety
   verification :: Verification f
 }
 
@@ -126,22 +133,52 @@ runMockT :: MonadIO m => MockT m a -> m a
 runMockT (MockT r) = do
   defsVar <- liftIO $ newTVarIO []
   expectsVar <- liftIO $ newTVarIO []
+  fwdRef <- liftIO $ newIORef Map.empty
   let env =
         MockTEnv
           { envDefinitions = defsVar
           , envWithMockContext = WithMockContext expectsVar
+          , envNameForwarders = fwdRef
           }
+  -- Run user code with a per-run overlay registry active so registry writes/read
+  -- during this MockT invocation are isolated to this run.
+  overlay <- liftIO Registry.createOverlay
+  liftIO $ Registry.installOverlay overlay
   a <- runReaderT r env
   actions <- liftIO $ readTVarIO expectsVar
   liftIO $ sequence_ actions
+  liftIO $ Registry.clearOverlay
   pure a
 
 instance MonadIO m => MonadMockDefs (MockT m) where
-  addDefinition d = MockT $ ReaderT $ \env ->
-    liftIO $ atomically $ modifyTVar' (envDefinitions env) (++ [d])
+  addDefinition d = MockT $ ReaderT $ \env -> liftIO $ do
+    d' <- case d of
+      Definition sym mf v -> do
+        let name = symbolVal sym
+        -- Prefer using the canonical wrapper from the central registry when available.
+        -- Prefer the local mf directly; avoid attempting to coerce Dynamic to the
+        -- existentially-bound function type which is not representable with
+        -- visible type applications here.
+        Registry.lookupFnByName name
+        pure (Definition sym mf v)
+    atomically $ modifyTVar' (envDefinitions env) $ \xs ->
+      case d' of
+        Definition sym _ _ ->
+          let name = symbolVal sym
+              exists = any (\(Definition sym' _ _) -> symbolVal sym' == name) xs
+           in if exists then xs else xs ++ [d']
+    pure ()
   getDefinitions = MockT $ ReaderT $ \env -> liftIO $ readTVarIO (envDefinitions env)
 
 instance MonadIO m => MonadMockDefs (ReaderT MockTEnv m) where
-  addDefinition d = ReaderT $ \env ->
-    liftIO $ atomically $ modifyTVar' (envDefinitions env) (++ [d])
+  addDefinition d = ReaderT $ \env -> liftIO $ do
+    atomically $ modifyTVar' (envDefinitions env) $ \xs ->
+      case d of
+        Definition sym _ _ ->
+          let name = symbolVal sym
+              exists = any (\(Definition sym' _ _) -> symbolVal sym' == name) xs
+           in if exists then xs else xs ++ [d]
+        _ -> xs ++ [d]
   getDefinitions = ReaderT $ \env -> liftIO $ readTVarIO (envDefinitions env)
+  -- Note: ReaderT variant intentionally returns raw store (used by internal runners).
+  -- Note: ReaderT variant intentionally returns raw store (used by internal runners).
