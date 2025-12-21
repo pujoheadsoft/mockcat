@@ -125,7 +125,6 @@ _readFile p = MockT $ do
 _writeFile ::
   ( MockBuilder params (FilePath -> Text -> ()) (Param FilePath :> Param Text)
   , MonadIO m
-  , Typeable (FilePath -> Text -> ())
   ) =>
   params ->
   MockT m (FilePath -> Text -> ())
@@ -151,7 +150,7 @@ _getInput value = MockT $ do
 _toUserInput ::
   ( MockBuilder params (String -> m (Maybe UserInput)) (Param String)
   , MonadIO m
-  , Typeable (String -> m (Maybe UserInput))
+  , Typeable m
   , Verify.ResolvableParamsOf (String -> m (Maybe UserInput)) ~ Param String
   ) =>
   params ->
@@ -164,7 +163,6 @@ _toUserInput p = MockT $ do
 
 _getByPartial ::
   ( MockBuilder params (String -> IO Int) (Param String)
-  , Typeable (String -> IO Int)
   ) =>
   params ->
   MockT IO (String -> IO Int)
@@ -176,7 +174,6 @@ _getByPartial p = MockT $ do
 
 _echoPartial ::
   ( MockBuilder params (String -> IO ()) (Param String)
-  , Typeable (String -> IO ())
   ) =>
   params ->
   MockT IO (String -> IO ())
@@ -232,7 +229,6 @@ _findIds p = MockT $ do
 _findById ::
   ( MockBuilder params (Int -> String) (Param Int)
   , MonadIO m
-  , Typeable (Int -> String)
   ) =>
   params ->
   MockT m (Int -> String)
@@ -249,7 +245,6 @@ _findById p = MockT $ do
 
 _findByIdNI ::
   ( MockBuilder params (Int -> IO String) (Param Int)
-  , Typeable (Int -> IO String)
   ) =>
   params ->
   MockT IO (Int -> IO String)

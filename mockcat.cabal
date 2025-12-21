@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.39.0.
+-- This file has been generated from package.yaml by hpack version 0.37.0.
 --
 -- see: https://github.com/sol/hpack
 
@@ -108,6 +108,7 @@ test-suite mockcat-test
       Test.MockCat.MockSpec
       Test.MockCat.MockTSpec
       Test.MockCat.ParamSpec
+      Test.MockCat.PartialMockCommonSpec
       Test.MockCat.PartialMockSpec
       Test.MockCat.PartialMockTHSpec
       Test.MockCat.SharedSpecDefs
@@ -119,6 +120,7 @@ test-suite mockcat-test
       Test.MockCat.TH.FunctionBuilderSpec
       Test.MockCat.TH.TypeUtilsSpec
       Test.MockCat.THCompareSpec
+      Test.MockCat.TypeClassCommonSpec
       Test.MockCat.TypeClassSpec
       Test.MockCat.TypeClassTHSpec
       Test.MockCat.UnsafeCheck
@@ -144,5 +146,4 @@ test-suite mockcat-test
     , unliftio >=0.2.25.0 && <0.2.26
     , unliftio-core >=0.2.1.0 && <0.2.2
     , unordered-containers >=0.2.19 && <0.3
-    , random >=1.2 && <1.3
   default-language: Haskell2010

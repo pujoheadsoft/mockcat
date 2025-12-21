@@ -680,8 +680,6 @@ specBasicVerificationFailureDetection (BasicDeps { _readFile, _writeFile }) = de
           readFile "input.txt") `shouldThrow` missingCall "writeFile"
 
 specCustomNamingVerificationFailureDetection ::
-  ( ApiOperation (MockT IO)
-  ) =>
   CustomNamingDeps ->
   Spec
 specCustomNamingVerificationFailureDetection (CustomNamingDeps { _post }) = describe "verification failures (Api)" do
@@ -694,8 +692,6 @@ specCustomNamingVerificationFailureDetection (CustomNamingDeps { _post }) = desc
         pure ()) `shouldThrow` missingCall "post"
 
 specMonadReaderVerificationFailureDetection ::
-  ( MonadReader Environment (MockT IO)
-  ) =>
   ReaderContextDeps ->
   Spec
 specMonadReaderVerificationFailureDetection (ReaderContextDeps { _ask }) = describe "verification failures (Reader Environment)" do
@@ -708,8 +704,6 @@ specMonadReaderVerificationFailureDetection (ReaderContextDeps { _ask }) = descr
         pure ()) `shouldThrow` missingCall "ask"
 
 specImplicitReturnVerificationFailureDetection ::
-  ( TestClass (MockT IO)
-  ) =>
   ImplicitMonadicReturnDeps ->
   Spec
 specImplicitReturnVerificationFailureDetection (ImplicitMonadicReturnDeps { _getBy, _echo }) = describe "verification failures (TestClass)" do
@@ -728,9 +722,6 @@ specImplicitReturnVerificationFailureDetection (ImplicitMonadicReturnDeps { _get
         pure ()) `shouldThrow` missingCall "_echo"
 
 specMultiParamVerificationFailureDetection ::
-  ( MonadVar2_1Sub (MockT IO) String
-  , MonadVar3_1Sub (MockT IO) String String
-  ) =>
   MultiParamTypeClassArityDeps ->
   Spec
 specMultiParamVerificationFailureDetection (MultiParamTypeClassArityDeps { _fn2_1Sub, _fn2_2Sub, _fn3_1Sub, _fn3_2Sub, _fn3_3Sub }) = describe "verification failures (SubVars)" do
@@ -770,8 +761,6 @@ specMultiParamVerificationFailureDetection (MultiParamTypeClassArityDeps { _fn2_
         pure ()) `shouldThrow` missingCall "_fn3_3Sub"
 
 specArgumentMatchingVerificationFailureDetection ::
-  ( MultiApplyTest (MockT IO)
-  ) =>
   ArgumentPatternMatchingDeps ->
   Spec
 specArgumentMatchingVerificationFailureDetection (ArgumentPatternMatchingDeps { _getValueBy }) = describe "verification failures (MultiApply)" do
@@ -783,8 +772,6 @@ specArgumentMatchingVerificationFailureDetection (ArgumentPatternMatchingDeps { 
         pure ()) `shouldThrow` missingCall "_getValueBy"
 
 specFunDepsVerificationFailureDetection ::
-  ( ParamThreeMonad Int Bool (MockT IO)
-  ) =>
   FunctionalDependenciesDeps ->
   Spec
 specFunDepsVerificationFailureDetection (FunctionalDependenciesDeps { _fnParam3_1, _fnParam3_2, _fnParam3_3 }) = describe "verification failures (ParamThreeMonad)" do
@@ -811,8 +798,6 @@ specFunDepsVerificationFailureDetection (FunctionalDependenciesDeps { _fnParam3_
         pure ()) `shouldThrow` missingCall "_fnParam3_3"
 
 specExplicitReturnVerificationFailureDetection ::
-  ( ExplicitlyReturnMonadicValuesTest (MockT IO)
-  ) =>
   ExplicitMonadicReturnDeps ->
   Spec
 specExplicitReturnVerificationFailureDetection (ExplicitMonadicReturnDeps { _getByExplicit, _echoExplicit }) = describe "verification failures (ExplicitReturn)" do
@@ -831,8 +816,6 @@ specExplicitReturnVerificationFailureDetection (ExplicitMonadicReturnDeps { _get
         pure ()) `shouldThrow` missingCall "_echoExplicit"
 
 specAdvancedTypesVerificationFailureDetection ::
-  ( DefaultMethodTest (MockT IO)
-  ) =>
   DefaultMethodDeps ->
   AssociatedTypeFamiliesDeps ->
   Spec
@@ -852,8 +835,6 @@ specAdvancedTypesVerificationFailureDetection (DefaultMethodDeps { _defaultActio
         pure ()) `shouldThrow` missingCall "_produce"
 
 specSequentialStubbingVerificationFailureDetection ::
-  ( Teletype (MockT IO)
-  ) =>
   SequentialIODeps ->
   Spec
 specSequentialStubbingVerificationFailureDetection (SequentialIODeps { _readTTY, _writeTTY }) = describe "verification failures (TTY)" do
