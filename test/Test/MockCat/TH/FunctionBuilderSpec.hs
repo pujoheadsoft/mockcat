@@ -121,9 +121,12 @@ normalize = fmap (cleanup . pprint)
   where
     cleanup =
       T.unpack
+        . T.unwords
+        . T.words
         . T.replace (T.pack "\n") (T.pack " ")
         . T.replace (T.pack "Data.Typeable.Internal.") (T.pack "")
         . T.replace (T.pack "GHC.Internal.") (T.pack "")
+        . T.replace (T.pack "Base.") (T.pack "")
         . T.replace (T.pack "GHC.Base.") (T.pack "")
         . T.replace (T.pack "GHC.Types.") (T.pack "")
         . T.replace (T.pack "Test.MockCat.Param.") (T.pack "")

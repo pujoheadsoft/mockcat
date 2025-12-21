@@ -45,6 +45,7 @@ stripQualifiers =
       , "GHC.Types."
       , "Data.Typeable.Internal."
       , "GHC.Internal."
+      , "Base."
       , "Test.MockCat.Verify."
       , "Verify."
       ])
