@@ -6,12 +6,13 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 {-# OPTIONS_GHC -Wno-unused-do-bind #-}
-{-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE TypeApplications #-}
 
 module Test.MockCat.PartialMockSpec (spec) where
 
@@ -22,7 +23,8 @@ import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.Trans.Class (lift)
 import Test.MockCat
 import Test.MockCat.SharedSpecDefs
-import Test.MockCat.PartialMockCommonSpec (specUserInputGetterPoly, specExplicitReturnPoly, specFileOperationPoly, specMultiParamPartial1, specMultiParamPartialFindById, specMultiParamAllReal, specPartialHandwrittenIO, specPartialHandwrittenMaybeT, specVerificationFailureFindIds, specVerificationFailureFindById, specFinderParallel, specFinderEdgeCases, specFinderEmptyIds, specFinderNamedError, specFinderMixedFallback, specFinderNoImplicit)
+import qualified Test.MockCat.PartialMockCommonSpec as PartialMockCommonSpec
+import Test.MockCat.PartialMockCommonSpec (PartialMockDeps)
 import Test.MockCat.Impl ()
 import Prelude hiding (readFile, writeFile)
 import Data.Data
@@ -125,6 +127,7 @@ _readFile p = MockT $ do
 _writeFile ::
   ( MockBuilder params (FilePath -> Text -> ()) (Param FilePath :> Param Text)
   , MonadIO m
+  , Typeable (FilePath -> Text -> ())
   ) =>
   params ->
   MockT m (FilePath -> Text -> ())
@@ -162,13 +165,11 @@ _toUserInput p = MockT $ do
   pure mockInstance
 
 _getByPartial ::
-  ( MockBuilder params (String -> m Int) (Param String)
-  , MonadIO m
-  , Typeable (String -> m Int)
-  , Verify.ResolvableParamsOf (String -> m Int) ~ Param String
+  ( MockBuilder params (String -> IO Int) (Param String)
+  , Typeable (String -> IO Int)
   ) =>
   params ->
-  MockT m (String -> m Int)
+  MockT IO (String -> IO Int)
 _getByPartial p = MockT $ do
   mockInstance <- liftIO $ createNamedMockFnWithParams "getBy" p
   ensureVerifiable mockInstance
@@ -176,13 +177,11 @@ _getByPartial p = MockT $ do
   pure mockInstance
 
 _echoPartial ::
-  ( MockBuilder params (String -> m ()) (Param String)
-  , MonadIO m
-  , Typeable (String -> m ())
-  , Verify.ResolvableParamsOf (String -> m ()) ~ Param String
+  ( MockBuilder params (String -> IO ()) (Param String)
+  , Typeable (String -> IO ())
   ) =>
   params ->
-  MockT m (String -> m ())
+  MockT IO (String -> IO ())
 _echoPartial p = MockT $ do
   mockInstance <- liftIO $ createNamedMockFnWithParams "echo" p
   ensureVerifiable mockInstance
@@ -212,7 +211,7 @@ instance (MonadIO m, Finder a b m) => Finder a b (MockT m) where
         pure result
       Nothing -> lift $ findById id
 
- 
+
 
 _findIds ::
   ( Verify.ResolvableParamsOf r ~ ()
@@ -236,7 +235,6 @@ _findById ::
   ( MockBuilder params (Int -> String) (Param Int)
   , MonadIO m
   , Typeable (Int -> String)
-  , Verify.ResolvableParamsOf (Int -> String) ~ Param Int
   ) =>
   params ->
   MockT m (Int -> String)
@@ -253,10 +251,10 @@ _findById p = MockT $ do
 
 _findByIdNI ::
   ( MockBuilder params (Int -> IO String) (Param Int)
-  , MonadIO m
+  , Typeable (Int -> IO String)
   ) =>
   params ->
-  MockT m (Int -> IO String)
+  MockT IO (Int -> IO String)
 _findByIdNI p = MockT $ do
   mockInstance <- liftIO $ createNamedMockFnWithParams "_findByIdNI" p
   ensureVerifiable mockInstance
@@ -269,21 +267,14 @@ _findByIdNI p = MockT $ do
   pure mockInstance
 
 spec :: Spec
-spec = do
-  specUserInputGetterPoly _getInput
-  specExplicitReturnPoly _getByPartial _echoPartial
-  -- FileOperation: keep originals, but also call common poly with polymorphic builder
-  specFileOperationPoly _writeFile
-  specMultiParamPartial1 _findIds
-  specMultiParamPartialFindById _findById
-  specMultiParamAllReal
-  specPartialHandwrittenIO _writeFile (program "input.txt" "output.text")
-  specPartialHandwrittenMaybeT _writeFile
-  specVerificationFailureFindIds _findIds
-  specVerificationFailureFindById _findById
-  specFinderParallel _findById
-  specFinderEdgeCases _findById
-  specFinderEmptyIds _findIds
-  specFinderNamedError _findById
-  specFinderMixedFallback _findById
-  specFinderNoImplicit _findByIdNI
+spec = PartialMockCommonSpec.spec deps (program "input.txt" "output.text")
+  where
+    deps = PartialMockCommonSpec.PartialMockDeps
+      { PartialMockCommonSpec._getInput = _getInput
+      , PartialMockCommonSpec._getBy = _getByPartial
+      , PartialMockCommonSpec._echo = _echoPartial
+      , PartialMockCommonSpec._writeFile = _writeFile
+      , PartialMockCommonSpec._findIds = _findIds
+      , PartialMockCommonSpec._findById = _findById
+      , PartialMockCommonSpec._findByIdNI = _findByIdNI
+      }
