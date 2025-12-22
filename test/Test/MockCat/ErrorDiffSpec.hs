@@ -3,7 +3,7 @@
 
 module Test.MockCat.ErrorDiffSpec (spec) where
 
-import Test.Hspec
+import Test.Hspec (Spec, describe, it, shouldThrow, errorCall)
 import Test.MockCat
 import Control.Exception (evaluate)
 import Prelude hiding (any)
@@ -39,10 +39,10 @@ spec = do
       _ <- evaluate $ f (User "Fagen" 20)
       let expectedError = 
             "function was not applied to the expected arguments.\n\
-            \Mismatch in field `age`:\n\
-            \  expected: 30\n\
-            \   but got: 20\n\
-            \            ^^\n\
+            \  Specific difference in `age`:\n\
+            \    expected: 30\n\
+            \     but got: 20\n\
+            \             ^^\n\
             \\n\
             \Full context:\n\
             \  expected: User {name = \"Fagen\", age = 30}\n\
@@ -66,7 +66,6 @@ spec = do
         onCase $ "aaa" |> (100 :: Int) |> "ok"
         onCase $ "bbb" |> (200 :: Int) |> "ok"
       
-      -- "aaa", 200 is closer to "aaa", 100
       let expectedError = 
             "function was not applied to the expected arguments.\n\
             \  expected one of the following:\n\
@@ -76,21 +75,3 @@ spec = do
             \    \"aaa\", 200\n\
             \           ^^^"
       evaluate (f "aaa" 200) `shouldThrow` errorCall expectedError
-
-    it "shows pinpoint field diff for records" do
-      f <- mock $ (any :: Param User) |> "ok"
-      _ <- evaluate $ f (User "Fagen" 20)
-      
-      -- Show pinpoint diff for age, then show full context
-      let expectedError = 
-            "function was not applied to the expected arguments.\n\
-            \Mismatch in field `age`:\n\
-            \  expected: 30\n\
-            \   but got: 20\n\
-            \            ^^\n\
-            \\n\
-            \Full context:\n\
-            \  expected: User {name = \"Fagen\", age = 30}\n\
-            \   but got: User {name = \"Fagen\", age = 20}\n\
-            \                                        ^^^"
-      f `shouldBeCalled` User "Fagen" 30 `shouldThrow` errorCall expectedError
