@@ -46,8 +46,8 @@ verify ::
   IO ()
 verify m matchType = do
   ResolvedMock mockName recorder <- requireResolved m
-  appliedParamsList <- readInvocationList (invocationRef recorder)
-  case doVerify mockName appliedParamsList matchType of
+  invocationList <- readInvocationList (invocationRef recorder)
+  case doVerify mockName invocationList matchType of
     Nothing -> pure ()
     Just (VerifyFailed msg) ->
       errorWithoutStackTrace msg `seq` pure ()
@@ -69,12 +69,12 @@ readInvocationList ref = do
 --   This is used internally by typeclass mock verification.
 verifyResolvedAny :: ResolvedMock params -> IO ()
 verifyResolvedAny (ResolvedMock mockName recorder) = do
-  appliedParamsList <- readInvocationList (invocationRef recorder)
-  when (null appliedParamsList) $
+  invocationList <- readInvocationList (invocationRef recorder)
+  when (null invocationList) $
     errorWithoutStackTrace $
       intercalate
         "\n"
-        [ "It has never been applied function" <> mockNameLabel mockName
+        [ "Function" <> mockNameLabel mockName <> " was never called"
         ]
 
 
@@ -96,22 +96,22 @@ verifyCount ::
   IO ()
 verifyCount m v method = do
   ResolvedMock mockName recorder <- requireResolved m
-  appliedParamsList <- readInvocationList (invocationRef recorder)
-  let appliedCount = length (filter (v ==) appliedParamsList)
-  if compareCount method appliedCount
+  invocationList <- readInvocationList (invocationRef recorder)
+  let callCount = length (filter (v ==) invocationList)
+  if compareCount method callCount
     then pure ()
     else
       errorWithoutStackTrace $
-        countWithArgsMismatchMessage mockName method appliedCount
+        countWithArgsMismatchMessage mockName method callCount
 
 -- | Generate error message for count mismatch with arguments
 countWithArgsMismatchMessage :: Maybe MockName -> CountVerifyMethod -> Int -> String
-countWithArgsMismatchMessage mockName method appliedCount =
+countWithArgsMismatchMessage mockName method callCount =
   intercalate
     "\n"
-    [ "function" <> mockNameLabel mockName <> " was not applied the expected number of times to the expected arguments.",
+    [ "function" <> mockNameLabel mockName <> " was not called the expected number of times with the expected arguments.",
       "  expected: " <> show method,
-      "   but got: " <> show appliedCount
+      "   but got: " <> show callCount
     ]
 
 
@@ -126,8 +126,8 @@ verifyOrder ::
   IO ()
 verifyOrder method m matchers = do
   ResolvedMock mockName recorder <- requireResolved m
-  appliedParamsList <- readInvocationList (invocationRef recorder)
-  case doVerifyOrder method mockName appliedParamsList matchers of
+  invocationList <- readInvocationList (invocationRef recorder)
+  case doVerifyOrder method mockName invocationList matchers of
     Nothing -> pure ()
     Just (VerifyFailed msg) ->
       errorWithoutStackTrace msg `seq` pure ()
@@ -139,34 +139,34 @@ doVerifyOrder ::
   InvocationList a ->
   [a] ->
   Maybe VerifyFailed
-doVerifyOrder ExactlySequence name appliedValues expectedValues
-  | length appliedValues /= length expectedValues = do
-      pure $ verifyFailedOrderParamCountMismatch name appliedValues expectedValues
+doVerifyOrder ExactlySequence name calledValues expectedValues
+  | length calledValues /= length expectedValues = do
+      pure $ verifyFailedOrderParamCountMismatch name calledValues expectedValues
   | otherwise = do
-      let unexpectedOrders = collectUnExpectedOrder appliedValues expectedValues
+      let unexpectedOrders = collectUnExpectedOrder calledValues expectedValues
       guard $ length unexpectedOrders > 0
       pure $ verifyFailedSequence name unexpectedOrders
-doVerifyOrder PartiallySequence name appliedValues expectedValues
-  | length appliedValues < length expectedValues = do
-      pure $ verifyFailedOrderParamCountMismatch name appliedValues expectedValues
+doVerifyOrder PartiallySequence name calledValues expectedValues
+  | length calledValues < length expectedValues = do
+      pure $ verifyFailedOrderParamCountMismatch name calledValues expectedValues
   | otherwise = do
-      guard $ isOrderNotMatched appliedValues expectedValues
-      pure $ verifyFailedPartiallySequence name appliedValues expectedValues
+      guard $ isOrderNotMatched calledValues expectedValues
+      pure $ verifyFailedPartiallySequence name calledValues expectedValues
 
 verifyFailedPartiallySequence :: Show a => Maybe MockName -> InvocationList a -> [a] -> VerifyFailed
-verifyFailedPartiallySequence name appliedValues expectedValues =
+verifyFailedPartiallySequence name calledValues expectedValues =
   VerifyFailed $
     intercalate
       "\n"
-      [ "function" <> mockNameLabel name <> " was not applied to the expected arguments in the expected order.",
+      [ "function" <> mockNameLabel name <> " was not called with the expected arguments in the expected order.",
         "  expected order:",
         intercalate "\n" $ ("    " <>) . show <$> expectedValues,
         "  but got:",
-        intercalate "\n" $ ("    " <>) . show <$> appliedValues
+        intercalate "\n" $ ("    " <>) . show <$> calledValues
       ]
 
 isOrderNotMatched :: Eq a => InvocationList a -> [a] -> Bool
-isOrderNotMatched appliedValues expectedValues =
+isOrderNotMatched calledValues expectedValues =
   isNothing $
     foldl
       ( \candidates e -> do
@@ -174,17 +174,17 @@ isOrderNotMatched appliedValues expectedValues =
             index <- elemIndex e c
             Just $ drop (index + 1) c
       )
-      (Just appliedValues)
+      (Just calledValues)
       expectedValues
 
 verifyFailedOrderParamCountMismatch :: Maybe MockName -> InvocationList a -> [a] -> VerifyFailed
-verifyFailedOrderParamCountMismatch name appliedValues expectedValues =
+verifyFailedOrderParamCountMismatch name calledValues expectedValues =
   VerifyFailed $
     intercalate
       "\n"
-      [ "function" <> mockNameLabel name <> " was not applied to the expected arguments in the expected order (count mismatch).",
+      [ "function" <> mockNameLabel name <> " was not called with the expected arguments in the expected order (count mismatch).",
         "  expected: " <> show (length expectedValues),
-        "   but got: " <> show (length appliedValues)
+        "   but got: " <> show (length calledValues)
       ]
 
 verifyFailedSequence :: Show a => Maybe MockName -> [VerifyOrderResult a] -> VerifyFailed
@@ -192,19 +192,19 @@ verifyFailedSequence name fails =
   VerifyFailed $
     intercalate
       "\n"
-      ( ("function" <> mockNameLabel name <> " was not applied to the expected arguments in the expected order.") : (verifyOrderFailedMesssage <$> fails)
+      ( ("function" <> mockNameLabel name <> " was not called with the expected arguments in the expected order.") : (verifyOrderFailedMesssage <$> fails)
       )
 
 
 
 collectUnExpectedOrder :: Eq a => InvocationList a -> [a] -> [VerifyOrderResult a]
-collectUnExpectedOrder appliedValues expectedValues =
+collectUnExpectedOrder calledValues expectedValues =
   catMaybes $
     mapWithIndex
       ( \i expectedValue -> do
-          let appliedValue = appliedValues !! i
-          guard $ expectedValue /= appliedValue
-          pure VerifyOrderResult {index = i, appliedValue, expectedValue}
+          let calledValue = calledValues !! i
+          guard $ expectedValue /= calledValue
+          pure VerifyOrderResult {index = i, appliedValue = calledValue, expectedValue}
       )
       expectedValues
 
@@ -286,27 +286,27 @@ resolveForVerification target = do
         Nothing -> pure Nothing
 
 
--- | Verify that a function was applied the expected number of times
-verifyAppliedCount ::
+-- | Verify that a function was called the expected number of times
+verifyCallCount ::
   Maybe MockName ->
   InvocationRecorder params ->
   CountVerifyMethod ->
   IO ()
-verifyAppliedCount maybeName recorder method = do
-  appliedParamsList <- readInvocationList (invocationRef recorder)
-  let appliedCount = length appliedParamsList
-  unless (compareCount method appliedCount) $
+verifyCallCount maybeName recorder method = do
+  invocationList <- readInvocationList (invocationRef recorder)
+  let callCount = length invocationList
+  unless (compareCount method callCount) $
     errorWithoutStackTrace $
-      countMismatchMessage maybeName method appliedCount
+      countMismatchMessage maybeName method callCount
 
 -- | Generate error message for count mismatch
 countMismatchMessage :: Maybe MockName -> CountVerifyMethod -> Int -> String
-countMismatchMessage maybeName method appliedCount =
+countMismatchMessage maybeName method callCount =
   intercalate
     "\n"
-    [ "function" <> mockNameLabel maybeName <> " was not applied the expected number of times.",
+    [ "function" <> mockNameLabel maybeName <> " was not called the expected number of times.",
       "  expected: " <> showCountMethod method,
-      "   but got: " <> show appliedCount
+      "   but got: " <> show callCount
     ]
   where
     showCountMethod (Equal n) = show n
@@ -504,7 +504,7 @@ instance
   ) => ShouldBeCalled m TimesSpec where
   shouldBeCalled m (TimesSpec method) = do
     ResolvedMock mockName verifier <- requireResolved m
-    verifyAppliedCount mockName verifier method
+    verifyCallCount mockName verifier method
 
 -- | Instance for VerificationSpec (handles all verification types)
 instance {-# OVERLAPPING #-}
@@ -519,7 +519,7 @@ instance {-# OVERLAPPING #-}
     CountAnyVerification count ->
       do
         ResolvedMock mockName recorder <- requireResolved m
-        verifyAppliedCount mockName recorder count
+        verifyCallCount mockName recorder count
     OrderVerification method argsList ->
       verifyOrder method m argsList
     SimpleVerification args ->
@@ -527,12 +527,12 @@ instance {-# OVERLAPPING #-}
     AnyVerification ->
       do
         ResolvedMock mockName recorder <- requireResolved m
-        appliedParamsList <- readInvocationList (invocationRef recorder)
-        when (null appliedParamsList) $
+        invocationList <- readInvocationList (invocationRef recorder)
+        when (null invocationList) $
           errorWithoutStackTrace $
             intercalate
               "\n"
-              [ "It has never been applied function" <> mockNameLabel mockName
+              [ "Function" <> mockNameLabel mockName <> " was never called"
               ]
 
 -- | Instance for Param chains (e.g., "a" |> "b")

@@ -58,7 +58,7 @@ import Test.MockCat.Verify
   , verifyCount
   , verifyOrder
   , verifyResolvedAny
-  , verifyAppliedCount
+  , verifyCallCount
   , ResolvedMock(..)
   , TimesSpec(..)
   , times
@@ -139,7 +139,7 @@ verifyExpectation mockFn expectation = do
     CountExpectation method args ->
       verifyCount mockFn args method
     CountAnyExpectation count ->
-      verifyAppliedCount (resolvedMockName resolved) (resolvedMockRecorder resolved) count
+      verifyCallCount (resolvedMockName resolved) (resolvedMockRecorder resolved) count
     OrderExpectation method argsList ->
       verifyOrder method mockFn argsList
     SimpleExpectation _ ->

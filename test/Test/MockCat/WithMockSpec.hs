@@ -69,7 +69,7 @@ spec = do
       case result of
         Left (ErrorCall msg) -> do
           let expected =
-                "function was not applied the expected number of times to the expected arguments.\n" <>
+                "function was not called the expected number of times with the expected arguments.\n" <>
                 "  expected: 1\n" <>
                 "   but got: 0"
           msg `shouldBe` expected
@@ -105,7 +105,7 @@ spec = do
       case result of
         Left (ErrorCall msg) -> do
           let expected =
-                "function was not applied the expected number of times.\n" <>
+                "function was not called the expected number of times.\n" <>
                 "  expected: 1\n" <>
                 "   but got: 0"
           msg `shouldBe` expected

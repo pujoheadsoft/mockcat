@@ -40,8 +40,8 @@ import Control.Monad (unless)
 
 missingCall :: String -> Selector ErrorCall
 missingCall name err =
-  let needle1 = "function `" <> name <> "` was not applied the expected number of times."
-      needle2 = "function `_" <> name <> "` was not applied the expected number of times."
+  let needle1 = "function `" <> name <> "` was not called the expected number of times."
+      needle2 = "function `_" <> name <> "` was not called the expected number of times."
    in (needle1 `List.isInfixOf` displayException err) || (needle2 `List.isInfixOf` displayException err)
 
 -- Orphan Instances needed for testing

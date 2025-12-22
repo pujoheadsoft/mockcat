@@ -258,7 +258,7 @@ spec = do
         _ <- f "a" (1 :: Int)
         _ <- f "a" (1 :: Int)
         let e =
-              "function `named mock` was not applied the expected number of times to the expected arguments.\n\
+              "function `named mock` was not called the expected number of times with the expected arguments.\n\
               \  expected: 3\n\
               \   but got: 2"
         f `shouldBeCalled` (times 3 `withArgs` ("a" |> (1 :: Int))) `shouldThrow` errorCall e
@@ -268,14 +268,14 @@ spec = do
         _ <- f "b" (2 :: Int)
         _ <- f "a" (1 :: Int)
         _ <- f "c" (3 :: Int)
-        f `shouldBeCalled` inOrderWith ["a" |> (1 :: Int), "b" |> (2 :: Int), "c" |> (3 :: Int)] `shouldThrow` errorContains "expected 1st applied:"
+        f `shouldBeCalled` inOrderWith ["a" |> (1 :: Int), "b" |> (2 :: Int), "c" |> (3 :: Int)] `shouldThrow` errorContains "expected 1st call:"
 
       it "shouldBeCalled inPartialOrderWith with name in error message" do
         f <- mock (label "named mock") $ any |> any |> pure @IO True
         _ <- f "b" (2 :: Int)
         _ <- f "a" (1 :: Int)
         let e =
-              "function `named mock` was not applied to the expected arguments in the expected order.\n\
+              "function `named mock` was not called with the expected arguments in the expected order.\n\
               \  expected order:\n\
               \    a,1\n\
               \    c,3\n\
@@ -286,7 +286,7 @@ spec = do
 
       it "shouldBeCalled anything with name in error message" do
         f <- mock (label "named mock") $ "a" |> (1 :: Int) |> pure @IO True
-        f `shouldBeCalled` anything `shouldThrow` errorCall "It has never been applied function `named mock`"
+        f `shouldBeCalled` anything `shouldThrow` errorCall "Function `named mock` was never called"
 
     describe "Error messages" do
       it "shouldBeCalled failure with detailed error message" do
@@ -300,7 +300,7 @@ spec = do
         _ <- f "a" (1 :: Int)
         _ <- f "a" (1 :: Int)
         let e =
-              "function was not applied the expected number of times to the expected arguments.\n\
+              "function was not called the expected number of times with the expected arguments.\n\
               \  expected: 3\n\
               \   but got: 2"
         f `shouldBeCalled` (times 3 `withArgs` ("a" |> (1 :: Int))) `shouldThrow` errorCall e

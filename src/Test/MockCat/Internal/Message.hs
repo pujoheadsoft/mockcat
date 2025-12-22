@@ -73,11 +73,11 @@ quoteToken s
     isSpecial c = c `elem` "{}= "
 
 verifyFailedMessage :: Show a => Maybe MockName -> InvocationList a -> a -> VerifyFailed
-verifyFailedMessage name appliedParams expected =
+verifyFailedMessage name invocationList expected =
   let expectedStr = formatStr (show expected)
-      actualStr = formatAppliedParamsList appliedParams
+      actualStr = formatInvocationList invocationList
       diffLine = "            " <> diffPointer expectedStr actualStr
-      mainMessage = "function" <> mockNameLabel name <> " was not applied to the expected arguments."
+      mainMessage = "function" <> mockNameLabel name <> " was not called with the expected arguments."
    in VerifyFailed $ case structuralDiff expectedStr actualStr of
         Just sd ->
            intercalate "\n"
@@ -117,16 +117,16 @@ splitByComma = go 0 0 0 ""
       | c == ',' && p == 0 && l == 0 && b == 0 = (trim $ reverse acc) : go 0 0 0 "" cs
       | otherwise = go p l b (c : acc) cs
 
-formatAppliedParamsList :: Show a => InvocationList a -> String
-formatAppliedParamsList appliedParams
-  | null appliedParams = "It has never been applied"
-  | length appliedParams == 1 =
+formatInvocationList :: Show a => InvocationList a -> String
+formatInvocationList invocationList
+  | null invocationList = "Function was never called"
+  | length invocationList == 1 =
     -- show single element without surrounding list brackets, but quote tokens appropriately
-    let s = formatStr (show (head appliedParams))
+    let s = formatStr (show (head invocationList))
      in s
   | otherwise =
-    -- for multiple applied params, show as a list but ensure tokens are quoted where appropriate
-    let ss = map (formatStr . show) appliedParams
+    -- for multiple invocations, show as a list but ensure tokens are quoted where appropriate
+    let ss = map (formatStr . show) invocationList
      in "[" <> intercalate ", " ss <> "]"
 
 _replace :: Show a => String -> a -> String
@@ -139,7 +139,7 @@ messageForMultiMock name expecteds actual =
       nearest = chooseNearest actualStr expectedStrs
    in intercalate
         "\n"
-        [ "function" <> mockNameLabel name <> " was not applied to the expected arguments.",
+        [ "function" <> mockNameLabel name <> " was not called with the expected arguments.",
           "  expected one of the following:",
           intercalate "\n" $ ("    " <>) <$> expectedStrs,
           "  but got:",
@@ -180,14 +180,14 @@ structuralDiff expected actual =
 
 verifyOrderFailedMesssage :: Show a => VerifyOrderResult a -> String
 verifyOrderFailedMesssage VerifyOrderResult {index, appliedValue, expectedValue} =
-  let appliedCount = showHumanReadable (index + 1)
+  let callIndex = showHumanReadable (index + 1)
       expectedStr = formatStr (show expectedValue)
       actualStr = formatStr (show appliedValue)
-      prefix = "   but got " <> appliedCount <> " applied: "
+      prefix = "   but got " <> callIndex <> " call: "
       spaces = replicate (length prefix) ' '
    in intercalate
         "\n"
-        [ "  expected " <> appliedCount <> " applied: " <> expectedStr,
+        [ "  expected " <> callIndex <> " call: " <> expectedStr,
           prefix <> actualStr,
           spaces <> diffPointer expectedStr actualStr
         ]

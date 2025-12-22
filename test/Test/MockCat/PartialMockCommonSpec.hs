@@ -206,7 +206,7 @@ specFinderBehavior (PartialMockDeps { _findIds, _findById, _findByIdNI }) = desc
   describe "Edge cases" do
     it "partial mock that doesn't cover all ids causes argument error" do
       let argError :: Selector ErrorCall
-          argError err = "was not applied to the expected arguments" `isInfixOf` displayException (err :: ErrorCall)
+          argError err = "was not called with the expected arguments" `isInfixOf` displayException (err :: ErrorCall)
       (runMockT @IO do
         _ <- _findById $ do
           onCase $ (1 :: Int) |> "id1"
@@ -229,7 +229,7 @@ specFinderBehavior (PartialMockDeps { _findIds, _findById, _findByIdNI }) = desc
 
   describe "Named error messages" do
     it "error message contains mock name when unexpected arg is used" do
-      let nameMsg = "function `_findById` was not applied to the expected arguments"
+      let nameMsg = "function `_findById` was not called with the expected arguments"
       (runMockT @IO do
         _ <- _findById $ do
           onCase $ (1 :: Int) |> "id1"
@@ -239,7 +239,7 @@ specFinderBehavior (PartialMockDeps { _findIds, _findById, _findByIdNI }) = desc
   describe "Mixed fallback" do
     it "when a per-id mock exists, unexpected args produce an argument error (no fallback)" do
       let argError :: Selector ErrorCall
-          argError err = "was not applied to the expected arguments" `isInfixOf` displayException (err :: ErrorCall)
+          argError err = "was not called with the expected arguments" `isInfixOf` displayException (err :: ErrorCall)
       (runMockT @IO do
         _ <- _findById $ do
           onCase $ (1 :: Int) |> "id1"
@@ -274,7 +274,7 @@ specVerificationFailures ::
   Spec
 specVerificationFailures (PartialMockDeps { _findIds, _findById }) = describe "Verification Failures" do
   let missingCall name err =
-        let needle = "function `" <> name <> "` was not applied the expected number of times."
+        let needle = "function `" <> name <> "` was not called the expected number of times."
          in needle `isInfixOf` displayException (err :: ErrorCall)
 
   it "fails when _findIds is defined but findIds is never called" do
