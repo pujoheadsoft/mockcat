@@ -20,7 +20,7 @@ module Test.MockCat.Verify where
 
 import Control.Concurrent.STM (TVar, readTVarIO)
 import Test.MockCat.Internal.Types
-import Control.Monad (guard, when)
+import Control.Monad (guard, when, unless)
 import Data.List (elemIndex, intercalate)
 import Data.Maybe
 import Test.MockCat.Param
@@ -284,7 +284,7 @@ resolveForVerification target = do
       case fromDynamic @(InvocationRecorder params) dynVerifier of
         Just verifier -> pure $ Just (name, verifier)
         Nothing -> pure Nothing
- 
+
 
 -- | Verify that a function was applied the expected number of times
 verifyAppliedCount ::
@@ -295,7 +295,7 @@ verifyAppliedCount ::
 verifyAppliedCount maybeName recorder method = do
   appliedParamsList <- readInvocationList (invocationRef recorder)
   let appliedCount = length appliedParamsList
-  when (not $ compareCount method appliedCount) $
+  unless (compareCount method appliedCount) $
     errorWithoutStackTrace $
       countMismatchMessage maybeName method appliedCount
 
@@ -442,7 +442,7 @@ class WithArgs spec params where
 -- | Instance for times condition with arguments
 instance (Eq params, Show params) => WithArgs TimesSpec params where
   type WithResult TimesSpec params = VerificationSpec params
-  with (TimesSpec method) args = CountVerification method args
+  with (TimesSpec method) = CountVerification method
 
 -- | Type family to normalize argument types for 'withArgs'
 type family NormalizeWithArg a :: Type where
@@ -463,7 +463,7 @@ instance ToNormalizedArg (Param a) where
 instance {-# OVERLAPPABLE #-} (NormalizeWithArg a ~ Param a) => ToNormalizedArg a where
   toNormalizedArg = param
 
- 
+
 
 -- | New function for combining times condition with arguments (supports raw values)
 --   This will replace 'with' once the old 'with' is removed
@@ -498,7 +498,7 @@ class ShouldBeCalled m spec where
   shouldBeCalled :: HasCallStack => m -> spec -> IO ()
 
 -- | Instance for times spec alone (without arguments)
-instance 
+instance
   ( ResolvableMockWithParams m params
   , RequireCallable "shouldBeCalled" m
   ) => ShouldBeCalled m TimesSpec where
@@ -514,17 +514,17 @@ instance {-# OVERLAPPING #-}
   , RequireCallable "shouldBeCalled" m
   ) => ShouldBeCalled m (VerificationSpec params) where
   shouldBeCalled m spec = case spec of
-    CountVerification method args -> 
+    CountVerification method args ->
       verifyCount m args method
-    CountAnyVerification count -> 
+    CountAnyVerification count ->
       do
         ResolvedMock mockName recorder <- requireResolved m
         verifyAppliedCount mockName recorder count
-    OrderVerification method argsList -> 
+    OrderVerification method argsList ->
       verifyOrder method m argsList
-    SimpleVerification args -> 
+    SimpleVerification args ->
       verify m (MatchAny args)
-    AnyVerification -> 
+    AnyVerification ->
       do
         ResolvedMock mockName recorder <- requireResolved m
         appliedParamsList <- readInvocationList (invocationRef recorder)
@@ -541,7 +541,7 @@ instance {-# OVERLAPPING #-}
   , Eq (Param a :> rest)
   , Show (Param a :> rest)
   ) => ShouldBeCalled m (Param a :> rest) where
-  shouldBeCalled m args = 
+  shouldBeCalled m args =
     verify m (MatchAny args)
 
 -- | Instance for single Param (e.g., param "a")
@@ -550,7 +550,7 @@ instance {-# OVERLAPPING #-}
   , Eq (Param a)
   , Show (Param a)
   ) => ShouldBeCalled m (Param a) where
-  shouldBeCalled m args = 
+  shouldBeCalled m args =
     verify m (MatchAny args)
 
 -- | Instance for raw values (e.g., "a")
@@ -560,5 +560,5 @@ instance {-# OVERLAPPABLE #-}
   , Eq (Param a)
   , Show (Param a)
   ) => ShouldBeCalled m a where
-  shouldBeCalled m arg = 
+  shouldBeCalled m arg =
     verify m (MatchAny (param arg))

@@ -387,7 +387,7 @@ executeInvocation ref step = do
   result <-
     atomically $ do
       current <- readTVar ref
-      let (next, outcome) = step(current)
+      let (next, outcome) = step current
       writeTVar ref next
       pure outcome
   either errorWithoutStackTrace pure result

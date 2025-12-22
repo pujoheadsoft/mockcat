@@ -8,7 +8,6 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 {-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE GADTs #-}
 module Test.MockCat.MockT (
   MockT(..), Definition(..), Verification(..),
@@ -147,7 +146,7 @@ runMockT (MockT r) = do
   a <- runReaderT r env
   actions <- liftIO $ readTVarIO expectsVar
   liftIO $ sequence_ actions
-  liftIO $ Registry.clearOverlay
+  liftIO Registry.clearOverlay
   pure a
 
 instance MonadIO m => MonadMockDefs (MockT m) where
