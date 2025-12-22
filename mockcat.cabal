@@ -102,6 +102,7 @@ test-suite mockcat-test
       Test.MockCat.AssociationListSpec
       Test.MockCat.ConcurrencySpec
       Test.MockCat.ConsSpec
+      Test.MockCat.ErrorDiffSpec
       Test.MockCat.ExampleSpec
       Test.MockCat.Impl
       Test.MockCat.Internal.MockRegistrySpec
