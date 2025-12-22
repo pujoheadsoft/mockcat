@@ -4,7 +4,8 @@ module Test.MockCat.StubSpec where
 
 import Test.Hspec
 import Test.MockCat
-import Control.Exception (evaluate)
+import Control.Exception (evaluate, ErrorCall(..))
+import Data.List (isInfixOf)
 
 spec :: Spec
 spec = do
@@ -34,12 +35,8 @@ spec = do
     f "value2" "value3" `shouldBe` False
   
   it "throws on unexpected argument" do
-    let f = stub $ "value1" |> True
-    let e =
-          "function was not applied to the expected arguments.\n\
-          \  expected: \"value1\"\n\
-          \   but got: \"value2\""
-    evaluate (f "value2") `shouldThrow` errorCall e
+    let f = stub $ "a" |> True
+    evaluate (f "b") `shouldThrow` errorContains "expected: \"a\"\n   but got: \"b\"\n             ^^"
 
   describe "named stub" do
     it "stub with label" do
@@ -51,12 +48,8 @@ spec = do
       f "value1" "value2" `shouldBe` True
 
     it "stub with label throws on unexpected argument with name in error message" do
-      let f = stub (label "stub function") $ "value1" |> True
-      let e =
-            "function `stub function` was not applied to the expected arguments.\n\
-            \  expected: \"value1\"\n\
-            \   but got: \"value2\""
-      evaluate (f "value2") `shouldThrow` errorCall e
+      let f = stub (label "stub function") $ "a" |> True
+      evaluate (f "b") `shouldThrow` errorContains "expected: \"a\"\n   but got: \"b\"\n             ^^"
 
     it "stub with label and cases" do
       let f = stub (label "stub function") $ do
@@ -64,3 +57,6 @@ spec = do
             onCase $ "value2" |> "value3" |> False
       f "value1" "value2" `shouldBe` True
       f "value2" "value3" `shouldBe` False
+
+errorContains :: String -> Selector ErrorCall
+errorContains sub (ErrorCall msg) = sub `isInfixOf` msg

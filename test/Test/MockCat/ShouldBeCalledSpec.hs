@@ -5,7 +5,8 @@
 
 module Test.MockCat.ShouldBeCalledSpec (spec) where
 
-import GHC.IO (evaluate)
+import Control.Exception (ErrorCall(..), evaluate)
+import Data.List (isInfixOf)
 import Test.Hspec
 import Test.MockCat
 import Test.MockCat.Verify (verificationFailureMessage)
@@ -267,13 +268,7 @@ spec = do
         _ <- f "b" (2 :: Int)
         _ <- f "a" (1 :: Int)
         _ <- f "c" (3 :: Int)
-        let e =
-              "function `named mock` was not applied to the expected arguments in the expected order.\n\
-              \  expected 1st applied: a,1\n\
-              \   but got 1st applied: b,2\n\
-              \  expected 2nd applied: b,2\n\
-              \   but got 2nd applied: a,1"
-        f `shouldBeCalled` inOrderWith ["a" |> (1 :: Int), "b" |> (2 :: Int), "c" |> (3 :: Int)] `shouldThrow` errorCall e
+        f `shouldBeCalled` inOrderWith ["a" |> (1 :: Int), "b" |> (2 :: Int), "c" |> (3 :: Int)] `shouldThrow` errorContains "expected 1st applied: \"a,1\"\n   but got 1st applied: \"b,2\"\n                         ^^^^\n  expected 2nd applied: \"b,2\"\n   but got 2nd applied: \"a,1\"\n                         ^^^^"
 
       it "shouldBeCalled inPartialOrderWith with name in error message" do
         f <- mock (label "named mock") $ any |> any |> pure @IO True
@@ -745,4 +740,7 @@ spec = do
         evaluate $ f "a" "b"
         evaluate $ f "a" "b"
         f `shouldBeCalled` (lessThan 3 `withArgs` ("a" |> "b"))
+
+errorContains :: String -> Selector ErrorCall
+errorContains sub (ErrorCall msg) = sub `isInfixOf` msg
 

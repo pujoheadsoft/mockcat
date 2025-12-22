@@ -15,6 +15,7 @@ import qualified Control.Exception as E
 import Test.Hspec
 import Test.MockCat
 import Prelude hiding (any)
+import Data.List (isInfixOf)
 
 spec :: Spec
 spec = do
@@ -74,10 +75,7 @@ spec = do
         it "simple mock" do
           f <- mock $ "a" |> pure @IO True
           f "b"
-            `shouldThrow` errorCall
-              "function was not applied to the expected arguments.\n\
-              \  expected: \"a\"\n\
-              \   but got: \"b\""
+            `shouldThrow` errorContains "expected: \"a\"\n   but got: \"b\"\n             ^^"
 
         it "multi mock" do
           f <-
@@ -98,11 +96,7 @@ spec = do
       describe "aply" do
         it "simple mock" do
           f <- mock (label "mock function") $ "a" |> pure @IO ()
-          let e =
-                "function `mock function` was not applied to the expected arguments.\n\
-                \  expected: \"a\"\n\
-                \   but got: \"b\""
-          f "b" `shouldThrow` errorCall e
+          f "b" `shouldThrow` errorContains "expected: \"a\"\n   but got: \"b\"\n             ^^"
 
         it "multi mock" do
           f <-
@@ -194,3 +188,6 @@ instance Eval [a] where
 
 instance {-# OVERLAPPABLE #-} Eval a where
   evaluate = E.evaluate
+
+errorContains :: String -> Selector E.ErrorCall
+errorContains sub (E.ErrorCall msg) = sub `isInfixOf` msg

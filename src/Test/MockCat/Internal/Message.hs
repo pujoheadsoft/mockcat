@@ -9,12 +9,21 @@ import Test.MockCat.Internal.Types
 
 message :: Show a => Maybe MockName -> a -> a -> String
 message name expected actual =
-  intercalate
-    "\n"
-    [ "function" <> mockNameLabel name <> " was not applied to the expected arguments.",
-      "  expected: " <> showForMessage (show expected),
-      "   but got: " <> showForMessage (show actual)
-    ]
+  let expectedStr = showForMessage (show expected)
+      actualStr = showForMessage (show actual)
+   in intercalate
+        "\n"
+        [ "function" <> mockNameLabel name <> " was not applied to the expected arguments.",
+          "  expected: " <> expectedStr,
+          "   but got: " <> actualStr,
+          "            " <> diffPointer expectedStr actualStr
+        ]
+
+diffPointer :: String -> String -> String
+diffPointer expected actual =
+  let commonPrefixLen = length $ takeWhile id $ zipWith (==) expected actual
+      diffLen = max (length expected) (length actual) - commonPrefixLen
+   in replicate commonPrefixLen ' ' <> replicate diffLen '^'
 
 mockNameLabel :: Maybe MockName -> String
 mockNameLabel = maybe mempty (" " <>) . enclose "`"
@@ -43,13 +52,16 @@ quoteToken s
 
 verifyFailedMessage :: Show a => Maybe MockName -> InvocationList a -> a -> VerifyFailed
 verifyFailedMessage name appliedParams expected =
-  VerifyFailed $
-    intercalate
-      "\n"
-      [ "function" <> mockNameLabel name <> " was not applied to the expected arguments.",
-        "  expected: " <> showForMessage (show expected),
-        "   but got: " <> formatAppliedParamsList appliedParams
-      ]
+  let expectedStr = showForMessage (show expected)
+      actualStr = formatAppliedParamsList appliedParams
+   in VerifyFailed $
+        intercalate
+          "\n"
+          [ "function" <> mockNameLabel name <> " was not applied to the expected arguments.",
+            "  expected: " <> expectedStr,
+            "   but got: " <> actualStr,
+            "            " <> diffPointer expectedStr actualStr
+          ]
 
 -- utilities for message formatting
 trim :: String -> String
@@ -101,10 +113,15 @@ messageForMultiMock name expecteds actual =
 verifyOrderFailedMesssage :: Show a => VerifyOrderResult a -> String
 verifyOrderFailedMesssage VerifyOrderResult {index, appliedValue, expectedValue} =
   let appliedCount = showHumanReadable (index + 1)
+      expectedStr = showForMessage (show expectedValue)
+      actualStr = showForMessage (show appliedValue)
+      prefix = "   but got " <> appliedCount <> " applied: "
+      spaces = replicate (length prefix) ' '
    in intercalate
         "\n"
-        [ "  expected " <> appliedCount <> " applied: " <> show expectedValue,
-          "   but got " <> appliedCount <> " applied: " <> show appliedValue
+        [ "  expected " <> appliedCount <> " applied: " <> expectedStr,
+          prefix <> actualStr,
+          spaces <> diffPointer expectedStr actualStr
         ]
   where
     showHumanReadable :: Int -> String
