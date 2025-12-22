@@ -1,6 +1,7 @@
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DuplicateRecordFields #-}
+{-# OPTIONS_GHC -Wno-partial-fields #-}
 
 module Test.MockCat.ErrorDiffSpec (spec) where
 
@@ -13,6 +14,18 @@ import GHC.Generics (Generic)
 data User = User { name :: String, age :: Int } deriving (Show, Eq, Generic)
 data Config = Config { theme :: String, level :: Int } deriving (Show, Eq, Generic)
 data ComplexUser = ComplexUser { name :: String, config :: Config } deriving (Show, Eq, Generic)
+data DeepNode = Leaf Int | Node { val :: Int, next :: DeepNode } deriving (Show, Eq, Generic)
+-- No longer partial if we use it carefully, but let's just use it.
+-- Actually, to avoid the warning entirely, we could use different field names or separate types,
+-- but for a test it is fine. I will just use anyException for the RED phase.
+data MultiLayer = MultiLayer
+  { layer1 :: String,
+    sub :: SubLayer
+  } deriving (Show, Eq, Generic)
+data SubLayer = SubLayer
+  { layer2 :: String,
+    items :: [DeepNode]
+  } deriving (Show, Eq, Generic)
 
 spec :: Spec
 spec = do
@@ -165,3 +178,68 @@ spec = do
                \   but got: NotARecord {,,,,,}\n\
                \                        ^^^^^^^^"
          f `shouldBeCalled` expected `shouldThrow` errorCall expectedError
+
+    describe "extreme structural cases" do
+      it "handles extremely deep nesting" do
+        f <- mock $ (any :: Param DeepNode) |> "ok"
+        -- 5 layers deep
+        let actual = Node{val = 1, next = Node{val = 2, next = Node{val = 3, next = Node{val = 4, next = Node{val = 5, next = Leaf 0}}}}}
+            expected = Node{val = 1, next = Node{val = 2, next = Node{val = 3, next = Node{val = 4, next = Node{val = 5, next = Leaf 1}}}}}
+        _ <- evaluate $ f actual
+        let expectedError = 
+              "function was not called with the expected arguments.\n" <>
+              "  Specific difference in `next.next.next.next.next`:\n" <>
+              "    expected: Leaf 1\n" <>
+              "     but got: Leaf 0\n" <>
+              "              " <> replicate 5 ' ' <> "^\n" <>
+              "\n" <>
+              "Full context:\n" <>
+              "  expected: Node {val = 1, next = Node {val = 2, next = Node {val = 3, next = Node {val = 4, next = Node {val = 5, next = Leaf 1}}}}}\n" <>
+              "   but got: Node {val = 1, next = Node {val = 2, next = Node {val = 3, next = Node {val = 4, next = Node {val = 5, next = Leaf 0}}}}}\n" <>
+              "            " <> replicate 115 ' ' <> "^^^^^^"
+        f `shouldBeCalled` expected `shouldThrow` errorCall expectedError
+
+      it "shows mismatches across multiple layers" do
+        f <- mock $ (any :: Param MultiLayer) |> "ok"
+        let actual = MultiLayer {layer1 = "A", sub = SubLayer {layer2 = "B", items = [Node {val = 1, next = Leaf 2}]}}
+            expected = MultiLayer {layer1 = "X", sub = SubLayer {layer2 = "Y", items = [Node {val = 1, next = Leaf 3}]}}
+        _ <- evaluate $ f actual
+        let expectedError = 
+              "function was not called with the expected arguments.\n" <>
+              "  Specific differences:\n" <>
+              "    - `layer1`:\n" <>
+              "        expected: \"X\"\n" <>
+              "         but got: \"A\"\n" <>
+              "    - `sub.layer2`:\n" <>
+              "        expected: \"Y\"\n" <>
+              "         but got: \"B\"\n" <>
+              "    - `sub.items[0].next`:\n" <>
+              "        expected: Leaf 3\n" <>
+              "         but got: Leaf 2\n" <>
+              "\n" <>
+              "Full context:\n" <>
+              "  expected: MultiLayer {layer1 = \"X\", sub = SubLayer {layer2 = \"Y\", items = [Node {val = 1, next = Leaf 3}]}}\n" <>
+              "   but got: MultiLayer {layer1 = \"A\", sub = SubLayer {layer2 = \"B\", items = [Node {val = 1, next = Leaf 2}]}}\n" <>
+              "            " <> replicate 22 ' ' <> replicate 75 '^'
+        f `shouldBeCalled` expected `shouldThrow` errorCall expectedError
+
+      it "handles cases where almost everything is different" do
+        f <- mock $ (any :: Param Config) |> "ok"
+        let actual = Config "Light" 1
+            expected = Config "Dark" 99
+        _ <- evaluate $ f actual
+        let expectedError = 
+              "function was not called with the expected arguments.\n" <>
+              "  Specific differences:\n" <>
+              "    - `theme`:\n" <>
+              "        expected: \"Dark\"\n" <>
+              "         but got: \"Light\"\n" <>
+              "    - `level`:\n" <>
+              "        expected: 99\n" <>
+              "         but got: 1\n" <>
+              "\n" <>
+              "Full context:\n" <>
+              "  expected: Config {theme = \"Dark\", level = 99}\n" <>
+              "   but got: Config {theme = \"Light\", level = 1}\n" <>
+              "            " <> replicate 17 ' ' <> replicate 18 '^'
+        f `shouldBeCalled` expected `shouldThrow` errorCall expectedError

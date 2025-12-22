@@ -131,33 +131,34 @@ structuralDiff = structuralDiff' ""
 
 structuralDiff' :: String -> String -> String -> [Difference]
 structuralDiff' path expected actual =
-  if isRecord expected && isRecord actual
+  if isList expected && isList actual
     then
-      let fields1 = extractFields expected
-          fields2 = extractFields actual
-          mismatches = filter (\(f1, f2) -> f1 /= f2 && isField f1 && isField f2) (zip fields1 fields2)
-       in concatMap (\(f1, f2) -> 
-            let fieldName = getFieldName f1
-                val1 = getFieldValue f1
-                val2 = getFieldValue f2
-                newPath = if null path then fieldName else path <> "." <> fieldName
-                nested = structuralDiff' newPath val1 val2
-             in if null nested
-                  then [Difference newPath val1 val2]
-                  else nested
-          ) mismatches
-    else if isList expected && isList actual
+      let items1 = extractListItems expected
+          items2 = extractListItems actual
+          -- We need to track indices for lists
+          indexedMismatches = filter (\(_, (i1, i2)) -> i1 /= i2) (zip [0 :: Int ..] (zip items1 items2))
+      in concatMap (\(idx, (i1, i2)) ->
+           let newPath = path <> "[" <> show idx <> "]"
+               nested = structuralDiff' newPath i1 i2
+            in if null nested
+                 then [Difference newPath i1 i2]
+                 else nested
+         ) indexedMismatches
+    else if isRecord expected && isRecord actual
       then
-        let items1 = extractListItems expected
-            items2 = extractListItems actual
-            indexedMismatches = filter (\(_, (i1, i2)) -> i1 /= i2) (zip [0 :: Int ..] (zip items1 items2))
-        in concatMap (\(idx, (i1, i2)) ->
-             let newPath = path <> "[" <> show idx <> "]"
-                 nested = structuralDiff' newPath i1 i2
-              in if null nested
-                   then [Difference newPath i1 i2]
-                   else nested
-           ) indexedMismatches
+        let fields1 = extractFields expected
+            fields2 = extractFields actual
+            mismatches = filter (\(f1, f2) -> f1 /= f2 && isField f1 && isField f2) (zip fields1 fields2)
+         in concatMap (\(f1, f2) -> 
+              let fieldName = getFieldName f1
+                  val1 = getFieldValue f1
+                  val2 = getFieldValue f2
+                  newPath = if null path then fieldName else path <> "." <> fieldName
+                  nested = structuralDiff' newPath val1 val2
+               in if null nested
+                    then [Difference newPath val1 val2]
+                    else nested
+            ) mismatches
     else []
 
 -- utilities for message formatting
