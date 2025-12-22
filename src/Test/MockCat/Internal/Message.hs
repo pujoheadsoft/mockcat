@@ -2,7 +2,7 @@
 {-# OPTIONS_GHC -Wno-missing-export-lists #-}
 module Test.MockCat.Internal.Message where
 
-import Data.List (intercalate, maximumBy)
+import Data.List (intercalate, maximumBy, elemIndex)
 import Data.Ord (comparing)
 import Data.Char (isLower)
 import Data.Text (pack, replace, unpack)
@@ -15,23 +15,24 @@ message name expected actual =
       diffLine = "            " <> diffPointer expectedStr actualStr
       mainMessage = "function" <> mockNameLabel name <> " was not applied to the expected arguments."
    in case structuralDiff expectedStr actualStr of
-        Just sd ->
-           intercalate "\n"
-             [ mainMessage,
-               sd,
-               "",
-               "Full context:",
-               "  expected: " <> expectedStr,
-               "   but got: " <> actualStr,
-               diffLine
-             ]
-        Nothing ->
+        [] ->
            intercalate "\n"
              [ mainMessage,
                "  expected: " <> expectedStr,
                "   but got: " <> actualStr,
                diffLine
              ]
+        ds ->
+           let diffMessages = formatDifferences ds
+            in intercalate "\n"
+                 [ mainMessage,
+                   diffMessages,
+                   "",
+                   "Full context:",
+                   "  expected: " <> expectedStr,
+                   "   but got: " <> actualStr,
+                   diffLine
+                 ]
 
 diffPointer :: String -> String -> String
 diffPointer expected actual =
@@ -79,23 +80,85 @@ verifyFailedMessage name invocationList expected =
       diffLine = "            " <> diffPointer expectedStr actualStr
       mainMessage = "function" <> mockNameLabel name <> " was not called with the expected arguments."
    in VerifyFailed $ case structuralDiff expectedStr actualStr of
-        Just sd ->
-           intercalate "\n"
-             [ mainMessage,
-               sd,
-               "",
-               "Full context:",
-               "  expected: " <> expectedStr,
-               "   but got: " <> actualStr,
-               diffLine
-             ]
-        Nothing ->
+        [] ->
            intercalate "\n"
              [ mainMessage,
                "  expected: " <> expectedStr,
                "   but got: " <> actualStr,
                diffLine
              ]
+        ds ->
+           let diffMessages = formatDifferences ds
+            in intercalate "\n"
+                 [ mainMessage,
+                   diffMessages,
+                   "",
+                   "Full context:",
+                   "  expected: " <> expectedStr,
+                   "   but got: " <> actualStr,
+                   diffLine
+                 ]
+
+data Difference = Difference
+  { diffPath :: String,
+    diffExpected :: String,
+    diffActual :: String
+  }
+  deriving (Show, Eq)
+
+formatDifferences :: [Difference] -> String
+formatDifferences [d] = 
+  let label = if null (diffPath d) then "Specific difference:" else "Specific difference in `" <> diffPath d <> "`:"
+   in intercalate "\n"
+        [ "  " <> label,
+          "    expected: " <> diffExpected d,
+          "     but got: " <> diffActual d,
+          "              " <> diffPointer (diffExpected d) (diffActual d)
+        ]
+formatDifferences ds = 
+  "  Specific differences:\n" <> intercalate "\n" (map formatDiff ds)
+  where
+    formatDiff d =
+      let pathLabel = if null (diffPath d) then "root" else "`" <> diffPath d <> "`"
+       in intercalate "\n"
+            [ "    - " <> pathLabel <> ":",
+              "        expected: " <> diffExpected d,
+              "         but got: " <> diffActual d
+            ]
+
+structuralDiff :: String -> String -> [Difference]
+structuralDiff = structuralDiff' ""
+
+structuralDiff' :: String -> String -> String -> [Difference]
+structuralDiff' path expected actual =
+  if isRecord expected && isRecord actual
+    then
+      let fields1 = extractFields expected
+          fields2 = extractFields actual
+          mismatches = filter (\(f1, f2) -> f1 /= f2 && isField f1 && isField f2) (zip fields1 fields2)
+       in concatMap (\(f1, f2) -> 
+            let fieldName = getFieldName f1
+                val1 = getFieldValue f1
+                val2 = getFieldValue f2
+                newPath = if null path then fieldName else path <> "." <> fieldName
+                nested = structuralDiff' newPath val1 val2
+             in if null nested
+                  then [Difference newPath val1 val2]
+                  else nested
+          ) mismatches
+    else if isList expected && isList actual
+      then
+        let items1 = extractListItems expected
+            items2 = extractListItems actual
+            indexedMismatches = filter (\(_, (i1, i2)) -> i1 /= i2) (zip [0 :: Int ..] (zip items1 items2))
+        in concatMap (\(idx, (i1, i2)) ->
+             let newPath = path <> "[" <> show idx <> "]"
+                 nested = structuralDiff' newPath i1 i2
+              in if null nested
+                   then [Difference newPath i1 i2]
+                   else nested
+           ) indexedMismatches
+    else []
 
 -- utilities for message formatting
 trim :: String -> String
@@ -104,7 +167,7 @@ trim = f . f
     f = reverse . dropWhile (== ' ')
 
 splitByComma :: String -> [String]
-splitByComma = go 0 0 0 ""
+splitByComma = go (0 :: Int) (0 :: Int) (0 :: Int) ""
   where
     go _ _ _ acc [] = if null acc then [] else [trim $ reverse acc]
     go p l b acc (c : cs)
@@ -154,29 +217,44 @@ chooseNearest actual expectations =
       scores = map (\e -> (commonPrefixLen actual e, e)) expectations
    in snd $ maximumBy (comparing fst) scores
 
-structuralDiff :: String -> String -> Maybe String
-structuralDiff expected actual =
-  if '{' `elem` expected && '{' `elem` actual
-    then
-      let extractFields s =
-            let inner = takeWhile (/= '}') $ drop 1 $ dropWhile (/= '{') s
-             in splitByComma inner
-          fields1 = extractFields expected
-          fields2 = extractFields actual
-          mismatches = filter (\(f1, f2) -> f1 /= f2 && '=' `elem` f1 && '=' `elem` f2) (zip fields1 fields2)
-       in case mismatches of
-            ((f1, f2) : _) ->
-              let val1 = trim $ drop 1 $ dropWhile (/= '=') f1
-                  val2 = trim $ drop 1 $ dropWhile (/= '=') f2
-                  fieldName = trim $ takeWhile (/= '=') f1
-               in Just $ intercalate "\n"
-                    [ "  Specific difference in `" <> fieldName <> "`:",
-                      "    expected: " <> val1,
-                      "     but got: " <> val2,
-                      "             " <> diffPointer val1 val2
-                    ]
-            _ -> Nothing
-    else Nothing
+
+isRecord :: String -> Bool
+isRecord s = '{' `elem` s && '}' `elem` s
+
+extractFields :: String -> [String]
+extractFields s = maybe [] splitByComma (extractInner '{' '}' s)
+
+extractInner :: Char -> Char -> String -> Maybe String
+extractInner open close s =
+  case dropWhile (/= open) s of
+    (x:rest) | x == open -> Just (takeBalanced (1 :: Int) rest)
+    _ -> Nothing
+  where
+    takeBalanced :: Int -> String -> String
+    takeBalanced 0 _ = ""
+    takeBalanced _ [] = ""
+    takeBalanced n (c:cs)
+      | c == open = c : takeBalanced (n+1) cs
+      | c == close = if n == 1 then "" else c : takeBalanced (n-1) cs
+      | otherwise = c : takeBalanced n cs
+
+isField :: String -> Bool
+isField = ('=' `elem`)
+
+getFieldName :: String -> String
+getFieldName = trim . takeWhile (/= '=')
+
+getFieldValue :: String -> String
+getFieldValue = trim . drop 1 . dropWhile (/= '=')
+
+isList :: String -> Bool
+isList s = not (null s) && head s == '[' && last s == ']'
+
+extractListItems :: String -> [String]
+extractListItems s = maybe [] splitByComma (extractInner '[' ']' s)
+
+listMismatchIndex :: [String] -> [String] -> Maybe Int
+listMismatchIndex s1 s2 = elemIndex False (zipWith (==) s1 s2)
 
 verifyOrderFailedMesssage :: Show a => VerifyOrderResult a -> String
 verifyOrderFailedMesssage VerifyOrderResult {index, appliedValue, expectedValue} =
