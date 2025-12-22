@@ -69,7 +69,8 @@ import Test.MockCat.TH.ContextBuilder
     getTypeVarName,
     getTypeVarNames,
     tyVarBndrToType,
-    applyFamilyArg
+    applyFamilyArg,
+    convertTyVarBndr
   )
 import Test.MockCat.TH.TypeUtils
   ( splitApps,
@@ -89,7 +90,6 @@ import Test.MockCat.TH.FunctionBuilder
 import Test.MockCat.TH.Types (MockOptions(..), options)
 import Test.MockCat.Verify ()
 import Test.MockCat.Param
-import Unsafe.Coerce (unsafeCoerce)
 import Prelude as P
 
 
@@ -289,7 +289,7 @@ loadClassMetadata className = do
         ClassMetadata
           { cmName = className,
             cmContext = cxt,
-            cmTypeVars = unsafeCoerce typeVars,
+            cmTypeVars = map convertTyVarBndr typeVars,
             cmDecs = decs
           }
     other -> error $ "unsupported type: " <> show other
@@ -367,7 +367,7 @@ deriveSuperClassInstance _ _ varAppliedTypes pred = do
           pure $
             case info of
               ClassI (ClassD superCxt _ superTypeVars _ superDecs) _ ->
-                Just $ SuperClassInfo superName args superCxt (unsafeCoerce superTypeVars) superDecs
+                Just $ SuperClassInfo superName args superCxt (map convertTyVarBndr superTypeVars) superDecs
               _ -> Nothing
         _ -> pure Nothing
 

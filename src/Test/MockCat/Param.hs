@@ -104,7 +104,7 @@ infixr 8 |>
 -- | Make a parameter to which any value is expected to apply.
 --   Use with type application to specify the type: @any \@String@
 any :: forall a. Param a
-any = unsafeCoerce (ExpectCondition (const True) "any")
+any = ExpectCondition (const True) "any"
 
 {- | Create a conditional parameter.
 

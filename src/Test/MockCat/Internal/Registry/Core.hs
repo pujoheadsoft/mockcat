@@ -3,6 +3,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MonoLocalBinds #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE ExistentialQuantification #-}
 
 module Test.MockCat.Internal.Registry.Core
   ( attachVerifierToFn
@@ -37,12 +38,14 @@ import Data.IntMap.Strict (IntMap)
 import qualified Data.IntMap.Strict as IntMap
 import System.IO.Unsafe (unsafePerformIO)
 import Test.MockCat.Internal.Types (MockName, InvocationRecorder(..))
-import Unsafe.Coerce (unsafeCoerce)
 import System.Mem.StableName (StableName, eqStableName, hashStableName, makeStableName)
 
-data FnTag
+data SomeStableName = forall a. SomeStableName (StableName a)
 
-type FnStableName = StableName FnTag
+instance Eq SomeStableName where
+  (SomeStableName sn1) == (SomeStableName sn2) = sn1 `eqStableName` sn2
+
+type FnStableName = SomeStableName
 
 data Entry
   = Entry !FnStableName !Dynamic
@@ -61,13 +64,10 @@ entryPayload (Entry _ payload) = payload
 entryPayload (NamedEntry _ _ payload) = payload
 
 toFnStable :: forall a. StableName a -> FnStableName
-toFnStable = unsafeCoerce
-
-fromFnStable :: forall a.FnStableName -> StableName a
-fromFnStable = unsafeCoerce
+toFnStable = SomeStableName
 
 sameFnStable :: FnStableName -> FnStableName -> Bool
-sameFnStable a b = eqStableName (fromFnStable a) (fromFnStable b)
+sameFnStable a b = a == b
 
 type Registry = IntMap [Entry]
 
@@ -136,9 +136,7 @@ findMatch target  (entry : rest)
 
 
 
-data UnitTag
-
-type UnitStableName = StableName UnitTag
+type UnitStableName = SomeStableName
 
 data UnitMeta = UnitMeta
   { unitGuardRef :: TVar Bool
@@ -154,13 +152,10 @@ unitEntryMeta :: UnitEntry -> UnitMeta
 unitEntryMeta (UnitEntry _ meta) = meta
 
 toUnitStable :: forall a. StableName a -> UnitStableName
-toUnitStable = unsafeCoerce
-
-fromUnitStable :: forall a. UnitStableName -> StableName a
-fromUnitStable = unsafeCoerce
+toUnitStable = SomeStableName
 
 sameUnitStable :: UnitStableName -> UnitStableName -> Bool
-sameUnitStable a b = eqStableName (fromUnitStable a) (fromUnitStable b)
+sameUnitStable a b = a == b
 
 type UnitRegistry = IntMap [UnitEntry]
 

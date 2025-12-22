@@ -12,7 +12,8 @@ module Test.MockCat.TH.ContextBuilder
     toVarTs,
     constructClassAppT,
     getTypeVarNames,
-    getTypeVarName
+    getTypeVarName,
+    convertTyVarBndr
   )
 where
 import Language.Haskell.TH
@@ -98,5 +99,9 @@ getTypeVarNames = map getTypeVarName
 getTypeVarName :: TyVarBndr a -> Name
 getTypeVarName (PlainTV varName _) = varName
 getTypeVarName (KindedTV varName _ _) = varName
+
+convertTyVarBndr :: TyVarBndr a -> TyVarBndr ()
+convertTyVarBndr (PlainTV n _) = PlainTV n ()
+convertTyVarBndr (KindedTV n _ k) = KindedTV n () k
 
 

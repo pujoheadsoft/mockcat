@@ -34,7 +34,6 @@ import Test.MockCat.Internal.MockRegistry (lookupVerifierForFn, withAllUnitGuard
 import Data.Type.Equality ((:~:) (Refl))
 import Data.Dynamic (fromDynamic)
 import GHC.TypeLits (TypeError, ErrorMessage(..), Symbol)
-import Unsafe.Coerce (unsafeCoerce)
 
 -- | Class for verifying mock function.
 verify ::
@@ -446,67 +445,53 @@ instance (Eq params, Show params) => WithArgs TimesSpec params where
   with (TimesSpec method) args = CountVerification method args
 
 -- | Type family to normalize argument types for 'withArgs'
---   This helps avoid Type Family conflicts by normalizing types
 type family NormalizeWithArg a :: Type where
   NormalizeWithArg (Param a :> rest) = Param a :> rest
   NormalizeWithArg (Param a) = Param a
   NormalizeWithArg a = Param a
 
+-- | Type class to normalize argument types (to Param or Param chain)
+class ToNormalizedArg a where
+  toNormalizedArg :: a -> NormalizeWithArg a
+
+instance ToNormalizedArg (Param a :> rest) where
+  toNormalizedArg = id
+
+instance ToNormalizedArg (Param a) where
+  toNormalizedArg = id
+
+instance {-# OVERLAPPABLE #-} (NormalizeWithArg a ~ Param a) => ToNormalizedArg a where
+  toNormalizedArg = param
+
  
 
 -- | New function for combining times condition with arguments (supports raw values)
 --   This will replace 'with' once the old 'with' is removed
---   We use a regular function with Type Family normalization instead of a type class
 withArgs ::
   forall params.
-  ( Eq (NormalizeWithArg params)
+  ( ToNormalizedArg params
+  , Eq (NormalizeWithArg params)
   , Show (NormalizeWithArg params)
-  , Typeable params
-  , Typeable (NormalizeWithArg params)
   ) => TimesSpec -> params -> VerificationSpec (NormalizeWithArg params)
-withArgs (TimesSpec method) args = 
-  case eqT :: Maybe (params :~: NormalizeWithArg params) of
-    Just Refl -> CountVerification method args
-    Nothing ->
-      -- For raw values, convert to Param
-      -- For Param a, this branch should not be taken, but we handle it safely
-      CountVerification method (unsafeCoerce args :: NormalizeWithArg params)
+withArgs (TimesSpec method) args = CountVerification method (toNormalizedArg args)
 
 infixl 8 `withArgs`
 
--- | Helper function for order verification (direct list, no 'with' needed)
---   Supports both Param types and raw values
---   Uses Type Family normalization similar to withArgs
 inOrderWith ::
   forall params.
-  ( Eq (NormalizeWithArg params)
+  ( ToNormalizedArg params
+  , Eq (NormalizeWithArg params)
   , Show (NormalizeWithArg params)
-  , Typeable params
-  , Typeable (NormalizeWithArg params)
   ) => [params] -> VerificationSpec (NormalizeWithArg params)
-inOrderWith args = 
-  case eqT :: Maybe (params :~: NormalizeWithArg params) of
-    Just Refl -> OrderVerification ExactlySequence args
-    Nothing ->
-      -- For raw values, convert to Param
-      OrderVerification ExactlySequence (unsafeCoerce (param <$> args) :: [NormalizeWithArg params])
+inOrderWith args = OrderVerification ExactlySequence (map toNormalizedArg args)
 
--- | Helper function for partial order verification (direct list, no 'with' needed)
---   Supports both Param types and raw values
---   Uses Type Family normalization similar to withArgs
 inPartialOrderWith ::
   forall params.
-  ( Eq (NormalizeWithArg params)
+  ( ToNormalizedArg params
+  , Eq (NormalizeWithArg params)
   , Show (NormalizeWithArg params)
-  , Typeable params
-  , Typeable (NormalizeWithArg params)
   ) => [params] -> VerificationSpec (NormalizeWithArg params)
-inPartialOrderWith args = 
-  case eqT :: Maybe (params :~: NormalizeWithArg params) of
-    Just Refl -> OrderVerification PartiallySequence args
-    Nothing ->
-      -- For raw values, convert to Param
-      OrderVerification PartiallySequence (unsafeCoerce (param <$> args) :: [NormalizeWithArg params])
+inPartialOrderWith args = OrderVerification PartiallySequence (map toNormalizedArg args)
 
 -- | Main verification function class
 class ShouldBeCalled m spec where
