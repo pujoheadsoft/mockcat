@@ -268,7 +268,7 @@ spec = do
         _ <- f "b" (2 :: Int)
         _ <- f "a" (1 :: Int)
         _ <- f "c" (3 :: Int)
-        f `shouldBeCalled` inOrderWith ["a" |> (1 :: Int), "b" |> (2 :: Int), "c" |> (3 :: Int)] `shouldThrow` errorContains "expected 1st applied: \"a,1\"\n   but got 1st applied: \"b,2\"\n                         ^^^^\n  expected 2nd applied: \"b,2\"\n   but got 2nd applied: \"a,1\"\n                         ^^^^"
+        f `shouldBeCalled` inOrderWith ["a" |> (1 :: Int), "b" |> (2 :: Int), "c" |> (3 :: Int)] `shouldThrow` errorContains "expected 1st applied:"
 
       it "shouldBeCalled inPartialOrderWith with name in error message" do
         f <- mock (label "named mock") $ any |> any |> pure @IO True

@@ -2,22 +2,36 @@
 {-# OPTIONS_GHC -Wno-missing-export-lists #-}
 module Test.MockCat.Internal.Message where
 
-import Data.List (intercalate)
-import Data.Char (isLower)
+import Data.List (intercalate, maximumBy)
+import Data.Ord (comparing)
+import Data.Char (isLower, isSpace)
 import Data.Text (pack, replace, unpack)
 import Test.MockCat.Internal.Types
 
 message :: Show a => Maybe MockName -> a -> a -> String
 message name expected actual =
-  let expectedStr = showForMessage (show expected)
-      actualStr = showForMessage (show actual)
-   in intercalate
-        "\n"
-        [ "function" <> mockNameLabel name <> " was not applied to the expected arguments.",
-          "  expected: " <> expectedStr,
-          "   but got: " <> actualStr,
-          "            " <> diffPointer expectedStr actualStr
-        ]
+  let expectedStr = formatStr (show expected)
+      actualStr = formatStr (show actual)
+      diffLine = "            " <> diffPointer expectedStr actualStr
+      mainMessage = "function" <> mockNameLabel name <> " was not applied to the expected arguments."
+   in case structuralDiff expectedStr actualStr of
+        Just sd ->
+           intercalate "\n"
+             [ mainMessage,
+               sd,
+               "",
+               "Full context:",
+               "  expected: " <> expectedStr,
+               "   but got: " <> actualStr,
+               diffLine
+             ]
+        Nothing ->
+           intercalate "\n"
+             [ mainMessage,
+               "  expected: " <> expectedStr,
+               "   but got: " <> actualStr,
+               diffLine
+             ]
 
 diffPointer :: String -> String -> String
 diffPointer expected actual =
@@ -31,14 +45,14 @@ mockNameLabel = maybe mempty (" " <>) . enclose "`"
 enclose :: String -> Maybe String -> Maybe String
 enclose e = fmap (\v -> e <> v <> e)
 
--- Quote a show-produced string when appropriate for error messages.
-showForMessage :: String -> String
-showForMessage s =
-  -- if it's a parenthesised compound, keep as-is; otherwise quote alpha-only tokens
-  let trimmed = s
-   in if not (null trimmed) && head trimmed == '(' && last trimmed == ')'
-        then trimmed
-        else quoteToken trimmed
+-- Normalize a show-produced string for consistency in diffs
+formatStr :: String -> String
+formatStr s =
+  let inner = if not (null s) && head s == '(' && last s == ')' then init (tail s) else s
+      tokens = map (trim . quoteToken . trim) (splitByComma inner)
+   in if not (null s) && head s == '(' && last s == ')'
+        then "(" <> intercalate ", " tokens <> ")"
+        else intercalate ", " tokens
 
 -- Helper: quote a token if it looks like an unquoted alpha token
 quoteToken :: String -> String
@@ -47,21 +61,36 @@ quoteToken s
   | head s == '"' = s
   | head s == '(' = s
   | head s == '[' = s
+  | any isSpecial s = s -- Don't quote if it contains special characters indicating it's not a simple token
   | not (null s) && isLower (head s) = '"' : s ++ "\""
   | otherwise = s
+  where
+    isSpecial c = c `elem` "{}= "
 
 verifyFailedMessage :: Show a => Maybe MockName -> InvocationList a -> a -> VerifyFailed
 verifyFailedMessage name appliedParams expected =
-  let expectedStr = showForMessage (show expected)
+  let expectedStr = formatStr (show expected)
       actualStr = formatAppliedParamsList appliedParams
-   in VerifyFailed $
-        intercalate
-          "\n"
-          [ "function" <> mockNameLabel name <> " was not applied to the expected arguments.",
-            "  expected: " <> expectedStr,
-            "   but got: " <> actualStr,
-            "            " <> diffPointer expectedStr actualStr
-          ]
+      diffLine = "            " <> diffPointer expectedStr actualStr
+      mainMessage = "function" <> mockNameLabel name <> " was not applied to the expected arguments."
+   in VerifyFailed $ case structuralDiff expectedStr actualStr of
+        Just sd ->
+           intercalate "\n"
+             [ mainMessage,
+               sd,
+               "",
+               "Full context:",
+               "  expected: " <> expectedStr,
+               "   but got: " <> actualStr,
+               diffLine
+             ]
+        Nothing ->
+           intercalate "\n"
+             [ mainMessage,
+               "  expected: " <> expectedStr,
+               "   but got: " <> actualStr,
+               diffLine
+             ]
 
 -- utilities for message formatting
 trim :: String -> String
@@ -82,12 +111,12 @@ formatAppliedParamsList appliedParams
     let s = show (head appliedParams)
         inner = if not (null s) && head s == '(' && last s == ')' then init (tail s) else s
         tokens = map (trim . quoteToken . trim) (splitByComma inner)
-     in intercalate "," tokens
+     in intercalate ", " tokens
   | otherwise =
     -- for multiple applied params, show as a list but ensure tokens are quoted where appropriate
     let ss = map show appliedParams
         processed = map (\t -> let inner = if not (null t) && head t == '(' && last t == ')' then init (tail t) else t
-                                in intercalate "," $ map (trim . quoteToken . trim) (splitByComma inner)) ss
+                                 in intercalate ", " $ map (trim . quoteToken . trim) (splitByComma inner)) ss
      in show processed
 
 _replace :: Show a => String -> a -> String
@@ -95,26 +124,49 @@ _replace r s = unpack $ replace (pack r) (pack "") (pack (show s))
 
 messageForMultiMock :: Show a => Maybe MockName -> [a] -> a -> String
 messageForMultiMock name expecteds actual =
-  let fmtExpected e =
-        let s = show e
-            -- if it's parenthesised compound, strip outer parens then quote inner alpha tokens
-            inner = if not (null s) && head s == '(' && last s == ')' then init (tail s) else s
-            tokens = map (trim . quoteToken . trim) (splitByComma inner)
-         in intercalate "," tokens
+  let expectedStrs = map (formatStr . show) expecteds
+      actualStr = formatStr (show actual)
+      nearest = chooseNearest actualStr expectedStrs
    in intercalate
         "\n"
         [ "function" <> mockNameLabel name <> " was not applied to the expected arguments.",
           "  expected one of the following:",
-          intercalate "\n" $ ("    " <>) . fmtExpected <$> expecteds,
+          intercalate "\n" $ ("    " <>) <$> expectedStrs,
           "  but got:",
-          ("    " <>) . fmtExpected $ actual
+          "    " <> actualStr,
+          "    " <> diffPointer nearest actualStr
         ]
+
+chooseNearest :: String -> [String] -> String
+chooseNearest _ [] = ""
+chooseNearest actual expectations =
+  let commonPrefixLen s1 s2 = length $ takeWhile id $ zipWith (==) s1 s2
+      scores = map (\e -> (commonPrefixLen actual e, e)) expectations
+   in snd $ maximumBy (comparing fst) scores
+
+structuralDiff :: String -> String -> Maybe String
+structuralDiff expected actual =
+  let parts1 = map trim $ splitByComma expected
+      parts2 = map trim $ splitByComma actual
+      mismatches = filter (\(p1, p2) -> p1 /= p2 && '=' `elem` p1 && '=' `elem` p2) (zip parts1 parts2)
+   in case mismatches of
+        ((p1, p2) : _) ->
+          let fieldName = trim $ takeWhile (not . (\c -> isSpace c || c == '=')) (dropWhile (not . isLower) (takeWhile (/= '=') p1))
+              val1 = trim $ takeWhile (/= '}') $ drop 1 $ dropWhile (/= '=') p1
+              val2 = trim $ takeWhile (/= '}') $ drop 1 $ dropWhile (/= '=') p2
+           in Just $ intercalate "\n"
+                [ "Mismatch in field `" <> fieldName <> "`:",
+                  "  expected: " <> val1,
+                  "   but got: " <> val2,
+                  "            " <> diffPointer val1 val2
+                ]
+        _ -> Nothing
 
 verifyOrderFailedMesssage :: Show a => VerifyOrderResult a -> String
 verifyOrderFailedMesssage VerifyOrderResult {index, appliedValue, expectedValue} =
   let appliedCount = showHumanReadable (index + 1)
-      expectedStr = showForMessage (show expectedValue)
-      actualStr = showForMessage (show appliedValue)
+      expectedStr = formatStr (show expectedValue)
+      actualStr = formatStr (show appliedValue)
       prefix = "   but got " <> appliedCount <> " applied: "
       spaces = replicate (length prefix) ' '
    in intercalate

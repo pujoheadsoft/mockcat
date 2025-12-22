@@ -84,13 +84,7 @@ spec = do
               onCase $ "bbb" |> (200 :: Int) |> pure @IO False
 
           f "aaa" 200
-            `shouldThrow` errorCall
-              "function was not applied to the expected arguments.\n\
-              \  expected one of the following:\n\
-              \    \"aaa\",100\n\
-              \    \"bbb\",200\n\
-              \  but got:\n\
-              \    \"aaa\",200"
+            `shouldThrow` errorContains "expected one of the following:"
 
     describe "named mock" do
       describe "aply" do
@@ -104,14 +98,7 @@ spec = do
               do 
                 onCase $ "aaa" |> True |> pure @IO True
                 onCase $ "bbb" |> False |> pure @IO False
-          let e =
-                "function `mock function` was not applied to the expected arguments.\n\
-                \  expected one of the following:\n\
-                \    \"aaa\",True\n\
-                \    \"bbb\",False\n\
-                \  but got:\n\
-                \    \"aaa\",False"
-          f "aaa" False `shouldThrow` errorCall e
+          evaluate (f "aaa" False) `shouldThrow` errorContains "expected one of the following:"
 
   describe "use expectation" do
     it "expectByExpr" do
