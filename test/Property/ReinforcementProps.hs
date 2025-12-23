@@ -22,7 +22,7 @@ import Test.MockCat hiding (any)
 
 prop_predicate_negative_not_counted :: Property
 prop_predicate_negative_not_counted = forAll genVals $ \xs -> monadicIO $ do
-  f <- run $ mock (expect even "even" |> True)
+  f <- run $ mock (expect even "even" ~> True)
   outcomes <- run $ mapM (\x -> (try (evaluate (f x)) :: IO (Either SomeException Bool))) xs
   let evens = length (filter even xs)
       successes = length [ () | (x, Right _) <- zip xs outcomes, even x ]
@@ -35,7 +35,7 @@ prop_predicate_negative_not_counted = forAll genVals $ \xs -> monadicIO $ do
   assert (failures == odds)
   -- Successes count equals even inputs
   assert (successes == evens)
-  -- Applied count equals successes (only even)
+  -- Called count equals successes (only even)
   run $ f `shouldBeCalled` times evens
   assert True
   where
@@ -56,7 +56,7 @@ prop_lazy_partial_force_concurrency = forAll genPlan $ \(arg, mask) -> monadicIO
   let forcedCount = length (filter id mask)
   run $ runMockT $ do
     -- expectation: arg -> arg; count only forced executions
-    _ <- _parLazy (param arg |> arg)
+    _ <- _parLazy (param arg ~> arg)
       `expects` do
         called (times forcedCount)
     -- prepare thunks (NOT executed yet)
@@ -82,9 +82,9 @@ prop_lazy_partial_force_concurrency = forAll genPlan $ \(arg, mask) -> monadicIO
 prop_partial_order_interleaved_duplicates :: Property
 prop_partial_order_interleaved_duplicates = forAll genPair $ \(a,b) -> a /= b ==> monadicIO $ do
   -- Pattern a a b : [a,b] subsequence succeeds, [b,a] fails.
-  f <- run $ mock $ cases [ param a |> True
-                                , param a |> True
-                                , param b |> True ]
+  f <- run $ mock $ cases [ param a ~> True
+                                , param a ~> True
+                                , param b ~> True ]
   run $ f a `seq` f a `seq` f b `seq` pure ()
   run $ f `shouldBeCalled` inPartialOrderWith [param a, param b]
   e <- run $ (try (f `shouldBeCalled` inPartialOrderWith [param b, param a]) :: IO (Either SomeException ()))

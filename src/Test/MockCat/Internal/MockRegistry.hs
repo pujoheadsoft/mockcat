@@ -33,7 +33,7 @@ import Control.Concurrent.STM (TVar, atomically, writeTVar)
 import Test.MockCat.Internal.Types (MockName, InvocationRecorder(..), InvocationRecord, perform)
 import Data.Proxy (Proxy(..))
 import Data.Dynamic
-import Test.MockCat.Internal.Builder (invocationRecord, appendAppliedParams)
+import Test.MockCat.Internal.Builder (invocationRecord, appendCalledParams)
 import Type.Reflection (TyCon, splitApps, typeRep, typeRepTyCon)
 import Data.Typeable (eqT)
 import Data.Type.Equality ((:~:) (Refl))
@@ -64,7 +64,7 @@ wrapUnitStub ref meta value =
           then pure value
           else do
             markUnitUsed meta
-            appendAppliedParams ref ()
+            appendCalledParams ref ()
             pure value
   in
     trackedValue

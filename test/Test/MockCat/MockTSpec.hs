@@ -14,7 +14,7 @@ spec = describe "MockT + expects integration" do
   it "allows expects inside runMockT" do
     runMockT @IO do
       f <-
-        mock (any @String |> True)
+        mock (any @String ~> True)
           `expects` do
             called once `with` "foo"
       _ <- liftIO $ evaluate (f "foo")

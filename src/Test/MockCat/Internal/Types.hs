@@ -80,7 +80,7 @@ data VerifyOrderMethod
 
 data VerifyOrderResult a = VerifyOrderResult
   { index :: Int,
-    appliedValue :: a,
+    calledValue :: a,
     expectedValue :: a
   }
 

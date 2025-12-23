@@ -6,16 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to the
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
-## Unreleased
+## [1.0.0.0] - 2024-12-23
 ### Changed
-- Template Haskell generated helpers (e.g. `_readFile`, `_writeFile`) now return the mock function itself so they can be chained with `expects`.
-- `runMockT` / `withMock` no longer perform implicit verification; expectations run only when registered via `expects` or triggered manually via `shouldBeCalled`.
+- **DSL Reboot**: Replaced `|>` with `~>` as the primary parameter chain operator (representing the "mock arrow").
+- **Terminology Shift**: Standardized terminology to "called" instead of "applied" throughout the library and error messages.
+- Simplified creating/stubbing API: `f <- mock $ ...` is now the canonical way.
+- Expanded structural diffing support for nested records and lists.
+- Unified verification API: All verification is now handled via `shouldBeCalled`.
 
-### Documentation
-- Clarified the new expectation-driven flow in both README files.
+### Added
+- Deep Structural Diff: Enhanced error messages with precise caret pointers for complex nested data structures.
+- STM-based concurrency for mock registration and call recording.
+- Infinite arity support for mock/stub building.
 
 ### Removed
-- Legacy `expectApplyTimes` / `applyTimesIs` / `neverApply` helpers along with their property tests, since `expects` / `shouldBeCalled` are now the single verification path.
+- Backward compatibility with 0.x.x APIs (`stubFn`, `createMock`, `applied`, etc.).
 
 ## 0.6.0.0
 ### Changed

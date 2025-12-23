@@ -135,7 +135,7 @@ pprintLit l = text (pprint l)
 
 -- | Create a conditional parameter based on @Q Exp@.
 --
---  In applying a mock function, if the argument does not satisfy this condition, an error is raised.
+--  In calling a mock function, if the argument does not satisfy this condition, an error is raised.
 --
 --  The conditional expression is displayed in the error message.
 expectByExpr :: Q Exp -> Q Exp
@@ -167,8 +167,8 @@ expectByExpr qf = do
 --
 --  it "test runMockT" do
 --    result \<- runMockT do
---      stub_readFile $ "input.txt" |\> pack "content"
---      stub_writeFile $ "output.text" |\> pack "content" |\> ()
+--      stub_readFile $ "input.txt" ~> pack "content"
+--      stub_writeFile $ "output.text" ~> pack "content" ~> ()
 --      somethingProgram
 --
 --    result `shouldBe` ()
@@ -198,8 +198,8 @@ makeMockWithOptions = flip doMakeMock Total
 --  spec = do
 --    it "test runMockT" do
 --      result \<- runMockT do
---        _readFile $ "input.txt" |\> pack "content"
---        _writeFile $ "output.text" |\> pack "content" |\> ()
+--        _readFile $ "input.txt" ~> pack "content"
+--        _writeFile $ "output.text" ~> pack "content" ~> ()
 --        somethingProgram
 --
 --      result `shouldBe` ()
@@ -330,7 +330,7 @@ makeMockDecs ty mockType className monadVarName cxt typeVars decs options = do
       (pure filteredCxt)
       (createInstanceType ty monadVarName newTypeVars)
       instanceBodyDecs
-  mockFnDecs <- concat <$> mapM (createMockFnDec mockType monadVarName varAppliedTypes options) sigDecs
+  mockFnDecs <- concat <$> mapM (mockDec mockType monadVarName varAppliedTypes options) sigDecs
 
   pure $ superClassDecs ++ (instanceDec : mockFnDecs)
 
@@ -530,13 +530,13 @@ createInstanceFnDec _ _ dec = fail $ "unsuported dec: " <> pprint dec
 
 
 
-createMockFnDec :: MockType -> Name -> [VarAppliedType] -> MockOptions -> Dec -> Q [Dec]
-createMockFnDec mockType monadVarName varAppliedTypes options (SigD sigFnName ty) = do
+mockDec :: MockType -> Name -> [VarAppliedType] -> MockOptions -> Dec -> Q [Dec]
+mockDec mockType monadVarName varAppliedTypes options (SigD sigFnName ty) = do
   let ctx = buildMockFnContext mockType monadVarName varAppliedTypes options sigFnName ty
   fnDecs <- buildMockFnDeclarations ctx
   pragmaDec <- createNoInlinePragma (mockFnName ctx)
   pure $ pragmaDec : fnDecs
-createMockFnDec _ _ _ _ dec = fail $ "unsupport dec: " <> pprint dec
+mockDec _ _ _ _ dec = fail $ "unsupport dec: " <> pprint dec
 
 
 

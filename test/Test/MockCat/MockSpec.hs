@@ -22,48 +22,48 @@ spec = do
   describe "Test of Mock" do
     describe "combination test" do
       it "arity = 1" do
-        f <- mock $ True |> False
+        f <- mock $ True ~> False
         f True `shouldBe` False
 
       it "arity = 2" do
-        f <- mock $ True |> False |> True
+        f <- mock $ True ~> False ~> True
         f True False `shouldBe` True
 
       it "arity = 3" do
-        f <- mock $ True |> "False" |> True |> "False"
+        f <- mock $ True ~> "False" ~> True ~> "False"
         f True "False" True `shouldBe` "False"
 
       it "arity = 4" do
-        f <- mock $ True |> "False" |> True |> "False" |> True
+        f <- mock $ True ~> "False" ~> True ~> "False" ~> True
         f True "False" True "False" `shouldBe` True
 
-      it "Param |> a" do
-        f <- mock $ any |> False
+      it "Param ~> a" do
+        f <- mock $ any ~> False
         f True `shouldBe` False
 
-      it "Param |> (a |> b)" do
-        f <- mock $ any |> False |> True
+      it "Param ~> (a ~> b)" do
+        f <- mock $ any ~> False ~> True
         f True False `shouldBe` True
 
-      it "a     |> (Param |> b)" do
-        f <- mock $ True |> any |> True
+      it "a     ~> (Param ~> b)" do
+        f <- mock $ True ~> any ~> True
         f True False `shouldBe` True
 
-      it "Param |> (Param |> a)" do
-        f <- mock $ any |> any |> True
+      it "Param ~> (Param ~> a)" do
+        f <- mock $ any ~> any ~> True
         f True False `shouldBe` True
 
-      it "a     |> (Param |> (Param |> a))" do
-        f <- mock $ "any" |> any |> any |> True
+      it "a     ~> (Param ~> (Param ~> a))" do
+        f <- mock $ "any" ~> any ~> any ~> True
         f "any" "any" "any" `shouldBe` True
 
-      it "param |> (Param |> (Param |> a))" do
-        f <- mock $ any |> any |> any |> True
+      it "param ~> (Param ~> (Param ~> a))" do
+        f <- mock $ any ~> any ~> any ~> True
         f "any" "any" "any" `shouldBe` True
 
   describe "Monad" do
     it "Return IO Monad." do
-      f <- mock $ "Article Id" |> pure @IO "Article Title"
+      f <- mock $ "Article Id" ~> pure @IO "Article Title"
 
       result <- f "Article Id"
 
@@ -73,15 +73,15 @@ spec = do
     describe "anonymous mock" do
       describe "apply" do
         it "simple mock" do
-          f <- mock $ "a" |> pure @IO True
+          f <- mock $ "a" ~> pure @IO True
           f "b"
             `shouldThrow` errorContains "expected: \"a\"\n   but got: \"b\"\n             ^^"
 
         it "multi mock" do
           f <-
             mock $ do
-              onCase $ "aaa" |> (100 :: Int) |> pure @IO True
-              onCase $ "bbb" |> (200 :: Int) |> pure @IO False
+              onCase $ "aaa" ~> (100 :: Int) ~> pure @IO True
+              onCase $ "bbb" ~> (200 :: Int) ~> pure @IO False
 
           f "aaa" 200
             `shouldThrow` errorContains "expected one of the following:"
@@ -89,29 +89,29 @@ spec = do
     describe "named mock" do
       describe "aply" do
         it "simple mock" do
-          f <- mock (label "mock function") $ "a" |> pure @IO ()
+          f <- mock (label "mock function") $ "a" ~> pure @IO ()
           f "b" `shouldThrow` errorContains "expected: \"a\"\n   but got: \"b\"\n             ^^"
 
         it "multi mock" do
           f <-
             mock (label "mock function")
               do 
-                onCase $ "aaa" |> True |> pure @IO True
-                onCase $ "bbb" |> False |> pure @IO False
+                onCase $ "aaa" ~> True ~> pure @IO True
+                onCase $ "bbb" ~> False ~> pure @IO False
           evaluate (f "aaa" False) `shouldThrow` errorContains "expected one of the following:"
 
   describe "use expectation" do
     it "expectByExpr" do
-      f <- mock $ $(expectByExpr [|\x -> x == "y" || x == "z"|]) |> True
+      f <- mock $ $(expectByExpr [|\x -> x == "y" || x == "z"|]) ~> True
       f "y" `shouldBe` True
 
   describe "repeatable" do
     it "arity = 1" do
       f <- mock $ do
-        onCase $ "a" |> True
-        onCase $ "b" |> False
-        onCase $ "a" |> False
-        onCase $ "b" |> True
+        onCase $ "a" ~> True
+        onCase $ "b" ~> False
+        onCase $ "a" ~> False
+        onCase $ "b" ~> True
         
       v1 <- evaluate $ f "a"
       v2 <- evaluate $ f "a"
@@ -124,10 +124,10 @@ spec = do
 
     it "arity = 2" do
       f <- mock $ do
-        onCase $ "a" |> "b" |> (0 :: Int)
-        onCase $ "a" |> "c" |> (1 :: Int)
-        onCase $ "a" |> "b" |> (2 :: Int)
-        onCase $ "a" |> "c" |> (3 :: Int)
+        onCase $ "a" ~> "b" ~> (0 :: Int)
+        onCase $ "a" ~> "c" ~> (1 :: Int)
+        onCase $ "a" ~> "b" ~> (2 :: Int)
+        onCase $ "a" ~> "c" ~> (3 :: Int)
 
       v1 <- evaluate $ f "a" "b"
       v2 <- evaluate $ f "a" "b"
@@ -141,11 +141,11 @@ spec = do
       v5 `shouldBe` (2 :: Int)
 
   describe "constant" do
-    it "createConstantMock" do
+    it "mock" do
       f <- mock "foo"
       f `shouldBe` "foo"
     
-    it "createNamedConstantMock" do
+    it "createNamedMockFn" do
       f <- mock (label "const") "foo"
       f `shouldBe` "foo"
 

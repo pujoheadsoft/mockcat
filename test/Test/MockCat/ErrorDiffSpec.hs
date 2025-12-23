@@ -31,7 +31,7 @@ spec :: Spec
 spec = do
   describe "Error Message Diff" do
     it "shows diff for string arguments" do
-      f <- mock $ (any :: Param String) |> "ok"
+      f <- mock $ (any :: Param String) ~> "ok"
       _ <- evaluate $ f "hello haskell"
       let expectedError = 
             "function was not called with the expected arguments.\n\
@@ -41,7 +41,7 @@ spec = do
       f `shouldBeCalled` "hello world" `shouldThrow` errorCall expectedError
 
     it "shows diff for long list" do
-      f <- mock $ (any :: Param [Int]) |> "ok"
+      f <- mock $ (any :: Param [Int]) ~> "ok"
       _ <- evaluate $ f [1, 2, 3, 4, 5, 0, 7, 8, 9, 10]
       let expectedError = 
             "function was not called with the expected arguments.\n\
@@ -57,7 +57,7 @@ spec = do
       f `shouldBeCalled` [1..10] `shouldThrow` errorCall expectedError
 
     it "shows diff for record" do
-      f <- mock $ (any :: Param User) |> "ok"
+      f <- mock $ (any :: Param User) ~> "ok"
       _ <- evaluate $ f (User "Fagen" 20)
       let expectedError = 
             "function was not called with the expected arguments.\n\
@@ -73,7 +73,7 @@ spec = do
       f `shouldBeCalled` (User "Fagen" 30) `shouldThrow` errorCall expectedError
 
     it "shows diff for inOrderWith" do
-      f <- mock $ (any :: Param String) |> "ok"
+      f <- mock $ (any :: Param String) ~> "ok"
       _ <- evaluate $ f "a"
       _ <- evaluate $ f "b"
       let expectedError = 
@@ -85,8 +85,8 @@ spec = do
 
     it "chooses nearest neighbor in multi-case mock" do
       f <- mock $ do
-        onCase $ "aaa" |> (100 :: Int) |> "ok"
-        onCase $ "bbb" |> (200 :: Int) |> "ok"
+        onCase $ "aaa" ~> (100 :: Int) ~> "ok"
+        onCase $ "bbb" ~> (200 :: Int) ~> "ok"
       
       let expectedError = 
             "function was not called with the expected arguments.\n\
@@ -99,7 +99,7 @@ spec = do
       evaluate (f "aaa" 200) `shouldThrow` errorCall expectedError
 
     it "shows diff for nested record" do
-      f <- mock $ (any :: Param ComplexUser) |> "ok"
+      f <- mock $ (any :: Param ComplexUser) ~> "ok"
       _ <- evaluate $ f (ComplexUser "Alice" (Config "Light" 1))
       let expectedError = 
             "function was not called with the expected arguments.\n\
@@ -115,7 +115,7 @@ spec = do
       f `shouldBeCalled` (ComplexUser "Alice" (Config "Dark" 1)) `shouldThrow` errorCall expectedError
 
     it "shows diff for nested list" do
-      f <- mock $ (any :: Param [[Int]]) |> "ok"
+      f <- mock $ (any :: Param [[Int]]) ~> "ok"
       _ <- evaluate $ f [[1, 2], [3, 4]]
       let expectedError = 
             "function was not called with the expected arguments.\n\
@@ -131,7 +131,7 @@ spec = do
       f `shouldBeCalled` [[1, 2], [3, 5]] `shouldThrow` errorCall expectedError
 
     it "shows multiple differences in nested record" do
-      f <- mock $ (any :: Param ComplexUser) |> "ok"
+      f <- mock $ (any :: Param ComplexUser) ~> "ok"
       let actual = ComplexUser "Alice" (Config "Light" 2)
           expected = ComplexUser "Bob" (Config "Dark" 1)
       _ <- evaluate $ f actual
@@ -156,7 +156,7 @@ spec = do
 
     describe "robustness (broken formats)" do
       it "handles unbalanced braces gracefully (fallback to standard message)" do
-         f <- mock $ (any :: Param String) |> "ok"
+         f <- mock $ (any :: Param String) ~> "ok"
          let actual = "{ name = \"Alice\""
              expected = "{ name = \"Bob\" }"
          _ <- evaluate $ f actual
@@ -168,7 +168,7 @@ spec = do
          f `shouldBeCalled` expected `shouldThrow` errorCall expectedError
 
       it "handles completely broken structure strings" do
-         f <- mock $ (any :: Param String) |> "ok"
+         f <- mock $ (any :: Param String) ~> "ok"
          let actual = "NotARecord {,,,,,}"
              expected = "NotARecord { a = 1 }"
          _ <- evaluate $ f actual
@@ -181,7 +181,7 @@ spec = do
 
     describe "extreme structural cases" do
       it "handles extremely deep nesting" do
-        f <- mock $ (any :: Param DeepNode) |> "ok"
+        f <- mock $ (any :: Param DeepNode) ~> "ok"
         -- 5 layers deep
         let actual = Node{val = 1, next = Node{val = 2, next = Node{val = 3, next = Node{val = 4, next = Node{val = 5, next = Leaf 0}}}}}
             expected = Node{val = 1, next = Node{val = 2, next = Node{val = 3, next = Node{val = 4, next = Node{val = 5, next = Leaf 1}}}}}
@@ -200,7 +200,7 @@ spec = do
         f `shouldBeCalled` expected `shouldThrow` errorCall expectedError
 
       it "shows mismatches across multiple layers" do
-        f <- mock $ (any :: Param MultiLayer) |> "ok"
+        f <- mock $ (any :: Param MultiLayer) ~> "ok"
         let actual = MultiLayer {layer1 = "A", sub = SubLayer {layer2 = "B", items = [Node {val = 1, next = Leaf 2}]}}
             expected = MultiLayer {layer1 = "X", sub = SubLayer {layer2 = "Y", items = [Node {val = 1, next = Leaf 3}]}}
         _ <- evaluate $ f actual
@@ -224,7 +224,7 @@ spec = do
         f `shouldBeCalled` expected `shouldThrow` errorCall expectedError
 
       it "handles cases where almost everything is different" do
-        f <- mock $ (any :: Param Config) |> "ok"
+        f <- mock $ (any :: Param Config) ~> "ok"
         let actual = Config "Light" 1
             expected = Config "Dark" 99
         _ <- evaluate $ f actual

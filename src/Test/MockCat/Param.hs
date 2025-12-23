@@ -16,7 +16,7 @@ module Test.MockCat.Param
   ( Param(..),
     value,
     param,
-    (|>),
+    (~>),
     expect,
     expect_,
     any,
@@ -84,22 +84,22 @@ param :: v -> Param v
 param = ExpectValue
 
 class ConsGen a b r | a b -> r where
-  (|>) :: a -> b -> r
+  (~>) :: a -> b -> r
 
 instance {-# OVERLAPPING #-} (Param a ~ a', (Param b :> c) ~ bc) => ConsGen a (Param b :> c) (a' :> bc) where
-  (|>) a = (:>) (param a)
+  (~>) a = (:>) (param a)
 instance {-# OVERLAPPING #-} ((Param b :> c) ~ bc) => ConsGen (Param a) (Param b :> c) (Param a :> bc) where
-  (|>) = (:>)
+  (~>) = (:>)
 instance ConsGen (Param a) (Param b) (Param a :> Param b) where
-  (|>) = (:>)
+  (~>) = (:>)
 instance {-# OVERLAPPABLE #-} ((Param b) ~ b') => ConsGen (Param a) b (Param a :> b') where
-  (|>) a b = (:>) a (param b)
+  (~>) a b = (:>) a (param b)
 instance {-# OVERLAPPABLE #-} ((Param a) ~ a') => ConsGen a (Param b) (a' :> Param b) where
-  (|>) a = (:>) (param a)
+  (~>) a = (:>) (param a)
 instance {-# OVERLAPPABLE #-} (Param a ~ a', Param b ~ b') => ConsGen a b (a' :> b') where
-  (|>) a b = (:>) (param a) (param b)
+  (~>) a b = (:>) (param a) (param b)
 
-infixr 8 |>
+infixr 0 ~>
 
 -- | Make a parameter to which any value is expected to apply.
 --   Use with type application to specify the type: @any \@String@
@@ -108,7 +108,7 @@ any = ExpectCondition (const True) "any"
 
 {- | Create a conditional parameter.
 
-   When applying a mock function, if the argument does not satisfy this condition, an error occurs.
+   When calling a mock function, if the argument does not satisfy this condition, an error occurs.
 
    In this case, the specified label is included in the error message.
 -}
@@ -117,7 +117,7 @@ expect = ExpectCondition
 
 {- | Create a conditional parameter.
 
-  In applied a mock function, if the argument does not satisfy this condition, an error occurs.
+  In calling a mock function, if the argument does not satisfy this condition, an error occurs.
 
   Unlike @'expect'@, it does not require a label, but the error message is displayed as [some condition].
 -}

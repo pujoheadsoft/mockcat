@@ -13,18 +13,18 @@ import Test.QuickCheck.Monadic (monadicIO, run, assert)
 import Test.MockCat hiding (any)
 
 -- | Unary action so we can register a concrete expected argument & return value.
---   We test that constructing (but not forcing) the application does not count.
+--   We test that constructing (but not forcing) the call does not count.
 class Monad m => LazyUnaryAction m where
   lazyUnaryAction :: Int -> m Int
 
 makeMock [t|LazyUnaryAction|]
 
 -- | Property: if we declare an expectation but never force (execute) the action,
---   the recorded application count remains 0.
+--   the recorded call count remains 0.
 prop_lazy_unforced_not_counted :: Property
 prop_lazy_unforced_not_counted = monadicIO $ do
   run $ runMockT $ do
-    _ <- _lazyUnaryAction (param (10 :: Int) |> (42 :: Int))
+    _ <- _lazyUnaryAction (param (10 :: Int) ~> (42 :: Int))
       `expects` do
         called never
     -- Do NOT force the call; only build a thunk.
@@ -37,7 +37,7 @@ prop_lazy_unforced_not_counted = monadicIO $ do
 prop_lazy_forced_counted :: Property
 prop_lazy_forced_counted = monadicIO $ do
   run $ runMockT $ do
-    _ <- _lazyUnaryAction (param (10 :: Int) |> (7 :: Int))
+    _ <- _lazyUnaryAction (param (10 :: Int) ~> (7 :: Int))
       `expects` do
         called once
     v <- lazyUnaryAction 10   -- forcing the monadic action executes the mock

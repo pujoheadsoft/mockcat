@@ -55,7 +55,7 @@ spec = describe "ClassAnalysis helpers" $ do
           ty = AppT (AppT (ConT ''Either) (ConT ''String)) (VarT a)
       getClassNames ty `shouldBe` [''Either, ''String]
 
-  describe "VarApplied helpers" $ do
+  describe "VarCalled helpers" $ do
     it "applyVarAppliedTypes replaces type variables with class names" $ do
       let m = mkName "m"
           a = mkName "a"

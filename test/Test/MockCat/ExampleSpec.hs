@@ -47,7 +47,7 @@ spec = do
     let
       f :: String -> String -> String
       f a b = a <> b
-    stub <- mock $ "a" |> f |> True
+    stub <- mock $ "a" ~> f ~> True
     stub "a" f `shouldBe` True
 
   it "function arg2" do
@@ -61,7 +61,7 @@ spec = do
       g :: String -> String -> String
       g a b = a <> b
 
-    stub <- mock $ "a" |> f |> g |> True
+    stub <- mock $ "a" ~> f ~> g ~> True
 
     -- Verify that calling with wrong function order raises an error
     evaluate (stub "a" g f) `shouldThrow` anyErrorCall
@@ -78,61 +78,61 @@ spec = do
         onCase $ pure @IO "a"
         onCase $ pure @IO ""
 
-      _writeTTY $ "a" |> pure @IO ()
+      _writeTTY $ "a" ~> pure @IO ()
       echoProgram
     result `shouldBe` ()
 
   it "echo3" do
     result <- runMockT do
       _readTTY $ casesIO ["a", ""]
-      _writeTTY $ "a" |> pure @IO ()
+      _writeTTY $ "a" ~> pure @IO ()
       echoProgram
     result `shouldBe` ()
 
   it "echo4" do
     result <- runMockT do
       _readTTY $ cases [ pure @IO "a", pure @IO "" ]
-      _writeTTY $ "a" |> pure @IO ()
+      _writeTTY $ "a" ~> pure @IO ()
       echoProgram
     result `shouldBe` ()
 
   it "read & write" do
     result <- runMockT do
-      _readFile $ "input.txt" |> pack "Content"
-      _writeFile $ "output.text" |> pack "Content" |> ()
+      _readFile $ "input.txt" ~> pack "Content"
+      _writeFile $ "output.text" ~> pack "Content" ~> ()
       operationProgram "input.txt" "output.text"
 
     result `shouldBe` ()
 
   it "stub" do
     -- create a stub function
-    stubFn <- mock $ "value" |> True
+    stubFn <- mock $ "value" ~> True
     -- assert
     stubFn "value" `shouldBe` True
 
   it "stub & verify" do
     -- create a mock
-    mockFn <- mock $ "value" |> True
+    mockFn <- mock $ "value" ~> True
     -- assert
     mockFn "value" `shouldBe` True
 
   it "how to use" do
-    f <- mock $ "param1" |> "param2" |> pure @IO ()
+    f <- mock $ "param1" ~> "param2" ~> pure @IO ()
     actual <- f "param1" "param2"
     actual `shouldBe` ()
 
   it "named stub" do
-    f <- mock (label "named stub") $ "x" |> "y" |> True
+    f <- mock (label "named stub") $ "x" ~> "y" ~> True
     f "x" "y" `shouldBe` True
 
   it "mock returns monadic stub (IO)" do
-    f <- mock $ "a" |> (11 :: Int) |> pure @IO False
+    f <- mock $ "a" ~> (11 :: Int) ~> pure @IO False
     f "a" (11 :: Int) `shouldReturn` False
 
   it "mock returns monadic stub (MaybeT)" do
     mm <- runMaybeT do
       -- create a mock inside MaybeT
-      mock $ True |> pure @(MaybeT IO) False
+      mock $ True ~> pure @(MaybeT IO) False
     case mm of
       Nothing -> expectationFailure "mock returned Nothing"
       Just f -> do
@@ -141,41 +141,41 @@ spec = do
         res `shouldBe` Just False
 
   it "named mock" do
-    f <- mock (label "mock") $ "value" |> "a" |> True
+    f <- mock (label "mock") $ "value" ~> "a" ~> True
     f "value" "a" `shouldBe` True
 
   it "stub function" do
-    f <- mock $ "value" |> True
+    f <- mock $ "value" ~> True
     f "value" `shouldBe` True
 
   it "any" do
-    f <- mock $ any |> "return value"
+    f <- mock $ any ~> "return value"
     f "something" `shouldBe` "return value"
 
   it "expect" do
-    f <- mock $ expect (> (5 :: Int)) "> 5" |> "return value"
+    f <- mock $ expect (> (5 :: Int)) "> 5" ~> "return value"
     f 6 `shouldBe` "return value"
 
   it "expect_" do
-    f <- mock $ expect_ (> (5 :: Int)) |> "return value"
+    f <- mock $ expect_ (> (5 :: Int)) ~> "return value"
     f 6 `shouldBe` "return value"
 
   it "expectByExpr" do
-    f <- mock $ $(expectByExpr [|(> (5 :: Int))|]) |> "return value"
+    f <- mock $ $(expectByExpr [|(> (5 :: Int))|]) ~> "return value"
     f 6 `shouldBe` "return value"
 
   it "multi" do
     f <- mock do
-      onCase $ "a" |> "return x"
-      onCase $ "b" |> "return y"
+      onCase $ "a" ~> "return x"
+      onCase $ "b" ~> "return y"
 
     f "a" `shouldBe` "return x"
     f "b" `shouldBe` "return y"
 
   it "Return different values for the same argument" do
     f <- mock $ do
-      onCase $ "arg" |> "x"
-      onCase $ "arg" |> "y"
+      onCase $ "arg" ~> "x"
+      onCase $ "arg" ~> "y"
 
     -- Do not allow optimization to remove duplicates.
     v1 <- evaluate $ f "arg"

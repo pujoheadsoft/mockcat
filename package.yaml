@@ -1,5 +1,5 @@
 name:                mockcat
-version:             0.6.0.0
+version:             1.0.0.0
 github:              pujoheadsoft/mockcat
 license:             "MIT"
 author:              "funnycat <pujoheadsoft@gmail.com>"
@@ -20,7 +20,7 @@ description: |
 
   Features:
 
-  * Describe expectations with left-to-right pipelines: `arg |> ... |> result`
+  * Describe expectations with left-to-right pipelines: `arg ~> ... ~> result`
   * Generate typeclass mocks via Template Haskell (`makeMock`, `makePartialMock`)
   * Create standalone function stubs (`createStubFn`, constant mocks)
   * Flexible return behaviour: vary by argument or occurrence (including identical args later)

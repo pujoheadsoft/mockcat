@@ -9,15 +9,15 @@
 
 ## 概要
 mockcat は Haskell 向けの小さなモック / スタブ DSL です。  
-`arg |> arg |> 戻り値` というシンプルな書き方で「こう呼ばれたらこう返す」を並べ、関数ならそのまま使い、型クラスなら Template Haskell (`makeMock`, `makePartialMock`) で生成したスタブ関数を `runMockT` の中で走らせると自動で検証まで行われます。
+`arg ~> arg ~> 戻り値` というシンプルな書き方で「こう呼ばれたらこう返す」を並べ、関数ならそのまま使い、型クラスなら Template Haskell (`makeMock`, `makePartialMock`) で生成したスタブ関数を `runMockT` の中で走らせると自動で検証まで行われます。
 
 ### 使うべきタイミング / 使わない方が良いタイミング
 
 #### 使うべきタイミング
 | 状況 | mockcat が向いている理由 |
 |------|---------------------------|
-| 1〜数箇所だけサクッとモックしたい | `a |> b |> r` で即 DSL 化、周辺設定が少ない |
-| 引数と「呼び出し回数 / 呼び出し順」まで検証したい | `shouldApplyTimes*`, `shouldApplyInOrder` 系が素直 |
+| 1〜数箇所だけサクッとモックしたい | `a ~> b ~> r` で即 DSL 化、周辺設定が少ない |
+| 引数と「呼び出し回数 / 呼び出し順」まで検証したい | `shouldBeCalled m (times n `with` args)*`, `shouldBeCalled m (inOrderWith args)` 系が素直 |
 | 同じ引数でも呼び出し毎に返り値を変えたい | `onCase` + 重複ケースでシーケンス制御可能（末尾は粘着 repeat） |
 | 並列実行でも回数ロスや重複カウントを避けたい | IORef 原子的更新 + Property Test (並行カウント) |
 | 型クラスの一部だけ差し替えたい | `makePartialMock` で必要メソッドのみモック |
@@ -36,15 +36,15 @@ mockcat は Haskell 向けの小さなモック / スタブ DSL です。
 | プロジェクト全体を型レベル DI 設計で統一 | 素の型クラスインスタンス / ReaderT 環境 |
 
 #### 設計ポリシー
-* DSL の中核は極小 (`|>` + 期待マッチャ)。周辺は拡張層（ParamSpec, シナリオ DSL）は後置。 
+* DSL の中核は極小 (`~>` + 期待マッチャ)。周辺は拡張層（ParamSpec, シナリオ DSL）は後置。 
 * 「明示性 > 自動化」: 暗黙のグローバル検証なし。`runMockT` 境界で完了。 
 * 並行安全性とメッセージ明快さを優先、過剰な内部最適化は後回し。 
 * 侵襲的なアーキテクチャ変更を要求しない。既存テストへ差し込める。
 
 #### 導入 (手書きスタブから段階的移行) 手順例
-1. 既存の手書きスタブを `createMockFn` に置換 (同じ型シグネチャ温存)。
-2. 必要なテストだけ `shouldApplyTo` / `shouldApplyTimes` を追加 (全部に付けない)。
-3. 重複呼び出し判定や順序がテスト意図なら `shouldApplyInOrder` を追加。
+1. 既存の手書きスタブを `mock` に置換 (同じ型シグネチャ温存)。
+2. 必要なテストだけ `shouldBeCalled` / `shouldBeCalled m (times n `with` args)` を追加 (全部に付けない)。
+3. 重複呼び出し判定や順序がテスト意図なら `shouldBeCalled m (inOrderWith args)` を追加。
 4. 将来さらに fuzz / property を盛りたい場合は PoC モジュール (ParamSpec/Scenario) を検討。
 
 #### FAQ 抜粋
@@ -66,7 +66,7 @@ STM (`modifyTVar'`) による単一レコード更新でロス/二重記録防�
 ---
 
 ### 特徴
-* シンプル: `arg |> ... |> 戻り値` でスタブ関数をすぐ作れる。
+* シンプル: `arg ~> ... ~> 戻り値` でスタブ関数をすぐ作れる。
 * 柔軟な戻り値: 同じ引数でも呼び出しごとで値を変えたり、引数別に振り分けたりできる。
 * 型クラスのモックを生成: Template Haskell によりボイラープレートを削減。
 * 型クラスの部分モック: 必要な関数だけ差し替え、残りは本物で動かすことができる。
@@ -89,25 +89,25 @@ STM (`modifyTVar'`) による単一レコード更新でロス/二重記録防�
 スタブ関数（検証機能なし）
 ```haskell
 -- create a stub function without verification
-let stubFn = createStubFn $ "value" |> True
+let stubFn = mock $ "value" ~> True
 -- assert
 stubFn "value" `shouldBe` True
 ```
 モック関数（検証機能付き）
 ```haskell
 -- create a verifiable mock function
-stubFunction <- createMockFn $ "value" |> True
+stubFunction <- mock $ "value" ~> True
 -- assert
 stubFunction "value" `shouldBe` True
 -- verify
-stubFunction `shouldApplyTo` "value"
+stubFunction `shouldBeCalled` "value"
 ```
 型クラス
 ```haskell
 result <- runMockT do
   -- stub functions
-  _readFile $ "input.txt" |> pack "content"
-  _writeFile $ "output.txt" |> pack "content" |> ()
+  _readFile $ "input.txt" ~> pack "content"
+  _writeFile $ "output.txt" ~> pack "content" ~> ()
   -- sut
   program "input.txt" "output.txt"
 
@@ -117,75 +117,75 @@ result `shouldBe` ()
 
 mockcatは2種類の関数を提供します：
 
-1. **スタブ関数** (`createStubFn`): 検証機能を持たない純粋なスタブ関数
-2. **モック関数** (`createMockFn`): 検証機能を持つモック関数（内部で`unsafePerformIO`を使用）
+1. **スタブ関数** (`mock`): 検証機能を持たない純粋なスタブ関数
+2. **モック関数** (`mock`): 検証機能を持つモック関数（内部で`unsafePerformIO`を使用）
 
 ### スタブ関数（検証機能なし）
 
-スタブ関数は`createStubFn`関数で生成することができます。
-`createStubFn`の引数は、適用が期待される引数を `|>` で連結したもので、`|>` の最後の値が関数の返り値となります。
+スタブ関数は`mock`関数で生成することができます。
+`mock`の引数は、適用が期待される引数を `~>` で連結したもので、`~>` の最後の値が関数の返り値となります。
 ```haskell
-let stubFn = createStubFn $ (10 :: Int) |> "return value"
+let stubFn = mock $ (10 :: Int) ~> "return value"
 ```
 
 ### モック関数（検証機能付き）
 
-モック関数は`createMockFn`関数で生成することができます。
-`createMockFn`の引数は、適用が期待される引数を `|>` で連結したもので、`|>` の最後の値が関数の返り値となります。
+モック関数は`mock`関数で生成することができます。
+`mock`の引数は、適用が期待される引数を `~>` で連結したもので、`~>` の最後の値が関数の返り値となります。
 ```haskell
-mockFn <- createMockFn $ (10 :: Int) |> "return value"
+mockFn <- mock $ (10 :: Int) ~> "return value"
 ```
 
 これは型クラスのモックにおけるスタブ関数の場合も同様です。
 ```haskell
 runMockT do
-  _readFile $ "input.txt" |> pack "content"
+  _readFile $ "input.txt" ~> pack "content"
 ```
 期待される引数は、条件として指定することもできます。
 ```haskell
 -- Conditions other than exact match
-mockFn <- createMockFn $ any |> "return value"
-mockFn <- createMockFn $ expect (> 5) "> 5" |> "return value"
-mockFn <- createMockFn $ expect_ (> 5) |> "return value"
-mockFn <- createMockFn $ $(expectByExpr [|(> 5)|]) |> "return value"
+mockFn <- mock $ any ~> "return value"
+mockFn <- mock $ expect (> 5) "> 5" ~> "return value"
+mockFn <- mock $ expect_ (> 5) ~> "return value"
+mockFn <- mock $ $(expectByExpr [|(> 5)|]) ~> "return value"
 ```
 また、引数に応じて返す値を変えることも可能です。
 （同じ引数に対して、別の値を返すことも可能できます。）
 ```haskell
 -- Parameterized Mock
-mockFn <- createMockFn do
-  onCase $ "a" |> "return x"
-  onCase $ "b" |> "return y"
-mockFn <- createMockFn do
-  onCase $ "arg" |> "x"
-  onCase $ "arg" |> "y"
+mockFn <- mock do
+  onCase $ "a" ~> "return x"
+  onCase $ "b" ~> "return y"
+mockFn <- mock do
+  onCase $ "arg" ~> "x"
+  onCase $ "arg" ~> "y"
 ```
 ## 検証の概要
-モック関数の適用を検証するには、`createMockFn` で生成したモック関数に対して直接検証関数を適用します。
+モック関数の適用を検証するには、`mock` で生成したモック関数に対して直接検証関数を適用します。
 ```haskell
-stubFunction <- createMockFn $ "value" |> True
+stubFunction <- mock $ "value" ~> True
 -- assert
 stubFunction "value" `shouldBe` True
 -- verify
-stubFunction `shouldApplyTo` "value"
+stubFunction `shouldBeCalled` "value"
 ```
 スタブ関数と同様に検証の場合も条件を指定することができます。
 ```haskell
-stubFunction `shouldApplyTo` any @String
-stubFunction `shouldApplyTo` expect_ (/= "not value")
-stubFunction `shouldApplyTo` $(expectByExpr [|(/= "not value")|])
+stubFunction `shouldBeCalled` any @String
+stubFunction `shouldBeCalled` expect_ (/= "not value")
+stubFunction `shouldBeCalled` $(expectByExpr [|(/= "not value")|])
 ```
 また適用された回数を検証することもできます。
 ```haskell
-stubFunction `shouldApplyTimes` (1 :: Int) `to` "value"
-stubFunction `shouldApplyTimesGreaterThan` (0 :: Int) `to` "value"
-stubFunction `shouldApplyTimesGreaterThanEqual` (1 :: Int) `to` "value"
-stubFunction `shouldApplyTimesLessThan` (2 :: Int) `to` "value"
-stubFunction `shouldApplyTimesLessThanEqual` (1 :: Int) `to` "value"
-stubFunction `shouldApplyTimesToAnything` (1 :: Int)
+stubFunction `shouldBeCalled` (times (1 :: Int) `with` "value")
+stubFunction `shouldBeCalled` (greaterThan (0 :: Int) `with` "value")
+stubFunction `shouldBeCalled` (atLeast (1 :: Int) `with` "value")
+stubFunction `shouldBeCalled` (lessThan (2 :: Int) `with` "value")
+stubFunction `shouldBeCalled` (atMost (1 :: Int) `with` "value")
+stubFunction `shouldBeCalled` (times (1 :: Int))
 ```
-なお、回数／順序の検証を行う各種ヘルパ（`shouldApplyTimes` 系、`shouldApplyTimesToAnything`、`shouldApplyInOrder`、`shouldApplyInPartialOrder` など）は、関数（あるいは IO アクション）として呼び出されるモックにしか利用できません。  
-`mock "foo"` のような純粋な定数モックは単なる値であり適用回数を記録できないため、`shouldApplyTo` / `shouldApplyToAnything` を使用してください。  
+なお、回数／順序の検証を行う各種ヘルパ（`times`, `greaterThan`, `atLeast`, `lessThan`, `atMost`, `inOrder`, `inPartialOrder`, …）は、関数（あるいは IO アクション）として呼び出されるモックにしか利用できません。  
+`mock "foo"` のような純粋な定数モックは単なる値であり適用回数を記録できないため、`shouldBeCalled` / `shouldBeCalledAnything` を使用してください。  
 上記の回数／順序ヘルパを定数モックに対して呼び出そうとすると、コンパイルエラーになります。
 
 型クラスのモックでも考え方は同じです。Template Haskell で自動生成される `_readFile` や `_writeFile` は、`expects` を直列に書けるよう実際のモック関数を返します。`runMockT` は新しい検証コンテキストでブロックを実行するだけなので、`expects` で期待値を登録するか、返されたモックに対して `shouldBeCalled` を呼ばない限り自動検証は行われません。
@@ -223,14 +223,14 @@ spec :: Spec
 spec = do
   it "Read, and output files" do
     result <- runMockT do
-      _readFile ("input.txt" |> pack "content")
-      _writeFile ("output.txt" |> pack "content" |> ())
+      _readFile ("input.txt" ~> pack "content")
+      _writeFile ("output.txt" ~> pack "content" ~> ())
       operationProgram "input.txt" "output.txt"
 
     result `shouldBe` ()
 ```
-スタブ関数には、関数の適用が期待される引数を `|>` で連結して渡します。  
-`|>` の最後の値が関数の返り値となります。
+スタブ関数には、関数の適用が期待される引数を `~>` で連結して渡します。  
+`~>` の最後の値が関数の返り値となります。
 
 モックは`runMockT`で実行します。
 
@@ -238,21 +238,21 @@ spec = do
 スタブを用意する際に期待値を登録しておくと、想定外の呼び出しでテストが自動的に失敗します。
 ```haskell
 result <- runMockT do
-  _readFile ("input.txt" |> pack "content")
-  _ <- _writeFile ("output.txt" |> pack "content" |> ())
-    `expects` (called once `with` ("output.txt" |> pack "content" |> ()))
+  _readFile ("input.txt" ~> pack "content")
+  _ <- _writeFile ("output.txt" ~> pack "content" ~> ())
+    `expects` (called once `with` ("output.txt" ~> pack "content" ~> ()))
   operationProgram "input.txt" "output.txt"
 
 result `shouldBe` ()
 ```
 この状態で期待される引数を `"edited content"` に変更すると、これまでどおり
-`function '_writeFile' was not applied to the expected arguments.` というエラーになります。
+`function '_writeFile' was not called to the expected arguments.` というエラーになります。
 
 また次のようにテスト対象で使用している関数に対応するスタブ関数を使用しなかったとします。
 ```haskell
 result <- runMockT do
-  _readFile ("input.txt" |> pack "content")
-  -- _writeFile ("output.txt" |> pack "content" |> ())
+  _readFile ("input.txt" ~> pack "content")
+  -- _writeFile ("output.txt" ~> pack "content" ~> ())
   operationProgram "input.txt" "output.txt"
 ```
 この場合もテストを実行すると、テストは失敗し、次のエラーメッセージが表示されます。
@@ -275,8 +275,8 @@ import Test.MockCat as M
 ...
 it "Read, and output files (contain ng word)" do
   result <- runMockT do
-    _readFile ("input.txt" |> pack "contains ngWord")
-    _ <- _writeFile ("output.txt" |> M.any |> ())
+    _readFile ("input.txt" ~> pack "contains ngWord")
+    _ <- _writeFile ("output.txt" ~> M.any ~> ())
       `expects` do
         called never
     operationProgram "input.txt" "output.txt"
@@ -286,7 +286,7 @@ it "Read, and output files (contain ng word)" do
 もしくはブロック終了後に直接 `shouldBeCalled` を呼び出しても構いません。
 ```haskell
 result <- runMockT do
-  stub <- _writeFile ("output.txt" |> M.any |> ())
+  stub <- _writeFile ("output.txt" ~> M.any ~> ())
   liftIO $ stub `shouldBeCalled` never
   operationProgram "input.txt" "output.txt"
 ```
@@ -319,13 +319,13 @@ spec = do
     r <- runMockT do
       _ <- _ask (Environment "input.txt" "output.txt")
         `expects` (called once `with` (Environment "input.txt" "output.txt"))
-      _readFile ("input.txt" |> pack "content")
-      _writeFile ("output.txt" |> pack "content" |> ())
+      _readFile ("input.txt" ~> pack "content")
+      _writeFile ("output.txt" ~> pack "content" ~> ())
       operationProgram
     r `shouldBe` ()
 ```
 ここで`ask`の呼び出しを削除すると、上記の期待値が失敗して
-`It has never been applied function '_ask'` というエラーになります。
+`It has never been called function '_ask'` というエラーになります。
 ### `IO a`型の値を返すモック
 通常定数関数は同じ値を返しますが、`IO a`型の値を返すモックの場合のみ、適用する度に別の値を返すようなモックを作ることができます。
 例えば型クラス`Teletype`とテスト対象の関数`echo`が定義されているとします。
@@ -356,7 +356,7 @@ result <- runMockT do
     onCase $ pure @IO "a"
     onCase $ pure @IO ""
 
-  _writeTTY $ "a" |> pure @IO ()
+  _writeTTY $ "a" ~> pure @IO ()
   echo
 result `shouldBe` ()
 ```
@@ -438,18 +438,18 @@ spec :: Spec
 spec = do
   it "使い方の例" do
     -- モック関数の生成("value"を適用すると、純粋な値Trueを返す)
-    stubFunction <- createMockFn $ "value" |> True
+    stubFunction <- mock $ "value" ~> True
 
     -- 関数の適用結果を検証
     stubFunction "value" `shouldBe` True
 
     -- 期待される値("value")が適用されたかを検証
-    stubFunction `shouldApplyTo` "value"
+    stubFunction `shouldBeCalled` "value"
 
 ```
 
 ### スタブ関数（検証機能なし）
-スタブ関数を直接作るには `createStubFn` 関数を使います。  
+スタブ関数を直接作るには `mock` 関数を使います。  
 検証が不要な場合は、こちらを使うとよいでしょう。
 ```haskell
 {-# LANGUAGE BlockArguments #-}
@@ -461,18 +461,18 @@ spec :: Spec
 spec = do
   it "スタブ関数を生成することができる" do
     -- 生成（検証機能なしの純粋なスタブ）
-    let f = createStubFn $ "param1" |> "param2" |> True
+    let f = mock $ "param1" ~> "param2" ~> True
 
     -- 適用
     f "param1" "param2" `shouldBe` True
 ```
-`createStubFn` 関数には、関数が適用されることを期待する引数を `|>` で連結して渡します。
-`|>` の最後の値が関数の返り値となります。
+`mock` 関数には、関数が適用されることを期待する引数を `~>` で連結して渡します。
+`~>` の最後の値が関数の返り値となります。
 
 スタブ関数が期待されていない引数に適用された場合はエラーとなります。
 ```console
 uncaught exception: ErrorCall
-Expected arguments were not applied to the function.
+Expected arguments were not called to the function.
   expected: "value"
   but got: "valuo"
 ```
@@ -487,36 +487,36 @@ import Test.MockCat
 spec :: Spec
 spec = do
   it "named mock" do
-    f <- createNamedMockFn "named mock" $ "x" |> "y" |> True
+    f <- createNamedMockFn "named mock" $ "x" ~> "y" ~> True
     f "x" "z" `shouldBe` True
 ```
 期待した引数に適用されなかった場合に出力されるエラーメッセージには、この名前が含まれるようになります。
 ```console
 uncaught exception: ErrorCall
-Expected arguments were not applied to the function `named stub`.
+Expected arguments were not called to the function `named stub`.
   expected: "x","y"
   but got: "x","z"
 ```
 
 ### 定数スタブ関数
-定数を返すようなスタブ関数を作るには`createConstantMock`もしくは`createNamedConstantMock`関数を使います。  
+定数を返すようなスタブ関数を作るには`mock`もしくは`createNamedMockFn`関数を使います。  
 
 ```haskell
 spec :: Spec
 spec = do
-  it "createConstantMock" do
-    m <- createConstantMock "foo"
+  it "mock" do
+    m <- mock "foo"
     stubFn m `shouldBe` "foo"
-    shouldApplyToAnything m
+    shouldBeCalledAnything m
 
-  it "createNamedConstantMock" do
-    m <- createNamedConstantMock "const" "foo"
+  it "createNamedMockFn" do
+    m <- mock (label "const") "foo"
     stubFn m `shouldBe` "foo"
-    shouldApplyToAnything m
+    shouldBeCalledAnything m
 ```
 
 ### 柔軟なモック関数
-`createMockFn` 関数に具体的な値ではなく、条件式を与えることで、柔軟なモック関数を生成できます。  
+`mock` 関数に具体的な値ではなく、条件式を与えることで、柔軟なモック関数を生成できます。  
 これを使うと、任意の値や、特定のパターンに合致する文字列などに対して期待値を返すことができます。  
 これはモナド型のモックを生成した際のスタブ関数も同様です。
 ### any
@@ -531,7 +531,7 @@ import Prelude hiding (any)
 spec :: Spec
 spec = do
   it "any" do
-    f <- createMockFn $ any |> "return value"
+    f <- mock $ any ~> "return value"
     f "something" `shouldBe` "return value"
 ```
 Preludeに同名の関数が定義されているため、`import Prelude hiding (any)`としています。
@@ -549,7 +549,7 @@ import Test.MockCat
 spec :: Spec
 spec = do
   it "expect" do
-    f <- createMockFn $ expect (> 5) "> 5" |> "return value"
+    f <- mock $ expect (> 5) "> 5" ~> "return value"
     f 6 `shouldBe` "return value"
 ```
 
@@ -566,7 +566,7 @@ import Test.MockCat
 spec :: Spec
 spec = do
   it "expect_" do
-    f <- createMockFn $ expect_ (> 5) |> "return value"
+    f <- mock $ expect_ (> 5) ~> "return value"
     f 6 `shouldBe` "return value"
 ```
 
@@ -583,7 +583,7 @@ import Test.MockCat
 spec :: Spec
 spec = do
   it "expectByExpr" do
-    f <- createMockFn $ $(expectByExpr [|(> 5)|]) |> "return value"
+    f <- mock $ $(expectByExpr [|(> 5)|]) ~> "return value"
     f 6 `shouldBe` "return value"
 ```
 
@@ -598,9 +598,9 @@ import Test.MockCat
 spec :: Spec
 spec = do
   it "multi" do
-    f <- createMockFn do
-      onCase $ "a" |> "return x"
-      onCase $ "b" |> "return y"
+    f <- mock do
+      onCase $ "a" ~> "return x"
+      onCase $ "b" ~> "return y"
 
     f "a" `shouldBe` "return x"
     f "b" `shouldBe` "return y"
@@ -618,9 +618,9 @@ import GHC.IO (evaluate)
 spec :: Spec
 spec = do
   it "Return different values for the same argument" do
-    f <- createMockFn do
-      onCase $ "arg" |> "x"
-      onCase $ "arg" |> "y"
+    f <- mock do
+      onCase $ "arg" ~> "x"
+      onCase $ "arg" ~> "y"
 
     -- Do not allow optimization to remove duplicates.
     v1 <- evaluate $ f "arg"
@@ -633,10 +633,10 @@ spec = do
 あるいは`cases`関数を使うこともできます。
 ```haskell
 f <-
-  createMockFn $
+  mock $
     cases
-      [ "a" |> "return x",
-        "b" |> "return y"
+      [ "a" ~> "return x",
+        "b" ~> "return y"
       ]
 
 f "a" `shouldBe` "return x"
@@ -645,8 +645,8 @@ f "b" `shouldBe` "return y"
 
 ## 検証
 ### 期待される引数に適用されたか検証する
-期待される引数に適用されたかは `shouldApplyTo` 関数で検証することができます。  
-`createMockFn` で生成したモック関数に対して直接検証を行います。
+期待される引数に適用されたかは `shouldBeCalled` 関数で検証することができます。  
+`mock` で生成したモック関数に対して直接検証を行います。
 ```haskell
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE TypeApplications #-}
@@ -657,12 +657,12 @@ spec :: Spec
 spec = do
   it "mock & verify" do
     -- create a verifiable mock
-    let args = "value" |> True
-    stubFunction <- createMockFn args
+    let args = "value" ~> True
+    stubFunction <- mock args
     -- assert
     stubFunction "value" `shouldBe` True
     -- verify
-    stubFunction `shouldApplyTo` "value"
+    stubFunction `shouldBeCalled` "value"
 ```
 ### 注
 適用されたという記録は、モック関数の返り値が評価される時点で行われます。  
@@ -676,20 +676,20 @@ import Test.MockCat
 spec :: Spec
 spec = do
   it "Verification does not work" do
-    f <- createMockFn $ "expect arg" |> "return value"
+    f <- mock $ "expect arg" ~> "return value"
     -- 引数の適用は行うが返り値は評価しない
     let _ = f "expect arg"
-    f `shouldApplyTo` "expect arg"
+    f `shouldBeCalled` "expect arg"
 ```
 ```console
 uncaught exception: ErrorCall
-Expected arguments were not applied to the function.
+Expected arguments were not called to the function.
   expected: "expect arg"
   but got: Never been called.
 ```
 
-### 期待される引数に適用された回数を検証する
-期待される引数が適用された回数は `shouldApplyTimes` 関数で検証することができます。
+### 期待される引数で呼び出された回数を検証する
+期待される引数で呼び出された回数は `shouldBeCalled` 関数で検証することができます。
 ```haskell
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE TypeApplications #-}
@@ -698,21 +698,17 @@ import Test.MockCat
 
 spec :: Spec
 spec = do
-  it "shouldApplyTimes" do
-    f <- createStubFn $ "value" |> True
-    print $ f "value"
-    print $ f "value"
-    f `shouldApplyTimes` (2 :: Int) `to` "value"
+    f `shouldBeCalled` (times (2 :: Int) `with` "value")
 ```
 
-### 何かしらに適用されたかを検証する
-関数が何かしらに適用されたかは、`shouldApplyToAnything`関数で検証することができます。
+### 何かしらの引数で呼び出されたかを検証する
+何かしらの引数で呼び出されたかは、`shouldBeCalled anything`関数で検証することができます。
 
-### 何かしらに適用された回数を検証する
-関数が何かしらに適用されたかの回数は、`shouldApplyTimesToAnything`関数で検証することができます。
+### 何かしらの引数で呼び出された回数を検証する
+何かしらの引数で呼び出された回数は、`shouldBeCalled` 関数に `times n` を渡すことで検証することができます。
 
-### 期待される順序で適用されたかを検証する
-期待される順序で適用されたかは `shouldApplyInOrder` 関数で検証することができます。
+### 期待される順序で呼び出されたかを検証する
+期待される順序で呼び出されたかは `shouldBeCalled` 関数に `inOrderWith` を渡すことで検証することができます。
 ```haskell
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE TypeApplications #-}
@@ -721,19 +717,11 @@ import Test.MockCat
 
 spec :: Spec
 spec = do
-  it "shouldApplyInOrder" do
-    f <- createStubFn $ any |> True |> ()
-    print $ f "a" True
-    print $ f "b" True
-    f
-      `shouldApplyInOrder` [ "a" |> True,
-                             "b" |> True
-                           ]
+    f `shouldBeCalled` inOrderWith [ "a" ~> True, "b" ~> True ]
 ```
 
-### 期待される順序で適用されたかを検証する(部分一致)
-`shouldApplyInOrder` 関数は適用の順序を厳密に検証しますが、  
-`shouldApplyInPartialOrder` 関数は適用の順序が部分的に一致しているかを検証することができます。
+### 期待される順序で呼び出されたかを検証する(部分一致)
+`inOrderWith` は呼び出し順序を厳密に検証しますが、`inPartialOrderWith` は順序が部分的に一致しているかを検証します。
 ```haskell
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE TypeApplications #-}
@@ -742,13 +730,5 @@ import Test.MockCat
 
 spec :: Spec
 spec = do
-  it "shouldApplyInPartialOrder" do
-    f <- createStubFn $ any |> True |> ()
-    print $ f "a" True
-    print $ f "b" True
-    print $ f "c" True
-    f
-      `shouldApplyInPartialOrder` [ "a" |> True,
-                                    "c" |> True
-                                  ]
+    f `shouldBeCalled` inPartialOrderWith [ "a" ~> True, "c" ~> True ]
 ```

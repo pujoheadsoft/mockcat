@@ -11,7 +11,7 @@
 
 {- | Utilities for constructing verifiable stub functions.
 
-Each stub produced by this module records argument applications and can be
+Each stub produced by this module records calls and can be
 verified via the unified 'shouldBeCalled' API.
 -}
 module Test.MockCat.Mock
@@ -107,7 +107,7 @@ newtype Label = Label MockName
 --   Use it with 'mock' to provide a name for the mock function.
 --   
 --   @
---   f <- mock (label "mockName") $ "a" |> "b"
+--   f <- mock (label "mockName") $ "a" ~> "b"
 --   @
 label :: MockName -> Label
 label = Label
@@ -122,13 +122,13 @@ class CreateStubFn a where
 
 -- | Create a mock function with verification hooks attached (unnamed version).
 --
--- This function creates a verifiable stub that records argument applications
+-- This function creates a verifiable stub that records calls
 -- and can be verified via the unified 'shouldBeCalled' API.
 -- The function internally uses 'unsafePerformIO' to make the returned function
 -- appear pure, but it requires 'MonadIO' for creation.
 --
 -- @
--- f <- mock $ "a" |> "b"
+-- f <- mock $ "a" ~> "b"
 -- @
 instance
   ( MonadIO m
@@ -147,13 +147,13 @@ instance
 -- | Create a named mock function (named version).
 --
 -- The provided name is used in failure messages.
--- This function creates a verifiable stub that records argument applications
+-- This function creates a verifiable stub that records calls
 -- and can be verified via the unified 'shouldBeCalled' API.
 -- The function internally uses 'unsafePerformIO' to make the returned function
 -- appear pure, but it requires 'MonadIO' for creation.
 --
 -- @
--- f <- mock (label "mockName") $ "a" |> "b"
+-- f <- mock (label "mockName") $ "a" ~> "b"
 -- @
 instance {-# OVERLAPPING #-}
   ( MonadIO m
@@ -175,15 +175,15 @@ instance {-# OVERLAPPING #-}
 --
 -- 1. Without a name:
 --    @
---    f <- mock $ "a" |> "b"
+--    f <- mock $ "a" ~> "b"
 --    @
 --
 -- 2. With a name (using 'label'):
 --    @
---    f <- mock (label "mockName") $ "a" |> "b"
+--    f <- mock (label "mockName") $ "a" ~> "b"
 --    @
 --
--- The function creates a verifiable stub that records argument applications
+-- The function creates a verifiable stub that records calls
 -- and can be verified via the unified 'shouldBeCalled' API.
 -- The function internally uses 'unsafePerformIO' to make the returned function
 -- appear pure, but it requires 'MonadIO' for creation.
@@ -252,7 +252,7 @@ createNamedMockFnWithParams name params = do
 -- verification capabilities.
 --
 -- @
--- let f = stub $ "a" |> "b"
+-- let f = stub $ "a" ~> "b"
 -- @
 instance StubBuilder params fn => CreateStubFn (params -> fn) where
   stubImpl = buildStub Nothing
@@ -265,7 +265,7 @@ instance StubBuilder params fn => CreateStubFn (params -> fn) where
 -- verification capabilities.
 --
 -- @
--- let f = stub (label "stubName") $ "a" |> "b"
+-- let f = stub (label "stubName") $ "a" ~> "b"
 -- @
 instance {-# OVERLAPPING #-} StubBuilder params fn => CreateStubFn (Label -> params -> fn) where
   stubImpl (Label name) = buildStub (Just name)
@@ -276,12 +276,12 @@ This function can be used in two ways:
 
 1. Without a name:
    @
-   let f = stub $ "a" |> "b"
+   let f = stub $ "a" ~> "b"
    @
 
 2. With a name (using 'label'):
    @
-   let f = stub (label "stubName") $ "a" |> "b"
+   let f = stub (label "stubName") $ "a" ~> "b"
    @
 
 This function creates a simple stub that returns values based on the provided

@@ -29,11 +29,11 @@ perCall i x = case i of
 --------------------------------------------------------------------------------
 
 -- | Property: A predicate Param (expect even) accepts only matching values and
--- the total recorded applications equals count of even inputs attempted.
+-- the total recorded calls equals count of even inputs attempted.
 prop_predicate_param_match_counts :: Property
 prop_predicate_param_match_counts = forAll genVals $ \xs -> monadicIO $ do
   -- build predicate mock: (Int -> Bool) returning True for all evens
-  f <- run $ mock (expect even "even" |> True)
+  f <- run $ mock (expect even "even" ~> True)
   results <- run $ mapM (\x -> try (evaluate (f x)) :: IO (Either SomeException Bool)) xs
   let successes = length [ () | Right _ <- results ]
       expected  = length (filter even xs)
@@ -53,11 +53,11 @@ prop_predicate_param_match_counts = forAll genVals $ \xs -> monadicIO $ do
 -- saturate at the last value.
 prop_multicase_progression :: Property
 prop_multicase_progression = forAll genSeq $ \(arg, rs, extra) -> monadicIO $ do
-  f <- run $ mock $ cases [ param arg |> r | r <- rs ]
+  f <- run $ mock $ cases [ param arg ~> r | r <- rs ]
   let totalCalls = length rs + extra
   -- NOTE [GHC9.4 duplicate-call counting]
   -- On GHC 9.4 we observed that using @replicateM totalCalls (evaluate (f arg))@
-  -- can result in only a single side‑effect (application recording) when all
+  -- can result in only a single side‑effect (call recording) when all
   -- of (argument,result) pairs are identical. The optimizer (or full laziness
   -- even under -O0) may float the pure expression @f arg@ and share it.
   -- We intentionally inject the loop index via a seq so each iteration has a
@@ -82,13 +82,13 @@ prop_multicase_progression = forAll genSeq $ \(arg, rs, extra) -> monadicIO $ do
 -- 23. runMockT isolation property
 --------------------------------------------------------------------------------
 
--- | Two independent runMockT invocations must not leak application counts.
+-- | Two independent runMockT invocations must not leak call counts.
 -- The first run enforces a single invocation; the second expects zero for a fresh mock.
 prop_runMockT_isolation :: Property
 prop_runMockT_isolation = monadicIO $ do
-  -- Run 1: expect one application
+  -- Run 1: expect one call
   r1 <- run $ try $ runMockT $ do
-    f <- liftIO $ mock (param (1 :: Int) |> True)
+    f <- liftIO $ mock (param (1 :: Int) ~> True)
     addDefinition Definition { symbol = Proxy @"iso", mockFunction = f, verification = Verification (\m' -> m' `shouldBeCalled` times 1) }
     liftIO $ f 1 `seq` pure ()
   case r1 of
@@ -96,7 +96,7 @@ prop_runMockT_isolation = monadicIO $ do
     Right () -> assert True
   -- Run 2: expect zero (if leaked, would see 1 and fail)
   r2 <- run $ try $ runMockT $ do
-    f <- liftIO $ mock (param (1 :: Int) |> True)
+    f <- liftIO $ mock (param (1 :: Int) ~> True)
     addDefinition Definition { symbol = Proxy @"iso", mockFunction = f, verification = Verification (\m' -> m' `shouldBeCalled` times 0) }
     pure ()
   case r2 of
@@ -113,7 +113,7 @@ prop_runMockT_isolation = monadicIO $ do
 prop_partial_order_duplicates :: Property
 prop_partial_order_duplicates = forAll genDupScript $ \xs -> length xs >= 2 ==> monadicIO $ do
   -- build mock over sequence
-  f <- run $ mock $ cases [ param x |> True | x <- xs ]
+  f <- run $ mock $ cases [ param x ~> True | x <- xs ]
   run $ forM_ xs $ \x -> f x `seq` pure ()
   let uniques = nub xs
   -- success case

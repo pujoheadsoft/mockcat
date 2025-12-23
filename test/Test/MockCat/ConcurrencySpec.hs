@@ -51,7 +51,7 @@ spec = do
   describe "Concurrency / expects" do
     it "counts calls across parallel async threads" do
       result <- runMockT do
-        _ <- _action (any |> (1 :: Int))
+        _ <- _action (any ~> (1 :: Int))
           `expects` do
             called (times 10)
         parallelActionSum 10
@@ -62,7 +62,7 @@ spec = do
           callsPerThread = 20 :: Int
           total = threads * callsPerThread :: Int
       _ <- (runMockT $ do
-        _ <- _action (any |> (1 :: Int))
+        _ <- _action (any ~> (1 :: Int))
           `expects` do
             called (times total)
         parallelCallActionWithDelay threads callsPerThread
@@ -71,7 +71,7 @@ spec = do
 
     it "fails verification when calls are fewer than declared" do
       runMockT (do
-        _ <- _action (any |> (1 :: Int))
+        _ <- _action (any ~> (1 :: Int))
           `expects` do
             called (times 10)
         parallelCallActionN 9
@@ -81,7 +81,7 @@ spec = do
   describe "Concurrency / never expectation" do
     it "passes when stub not used in parallel context" do
       r <- runMockT do
-        _ <- _action (any |> (99 :: Int))
+        _ <- _action (any ~> (99 :: Int))
           `expects` do
             called never
 

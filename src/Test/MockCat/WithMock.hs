@@ -21,7 +21,7 @@ Example:
 
 @
 withMock $ do
-  mockFn <- mock (any |> True)
+  mockFn <- mock (any ~> True)
     `expects` do
       called once `with` "a"
   

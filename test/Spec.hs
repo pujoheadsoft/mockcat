@@ -61,7 +61,7 @@ main = hspec $ do
       it "unforced stub action is not counted" $ property LazyEvalProp.prop_lazy_unforced_not_counted
       it "forced stub action is counted" $ property LazyEvalProp.prop_lazy_forced_counted
     describe "Property Script Generator" $ do
-      it "script count matches recorded applications" $ property ScriptProps.prop_script_count_matches
+      it "script count matches recorded calls" $ property ScriptProps.prop_script_count_matches
     describe "Property Order / PartialOrder" $ do
       it "in-order script succeeds" $ property OrderProps.prop_inorder_succeeds
       it "adjacent swap fails order verification" $ property OrderProps.prop_adjacent_swap_fails

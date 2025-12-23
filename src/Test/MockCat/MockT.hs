@@ -40,15 +40,15 @@ import qualified Test.MockCat.Internal.Registry.Core as Registry
      mock/stub registration and post-run verification.
 
 Concurrency safety (summary):
-  * Within a single 'runMockT' invocation, concurrent applications of stub
+  * Within a single 'runMockT' invocation, concurrent calls of stub
     functions are recorded without lost or double counts. This is achieved via
     STM updates ('modifyTVar'').
   * The /moment/ a call is recorded is when the stub's return value is evaluated;
-    if you only create an application but never force the result, it will not
+    if you only create a call but never force the result, it will not
     appear in the verification log.
   * Order-sensitive checks reflect evaluation order, not necessarily wall-clock
     start order between threads.
-  * Perform verification (e.g. 'shouldApplyTimes', `expects`) after all
+  * Perform verification (e.g. 'shouldBeCalled', `expects`) after all
     parallel work has completed; running it mid-flight may observe fewer calls
     simply because some results are still lazy.
   * Each 'runMockT' call uses a fresh TVar store; mocks are not shared across
@@ -94,7 +94,7 @@ data Verification f
   | Verification (f -> IO ())
 
 {- | Run MockT monad.
-  After run, verification is performed to see if the stub function has been applied.
+  After run, verification is performed to see if the stub function has been called.
 
   @
   import Test.Hspec
@@ -120,8 +120,8 @@ data Verification f
   spec = do
     it "test runMockT" do
       result \<- runMockT do
-        _readFile $ "input.txt" |\> pack "content"
-        _writeFile $ "output.text" |\> pack "content" |\> ()
+        _readFile $ "input.txt" ~> pack "content"
+        _writeFile $ "output.text" ~> pack "content" ~> ()
         operationProgram "input.txt" "output.text"
 
       result `shouldBe` ()

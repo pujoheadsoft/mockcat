@@ -13,7 +13,7 @@ message name expected actual =
   let expectedStr = formatStr (show expected)
       actualStr = formatStr (show actual)
       diffLine = "            " <> diffPointer expectedStr actualStr
-      mainMessage = "function" <> mockNameLabel name <> " was not applied to the expected arguments."
+      mainMessage = "function" <> mockNameLabel name <> " was not called with the expected arguments."
    in case structuralDiff expectedStr actualStr of
         [] ->
            intercalate "\n"
@@ -258,10 +258,10 @@ listMismatchIndex :: [String] -> [String] -> Maybe Int
 listMismatchIndex s1 s2 = elemIndex False (zipWith (==) s1 s2)
 
 verifyOrderFailedMesssage :: Show a => VerifyOrderResult a -> String
-verifyOrderFailedMesssage VerifyOrderResult {index, appliedValue, expectedValue} =
+verifyOrderFailedMesssage VerifyOrderResult {index, calledValue, expectedValue} =
   let callIndex = showHumanReadable (index + 1)
       expectedStr = formatStr (show expectedValue)
-      actualStr = formatStr (show appliedValue)
+      actualStr = formatStr (show calledValue)
       prefix = "   but got " <> callIndex <> " call: "
       spaces = replicate (length prefix) ' '
    in intercalate

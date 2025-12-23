@@ -204,7 +204,7 @@ collectUnExpectedOrder calledValues expectedValues =
       ( \i expectedValue -> do
           let calledValue = calledValues !! i
           guard $ expectedValue /= calledValue
-          pure VerifyOrderResult {index = i, appliedValue = calledValue, expectedValue}
+          pure VerifyOrderResult {index = i, calledValue = calledValue, expectedValue}
       )
       expectedValues
 
@@ -535,7 +535,7 @@ instance {-# OVERLAPPING #-}
               [ "Function" <> mockNameLabel mockName <> " was never called"
               ]
 
--- | Instance for Param chains (e.g., "a" |> "b")
+-- | Instance for Param chains (e.g., "a" ~> "b")
 instance {-# OVERLAPPING #-}
   ( ResolvableMockWithParams m (Param a :> rest)
   , Eq (Param a :> rest)

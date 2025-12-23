@@ -129,7 +129,7 @@ instance
     let
       fn = do
         result <- action
-        liftIO $ appendAppliedParams ref ()
+        liftIO $ appendCalledParams ref ()
         pure result
       recorder = InvocationRecorder ref IOConstant
     pure (BuiltMock fn recorder)
@@ -142,7 +142,7 @@ instance
     ref <- liftIO $ newTVarIO invocationRecord
     let v = value params
         fn = perform $ do
-          liftIO $ appendAppliedParams ref ()
+          liftIO $ appendCalledParams ref ()
           pure v
         recorder = InvocationRecorder ref PureConstant
     pure (BuiltMock fn recorder)
@@ -155,7 +155,7 @@ instance
     ref <- liftIO $ newTVarIO invocationRecord
     let v = value params
         fn = perform $ do
-          liftIO $ appendAppliedParams ref ()
+          liftIO $ appendCalledParams ref ()
           pure v
         recorder = InvocationRecorder ref PureConstant
     pure (BuiltMock fn recorder)
@@ -169,7 +169,7 @@ instance MockBuilder (Cases (IO a) ()) (IO a) () where
           count <- readInvocationCount ref ()
           let index = min count (length params - 1)
               r = safeIndex params index
-          appendAppliedParams ref ()
+          appendCalledParams ref ()
           incrementInvocationCount ref ()
           fromJust r
         recorder = InvocationRecorder ref IOConstant
@@ -249,8 +249,8 @@ invocationRecord =
     , invocationCounts = empty
     }
 
-appendAppliedParams :: TVar (InvocationRecord params) -> params -> IO ()
-appendAppliedParams ref inputParams =
+appendCalledParams :: TVar (InvocationRecord params) -> params -> IO ()
+appendCalledParams ref inputParams =
   atomically $
     modifyTVar' ref $ \record ->
       record
@@ -305,7 +305,7 @@ instance StubBuilder (Cases (IO a) ()) (IO a) where
       count <- readInvocationCount s ()
       let index = min count (length params - 1)
           r = safeIndex params index
-      appendAppliedParams s ()
+      appendCalledParams s ()
       incrementInvocationCount s ()
       fromJust r)
 
@@ -424,8 +424,8 @@ casesInvocationStep name paramsList inputParams InvocationRecord {invocations, i
             Left (messageForMultiMock name expectedArgs inputParams)
           )
         _ ->
-          let appliedCount = fromMaybe 0 (lookup inputParams invocationCounts)
-              index = min appliedCount (length matchedParams - 1)
+          let calledCount = fromMaybe 0 (lookup inputParams invocationCounts)
+              index = min calledCount (length matchedParams - 1)
               nextCounter = incrementCount inputParams invocationCounts
               nextRecord =
                 InvocationRecord

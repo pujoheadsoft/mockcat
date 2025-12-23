@@ -9,21 +9,21 @@
 ## Overview
 mockcat is a lightweight, declarative mocking & stubbing DSL for Haskell.
 
-You describe expected applications using a left‑to‑right pipeline (`arg |> arg |> returnValue`) and then either:
+You describe expected calls using a left‑to‑right pipeline (`arg ~> arg ~> returnValue`) and then either:
 * run function mocks directly, or
 * generate typeclass mocks via Template Haskell (`makeMock`, `makePartialMock`) and run them inside `runMockT` with automatic verification.
 
 [日本語版 README はこちら](https://github.com/pujoheadsoft/mockcat/blob/master/README-ja.md)
 
 ### Features
-* Small surface: describe a case with `arg |> ... |> result` – no separate expectation language
-* Concurrency‑safe counting: parallel applications don’t lose or double count
+* Small surface: describe a case with `arg ~> ... ~> result` – no separate expectation language
+* Concurrency‑safe counting: parallel calls don’t lose or double count
 * Honest laziness: an unevaluated result doesn’t register as a call; nothing is forced behind your back
 * Flexible returns: change results per argument or per occurrence (including identical args later)
 * Partial mocking: generate only the methods you care about with `makePartialMock`
 * Monadic return variation: for `IO a` you can vary the monadic result across calls
 * Clear failures: messages show the raw arguments and matcher labels directly
-* Low ceremony constant stubs: `createConstantMock` / `createNamedConstantMock`
+* Low ceremony constant stubs: `mock` with `label`
 * Template Haskell helpers: `makeMock` to cut boilerplate for typeclasses
 * No hidden global state: tests stay isolated
 
@@ -50,14 +50,14 @@ Use it when the following resonate:
 
 | Situation | Why mockcat helps |
 |-----------|-------------------|
-| You only need 1–3 small mocks and don’t want a heavy framework | Single expression `a |> b |> r` expectations stay lightweight |
+| You only need 1–3 small mocks and don’t want a heavy framework | Single expression `a ~> b ~> r` expectations stay lightweight |
 | You want argument + occurrence sensitive returns | Multiple `onCase` (including duplicate args) choose per call deterministically |
-| Verifying exact / partial order matters | Built‑in `shouldApplyInOrder` / `shouldApplyInPartialOrder` without extra harness |
+| Verifying exact / partial order matters | Built‑in `shouldBeCalled m (inOrderWith args)` / `shouldBeCalled m (inPartialOrderWith args)` without extra harness |
 | Need to assert precise call counts (including zero) | `expects` (`called …`, `times …`, etc.) or synchronous `shouldBeCalled` checks |
 | Concurrency: parallel tasks must not lose counts | Atomic recording + per‑call evaluation semantics tested with property tests |
-| You prefer explicit, non‑magical DSL | Only `|>` and a few combinators (`any`, `expect`, `expect_`, TH expectByExpr) |
+| You prefer explicit, non‑magical DSL | Only `~>` and a few combinators (`any`, `expect`, `expect_`, TH expectByExpr) |
 | You mix real + mocked methods in a typeclass | `makePartialMock` keeps untouched members real |
-| Occasional tests, not an application‑wide inversion setup | Zero global registry; opt‑in per test |
+| Occasional tests, not an call‑wide inversion setup | Zero global registry; opt‑in per test |
 | Need monadic variation for `IO` results | Repeated cases + monadic explicit returns under `implicitMonadicReturn` |
 
 ### When should you NOT use mockcat?
@@ -82,7 +82,7 @@ Consider alternatives if:
 
 ### Migrating from handwritten stubs
 If you already write tiny handmade stubs:
-1. Replace the stub body with `createMockFn`.
+1. Replace the stub body with `mock`.
 2. Inline expectation in the test (keep the original type signature).
 3. Add verification only where it increases confidence (don’t verify everything by habit).
 
@@ -121,9 +121,9 @@ import Test.MockCat
 
 spec :: Spec
 spec = it "simple function stub" do
-  f <- createStubFn $ "input" |> 42
+  f <- mock $ "input" ~> 42
   f "input" `shouldBe` 42
-  f `shouldApplyTo` "input"
+  f `shouldBeCalled` "input"
 ```
 
 Typeclass mock:
@@ -146,32 +146,32 @@ program = do
 spec :: Spec
 spec = it "kv" do
   r <- runMockT do
-    _putKV ("k" |> "v" |> ())
-    _getKV ("k" |> Just "v")
+    _putKV ("k" ~> "v" ~> ())
+    _getKV ("k" ~> Just "v")
     program
   r `shouldBe` Just "v"
 ```
 
 Non‑invocation (two styles):
 ```haskell
-  _putKV ("x" |> "y" |> ())
+  _putKV ("x" ~> "y" ~> ())
     `expects` do
       called never
 ```
 
 ### Core Concepts (Brief)
-* Pipeline DSL: `a |> b |> returnValue` describes one expected application.
+* Pipeline DSL: `a ~> b ~> returnValue` describes one expected call.
 * Matchers: `any`, `expect p label`, `expect_ p`, `$(expectByExpr [| predicate |])`.
 * Argument‑dependent returns: `onCase` or `cases [...]` (including differing values for same arg on later occurrences).
-* Counting: use `expects` (`called`, `times`, `atLeast`, etc.) or explicit `shouldBeCalled`/`shouldApplyTimes*` predicates.
-* Ordering: `shouldApplyInOrder`, `shouldApplyInPartialOrder`.
+* Counting: use `expects` (`called`, `times`, `atLeast`, etc.) or explicit `shouldBeCalled`/`shouldBeCalled m (times n `with` args)*` predicates.
+* Ordering: `shouldBeCalled m (inOrderWith args)`, `shouldBeCalled m (inPartialOrderWith args)`.
 * Concurrency: Call recorded only when result evaluated; counting atomic.
 * Partial mocks: `makePartialMock` for generating only some methods.
 * Monadic return variation (`IO a`): enable with `implicitMonadicReturn` option.
 
 ### Concurrency & Laziness Semantics
 Within `runMockT`:
-1. Each evaluated application contributes 1 count (STM-backed TVar).
+1. Each evaluated call contributes 1 count (STM-backed TVar).
 2. Unforced results are not recorded.
 3. Order checks reflect evaluation order, not mere start time.
 4. Finish async work before verification.
@@ -191,7 +191,7 @@ Migration: internal `(modify/get)` swapped to `addDefinition/getDefinitions` (vi
 
 * **0.6.0.0**: Removed the upper limit on variable arguments when creating stub functions.
 * **0.5.3.0**: `MockT` now implements `MonadUnliftIO`; concurrency safety clarified; removal of `unsafePerformIO`.
-* **0.5.0**: `IO a` stubs can return different values on successive applications.
+* **0.5.0**: `IO a` stubs can return different values on successive calls.
 * **0.4.0**: Partial mocks for typeclasses.
 * **0.3.0**: Typeclass mocks.
 * **0.2.0**: Argument‑dependent return values (including differing values for identical args).
@@ -209,91 +209,90 @@ Below is the full expanded reference (legacy detailed sections). Collapse if you
 Stub Function
 ```haskell
 -- create a stub function
-stubFn <- createStubFn $ "value" |> True
+stubFn <- mock $ "value" ~> True
 -- assert
 stubFn "value" `shouldBe` True
 ```
 Verification
 ```haskell
 -- create a verifiable stub
-stubFunction <- createStubFn $ "value" |> True
+stubFunction <- mock $ "value" ~> True
 -- assert
 stubFunction "value" `shouldBe` True
 -- verify
-stubFunction `shouldApplyTo` "value"
+stubFunction `shouldBeCalled` "value"
 ```
 Mock of Type Class
 ```haskell
 result <- runMockT do
   -- stub functions
-  _readFile $ "input.txt" |> pack "content"
-  _writeFile $ "output.txt" |> pack "content" |> ()
+  _readFile $ "input.txt" ~> pack "content"
+  _writeFile $ "output.txt" ~> pack "content" ~> ()
   -- sut
   program "input.txt" "output.txt"
 
 result `shouldBe` ()
 ```
 ## Stub Function Overview
-Mock functions (with verification) can be created with the `createMockFn` function.  
-The arguments of `createMockFn` are the arguments expected to be applied, concatenated by `|>`, where the last value of `|>` is the return value of the function.
+Mock functions (with verification) can be created with the `mock` function.  
+The arguments of `mock` are the arguments expected to be called, concatenated by `~>`, where the last value of `~>` is the return value of the function.
 ```haskell
-mockFn <- createMockFn $ (10 :: Int) |> "return value"
+mockFn <- mock $ (10 :: Int) ~> "return value"
 ```
 
-Stub functions (without verification) can be created with the `createStubFn` function.
+Stub functions (without verification) can be created with the `mock` function.
 ```haskell
-let stubFn = createStubFn $ (10 :: Int) |> "return value"
+let stubFn = mock $ (10 :: Int) ~> "return value"
 ```
 The same is true for stub functions in typeclass mocks.
 ```haskell
 runMockT do
-  _readFile $ "input.txt" |> pack "content"
+  _readFile $ "input.txt" ~> pack "content"
 ```
 Expected arguments can also be specified as conditions.
 ```haskell
 -- Conditions other than exact match
-createStubFn $ any |> "return value"
-createStubFn $ expect (> 5) "> 5" |> "return value"
-createStubFn $ expect_ (> 5) |> "return value"
-createStubFn $ $(expectByExpr [|(> 5)|]) |> "return value"
+mock $ any ~> "return value"
+mock $ expect (> 5) "> 5" ~> "return value"
+mock $ expect_ (> 5) ~> "return value"
+mock $ $(expectByExpr [|(> 5)|]) ~> "return value"
 ```
 It is also possible to change the value returned depending on the argument.  
 (It is also possible to return different values for the same argument.)
 ```haskell
 -- Parameterized Stub
-createStubFn do
-  onCase $ "a" |> "return x"
-  onCase $ "b" |> "return y"
-createStubFn do
-  onCase $ "arg" |> "x"
-  onCase $ "arg" |> "y"
+mock do
+  onCase $ "a" ~> "return x"
+  onCase $ "b" ~> "return y"
+mock do
+  onCase $ "arg" ~> "x"
+  onCase $ "arg" ~> "y"
 ```
 ## Verification Overview
-Mock functions created via `createMockFn` (or the Template Haskell helpers) carry verification metadata.  
+Mock functions created via `mock` (or the Template Haskell helpers) carry verification metadata.  
 You can apply verification combinators directly to the returned mock.
 ```haskell
-stubFunction <- createMockFn $ "value" |> True
+stubFunction <- mock $ "value" ~> True
 stubFunction "value" `shouldBe` True
-stubFunction `shouldApplyTo` "value"
+stubFunction `shouldBeCalled` "value"
 ```
 As with stub functions, conditions can be specified in the case of verification.
 ```haskell
-stubFunction `shouldApplyTo` any @String
-stubFunction `shouldApplyTo` expect_ (/= "not value")
-stubFunction `shouldApplyTo` $(expectByExpr [|(/= "not value")|])
+stubFunction `shouldBeCalled` any @String
+stubFunction `shouldBeCalled` expect_ (/= "not value")
+stubFunction `shouldBeCalled` $(expectByExpr [|(/= "not value")|])
 ```
-You can also verify the number of times it has been applied.
+You can also verify the number of times it has been called.
 ```haskell
-stubFunction `shouldApplyTimes` (1 :: Int) `to` "value"
-stubFunction `shouldApplyTimesGreaterThan` (0 :: Int) `to` "value"
-stubFunction `shouldApplyTimesGreaterThanEqual` (1 :: Int) `to` "value"
-stubFunction `shouldApplyTimesLessThan` (2 :: Int) `to` "value"
-stubFunction `shouldApplyTimesLessThanEqual` (1 :: Int) `to` "value"
-stubFunction `shouldApplyTimesToAnything` (1 :: Int)
+stubFunction `shouldBeCalled` (times (1 :: Int) `with` "value")
+stubFunction `shouldBeCalled` (greaterThan (0 :: Int) `with` "value")
+stubFunction `shouldBeCalled` (atLeast (1 :: Int) `with` "value")
+stubFunction `shouldBeCalled` (lessThan (2 :: Int) `with` "value")
+stubFunction `shouldBeCalled` (atMost (1 :: Int) `with` "value")
+stubFunction `shouldBeCalled` (times (1 :: Int))
 ```
-Note: all counting / order verification helpers (`shouldApplyTimes`, `shouldApplyTimesGreaterThan*`, `shouldApplyTimesLessThan*`,
-`shouldApplyTimesToAnything`, `shouldApplyInOrder`, `shouldApplyInPartialOrder`, …) can only be used with callable mocks (functions or IO actions).  
-Pure constant mocks such as `mock "foo"` only support `shouldApplyTo` / `shouldApplyToAnything`, because they are plain values and cannot meaningfully record multiple applications.  
+Note: all counting / order verification helpers (`times`, `greaterThan`, `atLeast`, `lessThan`, `atMost`, `inOrder`, `inPartialOrder`, …) can only be used with callable mocks (functions or IO actions).
+Pure constant mocks such as `mock "foo"` only support `shouldBeCalled` / `shouldBeCalledAnything`, because they are plain values and cannot meaningfully record multiple calls.  
 Attempting to call one of the counting/order helpers on a pure constant mock now results in a compile-time error.
 
 Typeclass mocks follow the same rule. Template Haskell generated helpers such as `_readFile` and `_writeFile` now return the actual mock functions, so you can chain `expects` directly to them. `runMockT` simply executes the supplied block inside a fresh expectation context; nothing is verified unless you register expectations with `expects` or call `shouldBeCalled` on the returned mock yourself.
@@ -331,14 +330,14 @@ spec :: Spec
 spec = do
   it "Read, and output files" do
     result <- runMockT do
-      _readFile ("input.txt" |> pack "content")
-      _writeFile ("output.txt" |> pack "content" |> ())
+      _readFile ("input.txt" ~> pack "content")
+      _writeFile ("output.txt" ~> pack "content" ~> ())
       operationProgram "input.txt" "output.txt"
 
     result `shouldBe` ()
 ```
-Stub functions are passed arguments that are expected to be applied to the function, concatenated by `|>`.  
-The last value of `|>` is the return value of the function.
+Stub functions are passed arguments that are expected to be called to the function, concatenated by `~>`.  
+The last value of `~>` is the return value of the function.
 
 Mocks are run with `runMockT`.
 
@@ -346,31 +345,31 @@ Mocks are run with `runMockT`.
 Attach expectations while defining the stub so that mismatches fail automatically.
 ```haskell
 result <- runMockT do
-  _readFile ("input.txt" |> pack "content")
-  _ <- _writeFile ("output.txt" |> pack "content" |> ())
-    `expects` (called once `with` ("output.txt" |> pack "content" |> ()))
+  _readFile ("input.txt" ~> pack "content")
+  _ <- _writeFile ("output.txt" ~> pack "content" ~> ())
+    `expects` (called once `with` ("output.txt" ~> pack "content" ~> ()))
   operationProgram "input.txt" "output.txt"
 
 result `shouldBe` ()
 ```
 Changing the expected arguments (for example to `"edited content"`) makes the test fail with
 ```console
-function `_writeFile` was not applied to the expected arguments.
+function `_writeFile` was not called to the expected arguments.
 ```
 
 Suppose also that you did not use the stub function corresponding to the function you are using in your test case, as follows
 ```haskell
 result <- runMockT do
-  _readFile ("input.txt" |> pack "content")
-  -- _writeFile ("output.txt" |> pack "content" |> ())
+  _readFile ("input.txt" ~> pack "content")
+  -- _writeFile ("output.txt" ~> pack "content" ~> ())
   operationProgram "input.txt" "output.txt"
 ```
 Again, when you run the test, the test fails and you get the following error message.
 ```console
 no answer found stub function `_writeFile`.
 ```
-## Verify the number of times applied
-For example, suppose you want to write a test for not applying `_writeFile` if it contains a specific string as follows.
+## Verify the number of times called
+For example, suppose you want to write a test for not calling `_writeFile` if it contains a specific string as follows.
 ```haskell
 operationProgram inputPath outputPath = do
   content <- readFile inputPath
@@ -383,19 +382,19 @@ import Test.MockCat as M
 ...
 it "Read, and output files (contain ng word)" do
   result <- runMockT do
-    _readFile ("input.txt" |> pack "contains ngWord")
-    _ <- _writeFile ("output.txt" |> M.any |> ())
+    _readFile ("input.txt" ~> pack "contains ngWord")
+    _ <- _writeFile ("output.txt" ~> M.any ~> ())
       `expects` do
         called never
     operationProgram "input.txt" "output.txt"
 
   result `shouldBe` ()
 ```
-You can verify that it was not applied by specifying `0`.
+You can verify that it was not called by specifying `0`.
 Or, if you prefer an explicit check, you can call `shouldBeCalled` after the test:
 ```haskell
 result <- runMockT do
-  stub <- _writeFile ("output.txt" |> M.any |> ())
+  stub <- _writeFile ("output.txt" ~> M.any ~> ())
   liftIO $ stub `shouldBeCalled` never
   operationProgram "input.txt" "output.txt"
 ```
@@ -426,15 +425,15 @@ spec = do
     r <- runMockT do
       _ <- _ask (Environment "input.txt" "output.txt")
         `expects` (called once `with` (Environment "input.txt" "output.txt"))
-      _readFile ("input.txt" |> pack "content")
-      _writeFile ("output.txt" |> pack "content" |> ())
+      _readFile ("input.txt" ~> pack "content")
+      _writeFile ("output.txt" ~> pack "content" ~> ())
       operationProgram
     r `shouldBe` ()
 ```
 Removing the `ask` call from `operationProgram` now makes the expectation above fail with
-`It has never been applied function '_ask'`.
+`It has never been called function '_ask'`.
 ### Mock that returns a value of type `IO a`.
-Normally constant functions return the same value, but only for mocks that return a value of type `IO a`, you can create a mock that returns a different value each time it is applied.  
+Normally constant functions return the same value, but only for mocks that return a value of type `IO a`, you can create a mock that returns a different value each time it is called.  
 For example, suppose a typeclass `Teletype` and a function `echo` to be tested are defined.  
 The `echo` will behave differently depending on the value returned by `readTTY`.
 ```haskell
@@ -456,14 +455,14 @@ Using `implicitMonadicReturn` allows stub functions to explicitly return monadic
 ```haskell
 makeMockWithOptions [t|Teletype|] options { implicitMonadicReturn = False }
 ```
-This allows the test to use `onCase` to have a behavior where the first application returns a value other than `""` and the second application returns `""`.
+This allows the test to use `onCase` to have a behavior where the first call returns a value other than `""` and the second call returns `""`.
 ```haskell
 result <- runMockT do
   _readTTY $ do
     onCase $ pure @IO "a"
     onCase $ pure @IO ""
 
-  _writeTTY $ "a" |> pure @IO ()
+  _writeTTY $ "a" ~> pure @IO ()
   echo
 result `shouldBe` ()
 ```
@@ -539,16 +538,16 @@ import Test.MockCat
 spec :: Spec
 spec = do
   it "usage example" do
-    -- create a stub (applying "value" returns the pure value True)
-    stubFunction <- createStubFn $ "value" |> True
-    -- verify the result of applying the function
+    -- create a stub (calling "value" returns the pure value True)
+    stubFunction <- mock $ "value" ~> True
+    -- verify the result of calling the function
     stubFunction "value" `shouldBe` True
-    -- verify that the expected value ("value") has been applied
-    stubFunction `shouldApplyTo` "value"
+    -- verify that the expected value ("value") has been called
+    stubFunction `shouldBeCalled` "value"
 ```
 ## Stub functions
-To create a stub function directly (without verification), use the `createStubFn` function.  
-If you need verification, use `createMockFn` instead.
+To create a stub function directly (without verification), use the `mock` function.  
+If you need verification, use `mock` instead.
 ```haskell
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE TypeApplications #-}
@@ -559,18 +558,18 @@ spec :: Spec
 spec = do
   it "can generate stub functions" do
     -- generate (pure stub without verification)
-    let f = createStubFn $ "param1" |> "param2" |> True
+    let f = mock $ "param1" ~> "param2" ~> True
     -- apply
     actual <- f "param1" "param2"
     -- Verification
     actual `shouldBe` ()
 ```
-The `createStubFn` and `createMockFn` functions are passed a sequence of `|>` arguments that the function is expected to apply.
-The last value of `|>` is the return value of the function.
-If the stub function is applied to an argument it is not expected to be applied to, an error is returned.
+The `mock` and `mock` functions are passed a sequence of `~>` arguments that the function is expected to apply.
+The last value of `~>` is the return value of the function.
+If the stub function is called to an argument it is not expected to be called to, an error is returned.
 ```console
 Uncaught exception: ErrorCall
-Expected arguments were not applied to the function.
+Expected arguments were not called to the function.
   expected: "value"
   but got: "valuo"
 ```
@@ -585,13 +584,13 @@ import Test.MockCat
 spec :: Spec
 spec = do
   it "named stub" do
-  f <- createNamedMockFn "named mock" $ "x" |> "y" |> True
+  f <- mock (label "named mock") $ "x" ~> "y" ~> True
     f "x" "z" `shouldBe` True
 ```
-The error message printed when a stub function is not applied to an expected argument will include this name.
+The error message printed when a stub function is not called to an expected argument will include this name.
 ```console
 uncaught exception: ErrorCall
-Expected arguments were not applied to the function `named stub`.
+Expected arguments were not called to the function `named stub`.
   expected: "x","y"
   but got: "x","z"
 ```
@@ -603,14 +602,14 @@ spec = do
   it "createConstantStubFn" do
     v <- createConstantStubFn "foo"
     v `shouldBe` "foo"
-    shouldApplyToAnything v
+    shouldBeCalledAnything v
   it "createNamedConstantStubFn" do
     v <- createNamedConstantStubFn "const" "foo"
     v `shouldBe` "foo"
-    shouldApplyToAnything v
+    shouldBeCalledAnything v
 ```
 ### Flexible stub functions
-Flexible mock functions can be generated by giving the `createMockFn` function a conditional expression rather than a concrete value.  
+Flexible mock functions can be generated by giving the `mock` function a conditional expression rather than a concrete value.  
 This can be used to return expected values for arbitrary values or strings that match a specific pattern.  
 This is also true for the stub function when generating a mock of a monad type.
 ### any
@@ -625,7 +624,7 @@ import Prelude hiding (any)
 spec :: Spec
 spec = do
   it "any" do
-    f <- createMockFn $ any |> "return value"
+    f <- mock $ any ~> "return value"
     f "something" `shouldBe` "return value"
 ```
 Since a function with the same name is defined in Prelude, we use import Prelude hiding (any).
@@ -642,7 +641,7 @@ import Test.MockCat
 spec :: Spec
 spec = do
   it "expect" do
-    f <- createMockFn $ expect (> 5) "> 5" |> "return value"
+    f <- mock $ expect (> 5) "> 5" ~> "return value"
     f 6 `shouldBe` "return value"
 ```
 ### Condition Expressions without Labels
@@ -657,7 +656,7 @@ import Test.MockCat
 spec :: Spec
 spec = do
   it "expect_" do
-    f <- createMockFn $ expect_ (> 5) |> "return value"
+    f <- mock $ expect_ (> 5) ~> "return value"
     f 6 `shouldBe` "return value"
 ```
 ### Condition Expressions using Template Haskell
@@ -673,11 +672,11 @@ import Test.MockCat
 spec :: Spec
 spec = do
   it "expectByExpr" do
-    f <- createMockFn $ $(expectByExpr [|(> 5)|]) |> "return value"
+    f <- mock $ $(expectByExpr [|(> 5)|]) ~> "return value"
     f 6 `shouldBe` "return value"
 ```
-### Stub functions that return different values for each argument applied
-By applying the `createStubFn` function to a list of x |> y format, you can create a stub function that returns a different value for each argument you apply.
+### Stub functions that return different values for each argument called
+By calling the `mock` function to a list of x ~> y format, you can create a stub function that returns a different value for each argument you apply.
 ```haskell
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE TypeApplications #-}
@@ -688,25 +687,25 @@ import Prelude hiding (and)
 spec :: Spec
 spec = do
   it "multi" do
-    f <- createMockFn do
-      onCase $ "a" |> "return x"
-      onCase $ "b" |> "return y"
+    f <- mock do
+      onCase $ "a" ~> "return x"
+      onCase $ "b" ~> "return y"
     f "a" `shouldBe` "return x"
     f "b" `shouldBe` "return y"
 ```
 Alternatively, you can use the `cases` function.
 ```haskell
 f <-
-  createStubFn $
+  mock $
     cases
-      [ "a" |> "return x",
-        "b" |> "return y"
+      [ "a" ~> "return x",
+        "b" ~> "return y"
       ]
 f "a" `shouldBe` "return x"
 f "b" `shouldBe` "return y"
 ```
-### Stub functions that return different values when applied to the same argument
-When the `createStubFn` function is applied to a list of x |> y format, with the same arguments but different return values, you can create stub functions that return different values when applied to the same arguments.
+### Stub functions that return different values when called to the same argument
+When the `mock` function is called to a list of x ~> y format, with the same arguments but different return values, you can create stub functions that return different values when called to the same arguments.
 ```haskell
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE TypeApplications #-}
@@ -717,9 +716,9 @@ import GHC.IO (evaluate)
 spec :: Spec
 spec = do
   it "Return different values for the same argument" do
-    f <- createMockFn $ do
-      onCase $ "arg" |> "x"
-      onCase $ "arg" |> "y"
+    f <- mock $ do
+      onCase $ "arg" ~> "x"
+      onCase $ "arg" ~> "y"
     v1 <- evaluate $ f "arg"
     v2 <- evaluate $ f "arg"
     v3 <- evaluate $ f "arg"
@@ -727,8 +726,8 @@ spec = do
     v2 `shouldBe` "y"
     v3 `shouldBe` "y" -- After the second time, "y" is returned.
 ```
-### Verify that expected arguments are applied
-The `shouldApplyTo` function can be used to verify that a stub function has been applied to the expected arguments.  
+### Verify that expected arguments are called
+The `shouldBeCalled` function can be used to verify that a stub function has been called to the expected arguments.  
 ```haskell
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE TypeApplications #-}
@@ -738,12 +737,12 @@ import Test.MockCat
 spec :: Spec
 spec = do
   it "stub & verify" do
-    stubFunction <- createStubFn $ "value" |> True
+    stubFunction <- mock $ "value" ~> True
     stubFunction "value" `shouldBe` True
-    stubFunction `shouldApplyTo` "value"
+    stubFunction `shouldBeCalled` "value"
 ```
 ### Note
-The record that it has been applied is made at the time the return value of the stub function is evaluated.  
+The record that it has been called is made at the time the return value of the stub function is evaluated.  
 Therefore, verification must occur after the return value is evaluated.
 ```haskell
 {-# LANGUAGE BlockArguments #-}
@@ -754,18 +753,18 @@ import Test.MockCat
 spec :: Spec
 spec = do
   it "Verification does not work" do
-    f <- createMockFn $ "expect arg" |> "return value"
+    f <- mock $ "expect arg" ~> "return value"
     let _ = f "expect arg"
-    f `shouldApplyTo` "expect arg"
+    f `shouldBeCalled` "expect arg"
 ```
 ```console
 uncaught exception: ErrorCall
-Expected arguments were not applied to the function.
+Expected arguments were not called to the function.
   expected: "expect arg"
   but got: Never been called.
 ```
-### Verify the number of times the stub function was applied to the expected argument
-The number of times a stub function is applied to an expected argument can be verified with the `shouldApplyTimes` function.
+### Verify the number of times the stub function was called with the expected argument
+The number of times a stub function is called with an expected argument can be verified with the `shouldBeCalled` function.
 ```haskell
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE TypeApplications #-}
@@ -774,18 +773,14 @@ import Test.MockCat
 
 spec :: Spec
 spec = do
-  it "shouldApplyTimes" do
-    f <- createMockFn $ "value" |> True
-    print $ f "value"
-    print $ f "value"
-    f `shouldApplyTimes` (2 :: Int) `to` "value"
+    f `shouldBeCalled` (times (2 :: Int) `with` "value")
 ```
-### Verify that a function has been applied to something
-You can verify that a function has been applied to something with the `shouldApplyToAnything` function.
-### Verify the number of times a function has been applied to something
-The number of times a function has been applied to something can be verified with the `shouldApplyTimesToAnything` function.
-### Verify that stub functions are applied in the expected order
-The `shouldApplyInOrder` function can be used to verify that the order in which they were applied is the expected order.
+### Verify that a function was called
+You can verify that a function was called with anything using the `shouldBeCalled anything` function.
+### Verify the number of times a function was called
+The number of times a function was called with anything can be verified with the `shouldBeCalled` function.
+### Verify that stub functions are called in the expected order
+The `shouldBeCalled` function can be used with `inOrderWith` to verify that the order in which they were called is the expected order.
 ```haskell
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE Type Applications #-}
@@ -794,18 +789,10 @@ import Test.MockCat
 
 spec :: Spec
 spec = do
-  it "shouldApplyInOrder" do
-    f <- createMockFn $ any |> True |> ()
-    print $ f "a" True
-    print $ f "b" True
-    f
-      `shouldApplyInOrder` [ "a" |> True,
-                             "b" |> True
-                           ]
+    f `shouldBeCalled` inOrderWith [ "a" ~> True, "b" ~> True ]
 ```
-### Verify that they were applied in the expected order (partial match)
-While the `shouldApplyInOrder` function verifies the exact order of application,  
-The `shouldApplyInPartialOrder` function allows you to verify that the order of application is partially matched.
+### Verify that they were called in the expected order (partial match)
+While `inOrderWith` verifies the exact order of calls, `inPartialOrderWith` allows you to verify that the order of calls is partially matched.
 ```haskell
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE TypeApplications #-}
@@ -814,15 +801,7 @@ import Test.MockCat
 
 spec :: Spec
 spec = do
-  it "shouldApplyInPartialOrder" do
-    f <- createMockFn $ any |> True |> ()
-    print $ f "a" True
-    print $ f "b" True
-    print $ f "c" True
-    f
-      `shouldApplyInPartialOrder` [ "a" |> True,
-                                    "c" |> True
-                                  ]
+    f `shouldBeCalled` inPartialOrderWith [ "a" ~> True, "c" ~> True ]
 ```
 <!-- END FULL REFERENCE -->
 
