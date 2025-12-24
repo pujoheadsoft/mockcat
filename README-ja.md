@@ -1,6 +1,6 @@
 <div align="center">
     <img src="https://raw.githubusercontent.com/pujoheadsoft/mockcat/main/logo.png" width="600px" alt="Mockcat Logo">
-    <h1>Type-safe mocking with a single arrow <code>~&gt;</code></h1>
+    <h1>Declarative mocking with a single arrow <code>~&gt;</code></h1>
 </div>
 
 <div align="center">
@@ -11,7 +11,7 @@
 
 </div>
 
-**Mockcat** は、Haskell のための直感的で型安全なモックライブラリです。
+**Mockcat** は、Haskell のための直感的で宣言的なモックライブラリです。
 専用の演算子 **Mock Arrow (`~>`)** を使うことで、関数定義と同じような感覚でモックの振る舞いを記述できます。
 
 ```haskell
@@ -30,8 +30,8 @@ Mockcat は、一般的に混同されがちな「スタブ」と「モック」
 
 | 用語 | 役割 | Mockcat での対応関数 |
 | :--- | :--- | :--- |
-| **Stub (スタブ)** | **「代役」**<br>テスト対象を動かすために、決まった値を返すだけの存在。<br>副作用を持たず、「どう呼ばれたか」に関心を持ちません。 | **`stub`**<br>純粋な関数を返します。<br>検証機能なし。副作用なし。<br>最も軽量です。 |
-| **Mock (モック)** | **「模倣と検証」**<br>スタブの機能に加え、「期待通りに呼び出されたか」を記録・検証する存在。<br>オブジェクト間の相互作用（Interaction）テストに使用します。 | **`mock`** / **`mockM`**<br>値を返しつつ、呼び出しを記録します。<br>`shouldBeCalled` 等で検証できます。 |
+| **Stub (スタブ)** | テスト対象を動かすために、決まった値を返すだけの存在。<br>副作用を持たず、「どう呼ばれたか」に関心を持ちません。 | **`stub`**<br>純粋な関数を返します。<br>検証機能なし。副作用なし。<br>最も軽量です。 |
+| **Mock (モック)** | スタブの機能に加え、「期待通りに呼び出されたか」を記録・検証する存在。<br>オブジェクト間の相互作用（Interaction）テストに使用します。 | **`mock`** / **`mockM`**<br>値を返しつつ、呼び出しを記録します。<br>`shouldBeCalled` 等で検証できます。 |
 
 ---
 
@@ -42,12 +42,13 @@ Mockcat は、ボイラープレート（定型コード）を徹底的に排除
 
 | | **Before: 手書き...** 😫 | **After: Mockcat** 🐱✨ |
 | :--- | :--- | :--- |
-| **定義 (Stub)**<br>「この引数には<br>この値を返したい」 | <pre lang="haskell">f :: String -> IO String<br>f arg = case arg of<br>  "a" -> pure "b"<br>  _   -> error "unexpected"</pre><br>_単純な分岐を書くだけでも行数を消費します。_ | <pre lang="haskell">let f = stub $<br>  "a" ~> "b"<br><br></pre><br>_検証不要なら `stub` で十分。<br>完全に純粋な関数として振る舞います。_ |
-| **検証 (Verify)**<br>「正しく呼ばれたか<br>テストしたい」 | <pre lang="haskell">-- IORefの種まきが必要<br>ref <- newIORef []<br>let f arg = do<br>      modifyIORef ref (arg:)<br>      ...<br><br>-- 検証ロジック<br>calls <- readIORef ref<br>calls \`shouldBe\` ["a"]</pre><br>_検証用コードでテストロジックが汚れます。_ | <pre lang="haskell">-- 1行で定義と監視を開始<br>f <- mock $ "a" ~> "b"<br><br>-- 宣言的に検証<br>f \`shouldBeCalled\` "a"</pre><br>_宣言するだけ。<br>テストコードの汚染はゼロです。_ |
+| **定義 (Stub)**<br>「この引数には<br>この値を返したい」 | <pre lang="haskell">f :: String -> IO String<br>f arg = case arg of<br>  "a" -> pure "b"<br>  _   -> error "unexpected"</pre><br>_単純な分岐を書くだけでも行数を消費します。_ | <pre lang="haskell">let f = stub $<br>  "a" ~> "b"<br><br><br></pre><br>_検証不要なら `stub` で十分。<br>完全に純粋な関数として振る舞います。_ |
+| **検証 (Verify)**<br>「正しく呼ばれたか<br>テストしたい」 | <pre lang="haskell">-- 記録の仕組みから作る必要がある<br>ref <- newIORef []<br>let f arg = do<br>      modifyIORef ref (arg:)<br>      ...<br><br>-- 検証ロジック<br>calls <- readIORef ref<br>calls \`shouldBe\` ["a"]</pre><br>_検証のための「仕掛け作り」に時間を取られます。_ | <pre lang="haskell">-- 1行で定義と監視を開始<br>f <- mock $ "a" ~> "b"<br><br>-- 検証したい内容を書くだけ<br>f \`shouldBeCalled\` "a"<br><br><br><br></pre><br>_記録は自動。<br>「何を検証するか」という本質に集中できます。_ |
 
 ### 主な特徴
 
-*   **直感的な DSL**: パイプライン演算子ではなく、モック定義専用の `~>` (Mock Arrow) を採用。
+*   **直感的な DSL**: 引数と戻り値を矢印 (`~>`) で順につなぐ、関数定義のような記法。
+*   **モック自動生成**: 型クラスから Template Haskell でモックを一行で生成 (`makeMock`)。
 *   **圧倒的に親切なエラー**: テスト失敗時、どこが違うのかを「構造差分」で表示します。
     ```text
     Expected arguments were not called.
@@ -55,8 +56,8 @@ Mockcat は、ボイラープレート（定型コード）を徹底的に排除
        but got: [Record { name = "Alice", age = 21 }]
                                                 ^^
     ```
-*   **並行実行セーフ**: スレッドセーフな呼び出しカウントを保証します。
-*   **誠実な遅延評価**: Haskellの遅延評価を壊さず、値が必要になるまで評価しません。
+*   **堅牢な設計**: スレッドセーフな呼び出しカウントと、遅延評価を尊重した記録メカニズム。
+
 
 ---
 
@@ -137,8 +138,13 @@ class FileSystem m where
   readFile :: FilePath -> m String
   writeFile :: FilePath -> String -> m ()
 
--- モックを自動生成（MockTインスタンスとスタブ関数を作成）
+-- [Strict Mode] デフォルトの動作。「mock」関数と挙動が一致します。
+-- スタブの戻り値には、明示的に pure / monadic な値を渡す必要があります。
 makeMock [t|FileSystem|]
+
+-- [Auto-Lift Mode] これまでの挙動（便利なラッパー）。
+-- 純粋な値を自動的にモナド（m String など）に包んで返します。
+makeAutoLiftMock [t|FileSystem|]
 ```
 
 テストコード内では `runMockT` ブロックを使用します。
@@ -148,9 +154,12 @@ spec :: Spec
 spec = do
   it "filesytem test" do
     result <- runMockT do
-      -- スタブの定義: _メソッド名 でアクセス
-      _readFile $ "config.txt" ~> "debug=true"
-      _writeFile $ "log.txt" ~> "start" ~> ()
+      -- [Strict Mode] (makeMock 使用時): 明示的に pure で包む
+      _readFile $ "config.txt" ~> pure "debug=true"
+      _writeFile $ "log.txt" ~> "start" ~> pure ()
+
+      -- [Auto-Lift Mode] (makeAutoLiftMock 使用時): 値は自動的に包まれる (便利)
+      -- _readFile $ "config.txt" ~> "debug=true"
 
       -- テスト対象コードの実行（モックが注入される）
       myProgram "config.txt"

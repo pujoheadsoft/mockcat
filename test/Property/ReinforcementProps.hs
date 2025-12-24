@@ -49,7 +49,7 @@ prop_predicate_negative_not_counted = forAll genVals $ \xs -> monadicIO $ do
 class Monad m => ParLazyAction m where
   parLazy :: Int -> m Int
 
-makeMock [t|ParLazyAction|]
+makeAutoLiftMock [t|ParLazyAction|]
 
 prop_lazy_partial_force_concurrency :: Property
 prop_lazy_partial_force_concurrency = forAll genPlan $ \(arg, mask) -> monadicIO $ do

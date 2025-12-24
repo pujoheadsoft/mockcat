@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to the
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
-## [1.0.0.0] - 2024-12-23
+## [1.0.0.0] - 2025-12-24
 ### Changed
 - **DSL Reboot**: Replaced `|>` with `~>` as the primary parameter chain operator (representing the "mock arrow").
 - **Terminology Shift**: Standardized terminology to "called" instead of "applied" throughout the library and error messages.

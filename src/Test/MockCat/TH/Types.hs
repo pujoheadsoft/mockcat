@@ -15,6 +15,6 @@ data MockOptions = MockOptions {prefix :: String, suffix :: String, implicitMona
 --
 --  Stub function names are prefixed with "_".
 options :: MockOptions
-options = MockOptions {prefix = "_", suffix = "", implicitMonadicReturn = True}
+options = MockOptions {prefix = "_", suffix = "", implicitMonadicReturn = False}
 
 

@@ -21,7 +21,7 @@ import Data.Text hiding (any)
 import Control.Monad.Trans.Maybe (MaybeT, runMaybeT)
 import Test.MockCat.SharedSpecDefs
 
-makeMock [t|FileOperation|]
+makeAutoLiftMock [t|FileOperation|]
 
 operationProgram ::
   FileOperation m =>
@@ -41,8 +41,23 @@ echoProgram = do
 
 makeMockWithOptions [t|Teletype|] options { implicitMonadicReturn = False }
 
+
+class Monad m => StrictTest m where
+  strictFunc :: String -> m ()
+
+instance StrictTest IO where
+  strictFunc _ = pure ()
+
+makeMock [t|StrictTest|]
+
 spec :: Spec
 spec = do
+  it "Default makeMock is strict (requires pure)" do
+    r <- runMockT do
+      _strictFunc $ "arg" ~> pure @IO ()
+      strictFunc "arg"
+    r `shouldBe` ()
+
   it "function arg" do
     let
       f :: String -> String -> String

@@ -22,23 +22,23 @@ import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Test.MockCat.SharedSpecDefs
 import qualified Test.MockCat.TypeClassCommonSpec as SpecCommon
 
---makeMock [t|MonadReader Bool|]
-makeMock [t|MonadReader SpecCommon.Environment|]
+--makeAutoLiftMock [t|MonadReader Bool|]
+makeAutoLiftMock [t|MonadReader SpecCommon.Environment|]
 makeMockWithOptions [t|MonadVar2_1Sub|] options { implicitMonadicReturn = False }
 makeMockWithOptions [t|MonadVar2_2Sub|] options { implicitMonadicReturn = False }
 makeMockWithOptions [t|MonadVar3_1Sub|] options { implicitMonadicReturn = False }
 makeMockWithOptions [t|MonadVar3_2Sub|] options { implicitMonadicReturn = False }
 makeMockWithOptions [t|MonadVar3_3Sub|] options { implicitMonadicReturn = False }
-makeMock [t|FileOperation|]
-makeMock [t|ApiOperation|]
+makeAutoLiftMock [t|FileOperation|]
+makeAutoLiftMock [t|ApiOperation|]
 makeMockWithOptions [t|MultiApplyTest|] options { implicitMonadicReturn = False }
 makeMockWithOptions [t|ParamThreeMonad Int Bool|] options { implicitMonadicReturn = False }
 makeMockWithOptions [t|MonadStateSub|] options { implicitMonadicReturn = False }
 makeMockWithOptions [t|MonadStateSub2|] options { implicitMonadicReturn = False }
 makeMockWithOptions [t|Teletype|] options { implicitMonadicReturn = False }
 makeMockWithOptions [t|ExplicitlyReturnMonadicValuesTest|] options { implicitMonadicReturn = False }
-makeMock [t|DefaultMethodTest|]
-makeMock [t|AssocTypeTest|]
+makeAutoLiftMock [t|DefaultMethodTest|]
+makeAutoLiftMock [t|AssocTypeTest|]
 makeMockWithOptions [t|TestClass|] options { implicitMonadicReturn = False }
 
 instance (MonadUnliftIO m) => MonadAsync (MockT m) where

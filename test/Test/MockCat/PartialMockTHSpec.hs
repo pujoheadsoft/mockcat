@@ -34,9 +34,9 @@ instance ExplicitlyReturnMonadicValuesPartialTest IO where
   getByExplicitPartial s = pure $ length s
 
 
-makePartialMock [t|UserInputGetter|]
-makePartialMock [t|Finder|]
-makePartialMock [t|FileOperation|]
+makeAutoLiftPartialMock [t|UserInputGetter|]
+makeAutoLiftPartialMock [t|Finder|]
+makeAutoLiftPartialMock [t|FileOperation|]
 makePartialMockWithOptions [t|ExplicitlyReturnMonadicValuesPartialTest|] options { implicitMonadicReturn = False }
 makePartialMockWithOptions [t|FinderNoImplicit|] options { implicitMonadicReturn = False }
 

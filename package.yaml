@@ -4,14 +4,14 @@ github:              pujoheadsoft/mockcat
 license:             "MIT"
 author:              "funnycat <pujoheadsoft@gmail.com>"
 maintainer:          "funnycat <pujoheadsoft@gmail.com>"
-copyright:           "2024 funnycat"
+copyright:           "2025 funnycat"
 
 extra-source-files:
 - README.md
 - README-ja.md
 - CHANGELOG.md
 
-synopsis: Type-safe mocking with a single arrow `~>`.
+synopsis: Declarative mocking with a single arrow `~>`.
 
 category: Testing
 
@@ -24,7 +24,6 @@ description: |
   
   Features:
   * **Intuitive DSL**: Use `~>` to map arguments to results.
-  * **Type-Safe**: Generated via Template Haskell, fully checked by GHC.
   * **Friendly Errors**: Deep structural diffs show exactly *why* verification failed.
   * **Concurrency Safe**: Thread-safe invocation counting.
   

@@ -17,7 +17,7 @@ import Test.MockCat hiding (any)
 class Monad m => LazyUnaryAction m where
   lazyUnaryAction :: Int -> m Int
 
-makeMock [t|LazyUnaryAction|]
+makeAutoLiftMock [t|LazyUnaryAction|]
 
 -- | Property: if we declare an expectation but never force (execute) the action,
 --   the recorded call count remains 0.

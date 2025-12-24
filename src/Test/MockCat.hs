@@ -1,6 +1,6 @@
 {-|
 Module      : Test.MockCat
-Description : Type-safe mocking with a single arrow '~>'
+Description : Declarative mocking with a single arrow '~>'
 Copyright   : (c) Setup, 2025
 License     : MIT
 Maintainer  : kenji

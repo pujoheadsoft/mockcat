@@ -1,6 +1,6 @@
 <div align="center">
     <img src="https://raw.githubusercontent.com/pujoheadsoft/mockcat/main/logo.png" width="600px" alt="Mockcat Logo">
-    <h1>Type-safe mocking with a single arrow <code>~&gt;</code></h1>
+    <h1>Declarative mocking with a single arrow <code>~&gt;</code></h1>
 </div>
 
 <div align="center">
@@ -11,7 +11,7 @@
 
 </div>
 
-**Mockcat** is an intuitive and type-safe mocking library for Haskell.  
+**Mockcat** is a lightweight, declarative mocking library for Haskell.  
 By using the dedicated **Mock Arrow (`~>`)** operator, you can describe mock behavior with the same ease as defining standard functions.
 
 ```haskell
@@ -42,12 +42,13 @@ Mockcat is designed to thoroughly eliminate boilerplate, allowing you to focus p
 
 | | **Before: Handwritten...** 😫 | **After: Mockcat** 🐱✨ |
 | :--- | :--- | :--- |
-| **Definition (Stub)**<br>"I want to return<br>this value for this arg" | <pre lang="haskell">f :: String -> IO String<br>f arg = case arg of<br>  "a" -> pure "b"<br>  _   -> error "unexpected"</pre><br>_Even simple branching consumes many lines._ | <pre lang="haskell">let f = stub $<br>  "a" ~> "b"<br><br></pre><br>_If you don't need verification, `stub` is enough.<br>Behaves as a completely pure function._ |
-| **Verification (Verify)**<br>"I want to test<br>if it was called correctly" | <pre lang="haskell">-- Need to seed an IORef<br>ref <- newIORef []<br>let f arg = do<br>      modifyIORef ref (arg:)<br>      ...<br><br>-- Verification logic<br>calls <- readIORef ref<br>calls \`shouldBe\` ["a"]</pre><br>_Test logic gets polluted with verification code._ | <pre lang="haskell">-- Define & start monitoring in 1 line<br>f <- mock $ "a" ~> "b"<br><br>-- Declarative verification<br>f \`shouldBeCalled\` "a"</pre><br>_Just declare it.<br>Zero pollution of test code._ |
+| **Definition (Stub)**<br>"I want to return<br>this value for this arg" | <pre lang="haskell">f :: String -> IO String<br>f arg = case arg of<br>  "a" -> pure "b"<br>  _   -> error "unexpected"</pre><br>_Even simple branching consumes many lines._ | <pre lang="haskell">let f = stub $<br>  "a" ~> "b"<br><br><br></pre><br>_If you don't need verification, `stub` is enough.<br>Behaves as a completely pure function._ |
+| **Verification (Verify)**<br>"I want to test<br>if it was called correctly" | <pre lang="haskell">-- Need to implement recording logic<br>ref <- newIORef []<br>let f arg = do<br>      modifyIORef ref (arg:)<br>      ...<br><br>-- Verification logic<br>calls <- readIORef ref<br>calls \`shouldBe\` ["a"]</pre><br>_Building the "verification machinery" takes time and hides the intent._ | <pre lang="haskell">-- Define & start monitoring in 1 line<br>f <- mock $ "a" ~> "b"<br><br>-- Just state what you want to verify<br>f \`shouldBeCalled\` "a"<br><br><br><br></pre><br>_Recording is automatic.<br>Focus on the "Why" and "What", not the "How"._ |
 
 ### Key Features
 
-*   **Intuitive DSL**: Uses the dedicated `~>` (Mock Arrow) instead of pipe operators.
+*   **Intuitive DSL**: Chain arguments and return values with `~>`. It reads just like a function signature.
+*   **Automatic Mock Generation**: Generate mocks from typeclasses in one line using Template Haskell (`makeMock`).
 *   **Helpful Error Messages**: Shows "structural diffs" on failure, highlighting exactly what didn't match.
     ```text
     Expected arguments were not called.
@@ -55,8 +56,8 @@ Mockcat is designed to thoroughly eliminate boilerplate, allowing you to focus p
        but got: [Record { name = "Alice", age = 21 }]
                                                 ^^
     ```
-*   **Concurrency Safe**: Guarantees thread-safe call counting.
-*   **Honest Laziness**: Respects Haskell's lazy evaluation—calls are not recorded until the result is actually evaluated.
+*   **Robust Design**: Thread-safe invocation counting and lazy-evaluation friendly.
+
 
 ---
 
@@ -137,8 +138,13 @@ class FileSystem m where
   readFile :: FilePath -> m String
   writeFile :: FilePath -> String -> m ()
 
--- Automatically generate mocks (MockT instance and stub functions)
+-- [Strict Mode] Default behavior. Consistent with 'mock'.
+-- Requires explicit pure/monadic return values.
 makeMock [t|FileSystem|]
+
+-- [Auto-Lift Mode] Convenience wrapper.
+-- Automatically wraps pure values into the monad (m String).
+makeAutoLiftMock [t|FileSystem|]
 ```
 
 Use `runMockT` block in your tests.
@@ -148,9 +154,12 @@ spec :: Spec
 spec = do
   it "filesytem test" do
     result <- runMockT do
-      -- Define stub: access via _methodName
-      _readFile $ "config.txt" ~> "debug=true"
-      _writeFile $ "log.txt" ~> "start" ~> ()
+      -- [Strict Mode] (if using makeMock)
+      _readFile $ "config.txt" ~> pure "debug=true"
+      _writeFile $ "log.txt" ~> "start" ~> pure ()
+
+      -- [Auto-Lift Mode] (if using makeAutoLiftMock)
+      -- _readFile $ "config.txt" ~> "debug=true"
 
       -- Run code under test (mock injected)
       myProgram "config.txt"

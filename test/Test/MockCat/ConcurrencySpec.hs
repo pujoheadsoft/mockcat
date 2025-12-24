@@ -20,7 +20,7 @@ import Control.Monad.IO.Unlift (withRunInIO, MonadUnliftIO)
 class Monad m => ConcurrencyAction m where
   action :: Int -> m Int
 
-makeMock [t|ConcurrencyAction|]
+makeAutoLiftMock [t|ConcurrencyAction|]
 
 -- -------------------------
 -- test target functions

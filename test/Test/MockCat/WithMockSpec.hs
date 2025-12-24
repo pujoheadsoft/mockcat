@@ -25,7 +25,7 @@ import Control.Monad.IO.Class (liftIO)
 import Control.Exception (try, ErrorCall(..))
 
 -- Generate mocks for FileOperation
-makeMock [t|FileOperation|]
+makeAutoLiftMock [t|FileOperation|]
 
 perCall :: Int -> a -> a
 perCall i x = case i of

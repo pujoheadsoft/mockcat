@@ -20,7 +20,7 @@ import qualified Test.MockCat as MC (any)
 class Monad m => PropConcurrencyAction m where
   propAction :: Int -> m Int
 
-makeMock [t|PropConcurrencyAction|]
+makeAutoLiftMock [t|PropConcurrencyAction|]
 
 -- | Property verifying that the total number of calls is recorded without loss even when the same mock function is called concurrently from multiple threads.
 --   Arguments: threads (1..20), callsPerThread (1..30)

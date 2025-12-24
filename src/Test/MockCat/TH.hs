@@ -16,10 +16,12 @@ module Test.MockCat.TH
     expectByExpr,
     makeMock,
     makeMockWithOptions,
+    makeAutoLiftMock,
     MockOptions (..),
     options,
     makePartialMock,
     makePartialMockWithOptions,
+    makeAutoLiftPartialMock,
   )
 where
 
@@ -207,6 +209,36 @@ makeMockWithOptions = flip doMakeMock Total
 makeMock :: Q Type -> Q [Dec]
 makeMock t = doMakeMock t Total options
 
+-- | Create a mock of a typeclasses that returns a monad.
+--
+--  Given a monad type class, generate the following.
+--
+--  - MockT instance of the given typeclass
+--  - A stub function corresponding to a function of the original class type.
+-- The name of stub function is the name of the original function with a "_" appended.
+--
+--  This function automatically wraps the return value in a monad (Implicit Monadic Return).
+--
+--  @
+--  class (Monad m) => FileOperation m where
+--    writeFile :: FilePath -\> Text -\> m ()
+--    readFile :: FilePath -\> m Text
+--
+--  makeAutoLiftMock [t|FileOperation|]
+--
+--  spec :: Spec
+--  spec = do
+--    it "test runMockT" do
+--      result \<- runMockT do
+--        _readFile $ "input.txt" ~> pack "content"
+--        _writeFile $ "output.text" ~> pack "content" ~> ()
+--        somethingProgram
+--
+--      result `shouldBe` ()
+--  @
+makeAutoLiftMock :: Q Type -> Q [Dec]
+makeAutoLiftMock t = doMakeMock t Total (options { implicitMonadicReturn = True })
+
 -- | Create a partial mock of a typeclasses that returns a monad.
 --
 --  Given a monad type class, generate the following.
@@ -250,6 +282,10 @@ makeMock t = doMakeMock t Total options
 --  @
 makePartialMock :: Q Type -> Q [Dec]
 makePartialMock t = doMakeMock t Partial options
+
+-- | `makePartialMock` with `implicitMonadicReturn = True` by default.
+makeAutoLiftPartialMock :: Q Type -> Q [Dec]
+makeAutoLiftPartialMock t = doMakeMock t Partial (options { implicitMonadicReturn = True })
 
 -- | `makePartialMock` with options
 makePartialMockWithOptions :: Q Type -> MockOptions -> Q [Dec]

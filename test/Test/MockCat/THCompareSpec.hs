@@ -17,7 +17,7 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Text as T
 import qualified System.IO as SIO
 import Test.MockCat.SharedSpecDefs
-import Test.MockCat.TH (makeMock, makeMockWithOptions, makePartialMock, makePartialMockWithOptions, options, implicitMonadicReturn, MockOptions(..))
+import Test.MockCat.TH (makeMock, makeMockWithOptions, makeAutoLiftMock, makePartialMock, makePartialMockWithOptions, makeAutoLiftPartialMock, options, implicitMonadicReturn, MockOptions(..))
 import Language.Haskell.TH (lookupTypeName, conT)
 import Control.Monad (forM_, when)
 
@@ -96,13 +96,13 @@ squeezePunctuation =
 -- generate at compile time to avoid running restricted TH actions in IO
 -- store pretty-printed generated declarations as strings
 generatedFinderStr :: String
-generatedFinderStr = $(do decs <- makePartialMock [t|Finder|]; litE (stringL (concatMap pprint decs)))
+generatedFinderStr = $(do decs <- makeAutoLiftPartialMock [t|Finder|]; litE (stringL (concatMap pprint decs)))
 
 generatedFinderSigPairs :: [(String, String)]
 generatedFinderSigPairs =
   $(
     do
-      decs <- makePartialMock [t|Finder|]
+      decs <- makeAutoLiftPartialMock [t|Finder|]
       let sigPairs =
             [ (nameBase name, pprint ty)
             | SigD name ty <- decs
@@ -120,7 +120,7 @@ generatedUserInputSigPairs :: [(String, String)]
 generatedUserInputSigPairs =
   $(
     do
-      decs <- makePartialMock [t|UserInputGetter|]
+      decs <- makeAutoLiftPartialMock [t|UserInputGetter|]
       let sigPairs =
             [ (nameBase name, pprint ty)
             | SigD name ty <- decs
@@ -135,7 +135,7 @@ generatedUserInputSigMap :: Map.Map String String
 generatedUserInputSigMap = Map.fromList generatedUserInputSigPairs
 
 generatedFileOpStr :: String
-generatedFileOpStr = $(do decs <- makePartialMock [t|FileOperation|]; litE (stringL (concatMap pprint decs)))
+generatedFileOpStr = $(do decs <- makeAutoLiftPartialMock [t|FileOperation|]; litE (stringL (concatMap pprint decs)))
 
 generatedTestClassStr :: String
 generatedTestClassStr = $(
@@ -143,7 +143,7 @@ generatedTestClassStr = $(
     m <- lookupTypeName "Test.MockCat.SharedSpecDefs.TestClass"
     case m of
       Nothing -> fail "TestClass not found"
-      Just n -> do decs <- makeMock (conT n); litE (stringL (concatMap pprint decs))
+      Just n -> do decs <- makeAutoLiftMock (conT n); litE (stringL (concatMap pprint decs))
   )
 
 generatedMultiApplyStr :: String
@@ -152,7 +152,7 @@ generatedMultiApplyStr = $(
     m <- lookupTypeName "Test.MockCat.SharedSpecDefs.MultiApplyTest"
     case m of
       Nothing -> fail "MultiApplyTest not found"
-      Just n -> do decs <- makeMock (conT n); litE (stringL (concatMap pprint decs))
+      Just n -> do decs <- makeAutoLiftMock (conT n); litE (stringL (concatMap pprint decs))
   )
 
 generatedExplicitStr :: String
@@ -171,7 +171,7 @@ generatedDefaultMethodStr = $(
     m <- lookupTypeName "Test.MockCat.SharedSpecDefs.DefaultMethodTest"
     case m of
       Nothing -> fail "DefaultMethodTest not found"
-      Just n -> do decs <- makeMock (conT n); litE (stringL (concatMap pprint decs))
+      Just n -> do decs <- makeAutoLiftMock (conT n); litE (stringL (concatMap pprint decs))
   )
 
 generatedAssocTypeStr :: String
@@ -180,7 +180,7 @@ generatedAssocTypeStr = $(
     m <- lookupTypeName "Test.MockCat.SharedSpecDefs.AssocTypeTest"
     case m of
       Nothing -> fail "AssocTypeTest not found"
-      Just n -> do decs <- makeMock (conT n); litE (stringL (concatMap pprint decs))
+      Just n -> do decs <- makeAutoLiftMock (conT n); litE (stringL (concatMap pprint decs))
   )
 
 generatedAssocSigPairs :: [(String, String)]
@@ -191,7 +191,7 @@ generatedAssocSigPairs =
       case m of
         Nothing -> fail "AssocTypeTest not found"
         Just n -> do
-          decs <- makeMock (conT n)
+          decs <- makeAutoLiftMock (conT n)
           let sigPairs =
                 [ (nameBase name, pprint ty)
                 | SigD name ty <- decs
@@ -216,7 +216,7 @@ generatedParamThreeStr = $(
               AppT
                 (AppT (ConT n) (ConT ''Int))
                 (ConT ''Bool)
-        decs <- makeMock (pure targetType)
+        decs <- makeAutoLiftMock (pure targetType)
         litE (stringL (concatMap pprint decs))
   )
 
@@ -226,7 +226,7 @@ generatedUserInputStr = $(
     m <- lookupTypeName "Test.MockCat.SharedSpecDefs.UserInputGetter"
     case m of
       Nothing -> fail "UserInputGetter not found"
-      Just n -> do decs <- makePartialMock (conT n); litE (stringL (concatMap pprint decs))
+      Just n -> do decs <- makeAutoLiftPartialMock (conT n); litE (stringL (concatMap pprint decs))
   )
 
 generatedExplicitPartialStr :: String
@@ -256,7 +256,7 @@ generatedVar2_1SubStr = $(
     m <- lookupTypeName "Test.MockCat.SharedSpecDefs.MonadVar2_1Sub"
     case m of
       Nothing -> fail "MonadVar2_1Sub not found"
-      Just n -> do decs <- makeMock (conT n); litE (stringL (concatMap pprint decs))
+      Just n -> do decs <- makeAutoLiftMock (conT n); litE (stringL (concatMap pprint decs))
   )
 
 generatedVar2_2SubStr :: String
@@ -265,7 +265,7 @@ generatedVar2_2SubStr = $(
     m <- lookupTypeName "Test.MockCat.SharedSpecDefs.MonadVar2_2Sub"
     case m of
       Nothing -> fail "MonadVar2_2Sub not found"
-      Just n -> do decs <- makeMock (conT n); litE (stringL (concatMap pprint decs))
+      Just n -> do decs <- makeAutoLiftMock (conT n); litE (stringL (concatMap pprint decs))
   )
 
 generatedVar3_1SubStr :: String
@@ -274,7 +274,7 @@ generatedVar3_1SubStr = $(
     m <- lookupTypeName "Test.MockCat.SharedSpecDefs.MonadVar3_1Sub"
     case m of
       Nothing -> fail "MonadVar3_1Sub not found"
-      Just n -> do decs <- makeMock (conT n); litE (stringL (concatMap pprint decs))
+      Just n -> do decs <- makeAutoLiftMock (conT n); litE (stringL (concatMap pprint decs))
   )
 
 generatedVar3_2SubStr :: String
@@ -283,7 +283,7 @@ generatedVar3_2SubStr = $(
     m <- lookupTypeName "Test.MockCat.SharedSpecDefs.MonadVar3_2Sub"
     case m of
       Nothing -> fail "MonadVar3_2Sub not found"
-      Just n -> do decs <- makeMock (conT n); litE (stringL (concatMap pprint decs))
+      Just n -> do decs <- makeAutoLiftMock (conT n); litE (stringL (concatMap pprint decs))
   )
 
 generatedVar3_3SubStr :: String
@@ -292,7 +292,7 @@ generatedVar3_3SubStr = $(
     m <- lookupTypeName "Test.MockCat.SharedSpecDefs.MonadVar3_3Sub"
     case m of
       Nothing -> fail "MonadVar3_3Sub not found"
-      Just n -> do decs <- makeMock (conT n); litE (stringL (concatMap pprint decs))
+      Just n -> do decs <- makeAutoLiftMock (conT n); litE (stringL (concatMap pprint decs))
   )
 
 partialMockSpecPath :: FilePath

@@ -6,7 +6,7 @@ cabal-version: 1.12
 
 name:           mockcat
 version:        1.0.0.0
-synopsis:       Type-safe mocking with a single arrow `~>`.
+synopsis:       Declarative mocking with a single arrow `~>`.
 description:    Mockcat is a minimal, intuitive mocking DSL for Haskell.
                 .
                 Define your mocks with a single arrow `~>`, just like function mappings:
@@ -15,7 +15,6 @@ description:    Mockcat is a minimal, intuitive mocking DSL for Haskell.
                 .
                 Features:
                 * **Intuitive DSL**: Use `~>` to map arguments to results.
-                * **Type-Safe**: Generated via Template Haskell, fully checked by GHC.
                 * **Friendly Errors**: Deep structural diffs show exactly *why* verification failed.
                 * **Concurrency Safe**: Thread-safe invocation counting.
                 .
@@ -27,7 +26,7 @@ homepage:       https://github.com/pujoheadsoft/mockcat#readme
 bug-reports:    https://github.com/pujoheadsoft/mockcat/issues
 author:         funnycat <pujoheadsoft@gmail.com>
 maintainer:     funnycat <pujoheadsoft@gmail.com>
-copyright:      2024 funnycat
+copyright:      2025 funnycat
 license:        MIT
 license-file:   LICENSE
 build-type:     Simple
