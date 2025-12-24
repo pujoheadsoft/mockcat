@@ -22,6 +22,36 @@ and this project adheres to the
 ### Removed
 - Backward compatibility with 0.x.x APIs (`stubFn`, `createMock`, `applied`, etc.).
 
+### Migration Guide (0.x -> 1.0)
+This release is a complete reboot. Previous code **will break**.
+
+1.  **Operator Change**: Replace `|>` with `~>`.
+    ```haskell
+    -- Old
+    createStubFn $ "arg" |> "result"
+    
+    -- New
+    stub $ "arg" ~> "result"
+    ```
+
+2.  **Mock Creation**: Use `mock` / `stub` instead of `createMock` / `createStubFn`.
+    ```haskell
+    -- Old
+    f <- createMock $ "arg" |> "result"
+    
+    -- New
+    f <- mock $ "arg" ~> "result"
+    ```
+
+3.  **Verification**: Use `shouldBeCalled` (unified API).
+    ```haskell
+    -- Old
+    f `shouldApplyTo` "arg"
+    
+    -- New
+    f `shouldBeCalled` "arg"
+    ```
+
 ## 0.6.0.0
 ### Changed
 - Removed the upper limit on variable arguments when creating stub functions. Previously, there was a restriction on the maximum number of arguments, but this limitation has been removed, allowing stub functions to accept an arbitrary number of arguments.

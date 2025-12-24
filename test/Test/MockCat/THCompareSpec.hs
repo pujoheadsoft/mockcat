@@ -19,7 +19,7 @@ import qualified System.IO as SIO
 import Test.MockCat.SharedSpecDefs
 import Test.MockCat.TH (makeMock, makeMockWithOptions, makePartialMock, makePartialMockWithOptions, options, implicitMonadicReturn, MockOptions(..))
 import Language.Haskell.TH (lookupTypeName, conT)
-import Control.Monad (forM_)
+import Control.Monad (forM_, when)
 
 normalize :: String -> String
 normalize =
@@ -353,7 +353,7 @@ spec = describe "TH generated vs handwritten instances" do
           forM_ (Map.toList m) \(_fn, sig) -> do
             let nsig = normalizeSignature sig
                 targets = extractTypeableTargets nsig
-            (length targets) `shouldBe` (length (nub targets))
+            length targets `shouldBe` length (nub targets)
     mapM_ checkMap allSigMaps
 
   describe "Partial mock helper signatures match handwritten" do
@@ -375,8 +375,7 @@ spec = describe "TH generated vs handwritten instances" do
 
 -- helper to extract generated instance headers from a pre-pprinted string
 extractGeneratedInstanceCxtsFromStr :: String -> String -> [String]
-extractGeneratedInstanceCxtsFromStr s =
-  extractInstanceHeaders s
+extractGeneratedInstanceCxtsFromStr = extractInstanceHeaders
 
 extractInstanceHeaders :: String -> String -> [String]
 extractInstanceHeaders input className =
@@ -397,7 +396,7 @@ extractInstanceHeaders input className =
               case T.words headPart of
                 [] -> Nothing
                 (tok : _) ->
-                  let cleaned = T.dropAround (`elem` ("()")) tok
+                  let cleaned = T.dropAround (`elem` "()") tok
                    in if T.null cleaned then Nothing else Just cleaned
             containsMockT = T.pack "MockT" `T.isInfixOf` headerWithoutQualifiers
          in case actualClassName of
@@ -413,16 +412,12 @@ assertInstancesEquivalent manualPath className generatedStr = do
   let gen = extractGeneratedInstanceCxtsFromStr generatedStr className
       sortedHand = sort hand
       sortedGen = sort gen
-  if null hand
-    then expectationFailure $
+  when (null hand) $ expectationFailure $
       "Handwritten instance not found: " ++ className ++ " in " ++ manualPath
-    else pure ()
-  if null gen
-    then expectationFailure $
+  when (null gen) $ expectationFailure $
       "TH generated instance not found: " ++ className
         ++ "\nGenerated result (prefix only):\n"
         ++ take 1000 generatedStr
-    else pure ()
   sortedGen `shouldBe` sortedHand
 
 extractHandwrittenFunctionSig :: FilePath -> String -> IO (Maybe String)

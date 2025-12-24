@@ -20,6 +20,7 @@ import Test.MockCat.ShouldBeCalledSpec as ShouldBeCalled
 import Test.MockCat.ShouldBeCalledMockMSpec as ShouldBeCalledMockM
 import Test.MockCat.WithMockSpec as WithMock
 import Test.MockCat.ErrorDiffSpec as ErrorDiff
+import Test.MockCat.THCompareSpec as THCompare
 import Test.QuickCheck (property)
 import qualified Property.ConcurrentCountProp as ConcurrencyProp
 import qualified Property.LazyEvalProp as LazyEvalProp
@@ -46,7 +47,7 @@ main = hspec $ do
     Stub.spec
     MockTSpec.spec
     Registry.spec
-    -- THCompare.spec
+    THCompare.spec
     THTypeUtils.spec
     THContextBuilder.spec
     THClassAnalysis.spec

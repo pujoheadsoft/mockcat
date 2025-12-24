@@ -99,27 +99,32 @@ instance {-# OVERLAPPABLE #-} ((Param a) ~ a') => ConsGen a (Param b) (a' :> Par
 instance {-# OVERLAPPABLE #-} (Param a ~ a', Param b ~ b') => ConsGen a b (a' :> b') where
   (~>) a b = (:>) (param a) (param b)
 
+-- | The Mock Arrow operator.
+--   Connects arguments and the return value in a pipeline.
+--
+--   > "arg1" ~> "arg2" ~> "result"
 infixr 0 ~>
 
 -- | Make a parameter to which any value is expected to apply.
 --   Use with type application to specify the type: @any \@String@
+--
+--   > f <- mock $ any ~> True
 any :: forall a. Param a
 any = ExpectCondition (const True) "any"
 
-{- | Create a conditional parameter.
+{- | Create a conditional parameter with a label.
+    When calling a mock function, if the argument does not satisfy this condition, an error occurs.
+    In this case, the specified label is included in the error message.
 
-   When calling a mock function, if the argument does not satisfy this condition, an error occurs.
-
-   In this case, the specified label is included in the error message.
+    > expect (>5) ">5"
 -}
 expect :: (a -> Bool) -> String -> Param a
 expect = ExpectCondition
 
-{- | Create a conditional parameter.
+{- | Create a conditional parameter without a label.
+  The error message is displayed as "[some condition]".
 
-  In calling a mock function, if the argument does not satisfy this condition, an error occurs.
-
-  Unlike @'expect'@, it does not require a label, but the error message is displayed as [some condition].
+  > expect_ (>5)
 -}
 expect_ :: (a -> Bool) -> Param a
 expect_ f = ExpectCondition f "[some condition]"

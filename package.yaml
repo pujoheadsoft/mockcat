@@ -11,24 +11,25 @@ extra-source-files:
 - README-ja.md
 - CHANGELOG.md
 
-synopsis: Mock library for test in Haskell.
+synopsis: Type-safe mocking with a single arrow `~>`.
 
 category: Testing
 
 description: |
-  mockcat is a small mocking / stubbing DSL for Haskell tests.
-
+  Mockcat is a minimal, intuitive mocking DSL for Haskell.
+  
+  Define your mocks with a single arrow `~>`, just like function mappings:
+  
+      mock $ "input" ~> "output"
+  
   Features:
-
-  * Describe expectations with left-to-right pipelines: `arg ~> ... ~> result`
-  * Generate typeclass mocks via Template Haskell (`makeMock`, `makePartialMock`)
-  * Create standalone function stubs (`createStubFn`, constant mocks)
-  * Flexible return behaviour: vary by argument or occurrence (including identical args later)
-  * Optional per-call variation for `IO a` results
-  * Concurrency-safe counting and explicit lazy semantics (unevaluated results are not recorded)
-  * Simple verification helpers (apply count predicates, ordering checks)
-  * Partial adoption: mock only selected methods; no hidden global state
-
+  * **Intuitive DSL**: Use `~>` to map arguments to results.
+  * **Type-Safe**: Generated via Template Haskell, fully checked by GHC.
+  * **Friendly Errors**: Deep structural diffs show exactly *why* verification failed.
+  * **Concurrency Safe**: Thread-safe invocation counting.
+  
+  Perfect for TDD and unit testing where simplicity and clarity matter.
+  
   See README for full examples: <https://github.com/pujoheadsoft/mockcat#readme>
 
 tested-with:

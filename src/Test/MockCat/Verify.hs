@@ -385,31 +385,40 @@ data VerificationSpec params where
 -- | Times condition for count verification
 newtype TimesSpec = TimesSpec CountVerifyMethod
 
--- | Create a times condition for exact count
+-- | Create a times condition for exact count.
+--
+--   > f `shouldBeCalled` times 3
+--   > f `shouldBeCalled` (times 3 `with` "arg")
 times :: Int -> TimesSpec
 times n = TimesSpec (Equal n)
 
--- | Create a times condition for at least count
+-- | Create a times condition for at least count (>=).
+--
+--   > f `shouldBeCalled` atLeast 1
 atLeast :: Int -> TimesSpec
 atLeast n = TimesSpec (GreaterThanEqual n)
 
--- | Create a times condition for at most count
+-- | Create a times condition for at most count (<=).
+--
+--   > f `shouldBeCalled` atMost 2
 atMost :: Int -> TimesSpec
 atMost n = TimesSpec (LessThanEqual n)
 
--- | Create a times condition for greater than count
+-- | Create a times condition for greater than count (>).
 greaterThan :: Int -> TimesSpec
 greaterThan n = TimesSpec (GreaterThan n)
 
--- | Create a times condition for less than count
+-- | Create a times condition for less than count (<).
 lessThan :: Int -> TimesSpec
 lessThan n = TimesSpec (LessThan n)
 
--- | Create a times condition for exactly once
+-- | Create a times condition for exactly once.
+--   Equivalent to 'times 1'.
 once :: TimesSpec
 once = TimesSpec (Equal 1)
 
--- | Create a times condition for never (zero times)
+-- | Create a times condition for never (zero times).
+--   Equivalent to 'times 0'.
 never :: TimesSpec
 never = TimesSpec (Equal 0)
 
@@ -424,13 +433,17 @@ inOrder = OrderSpec ExactlySequence
 inPartialOrder :: OrderSpec
 inPartialOrder = OrderSpec PartiallySequence
 
--- | Create a simple verification with arguments
---   This accepts both raw values and Param chains
+-- | Create a simple verification with arguments.
+--   This accepts both raw values and Param chains.
+--
+--   > f `shouldBeCalled` calledWith "a"
 calledWith :: params -> VerificationSpec params
 calledWith = SimpleVerification
 
--- | Create a simple verification without arguments
---   Note: This is polymorphic and will be resolved based on the mock type
+-- | Create a simple verification without arguments.
+--   It verifies that the function was called at least once, with ANY arguments.
+--
+--   > f `shouldBeCalled` anything
 anything :: forall params. VerificationSpec params
 anything = AnyVerification
 
@@ -477,6 +490,9 @@ withArgs (TimesSpec method) args = CountVerification method (toNormalizedArg arg
 
 infixl 8 `withArgs`
 
+-- | Verify that the mock was called with the specified sequence of arguments in exact order.
+--
+--   > f `shouldBeCalled` inOrderWith ["a", "b"]
 inOrderWith ::
   forall params.
   ( ToNormalizedArg params
@@ -485,6 +501,10 @@ inOrderWith ::
   ) => [params] -> VerificationSpec (NormalizeWithArg params)
 inOrderWith args = OrderVerification ExactlySequence (map toNormalizedArg args)
 
+-- | Verify that the mock was called with the specified sequence of arguments, allowing other calls in between.
+--
+--   > f `shouldBeCalled` inPartialOrderWith ["a", "c"]
+--   > -- This passes if calls were: "a", "b", "c"
 inPartialOrderWith ::
   forall params.
   ( ToNormalizedArg params

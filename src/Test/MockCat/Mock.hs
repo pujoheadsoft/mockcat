@@ -10,9 +10,12 @@
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
 {- | Utilities for constructing verifiable stub functions.
+     This module provides the core functions for creating mocks and stubs.
 
-Each stub produced by this module records calls and can be
-verified via the unified 'shouldBeCalled' API.
+     = Key Functions
+     * 'mock': Create a verifiable mock function (records calls).
+     * 'stub': Create a pure stub function (no recording).
+     * 'mockM': Create a monadic mock function (allows explicit side effects).
 -}
 module Test.MockCat.Mock
   ( MockBuilder
@@ -121,15 +124,11 @@ class CreateStubFn a where
   stubImpl :: a
 
 -- | Create a mock function with verification hooks attached (unnamed version).
+--   The returned function mimics a pure function (via 'unsafePerformIO') but records its calls for later verification.
 --
--- This function creates a verifiable stub that records calls
--- and can be verified via the unified 'shouldBeCalled' API.
--- The function internally uses 'unsafePerformIO' to make the returned function
--- appear pure, but it requires 'MonadIO' for creation.
---
--- @
--- f <- mock $ "a" ~> "b"
--- @
+--   > f <- mock $ "a" ~> "b"
+--   > f "a" `shouldBe` "b"
+--   > f `shouldBeCalled` "a"
 instance
   ( MonadIO m
   , CreateMock p
@@ -144,17 +143,10 @@ instance
     BuiltMock { builtMockFn = fn, builtMockRecorder = recorder } <- buildMock Nothing params
     liftIO $ MockRegistry.register Nothing recorder fn
 
--- | Create a named mock function (named version).
+-- | Create a named mock function.
+--   The name is used in error messages to help you identify which mock failed.
 --
--- The provided name is used in failure messages.
--- This function creates a verifiable stub that records calls
--- and can be verified via the unified 'shouldBeCalled' API.
--- The function internally uses 'unsafePerformIO' to make the returned function
--- appear pure, but it requires 'MonadIO' for creation.
---
--- @
--- f <- mock (label "mockName") $ "a" ~> "b"
--- @
+--   > f <- mock (label "MyAPI") $ "a" ~> "b"
 instance {-# OVERLAPPING #-}
   ( MonadIO m
   , CreateMock p
@@ -245,15 +237,11 @@ createNamedMockFnWithParams name params = do
   liftIO $ MockRegistry.register (Just name) recorder fn
 
 
--- | Create a pure stub function without verification hooks (unnamed version).
+-- | Create a pure stub function without verification hooks.
+--   Useful when you only need to return values and don't care about verification.
+--   This is completely pure and safe.
 --
--- This function creates a simple stub that returns values based on the provided
--- parameters, but does not support verification. Use 'mock' if you need
--- verification capabilities.
---
--- @
--- let f = stub $ "a" ~> "b"
--- @
+--   > let f = stub $ "a" ~> "b"
 instance StubBuilder params fn => CreateStubFn (params -> fn) where
   stubImpl = buildStub Nothing
 
