@@ -84,7 +84,6 @@ build-depends:
 ```haskell
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE OverloadedStrings #-}
 import Test.Hspec
 import Test.MockCat
 
@@ -98,7 +97,7 @@ spec = do
     f <- mock $ "Hello" ~> (42 :: Int)
 
     -- 2. Use it as a function
-    result <- f "Hello"
+    let result = f "Hello"
     result `shouldBe` 42
 
     -- 3. Verify it was called
@@ -134,15 +133,23 @@ f <- mock $ expect (> 5) "> 5" ~> True
 The most common use case in real-world applications. Generates mocks from existing typeclasses using Template Haskell.
 
 ```haskell
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE TypeOperators #-}
+
 class FileSystem m where
   readFile :: FilePath -> m String
   writeFile :: FilePath -> String -> m ()
 
 -- [Strict Mode] Default behavior. Consistent with 'mock'.
--- Requires explicit pure/monadic return values.
+-- If the return type is `m a`, the stub definition must return a value of type `m a` (e.g., `pure @IO "value"`, `throwIO Error`).
+-- Recommended when you prefer explicit descriptions faithful to Haskell's type system.
 makeMock [t|FileSystem|]
 
--- [Auto-Lift Mode] Convenience wrapper.
+-- [Auto-Lift Mode] Convenience-focused mode.
 -- Automatically wraps pure values into the monad (m String).
 makeAutoLiftMock [t|FileSystem|]
 ```
@@ -152,11 +159,11 @@ Use `runMockT` block in your tests.
 ```haskell
 spec :: Spec
 spec = do
-  it "filesytem test" do
+  it "filesystem test" do
     result <- runMockT do
       -- [Strict Mode] (if using makeMock)
-      _readFile $ "config.txt" ~> pure "debug=true"
-      _writeFile $ "log.txt" ~> "start" ~> pure ()
+      _readFile $ "config.txt" ~> pure @IO "debug=true"
+      _writeFile $ "log.txt" ~> "start" ~> pure @IO ()
 
       -- [Auto-Lift Mode] (if using makeAutoLiftMock)
       -- _readFile $ "config.txt" ~> "debug=true"
@@ -195,8 +202,8 @@ Mockcat offers 3 ways to create functions. Choose the one that fits your needs.
 
 | Function | Verification (`shouldBeCalled`) | IO Dependency | Characteristics |
 | :--- | :---: | :---: | :--- |
-| **`stub`** | ❌ | None | **Pure Stub**. The best choice if verification isn't needed. Zero IO pollution. |
-| **`mock`** | ✅ | Yes (Hidden) | **Mock**. Uses `unsafePerformIO` internally to mimic a pure function while recording calls. |
+| **`stub`** | ❌ | None | **Pure Stub**. No IO dependency. Sufficient if verification isn't needed. |
+| **`mock`** | ✅ | Yes (Hidden) | **Mock**. Behaves as a pure function, but internally manages call history via IO. |
 | **`mockM`** | ✅ | Yes (Explicit) | **Monadic Mock**. Used within `MockT` or `IO`, allowing explicit handling of side effects (e.g., logging). |
 
 #### Partial Mocking: Mixing with Real Functions
@@ -204,12 +211,20 @@ Mockcat offers 3 ways to create functions. Choose the one that fits your needs.
 Useful when you want to replace only some methods with mocks while using real implementations for others.
 
 ```haskell
-makePartialMock [t|FileSystem|] -- Use this instead of makeMock
+-- [Strict Mode]
+makePartialMock [t|FileSystem|]
+
+-- [Auto-Lift Mode]
+-- Just like makeAutoLiftMock, there is an Auto-Lift version for Partial Mock.
+makeAutoLiftPartialMock [t|FileSystem|]
 
 instance FileSystem IO where ... -- Real instance is also required
 
 test = runMockT do
-  _readFile $ "test" ~> "content" -- Only mock readFile
+  _readFile $ "test" ~> pure @IO "content" -- Only mock readFile (Strict)
+  -- or
+  -- _readFile $ "test" ~> "content" -- (Auto-Lift)
+
   program -- writeFile runs the real IO instance
 ```
 
@@ -281,6 +296,26 @@ A. It generates a `MockT m` instance for the specified typeclass, and stub gener
 A. Yes, according to definitions like xUnit Patterns, Mockcat's mocks which verify after execution are classified as **Test Spies**.<br>
 However, since many modern libraries (Jest, Mockito, etc.) group these under "Mock", and to avoid confusion from terminology proliferation, this library unifies them under the term **"Mock"**.
 </details>
+
+## Tips and Troubleshooting
+
+### Name collision with `Prelude.any`
+The `any` parameter matcher from `Test.MockCat` may conflict with `Prelude.any`.
+To resolve this, hide `any` from Prelude or use a qualified name.
+
+```haskell
+import Prelude hiding (any)
+-- or
+import qualified Test.MockCat as MC
+```
+
+### Ambiguous types with `OverloadedStrings`
+If you have `OverloadedStrings` enabled, string literals may cause ambiguity errors.
+Add explicit type annotations to resolve this.
+
+```haskell
+mock $ ("value" :: String) ~> True
+```
 
 ---
 

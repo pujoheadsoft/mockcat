@@ -581,7 +581,7 @@ spec = do
         { SpecCommon.basicDeps          = SpecCommon.BasicDeps _readFile _writeFile
         , SpecCommon.mixedDeps          = SpecCommon.MixedDeps _readFile _writeFile _post
         , SpecCommon.multipleDeps       = SpecCommon.MultipleDeps _ask _readFile _writeFile _post
-        , SpecCommon.customNamingDeps   = SpecCommon.CustomNamingDeps _post
+
         , SpecCommon.readerContextDeps  = SpecCommon.ReaderContextDeps _ask _readFile _writeFile
         , SpecCommon.sequentialIODeps            = SpecCommon.SequentialIODeps _readTTY _writeTTY
         , SpecCommon.ttyDeps                      = SpecCommon.TtyDeps _readTTY _writeTTY

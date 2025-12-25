@@ -24,22 +24,22 @@ import qualified Test.MockCat.TypeClassCommonSpec as SpecCommon
 
 --makeAutoLiftMock [t|MonadReader Bool|]
 makeAutoLiftMock [t|MonadReader SpecCommon.Environment|]
-makeMockWithOptions [t|MonadVar2_1Sub|] options { implicitMonadicReturn = False }
-makeMockWithOptions [t|MonadVar2_2Sub|] options { implicitMonadicReturn = False }
-makeMockWithOptions [t|MonadVar3_1Sub|] options { implicitMonadicReturn = False }
-makeMockWithOptions [t|MonadVar3_2Sub|] options { implicitMonadicReturn = False }
-makeMockWithOptions [t|MonadVar3_3Sub|] options { implicitMonadicReturn = False }
+makeMock [t|MonadVar2_1Sub|]
+makeMock [t|MonadVar2_2Sub|]
+makeMock [t|MonadVar3_1Sub|]
+makeMock [t|MonadVar3_2Sub|]
+makeMock [t|MonadVar3_3Sub|]
 makeAutoLiftMock [t|FileOperation|]
 makeAutoLiftMock [t|ApiOperation|]
-makeMockWithOptions [t|MultiApplyTest|] options { implicitMonadicReturn = False }
-makeMockWithOptions [t|ParamThreeMonad Int Bool|] options { implicitMonadicReturn = False }
-makeMockWithOptions [t|MonadStateSub|] options { implicitMonadicReturn = False }
-makeMockWithOptions [t|MonadStateSub2|] options { implicitMonadicReturn = False }
-makeMockWithOptions [t|Teletype|] options { implicitMonadicReturn = False }
-makeMockWithOptions [t|ExplicitlyReturnMonadicValuesTest|] options { implicitMonadicReturn = False }
+makeMock [t|MultiApplyTest|]
+makeMock [t|ParamThreeMonad Int Bool|]
+makeMock [t|MonadStateSub|]
+makeMock [t|MonadStateSub2|]
+makeMock [t|Teletype|]
+makeMock [t|ExplicitlyReturnMonadicValuesTest|]
 makeAutoLiftMock [t|DefaultMethodTest|]
 makeAutoLiftMock [t|AssocTypeTest|]
-makeMockWithOptions [t|TestClass|] options { implicitMonadicReturn = False }
+makeMock [t|TestClass|]
 
 instance (MonadUnliftIO m) => MonadAsync (MockT m) where
   mapConcurrently = traverse
@@ -55,7 +55,7 @@ spec = do
         { SpecCommon.basicDeps          = SpecCommon.BasicDeps _readFile _writeFile
         , SpecCommon.mixedDeps          = SpecCommon.MixedDeps _readFile _writeFile _post
         , SpecCommon.multipleDeps       = SpecCommon.MultipleDeps _ask _readFile _writeFile _post
-        , SpecCommon.customNamingDeps   = SpecCommon.CustomNamingDeps _post
+
         , SpecCommon.readerContextDeps  = SpecCommon.ReaderContextDeps _ask _readFile _writeFile
         , SpecCommon.sequentialIODeps            = SpecCommon.SequentialIODeps _readTTY _writeTTY
         , SpecCommon.ttyDeps                      = SpecCommon.TtyDeps _readTTY _writeTTY

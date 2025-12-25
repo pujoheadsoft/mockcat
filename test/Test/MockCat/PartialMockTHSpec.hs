@@ -37,8 +37,8 @@ instance ExplicitlyReturnMonadicValuesPartialTest IO where
 makeAutoLiftPartialMock [t|UserInputGetter|]
 makeAutoLiftPartialMock [t|Finder|]
 makeAutoLiftPartialMock [t|FileOperation|]
-makePartialMockWithOptions [t|ExplicitlyReturnMonadicValuesPartialTest|] options { implicitMonadicReturn = False }
-makePartialMockWithOptions [t|FinderNoImplicit|] options { implicitMonadicReturn = False }
+makePartialMock [t|ExplicitlyReturnMonadicValuesPartialTest|]
+makePartialMock [t|FinderNoImplicit|]
 
 spec :: Spec
 spec = PartialMockCommonSpec.spec deps (program "input.txt" "output.text")

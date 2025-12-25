@@ -17,7 +17,7 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Text as T
 import qualified System.IO as SIO
 import Test.MockCat.SharedSpecDefs
-import Test.MockCat.TH (makeMock, makeMockWithOptions, makeAutoLiftMock, makePartialMock, makePartialMockWithOptions, makeAutoLiftPartialMock, options, implicitMonadicReturn, MockOptions(..))
+import Test.MockCat.TH (makeMock, makeAutoLiftMock, makePartialMock, makeAutoLiftPartialMock)
 import Language.Haskell.TH (lookupTypeName, conT)
 import Control.Monad (forM_, when)
 
@@ -158,11 +158,10 @@ generatedMultiApplyStr = $(
 generatedExplicitStr :: String
 generatedExplicitStr = $(
   do
-    let opts = options { implicitMonadicReturn = False }
     m <- lookupTypeName "Test.MockCat.SharedSpecDefs.ExplicitlyReturnMonadicValuesTest"
     case m of
       Nothing -> fail "ExplicitlyReturnMonadicValuesTest not found"
-      Just n -> do decs <- makeMockWithOptions (conT n) opts; litE (stringL (concatMap pprint decs))
+      Just n -> do decs <- makeMock (conT n); litE (stringL (concatMap pprint decs))
   )
 
 generatedDefaultMethodStr :: String
@@ -232,23 +231,14 @@ generatedUserInputStr = $(
 generatedExplicitPartialStr :: String
 generatedExplicitPartialStr = $(
   do
-    let opts = options { implicitMonadicReturn = False }
     m <- lookupTypeName "Test.MockCat.SharedSpecDefs.ExplicitlyReturnMonadicValuesPartialTest"
     case m of
       Nothing -> fail "ExplicitlyReturnMonadicValuesPartialTest not found"
-      Just n -> do decs <- makePartialMockWithOptions (conT n) opts; litE (stringL (concatMap pprint decs))
+      Just n -> do decs <- makePartialMock (conT n); litE (stringL (concatMap pprint decs))
   )
 
 -- additional generated declarations for classes produced in `TypeClassTHSpec.hs`
-generatedApiOperationStr :: String
-generatedApiOperationStr = $(
-  do
-    let opts = options { prefix = "stub_", suffix = "_fn" }
-    m <- lookupTypeName "Test.MockCat.SharedSpecDefs.ApiOperation"
-    case m of
-      Nothing -> fail "ApiOperation not found"
-      Just n -> do decs <- makeMockWithOptions (conT n) opts; litE (stringL (concatMap pprint decs))
-  )
+
 
 generatedVar2_1SubStr :: String
 generatedVar2_1SubStr = $(
@@ -320,7 +310,7 @@ spec = describe "TH generated vs handwritten instances" do
         , ("TypeClass: DefaultMethodTest instance matches handwritten", typeClassSpecPath, "DefaultMethodTest", generatedDefaultMethodStr)
         , ("TypeClass: AssocTypeTest instance matches handwritten", typeClassSpecPath, "AssocTypeTest", generatedAssocTypeStr)
         , ("TypeClass: ParamThreeMonad instance matches handwritten", typeClassSpecPath, "ParamThreeMonad", generatedParamThreeStr)
-        , ("ApiOperation instance matches handwritten", typeClassSpecPath, "ApiOperation", generatedApiOperationStr)
+
         , ("MonadVar2_1Sub instance matches handwritten", typeClassSpecPath, "MonadVar2_1Sub", generatedVar2_1SubStr)
         , ("MonadVar2_2Sub instance matches handwritten", typeClassSpecPath, "MonadVar2_2Sub", generatedVar2_2SubStr)
         , ("MonadVar3_1Sub instance matches handwritten", typeClassSpecPath, "MonadVar3_1Sub", generatedVar3_1SubStr)

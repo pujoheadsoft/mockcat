@@ -39,7 +39,7 @@ echoProgram = do
     "" -> pure ()
     _  -> writeTTY i >> echoProgram
 
-makeMockWithOptions [t|Teletype|] options { implicitMonadicReturn = False }
+makeMock [t|Teletype|]
 
 
 class Monad m => StrictTest m where

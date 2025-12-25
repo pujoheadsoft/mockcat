@@ -15,12 +15,8 @@ module Test.MockCat.TH
   ( showExp,
     expectByExpr,
     makeMock,
-    makeMockWithOptions,
     makeAutoLiftMock,
-    MockOptions (..),
-    options,
     makePartialMock,
-    makePartialMockWithOptions,
     makeAutoLiftPartialMock,
   )
 where
@@ -145,38 +141,7 @@ expectByExpr qf = do
   str <- showExp qf
   [|ExpectCondition $qf str|]
 
--- | Options for generating mocks.
---
---  - prefix: Stub function prefix
---  - suffix: stub function suffix
---  - implicitMonadicReturn: If True, the return value of the stub function is wrapped in a monad automatically.
---                           If Else, the return value of stub function is not wrapped in a monad,  so required explicitly return monadic values.
 
--- | Create a mock of the typeclasses that returns a monad according to the `MockOptions`.
---
---  Given a monad type class, generate the following.
---
---  - MockT instance of the given typeclass
---  - A stub function corresponding to a function of the original class type.
--- The name of stub function is the name of the original function with a "_" appended.
---
---  @
---  class (Monad m) => FileOperation m where
---    writeFile :: FilePath -\> Text -\> m ()
---    readFile :: FilePath -\> m Text
---
---  makeMockWithOptions [t|FileOperation|] options { prefix = "stub_" }
---
---  it "test runMockT" do
---    result \<- runMockT do
---      stub_readFile $ "input.txt" ~> pack "content"
---      stub_writeFile $ "output.text" ~> pack "content" ~> ()
---      somethingProgram
---
---    result `shouldBe` ()
---  @
-makeMockWithOptions :: Q Type -> MockOptions -> Q [Dec]
-makeMockWithOptions = flip doMakeMock Total
 
 -- | Create a mock of a typeclasses that returns a monad.
 --
@@ -287,9 +252,7 @@ makePartialMock t = doMakeMock t Partial options
 makeAutoLiftPartialMock :: Q Type -> Q [Dec]
 makeAutoLiftPartialMock t = doMakeMock t Partial (options { implicitMonadicReturn = True })
 
--- | `makePartialMock` with options
-makePartialMockWithOptions :: Q Type -> MockOptions -> Q [Dec]
-makePartialMockWithOptions = flip doMakeMock Partial
+
 
 doMakeMock :: Q Type -> MockType -> MockOptions -> Q [Dec]
 doMakeMock qType mockType options = do

@@ -84,7 +84,6 @@ build-depends:
 ```haskell
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE OverloadedStrings #-}
 import Test.Hspec
 import Test.MockCat
 
@@ -98,7 +97,7 @@ spec = do
     f <- mock $ "Hello" ~> (42 :: Int)
 
     -- 2. 関数として使う
-    result <- f "Hello"
+    let result = f "Hello"
     result `shouldBe` 42
 
     -- 3. 呼び出されたことを検証
@@ -134,15 +133,23 @@ f <- mock $ expect (> 5) "> 5" ~> True
 実務で最もよく使う機能です。Template Haskell を使って、既存の型クラスからモックを自動生成します。
 
 ```haskell
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE TypeOperators #-}
+
 class FileSystem m where
   readFile :: FilePath -> m String
   writeFile :: FilePath -> String -> m ()
 
 -- [Strict Mode] デフォルトの動作。「mock」関数と挙動が一致します。
--- スタブの戻り値には、明示的に pure / monadic な値を渡す必要があります。
+-- 戻り値の型が `m a` の場合、スタブ定義の右辺には `m a` 型の値（例: `pure @IO "value"`, `throwIO Error`）を記述する必要があります。
+-- Haskell の型システムに対して正直で、明示的な記述を好む場合に推奨されます。
 makeMock [t|FileSystem|]
 
--- [Auto-Lift Mode] これまでの挙動（便利なラッパー）。
+-- [Auto-Lift Mode] 利便性重視のモード。
 -- 純粋な値を自動的にモナド（m String など）に包んで返します。
 makeAutoLiftMock [t|FileSystem|]
 ```
@@ -152,11 +159,11 @@ makeAutoLiftMock [t|FileSystem|]
 ```haskell
 spec :: Spec
 spec = do
-  it "filesytem test" do
+  it "filesystem test" do
     result <- runMockT do
       -- [Strict Mode] (makeMock 使用時): 明示的に pure で包む
-      _readFile $ "config.txt" ~> pure "debug=true"
-      _writeFile $ "log.txt" ~> "start" ~> pure ()
+      _readFile $ "config.txt" ~> pure @IO "debug=true"
+      _writeFile $ "log.txt" ~> "start" ~> pure @IO ()
 
       -- [Auto-Lift Mode] (makeAutoLiftMock 使用時): 値は自動的に包まれる (便利)
       -- _readFile $ "config.txt" ~> "debug=true"
@@ -195,8 +202,8 @@ Mockcat には 3種類の関数作成方法があります。用途に合わせ�
 
 | 関数 | 検証 (`shouldBeCalled`) | IO依存 | 特徴 |
 | :--- | :---: | :---: | :--- |
-| **`stub`** | ❌ | なし | **純粋なスタブ**。検証不要ならこれ一択。IO を汚染しません。 |
-| **`mock`** | ✅ | あり(隠蔽) | **モック**。内部で `unsafePerformIO` を使い、純粋関数のふりをしつつ呼び出しを記録します。 |
+| **`stub`** | ❌ | なし | **純粋なスタブ**。IO に依存しません。検証不要ならこれで十分です。 |
+| **`mock`** | ✅ | あり(隠蔽) | **モック**。純粋関数として振る舞いますが、内部的には IO を介して呼び出し履歴を管理します。 |
 | **`mockM`** | ✅ | あり(明示) | **Monadic モック**。`MockT` や `IO` の中で使い、副作用（ロギングなど）を明示的に扱えます。 |
 
 #### 部分モック (Partial Mock): 本物の関数と混ぜて使う
@@ -204,12 +211,20 @@ Mockcat には 3種類の関数作成方法があります。用途に合わせ�
 一部のメソッドだけモックに差し替え、残りは本物の実装を使いたい場合に便利です。
 
 ```haskell
-makePartialMock [t|FileSystem|] -- makeMock の代わりにこれを使う
+-- [Strict Mode]
+makePartialMock [t|FileSystem|]
+
+-- [Auto-Lift Mode]
+-- makeAutoLiftMock と同様に、Partial Mock にも Auto-Lift 版があります。
+makeAutoLiftPartialMock [t|FileSystem|]
 
 instance FileSystem IO where ... -- 本物のインスタンスも必要
 
 test = runMockT do
-  _readFile $ "test" ~> "content" -- readFile だけモック化
+  _readFile $ "test" ~> pure @IO "content" -- readFile だけモック化 (Strict)
+  -- or
+  -- _readFile $ "test" ~> "content" -- (Auto-Lift)
+
   program -- writeFile は本物の IO インスタンスが走る
 ```
 
@@ -281,6 +296,26 @@ A. 指定された型クラスの `MockT m` インスタンスと、各メソッ
 A. はい、xUnit Patterns 等の定義に従えば、事後検証を行う Mockcat のモックは **Test Spy** に分類されます。<br>
 しかし、近年の多くのライブラリ（Jest, Mockito 等）がこれらを包括して「モック」と呼称していること、および用語の乱立による混乱を避けるため、本ライブラリでは **"Mock"** という用語で統一しています。
 </details>
+
+## ヒントとトラブルシューティング
+
+### `any` と `Prelude.any` の名前衝突
+`Test.MockCat` をインポートすると、パラメータマッチャの `any` が `Prelude.any` と衝突することがあります。
+その場合は `Prelude` の `any` を隠すか、修飾名を使用してください。
+
+```haskell
+import Prelude hiding (any)
+-- または
+import qualified Test.MockCat as MC
+```
+
+### `OverloadedStrings` 使用時の型推論エラー
+`OverloadedStrings` 拡張を有効にしている場合、文字列リテラルの型が曖昧になり、エラーが発生することがあります。
+その場合は明示的に型注釈を付けてください。
+
+```haskell
+mock $ ("value" :: String) ~> True
+```
 
 ---
 

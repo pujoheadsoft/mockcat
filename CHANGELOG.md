@@ -13,6 +13,7 @@ and this project adheres to the
 - Simplified creating/stubbing API: `f <- mock $ ...` is now the canonical way.
 - Expanded structural diffing support for nested records and lists.
 - Unified verification API: All verification is now handled via `shouldBeCalled`.
+- **Strict by Default**: `makeMock` and `makePartialMock` now default to strict return values (implicit monadic return is disabled). `makeAutoLiftMock` was introduced for the previous behavior.
 
 ### Added
 - Deep Structural Diff: Enhanced error messages with precise caret pointers for complex nested data structures.
@@ -21,6 +22,7 @@ and this project adheres to the
 
 ### Removed
 - Backward compatibility with 0.x.x APIs (`stubFn`, `createMock`, `applied`, etc.).
+- `makeMockWithOptions`, `makePartialMockWithOptions`, and `MockOptions` (internalized to simplify API).
 
 ### Migration Guide (0.x -> 1.0)
 This release is a complete reboot. Previous code **will break**.
@@ -51,6 +53,11 @@ This release is a complete reboot. Previous code **will break**.
     -- New
     f `shouldBeCalled` "arg"
     ```
+
+4.  **Template Haskell Generics**:
+    `makeMock` is now strict by default (requires explicit `pure` for IO actions).
+    - Use `makeAutoLiftMock` for old implicit behavior.
+    - Or stick to `makeMock` and add `pure` to your return values.
 
 ## 0.6.0.0
 ### Changed
