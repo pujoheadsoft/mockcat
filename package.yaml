@@ -24,9 +24,12 @@ description: |
       mock $ "input" ~> "output"
   
   Features:
-  * **Architecture Agnostic**: Mock functions directly or generate mocks from Typeclasses. Free yourself from complex ReaderT patterns just for testing.
-  * **Declarative Verification**: Define expectations (`expects`) at definition time, or verify afterwards (`shouldBeCalled`).
-  * **Intent-Driven**: Verify behavior with flexible matchers (`any`, `expect`) instead of strict equality.
+  
+  * Architecture Agnostic: Mock functions directly or generate mocks from Typeclasses. Free yourself from complex ReaderT patterns just for testing.
+  
+  * Declarative Verification: Define expectations (`expects`) at definition time, or verify afterwards (`shouldBeCalled`).
+  
+  * Intent-Driven: Verify behavior with flexible matchers (`any`, `expect`) instead of strict equality.
   
   See README for full examples: <https://github.com/pujoheadsoft/mockcat#readme>
 
