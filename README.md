@@ -49,7 +49,8 @@ Mockcat is designed to thoroughly eliminate boilerplate, allowing you to focus p
 
 ### Key Features
 
-*   **Intuitive DSL**: Chain arguments and return values with `~>`. It reads just like a function signature.
+*   **Haskell Native DSL**: No need to memorize redundant data constructors or specialized notation. Write mocks naturally, just like function definitions (`arg ~> return`).
+*   **Flexible Application Scope**: Supports both typeclass (MTL style) mocking and direct mocking of standalone functions. Extremely low barrier to entry for existing codebases.
 *   **Automatic Mock Generation**: Generate mocks from typeclasses in one line using Template Haskell (`makeMock`).
 *   **Helpful Error Messages**: Shows "structural diffs" on failure, highlighting exactly what didn't match.
     ```text
@@ -129,6 +130,19 @@ f <- mock $ any ~> True
 -- Condition (expect)
 f <- mock $ expect (> 5) "> 5" ~> True
 ```
+
+### 2. Typeclass Mocking (`makeMock`)
+
+Mockcat supports two verification styles depending on your testing needs and preferences.
+
+1.  **Post-Verification Style (Spy)**:
+    Define mock behavior, run the code, and verify afterwards using `shouldBeCalled`.  
+    Ideal for exploratory testing or simple setups. (Used mainly in Sections 1 & 2 below)
+2.  **Pre-Expectation Style (Declarative/Expectation)**:
+    Describe "how it should be called" at the definition time.  
+    Ideal for strict interaction testing. (Explained in Section 3)
+
+---
 
 ### 2. Typeclass Mocking (`makeMock`)
 
