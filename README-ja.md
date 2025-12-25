@@ -137,10 +137,11 @@ f <- mock $ expect (> 5) "> 5" ~> True
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeOperators #-}
 
-class FileSystem m where
+class Monad m => FileSystem m where
   readFile :: FilePath -> m String
   writeFile :: FilePath -> String -> m ()
 
