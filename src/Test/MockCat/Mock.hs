@@ -99,9 +99,11 @@ instance {-# OVERLAPPING #-} CreateMock (Head :> Param r) where
 -- We need to ensure this doesn't match Param chains, Cases, IO, or Head types
 instance {-# OVERLAPPABLE #-}
   ( ToMockParams b ~ (Head :> Param b)
+  , Normalize b ~ Param b
   , Typeable b
+  , ToParamArg b
   ) => CreateMock b where
-  toParams value = Head :> param value
+    toParams value = Head :> toParamArg value
 
 -- | Label type for naming mock functions.
 newtype Label = Label MockName

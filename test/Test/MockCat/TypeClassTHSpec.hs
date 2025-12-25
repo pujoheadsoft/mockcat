@@ -78,11 +78,3 @@ spec = do
         , SpecCommon.concurrencyDeps              = SpecCommon.ConcurrencyDeps _readFile
         }
   SpecCommon.spec deps
-
-  -- describe "verification failures (State - Pending)" do
-  --   it "fails when _fnState is defined but fnState is never called" do
-  --     pendingWith "RegisterStub-based mocks require custom expectation handling"
-
-  --   it "fails when _fnState2 is defined but fnState2 is never called" do
-  --     pendingWith "RegisterStub-based mocks require custom expectation handling"
-

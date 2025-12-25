@@ -1,24 +1,23 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.37.0.
+-- This file has been generated from package.yaml by hpack version 0.39.0.
 --
 -- see: https://github.com/sol/hpack
 
 name:           mockcat
 version:        1.0.0.0
 synopsis:       Declarative mocking with a single arrow `~>`.
-description:    Mockcat is a minimal, intuitive mocking DSL for Haskell.
+description:    Mockcat is a declarative mocking library for Haskell.
+                It allows you to explicitly describe function behavior and intent without depending on specific architectures.
                 .
-                Define your mocks with a single arrow `~>`, just like function mappings:
+                Using the dedicated Mock Arrow (`~>`) operator, you can define mocks by simply writing "arguments -> behavior".
                 .
                     mock $ "input" ~> "output"
                 .
                 Features:
-                * **Intuitive DSL**: Use `~>` to map arguments to results.
-                * **Friendly Errors**: Deep structural diffs show exactly *why* verification failed.
-                * **Concurrency Safe**: Thread-safe invocation counting.
-                .
-                Perfect for TDD and unit testing where simplicity and clarity matter.
+                * **Architecture Agnostic**: Mock functions directly or generate mocks from Typeclasses. Free yourself from complex ReaderT patterns just for testing.
+                * **Declarative Verification**: Define expectations (`expects`) at definition time, or verify afterwards (`shouldBeCalled`).
+                * **Intent-Driven**: Verify behavior with flexible matchers (`any`, `expect`) instead of strict equality.
                 .
                 See README for full examples: <https://github.com/pujoheadsoft/mockcat#readme>
 category:       Testing

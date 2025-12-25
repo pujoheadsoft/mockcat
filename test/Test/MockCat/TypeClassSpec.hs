@@ -91,6 +91,8 @@ _ask ::
   ( Verify.ResolvableParamsOf env ~ ()
   , MonadIO m
   , Typeable env
+  , Show env
+  , Eq env
   ) =>
   env ->
   MockT m env
@@ -509,6 +511,8 @@ _defaultAction ::
   ( MonadIO m
   , Verify.ResolvableParamsOf a ~ ()
   , Typeable a
+  , Show a
+  , Eq a
   ) =>
   a ->
   MockT m a
@@ -522,6 +526,8 @@ _produce ::
   ( MonadIO m
   , Verify.ResolvableParamsOf a ~ ()
   , Typeable a
+  , Show a
+  , Eq a
   ) =>
   a ->
   MockT m a
@@ -604,10 +610,3 @@ spec = do
         , SpecCommon.concurrencyDeps              = SpecCommon.ConcurrencyDeps _readFile
         }
   SpecCommon.spec deps
-
-  -- describe "verification failures (State - Pending)" do
-  --   it "fails when _fnState is defined but fnState is never called" do
-  --     pendingWith "RegisterStub-based mocks require custom expectation handling"
-
-  --   it "fails when _fnState2 is defined but fnState2 is never called" do
-  --     pendingWith "RegisterStub-based mocks require custom expectation handling"

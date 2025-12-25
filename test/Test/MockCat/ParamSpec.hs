@@ -29,7 +29,7 @@ spec = do
 
     describe "Show" do
       it "String" do
-        show (param "X") `shouldBe` "X"
+        show (param "X") `shouldBe` "\"X\""
       it "Integer" do
         show (param 100) `shouldBe` "100"
       it "Bool" do
@@ -37,9 +37,13 @@ spec = do
 
     describe "Eq" do
       it "param (eq)" do
-        param (10 :: Int) == param (10 :: Int) `shouldBe` True
+        param 10 == param 10 `shouldBe` True
       it "param (not eq)" do
-        param (10 :: Int) == param (11 :: Int) `shouldBe` False
+        param 10 == param 11 `shouldBe` False
+      it "any (non-Eq type)" do
+        (P.any :: Param NoEq) == (P.any :: Param NoEq) `shouldBe` True
+      it "ValueWrapper (non-Eq type) - always False" do
+        wrap NoEq == wrap NoEq `shouldBe` False
 
     describe "Returns True if the expected value condition is met." do
       it "any" do
@@ -49,32 +53,38 @@ spec = do
       it "any" do
         show (P.any :: Param Int) `shouldBe` "any"
 
+      -- Type inference works for numeric literals and operators without explicit annotations.
       it "expect" do
         show (expect (> 4) "> 4") `shouldBe` "> 4"
 
       it "expect_" do
         show (expect_ (> 4)) `shouldBe` "[some condition]"
-    
+
+      it "param 10" do
+        show (param 10) `shouldBe` "10"
+
     describe "show expectation by Exp" do
       it "(> 3)" do
-        show $(expectByExpr [|(> 3)|]) `shouldBe` "(> 3)"
+        show $(expectByExpr [|(> (3 :: Int))|]) `shouldBe` "(> 3)"
 
       it "lambda" do
-        show $(expectByExpr [|\x -> x == 3 || x == 5|]) `shouldBe` "(\\x -> ((x == 3) || (x == 5)))"
-      
+        show $(expectByExpr [|\x -> x == (3 :: Int) || x == 5|]) `shouldBe` "(\\x -> ((x == 3) || (x == 5)))"
+
       it "use data" do
         show $(expectByExpr [|\x -> x == Foo "foo"|]) `shouldBe` "(\\x -> (x == (Foo \"foo\")))"
-    
+
     describe "ProjectionArgs" do
       it "Param a :> Param r" do
-        projArgs (param (10 :: Int) :> param "foo") `shouldBe` param (10 :: Int)
+        projArgs (param 10 :> param "foo") `shouldBe` param 10
       it "Param a :> rest" do
-        projArgs (param (10 :: Int) :> param "foo" :> param True) `shouldBe` (param (10 :: Int) :> param "foo")
-    
+        projArgs (param 10 :> param "foo" :> param True) `shouldBe` (param 10 :> param "foo")
+
     describe "ProjectionReturn" do
       it "Param a :> Param r" do
-        projReturn (param (10 :: Int) :> param "foo") `shouldBe` param "foo"
+        projReturn (param 10 :> param "foo") `shouldBe` param "foo"
       it "Param a :> rest" do
-        projReturn (param (10 :: Int) :> param "foo" :> param True) `shouldBe` param True
+        projReturn (param 10 :> param "foo" :> param True) `shouldBe` param True
 
 data TestData = Foo String | Bar deriving (Eq, Show)
+
+data NoEq = NoEq deriving (Show)

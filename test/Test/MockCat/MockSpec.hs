@@ -8,6 +8,8 @@
 {-# OPTIONS_GHC -Wno-type-defaults #-}
 {-# OPTIONS_GHC -Wno-unused-do-bind #-}
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{- HLINT ignore "Use newtype instead of data" -}
 
 module Test.MockCat.MockSpec (spec) where
 
@@ -60,6 +62,38 @@ spec = do
       it "param ~> (Param ~> (Param ~> a))" do
         f <- mock $ any ~> any ~> any ~> True
         f "any" "any" "any" `shouldBe` True
+
+    describe "Non-Eq/Show support" do
+      it "can mock function with NoEq argument using any" do
+        f <- mock $ any @NoEq ~> "result"
+        f (NoEq "val") `shouldBe` "result"
+      
+      it "can mock function with NoEq argument using expect" do
+        f <- mock $ expect_ (const True) ~> "result"
+        f (NoEq "val") `shouldBe` "result"
+
+      it "can stub function with NoEq argument" do
+        let f = stub $ any @NoEq ~> "result"
+        f (NoEq "val") `shouldBe` "result"
+
+      it "can mock function with NoShow argument using any" do
+        f <- mock $ any @NoShow ~> "result"
+        f (NoShow "val") `shouldBe` "result"
+
+      it "can mock function with NoEqNoShow argument using any" do
+        f <- mock $ any @NoEqNoShow ~> "result"
+        f (NoEqNoShow "val") `shouldBe` "result"
+    
+      it "can mock function with NoEq argument matching its value" do
+        -- Even without an Eq instance, you can match based on field values using 'expect'.
+        f <- mock $ expect (\(NoEq val) -> val == "target") "NoEq with 'target'" ~> "hit"
+        f (NoEq "target") `shouldBe` "hit"
+        evaluate (f (NoEq "other")) `shouldThrow` anyErrorCall
+
+      it "can mock function taking a function" do
+        f <- mock $ expect_ (\(g :: Int -> Int) -> g (5 :: Int) == (25 :: Int)) ~> "result"
+        let g x = x * x
+        f g `shouldBe` "result"
 
   describe "Monad" do
     it "Return IO Monad." do
@@ -178,3 +212,7 @@ instance {-# OVERLAPPABLE #-} Eval a where
 
 errorContains :: String -> Selector E.ErrorCall
 errorContains sub (E.ErrorCall msg) = sub `isInfixOf` msg
+
+data NoEq = NoEq String deriving (Show)
+data NoShow = NoShow String deriving (Eq)
+data NoEqNoShow = NoEqNoShow String

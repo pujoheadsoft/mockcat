@@ -1,22 +1,24 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE TypeFamilyDependencies #-}
 {-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 
 -- | This module provides types and functions for representing mock parameters.
 -- Parameters are used both for setting up expectations and for verification.
 module Test.MockCat.Param
   ( Param(..),
+    WrapParam(..),
     value,
     param,
-    (~>),
+    ConsGen(..),
     expect,
     expect_,
     any,
@@ -26,7 +28,9 @@ module Test.MockCat.Param
     ReturnOf,
     ProjectionReturn,
     projReturn,
-    returnValue
+    returnValue,
+    Normalize,
+    ToParamArg(..)
   )
 where
 
@@ -35,75 +39,118 @@ import Unsafe.Coerce (unsafeCoerce)
 import Prelude hiding (any)
 import Data.Typeable (Typeable, typeOf)
 import Foreign.Ptr (Ptr, ptrToIntPtr, castPtr, IntPtr)
+import qualified Data.Text as T (Text)
 
-data Param v
-  = ExpectValue v
-  | ExpectCondition (v -> Bool) String
+infixr 0 ~>
 
-instance {-# OVERLAPPABLE #-} (Eq a) => Eq (Param a) where
-  (ExpectValue a) == (ExpectValue b) = a == b
-  (ExpectValue a) == (ExpectCondition m2 _) = m2 a
-  (ExpectCondition m1 _) == (ExpectValue b) = m1 b
+data Param v where
+  -- | A parameter that expects a specific value.
+  ExpectValue :: (Show v, Eq v) => v -> String -> Param v
+  -- | A parameter that expects a value satisfying a condition.
+  ExpectCondition :: (v -> Bool) -> String -> Param v
+  -- | A parameter that wraps a value without Eq or Show constraints.
+  ValueWrapper :: v -> String -> Param v
+
+-- | Class for wrapping raw values into Param.
+-- For types with Show and Eq, it uses ExpectValue to enable comparison and display.
+-- For other types, it uses ValueWrapper.
+class WrapParam a where
+  wrap :: a -> Param a
+
+instance {-# OVERLAPPING #-} WrapParam String where
+  wrap s = ExpectValue s (show s)
+
+instance {-# OVERLAPPING #-} WrapParam Int where
+  wrap v = ExpectValue v (show v)
+
+instance {-# OVERLAPPING #-} WrapParam Integer where
+  wrap v = ExpectValue v (show v)
+
+instance {-# OVERLAPPING #-} WrapParam Bool where
+  wrap v = ExpectValue v (show v)
+
+instance {-# OVERLAPPING #-} WrapParam Double where
+  wrap v = ExpectValue v (show v)
+
+instance {-# OVERLAPPING #-} WrapParam Float where
+  wrap v = ExpectValue v (show v)
+
+instance {-# OVERLAPPING #-} WrapParam Char where
+  wrap v = ExpectValue v (show v)
+
+instance {-# OVERLAPPING #-} WrapParam T.Text where
+  wrap v = ExpectValue v (show v)
+
+instance {-# OVERLAPPING #-} (Show a, Eq a) => WrapParam [a] where
+  wrap v = ExpectValue v (show v)
+
+instance {-# OVERLAPPING #-} (Show a, Eq a) => WrapParam (Maybe a) where
+  wrap v = ExpectValue v (show v)
+
+instance {-# OVERLAPPABLE #-} WrapParam a where
+  wrap v = ValueWrapper v "ValueWrapper"
+
+instance Eq (Param a) where
+  (ExpectValue a _) == (ExpectValue b _) = a == b
+  (ExpectValue a _) == (ExpectCondition m2 _) = m2 a
+  (ExpectCondition m1 _) == (ExpectValue b _) = m1 b
   (ExpectCondition _ l1) == (ExpectCondition _ l2) = l1 == l2
+  ValueWrapper a _ == ExpectCondition m _ = m a
+  ExpectCondition m _ == ValueWrapper a _ = m a
+  ExpectValue a _ == ValueWrapper b _ = a == b
+  ValueWrapper a _ == ExpectValue b _ = a == b
+  ValueWrapper _ _ == ValueWrapper _ _ = False
 
--- | Overlapping instance for function types
-instance {-# OVERLAPPING #-} (Typeable (a -> b)) => Eq (Param (a -> b)) where
-  (ExpectValue a) == (ExpectValue b) = compareFunction a b
-  (ExpectValue a) == (ExpectCondition m2 _) = m2 a
-  (ExpectCondition m1 _) == (ExpectValue b) = m1 b
-  (ExpectCondition _ l1) == (ExpectCondition _ l2) = l1 == l2
-
-type family ShowResult a where
-  ShowResult String = String
-  ShowResult a = String
-
-class ShowParam a where
-  showParam :: a -> ShowResult a
-
-instance {-# OVERLAPPING #-} ShowParam (Param String) where
-  showParam (ExpectCondition _ l) = l
-  showParam (ExpectValue a) = a
-
-instance {-# INCOHERENT #-} (Show a) => ShowParam (Param a) where
-  showParam (ExpectCondition _ l) = l
-  showParam (ExpectValue a) = show a
-
--- | Overlapping instance for function types
-instance {-# OVERLAPPING #-} (Typeable (a -> b)) => ShowParam (Param (a -> b)) where
-  showParam (ExpectCondition _ l) = l
-  showParam (ExpectValue a) = showFunction a
-
-instance (ShowParam (Param a)) => Show (Param a) where
-  show = showParam
+instance Show (Param v) where
+  show (ExpectValue _ l) = l
+  show (ExpectCondition _ l) = l
+  show (ValueWrapper _ l) = l
 
 value :: Param v -> v
-value (ExpectValue a) = a
+value (ExpectValue a _) = a
+value (ValueWrapper a _) = a
 value _ = error "not implemented"
 
-param :: v -> Param v
-param = ExpectValue
+-- | Create a Param from a value. Requires Eq and Show.
+param :: (Show v, Eq v) => v -> Param v
+param v = ExpectValue v (show v)
 
-class ConsGen a b r | a b -> r where
-  (~>) :: a -> b -> r
 
-instance {-# OVERLAPPING #-} (Param a ~ a', (Param b :> c) ~ bc) => ConsGen a (Param b :> c) (a' :> bc) where
-  (~>) a = (:>) (param a)
-instance {-# OVERLAPPING #-} ((Param b :> c) ~ bc) => ConsGen (Param a) (Param b :> c) (Param a :> bc) where
-  (~>) = (:>)
-instance ConsGen (Param a) (Param b) (Param a :> Param b) where
-  (~>) = (:>)
-instance {-# OVERLAPPABLE #-} ((Param b) ~ b') => ConsGen (Param a) b (Param a :> b') where
-  (~>) a b = (:>) a (param b)
-instance {-# OVERLAPPABLE #-} ((Param a) ~ a') => ConsGen a (Param b) (a' :> Param b) where
-  (~>) a = (:>) (param a)
-instance {-# OVERLAPPABLE #-} (Param a ~ a', Param b ~ b') => ConsGen a b (a' :> b') where
-  (~>) a b = (:>) (param a) (param b)
+-- | Type family to untie the knot for ConsGen instances
+type family Normalize a where
+  Normalize (a :> b) = a :> b
+  Normalize (Param a) = Param a
+  Normalize a = Param a
 
--- | The Mock Arrow operator.
---   Connects arguments and the return value in a pipeline.
---
---   > "arg1" ~> "arg2" ~> "result"
-infixr 0 ~>
+class ToParamArg a where
+  toParamArg :: a -> Normalize a
+
+instance {-# OVERLAPPING #-} (Typeable (a -> b)) => ToParamArg (a -> b) where
+  toParamArg f = ExpectCondition (compareFunction f) (showFunction f)
+
+instance {-# OVERLAPPING #-} ToParamArg (Param a) where
+  toParamArg = id
+
+instance {-# OVERLAPPABLE #-} (Normalize a ~ Param a, WrapParam a) => ToParamArg a where
+  toParamArg = wrap
+
+class ToParamResult b where
+  toParamResult :: b -> Normalize b
+
+instance {-# OVERLAPPING #-} ToParamResult (Param a) where
+  toParamResult = id
+
+instance {-# OVERLAPPING #-} ToParamResult (a :> b) where
+  toParamResult = id
+
+instance {-# OVERLAPPABLE #-} (Normalize b ~ Param b, WrapParam b) => ToParamResult b where
+  toParamResult = wrap
+
+class ConsGen a b where
+  (~>) :: a -> b -> Normalize a :> Normalize b
+
+instance (ToParamArg a, ToParamResult b) => ConsGen a b where
+  (~>) a b = (:>) (toParamArg a) (toParamResult b)
 
 -- | Make a parameter to which any value is expected to apply.
 --   Use with type application to specify the type: @any \@String@

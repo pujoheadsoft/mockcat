@@ -28,30 +28,46 @@ f `shouldBeCalled` "input"
 
 ## Concepts & Terminology
 
-Mockcat clearly distinguishes between "Stubs" and "Mocks" (terms often confused), providing the best tool for each purpose.
+Mockcat adopts a design where "verification happens at runtime, but 'conditions to be met' can be declared at definition time."
 
-| Term | Role | Corresponding Function |
-| :--- | :--- | :--- |
-| **Stub** | **"The Stand-in"**<br>Exists solely to keep the test moving by returning fixed values.<br>Has no side effects and doesn't care "how it was called". | **`stub`**<br>Returns a pure function.<br>No verification hooks. No side effects.<br>Extremely lightweight. |
-| **Mock** | **"Mimic & Verify"**<br>In addition to stubbing, it records calls to verify "was it called as expected?".<br>Used for Interaction Testing between objects. | **`mock`** / **`mockM`**<br>Returns values while recording calls.<br>Can be verified with `shouldBeCalled`, etc. |
+*   **Stub**:
+    Exists solely to keep the test moving by returning values. It does not care "how it was called".
+    The `stub` function returns a completely pure function.
+
+*   **Mock**:
+    In addition to stubbing, it records and verifies "was it called as expected?".
+    The `mock` function returns a value while recording calls. Verification can be done at the end of the test, or declared as "it must be called this way" at definition time.
 
 ---
 
 ## Why Mockcat?
 
-Writing mocks in Haskell should be simpler.  
-Mockcat is designed to thoroughly eliminate boilerplate, allowing you to focus purely on the essence of your tests.
+There's no need to brace yourself when writing mocks in Haskell.
+
+Mockcat is a mocking library that **"allows you to declaratively describe function behavior and intent without depending on specific architectures."**
+
+"I can't test unless I introduce Typeclasses (MTL)."
+"I have to define dedicated data types just for mocking."
+(e.g., adding extra Typeclasses or Service Handle records just for testing)
+
+You are freed from such constraints. You can mock existing functions as they are, and start writing tests even when the design isn't fully solidified.
+
+**Mockcat aims to let you write tests to explore design, rather than forcing you to fixate the design just for testing.**
+
+### Before / After
+
+See how simple writing tests in Haskell can be.
 
 | | **Before: Handwritten...** 😫 | **After: Mockcat** 🐱✨ |
 | :--- | :--- | :--- |
-| **Definition (Stub)**<br>"I want to return<br>this value for this arg" | <pre lang="haskell">f :: String -> IO String<br>f arg = case arg of<br>  "a" -> pure "b"<br>  _   -> error "unexpected"</pre><br>_Even simple branching consumes many lines._ | <pre lang="haskell">let f = stub $<br>  "a" ~> "b"<br><br><br></pre><br>_If you don't need verification, `stub` is enough.<br>Behaves as a completely pure function._ |
-| **Verification (Verify)**<br>"I want to test<br>if it was called correctly" | <pre lang="haskell">-- Need to implement recording logic<br>ref <- newIORef []<br>let f arg = do<br>      modifyIORef ref (arg:)<br>      ...<br><br>-- Verification logic<br>calls <- readIORef ref<br>calls \`shouldBe\` ["a"]</pre><br>_Building the "verification machinery" takes time and hides the intent._ | <pre lang="haskell">-- Define & start monitoring in 1 line<br>f <- mock $ "a" ~> "b"<br><br>-- Just state what you want to verify<br>f \`shouldBeCalled\` "a"<br><br><br><br></pre><br>_Recording is automatic.<br>Focus on the "Why" and "What", not the "How"._ |
+| **Definition (Stub)**<br>"I want to return<br>this value for this arg" | <pre lang="haskell">f :: String -> IO String<br>f arg = case arg of<br>  "a" -> pure "b"<br>  _   -> error "unexpected"</pre><br>_Even simple branching consumes many lines._ | <pre lang="haskell">-- Use stub if verification is unneeded (Pure)<br>let f = stub $<br>  "a" ~> "b"<br><br><br></pre><br>_Behaves as a completely pure function._ |
+| **Verification (Verify)**<br>"I want to test<br>if it was called correctly" | <pre lang="haskell">-- Need to implement recording logic<br>ref <- newIORef []<br>let f arg = do<br>      modifyIORef ref (arg:)<br>      ...<br><br>-- Verification logic<br>calls <- readIORef ref<br>calls \`shouldBe\` ["a"]</pre><br>_※ This is just one example. Real-world setups often require even more boilerplate._ | <pre lang="haskell">-- Use mock if verification is needed (Recorded internally)<br>f <- mock $ "a" ~> "b"<br><br>-- Just state what you want to verify<br>f \`shouldBeCalled\` "a"</pre><br>_Recording is automatic.<br>Focus on the "Why" and "What", not the "How"._ |
 
 ### Key Features
 
 *   **Haskell Native DSL**: No need to memorize redundant data constructors or specialized notation. Write mocks naturally, just like function definitions (`arg ~> return`).
-*   **Flexible Application Scope**: Supports both typeclass (MTL style) mocking and direct mocking of standalone functions. Extremely low barrier to entry for existing codebases.
-*   **Automatic Mock Generation**: Generate mocks from typeclasses in one line using Template Haskell (`makeMock`).
+*   **Architecture Agnostic**: Whether using MTL (Typeclasses), Service Handle (Records), or pure functions—Mockcat adapts to your design choice with minimal friction.
+*   **Verify by "Condition", not just Value**: Works even if arguments lack `Eq` instances. You can verify based on "what properties it should satisfy" (Predicates) rather than just strict equality.
 *   **Helpful Error Messages**: Shows "structural diffs" on failure, highlighting exactly what didn't match.
     ```text
     Expected arguments were not called.
@@ -59,7 +75,7 @@ Mockcat is designed to thoroughly eliminate boilerplate, allowing you to focus p
        but got: [Record { name = "Alice", age = 21 }]
                                                 ^^
     ```
-*   **Robust Design**: Thread-safe invocation counting and lazy-evaluation friendly.
+*   **Intent-Driven Types**: Types exist not to restrict you, but to naturally guide you in expressing your testing intent.
 
 
 ---
@@ -109,9 +125,29 @@ spec = do
 
 ---
 
+### At a Glance: Matchers
+| Matcher | Description | Example |
+| :--- | :--- | :--- |
+| **`any`** | Matches any value | `f <- mock $ any ~> True` |
+| **`expect`** | Matches condition | `f <- mock $ expect (> 5) "gt 5" ~> True` |
+| **`"val"`** | Matches value (Eq) | `f <- mock $ "val" ~> True` |
+| **`inOrder`** | Order verification | ``f `shouldBeCalled` inOrderWith ["a", "b"]`` |
+| **`inPartial`**| Partial order | ``f `shouldBeCalled` inPartialOrderWith ["a", "c"]`` |
+
+---
+
 ## User Guide
 
-### 1. Function Mocking (`mock`)
+Mockcat supports two verification styles depending on your testing needs and preferences.
+
+1.  **Post-Verification Style (Spy)**:
+    Define mock behavior, run the code, and verify afterwards using `shouldBeCalled`.  
+    Ideal for exploratory testing or simple setups. (Used mainly in Sections 1 & 2 below)
+2.  **Pre-Expectation Style (Declarative/Expectation)**:
+    Describe "how it should be called" at the definition time.  
+    Ideal for strict interaction testing. (Explained in Section 3)
+
+### 1. Function Mocking (`mock`) - [Basic]
 
 The most basic usage. Creates a function that returns values for specific arguments.
 
@@ -133,20 +169,7 @@ f <- mock $ expect (> 5) "> 5" ~> True
 
 ### 2. Typeclass Mocking (`makeMock`)
 
-Mockcat supports two verification styles depending on your testing needs and preferences.
-
-1.  **Post-Verification Style (Spy)**:
-    Define mock behavior, run the code, and verify afterwards using `shouldBeCalled`.  
-    Ideal for exploratory testing or simple setups. (Used mainly in Sections 1 & 2 below)
-2.  **Pre-Expectation Style (Declarative/Expectation)**:
-    Describe "how it should be called" at the definition time.  
-    Ideal for strict interaction testing. (Explained in Section 3)
-
----
-
-### 2. Typeclass Mocking (`makeMock`)
-
-The most common use case in real-world applications. Generates mocks from existing typeclasses using Template Haskell.
+Useful when you want to bring existing typeclasses directly into your tests. Generates mocks from existing typeclasses using Template Haskell.
 
 ```haskell
 {-# LANGUAGE TemplateHaskell #-}
@@ -211,11 +234,39 @@ withMock $ do
 > You can also use `expects` for declarative verification inside `runMockT` blocks.
 > This provides a unified experience where "Mock Creation" and "Expectation Declaration" complete within a single block.
 
-### 4. Advanced Features
+### 4. Flexible Verification (Matchers)
+
+Even if arguments don't have `Eq` instances, or you don't want to depend on specific values, you can verify based on **intent**—"what condition should be met".
+Mockcat provides **matchers** to verify properties of functions, not just value equality.
+
+#### Allow Any Value (`any`)
+
+```haskell
+-- Return True regardless of the argument
+f <- mock $ any ~> True
+
+-- Verify that it was called (arguments don't matter)
+f `shouldBeCalled` any
+```
+
+#### Verify with Conditions (`expect`)
+
+You can verify using "conditions (predicates)" instead of arbitrary values.
+Powerfully useful for types without `Eq` (like functions) or when checking partial matches.
+
+```haskell
+-- Return False only if the argument starts with "error"
+f <- mock $ do
+  onCase $ expect (\s -> "error" `isPrefixOf` s) "start with error" ~> False
+  onCase $ any ~> True
+```
+
+### 5. Advanced Features - [Advanced]
 
 #### mock vs stub vs mockM
 
-Mockcat offers 3 ways to create functions. Choose the one that fits your needs.
+In most cases, **`mock`** is all you need.
+Consider other functions only when you need finer control.
 
 | Function | Verification (`shouldBeCalled`) | IO Dependency | Characteristics |
 | :--- | :---: | :---: | :--- |
@@ -265,9 +316,9 @@ f <- mock (label "myAPI") $ "arg" ~> True
 
 ---
 
-## Encyclopedia
+## Encyclopedia (Feature Reference)
 
-Refer to this section when in doubt.
+※ Use this section as a dictionary when you get stuck.
 
 ### Verification Matchers (`shouldBeCalled`)
 
@@ -290,6 +341,20 @@ Refer to this section when in doubt.
 | `any` | Any value | `any ~> True` |
 | `expect pred label` | Condition | `expect (>0) "positive" ~> True` |
 | `expect_ pred` | No label | `expect_ (>0) ~> True` |
+
+### Declarative Verification DSL (`expects`)
+
+In `expects` blocks, you can describe expectations declaratively.
+The syntax used in `expects` shares the same vocabulary as `shouldBeCalled`.
+
+| Syntax | Description |
+| :--- | :--- |
+| `called` | Start expectation |
+| `once` | Called exactly once |
+| `times n` | Called n times |
+| `never` | Never called |
+| `with arg` | Expected argument |
+| `with matcher` | Argument verification with matcher |
 
 ### FAQ
 

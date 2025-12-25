@@ -4,6 +4,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeFamilies #-}
+{- HLINT ignore "Use fewer imports" -}
 
 module Test.MockCat.THCompareSpec (spec) where
 
@@ -48,6 +49,11 @@ stripQualifiers =
       , "Base."
       , "Test.MockCat.Verify."
       , "Verify."
+      , "GHC.Show."
+      , "GHC.Classes."
+      , "Show."
+      , "Classes."
+      , "Internal."
       ])
   where
     stripPrefixes [] t = t

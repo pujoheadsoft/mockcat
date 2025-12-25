@@ -49,17 +49,18 @@ class BuildCurried args r fn | args r -> fn where
 buildCurried :: forall args r fn. BuildCurried args r fn => (args -> IO r) -> fn
 buildCurried = buildCurriedImpl
 
-instance (fn ~ (a -> r)) => BuildCurried (Param a) r fn where
-  buildCurriedImpl f a = perform (f (param a))
+instance (WrapParam a, fn ~ (a -> r)) => BuildCurried (Param a) r fn where
+  buildCurriedImpl f a = perform (f (wrap a))
 
 instance
   ( BuildCurried rest r fn
+  , WrapParam a
   , fn' ~ (a -> fn)
   ) =>
   BuildCurried (Param a :> rest) r fn'
   where
   buildCurriedImpl input a =
-    buildCurriedImpl @rest @r @fn (input . (\rest -> p a :> rest))
+    buildCurriedImpl @rest @r @fn (input . (\rest -> wrap a :> rest))
 
 -- | Class for building a curried pure function without relying on IO.
 class BuildCurriedPure args r fn | args r -> fn where
@@ -69,17 +70,18 @@ class BuildCurriedPure args r fn | args r -> fn where
 buildCurriedPure :: forall args r fn. BuildCurriedPure args r fn => (args -> r) -> fn
 buildCurriedPure = buildCurriedPureImpl
 
-instance (fn ~ (a -> r)) => BuildCurriedPure (Param a) r fn where
-  buildCurriedPureImpl f a = f (param a)
+instance (WrapParam a, fn ~ (a -> r)) => BuildCurriedPure (Param a) r fn where
+  buildCurriedPureImpl f a = f (wrap a)
 
 instance
   ( BuildCurriedPure rest r fn
+  , WrapParam a
   , fn' ~ (a -> fn)
   ) =>
   BuildCurriedPure (Param a :> rest) r fn'
   where
   buildCurriedPureImpl input a =
-    buildCurriedPureImpl @rest @r @fn (input . (\rest -> p a :> rest))
+    buildCurriedPureImpl @rest @r @fn (input . (\rest -> wrap a :> rest))
 
 -- | Class for building a curried function whose result stays in IO.
 class BuildCurriedIO args r fn | args r -> fn where
@@ -89,17 +91,18 @@ class BuildCurriedIO args r fn | args r -> fn where
 buildCurriedIO :: forall args r fn. BuildCurriedIO args r fn => (args -> IO r) -> fn
 buildCurriedIO = buildCurriedIOImpl
 
-instance (fn ~ (a -> IO r)) => BuildCurriedIO (Param a) r fn where
-  buildCurriedIOImpl f a = f (param a)
+instance (WrapParam a, fn ~ (a -> IO r)) => BuildCurriedIO (Param a) r fn where
+  buildCurriedIOImpl f a = f (wrap a)
 
 instance
   ( BuildCurriedIO rest r fn
+  , WrapParam a
   , fn' ~ (a -> fn)
   ) =>
   BuildCurriedIO (Param a :> rest) r fn'
   where
   buildCurriedIOImpl input a =
-    buildCurriedIOImpl @rest @r @fn (input . (\rest -> p a :> rest))
+    buildCurriedIOImpl @rest @r @fn (input . (\rest -> wrap a :> rest))
 
 -- | Class for creating a stub corresponding to the parameter description.
 class MockBuilder params fn verifyParams | params -> fn, params -> verifyParams where
@@ -278,8 +281,8 @@ incrementCount key list =
 runCase :: Cases a b -> [a]
 runCase (Cases s) = execState s []
 
-p :: a -> Param a
-p = param
+p :: (Show a, Eq a) => a -> Param a
+p v = ExpectValue v (show v)
 
 class StubBuilder params fn | params -> fn where
   buildStub :: Maybe MockName -> params -> fn
@@ -418,7 +421,7 @@ casesInvocationStep name paramsList inputParams InvocationRecord {invocations, i
   let newInvocations = invocations ++ [inputParams]
       matchedParams = filter (\params -> projArgs params == inputParams) paramsList
       expectedArgs = projArgs <$> paramsList
-   in case matchedParams of
+    in case matchedParams of
         [] ->
           ( InvocationRecord {invocations = newInvocations, invocationCounts},
             Left (messageForMultiMock name expectedArgs inputParams)
@@ -432,7 +435,7 @@ casesInvocationStep name paramsList inputParams InvocationRecord {invocations, i
                   { invocations = newInvocations,
                     invocationCounts = nextCounter
                   }
-           in case safeIndex matchedParams index of
+            in case safeIndex matchedParams index of
                 Nothing ->
                   ( nextRecord,
                     Left (messageForMultiMock name expectedArgs inputParams)

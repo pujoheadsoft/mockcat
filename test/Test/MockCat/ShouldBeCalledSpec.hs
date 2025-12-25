@@ -2,6 +2,7 @@
 {-# LANGUAGE TypeApplications #-}
 {-# OPTIONS_GHC -Wno-type-defaults #-}
 {-# OPTIONS_GHC -Wno-unused-do-bind #-}
+{- HLINT ignore "Use newtype instead of data" -}
 
 module Test.MockCat.ShouldBeCalledSpec (spec) where
 
@@ -277,16 +278,22 @@ spec = do
         let e =
               "function `named mock` was not called with the expected arguments in the expected order.\n\
               \  expected order:\n\
-              \    a,1\n\
-              \    c,3\n\
+              \    \"a\",1\n\
+              \    \"c\",3\n\
               \  but got:\n\
-              \    b,2\n\
-              \    a,1"
+              \    \"b\",2\n\
+              \    \"a\",1"
         f `shouldBeCalled` inPartialOrderWith ["a" ~> (1 :: Int), "c" ~> (3 :: Int)] `shouldThrow` errorCall e
 
       it "shouldBeCalled anything with name in error message" do
         f <- mock (label "named mock") $ "a" ~> (1 :: Int) ~> pure @IO True
         f `shouldBeCalled` anything `shouldThrow` errorCall "Function `named mock` was never called"
+
+    describe "Non-Eq/Show support" do
+      it "can verify calls with NoEq argument using anything" do
+        f <- mock $ any @NoEq ~> "result"
+        f (NoEq "val") `shouldBe` "result"
+        f `shouldBeCalled` anything
 
     describe "Error messages" do
       it "shouldBeCalled failure with detailed error message" do
@@ -743,4 +750,6 @@ spec = do
 
 errorContains :: String -> Selector ErrorCall
 errorContains sub (ErrorCall msg) = sub `isInfixOf` msg
+
+data NoEq = NoEq String deriving (Show)
 

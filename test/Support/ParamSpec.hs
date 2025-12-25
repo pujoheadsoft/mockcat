@@ -75,5 +75,6 @@ predicate = PSPredicate
 --   * ExpectValue v      -> PSExact v
 --   * ExpectCondition f l-> PSPredicate f l
 fromParam :: Param a -> ParamSpec a
-fromParam (ExpectValue v)      = PSExact v
+fromParam (ExpectValue v _)      = PSExact v
 fromParam (ExpectCondition f l) = PSPredicate f l
+fromParam (ValueWrapper _ _)      = PSPredicate (const True) "any"

@@ -28,8 +28,7 @@ import Control.Exception (try, ErrorCall(..))
 makeAutoLiftMock [t|FileOperation|]
 
 perCall :: Int -> a -> a
-perCall i x = case i of
-  _ -> x
+perCall _ x = x
 
 operationProgram ::
   FileOperation m =>

@@ -138,6 +138,8 @@ _getInput ::
   ( Verify.ResolvableParamsOf r ~ ()
   , MonadIO m
   , Typeable r
+  , Show r
+  , Eq r
   ) =>
   r ->
   MockT m r
@@ -212,6 +214,8 @@ _findIds ::
   ( Verify.ResolvableParamsOf r ~ ()
   , MonadIO m
   , Typeable r
+  , Show r
+  , Eq r
   ) =>
   r ->
   MockT m r

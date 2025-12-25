@@ -473,8 +473,8 @@ instance ToNormalizedArg (Param a :> rest) where
 instance ToNormalizedArg (Param a) where
   toNormalizedArg = id
 
-instance {-# OVERLAPPABLE #-} (NormalizeWithArg a ~ Param a) => ToNormalizedArg a where
-  toNormalizedArg = param
+instance {-# OVERLAPPABLE #-} (NormalizeWithArg a ~ Param a, WrapParam a) => ToNormalizedArg a where
+  toNormalizedArg = wrap
 
 
 
@@ -579,6 +579,8 @@ instance {-# OVERLAPPABLE #-}
   ( ResolvableMockWithParams m (Param a)
   , Eq (Param a)
   , Show (Param a)
+  , Show a
+  , Eq a
   ) => ShouldBeCalled m a where
   shouldBeCalled m arg =
     verify m (MatchAny (param arg))

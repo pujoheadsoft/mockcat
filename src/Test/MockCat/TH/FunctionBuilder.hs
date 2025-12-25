@@ -232,6 +232,8 @@ doCreateConstantMockFnDecs Partial funNameStr mockFunName _ monadVarName = do
             (TupleT 0)
         , AppT (ConT ''MonadIO) (VarT monadVarName)
         , AppT (ConT ''Typeable) (VarT stubVar)
+        , AppT (ConT ''Show) (VarT stubVar)
+        , AppT (ConT ''Eq) (VarT stubVar)
         ]
       resultType =
         AppT
@@ -261,6 +263,8 @@ doCreateConstantMockFnDecs Total funNameStr mockFunName ty monadVarName = do
             [ AppT (ConT ''MonadIO) (VarT monadVarName)
             , AppT (AppT EqualityT (AppT (ConT ''ResolvableParamsOf) (VarT a))) (TupleT 0)
             , AppT (ConT ''Typeable) (VarT a)
+            , AppT (ConT ''Show) (VarT a)
+            , AppT (ConT ''Eq) (VarT a)
             ]
           resultType =
             AppT

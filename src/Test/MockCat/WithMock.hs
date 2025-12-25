@@ -241,7 +241,7 @@ instance {-# OVERLAPPING #-}
         _ -> error "with: can only add arguments to count-only expectations"
 
 instance {-# OVERLAPPABLE #-}
-  (params ~ Param a) =>
+  (params ~ Param a, Show a, Eq a) =>
   WithArgs (Expectations params ()) a params
   where
   with expM rawValue = do
@@ -266,7 +266,7 @@ class CalledInOrder args params | args -> params where
 
 -- | Convenience instance: infer params from function argument type @a@
 instance
-  (params ~ Param a) =>
+  (params ~ Param a, Show a, Eq a) =>
   CalledInOrder [a] params
   where
   calledInOrder args =
@@ -279,7 +279,7 @@ class CalledInSequence args params | args -> params where
 
 -- | Convenience instance: infer params from function argument type @a@
 instance
-  (params ~ Param a) =>
+  (params ~ Param a, Show a, Eq a) =>
   CalledInSequence [a] params
   where
   calledInSequence args =

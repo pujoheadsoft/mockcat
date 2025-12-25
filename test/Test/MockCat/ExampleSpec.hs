@@ -62,7 +62,16 @@ spec = do
     let
       f :: String -> String -> String
       f a b = a <> b
-    stub <- mock $ "a" ~> f ~> True
+    -- Example of explicit type application using any @type
+    stub <- mock $ "a" ~> any @(String -> String -> String) ~> True
+    stub "a" f `shouldBe` True
+
+  it "function arg (inferred)" do
+    let
+      f :: String -> String -> String
+      f a b = a <> b
+    -- Example of relying on type inference
+    stub <- mock $ "a" ~> any ~> True
     stub "a" f `shouldBe` True
 
   it "function arg2" do
@@ -168,6 +177,8 @@ spec = do
     f "something" `shouldBe` "return value"
 
   it "expect" do
+    -- Explicit type annotations like (4 :: Int) are required because the polymorphism 
+    -- of numeric literals and operators makes the type of Param ambiguous.
     f <- mock $ expect (> (5 :: Int)) "> 5" ~> "return value"
     f 6 `shouldBe` "return value"
 

@@ -41,7 +41,7 @@ import Unsafe.Coerce (unsafeCoerce)
 
 -- Dependency record to group builders
 data PartialMockDeps = PartialMockDeps
-  { _getInput    :: forall r m. (Verify.ResolvableParamsOf r ~ (), MonadIO m, Typeable r) => r -> MockT m r
+  { _getInput    :: forall r m. (Verify.ResolvableParamsOf r ~ (), MonadIO m, Typeable r, Show r, Eq r) => r -> MockT m r
   , _getBy       :: forall params. ( MockBuilder params (String -> IO Int) (Param String)
                                    , Typeable (String -> IO Int)
                                    , Verify.ResolvableParamsOf (String -> IO Int) ~ Param String
@@ -55,7 +55,7 @@ data PartialMockDeps = PartialMockDeps
                                      , Typeable (FilePath -> Text -> ())
                                      , Verify.ResolvableParamsOf (FilePath -> Text -> ()) ~ (Param FilePath :> Param Text)
                                      ) => params -> MockT m (FilePath -> Text -> ())
-  , _findIds     :: forall r m. (Verify.ResolvableParamsOf r ~ (), MonadIO m, Typeable r) => r -> MockT m r
+  , _findIds     :: forall r m. (Verify.ResolvableParamsOf r ~ (), MonadIO m, Typeable r, Show r, Eq r) => r -> MockT m r
   , _findById    :: forall params m. ( MockBuilder params (Int -> String) (Param Int)
                                      , MonadIO m
                                      , Typeable (Int -> String)
@@ -259,12 +259,10 @@ specFinderBehavior (PartialMockDeps { _findIds, _findById, _findByIdNI }) = desc
         case findParam (Proxy :: Proxy "_findByIdNI") defs of
           Just mockFn -> do
             ids <- lift (findIds :: IO [Int])
-            results <- forM ids (lift . mockFn)
-            pure results
+            forM ids (lift . mockFn)
           Nothing -> do
             ids <- lift (findIds :: IO [Int])
-            results <- forM ids (lift . findById)
-            pure results
+            forM ids (lift . findById)
       result `shouldBe` ["id1", "id2", "id3"]
 
 
@@ -283,7 +281,7 @@ specVerificationFailures (PartialMockDeps { _findIds, _findById }) = describe "V
         `expects` do
           called once
       -- findIds is never called
-      pure ()) `shouldThrow` (missingCall "_findIds")
+      pure ()) `shouldThrow` missingCall "_findIds"
 
   it "fails when _findById is defined but findById is never called" do
     (runMockT @IO do
@@ -294,7 +292,7 @@ specVerificationFailures (PartialMockDeps { _findIds, _findById }) = describe "V
       _ <- _findById casesDef `expects` do
         called once
       -- findById is never called
-      pure ()) `shouldThrow` (missingCall "_findById")
+      pure ()) `shouldThrow` missingCall "_findById"
 
 
 -- Helper to find a definition by symbol and coerce the function

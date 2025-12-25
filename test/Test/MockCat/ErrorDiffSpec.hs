@@ -27,23 +27,30 @@ data SubLayer = SubLayer
     items :: [DeepNode]
   } deriving (Show, Eq, Generic)
 
+instance WrapParam User where wrap v = ExpectValue v (show v)
+instance WrapParam Config where wrap v = ExpectValue v (show v)
+instance WrapParam ComplexUser where wrap v = ExpectValue v (show v)
+instance WrapParam DeepNode where wrap v = ExpectValue v (show v)
+instance WrapParam MultiLayer where wrap v = ExpectValue v (show v)
+instance WrapParam SubLayer where wrap v = ExpectValue v (show v)
+
 spec :: Spec
 spec = do
   describe "Error Message Diff" do
     it "shows diff for string arguments" do
       f <- mock $ (any :: Param String) ~> "ok"
       _ <- evaluate $ f "hello haskell"
-      let expectedError = 
+      let expectedError =
             "function was not called with the expected arguments.\n\
-            \  expected: hello world\n\
-            \   but got: hello haskell\n\
-            \                  ^^^^^^^"
+            \  expected: \"hello world\"\n\
+            \   but got: \"hello haskell\"\n\
+            \                   ^^^^^^^^"
       f `shouldBeCalled` "hello world" `shouldThrow` errorCall expectedError
 
     it "shows diff for long list" do
       f <- mock $ (any :: Param [Int]) ~> "ok"
       _ <- evaluate $ f [1, 2, 3, 4, 5, 0, 7, 8, 9, 10]
-      let expectedError = 
+      let expectedError =
             "function was not called with the expected arguments.\n\
             \  Specific difference in `[5]`:\n\
             \    expected: 6\n\
@@ -59,7 +66,7 @@ spec = do
     it "shows diff for record" do
       f <- mock $ (any :: Param User) ~> "ok"
       _ <- evaluate $ f (User "Fagen" 20)
-      let expectedError = 
+      let expectedError =
             "function was not called with the expected arguments.\n\
             \  Specific difference in `age`:\n\
             \    expected: 30\n\
@@ -70,13 +77,13 @@ spec = do
             \  expected: User {name = \"Fagen\", age = 30}\n\
             \   but got: User {name = \"Fagen\", age = 20}\n\
             \                                        ^^^"
-      f `shouldBeCalled` (User "Fagen" 30) `shouldThrow` errorCall expectedError
+      f `shouldBeCalled` User "Fagen" 30 `shouldThrow` errorCall expectedError
 
     it "shows diff for inOrderWith" do
       f <- mock $ (any :: Param String) ~> "ok"
       _ <- evaluate $ f "a"
       _ <- evaluate $ f "b"
-      let expectedError = 
+      let expectedError =
             "function was not called with the expected arguments in the expected order.\n\
             \  expected 2nd call: \"c\"\n\
             \   but got 2nd call: \"b\"\n\
@@ -87,8 +94,8 @@ spec = do
       f <- mock $ do
         onCase $ "aaa" ~> (100 :: Int) ~> "ok"
         onCase $ "bbb" ~> (200 :: Int) ~> "ok"
-      
-      let expectedError = 
+
+      let expectedError =
             "function was not called with the expected arguments.\n\
             \  expected one of the following:\n\
             \    \"aaa\", 100\n\
@@ -101,7 +108,7 @@ spec = do
     it "shows diff for nested record" do
       f <- mock $ (any :: Param ComplexUser) ~> "ok"
       _ <- evaluate $ f (ComplexUser "Alice" (Config "Light" 1))
-      let expectedError = 
+      let expectedError =
             "function was not called with the expected arguments.\n\
             \  Specific difference in `config.theme`:\n\
             \    expected: \"Dark\"\n\
@@ -112,12 +119,12 @@ spec = do
             \  expected: ComplexUser {name = \"Alice\", config = Config {theme = \"Dark\", level = 1}}\n\
             \   but got: ComplexUser {name = \"Alice\", config = Config {theme = \"Light\", level = 1}}\n\
             \                                                                   ^^^^^^^^^^^^^^^^^^^"
-      f `shouldBeCalled` (ComplexUser "Alice" (Config "Dark" 1)) `shouldThrow` errorCall expectedError
+      f `shouldBeCalled` ComplexUser "Alice" (Config "Dark" 1) `shouldThrow` errorCall expectedError
 
     it "shows diff for nested list" do
       f <- mock $ (any :: Param [[Int]]) ~> "ok"
       _ <- evaluate $ f [[1, 2], [3, 4]]
-      let expectedError = 
+      let expectedError =
             "function was not called with the expected arguments.\n\
             \  Specific difference in `[1][1]`:\n\
             \    expected: 5\n\
@@ -135,7 +142,7 @@ spec = do
       let actual = ComplexUser "Alice" (Config "Light" 2)
           expected = ComplexUser "Bob" (Config "Dark" 1)
       _ <- evaluate $ f actual
-      let expectedError = 
+      let expectedError =
             "function was not called with the expected arguments.\n\
             \  Specific differences:\n\
             \    - `name`:\n\
@@ -160,11 +167,11 @@ spec = do
          let actual = "{ name = \"Alice\""
              expected = "{ name = \"Bob\" }"
          _ <- evaluate $ f actual
-         let expectedError = 
+         let expectedError =
                "function was not called with the expected arguments.\n\
-               \  expected: {name = \"Bob\"}\n\
-               \   but got: { name = \"Alice\"\n\
-               \             ^^^^^^^^^^^^^^^"
+               \  expected: \"{ name = \\\"Bob\\\" }\"\n\
+               \   but got: \"{ name = \\\"Alice\\\"\"\n\
+               \                        ^^^^^^^^"
          f `shouldBeCalled` expected `shouldThrow` errorCall expectedError
 
       it "handles completely broken structure strings" do
@@ -172,11 +179,11 @@ spec = do
          let actual = "NotARecord {,,,,,}"
              expected = "NotARecord { a = 1 }"
          _ <- evaluate $ f actual
-         let expectedError = 
+         let expectedError =
                "function was not called with the expected arguments.\n\
-               \  expected: NotARecord { a = 1 }\n\
-               \   but got: NotARecord {,,,,,}\n\
-               \                        ^^^^^^^^"
+               \  expected: \"NotARecord { a = 1 }\"\n\
+               \   but got: \"NotARecord {,,,,,}\"\n\
+               \                         ^^^^^^^^^"
          f `shouldBeCalled` expected `shouldThrow` errorCall expectedError
 
     describe "extreme structural cases" do
@@ -186,7 +193,7 @@ spec = do
         let actual = Node{val = 1, next = Node{val = 2, next = Node{val = 3, next = Node{val = 4, next = Node{val = 5, next = Leaf 0}}}}}
             expected = Node{val = 1, next = Node{val = 2, next = Node{val = 3, next = Node{val = 4, next = Node{val = 5, next = Leaf 1}}}}}
         _ <- evaluate $ f actual
-        let expectedError = 
+        let expectedError =
               "function was not called with the expected arguments.\n" <>
               "  Specific difference in `next.next.next.next.next`:\n" <>
               "    expected: Leaf 1\n" <>
@@ -204,7 +211,7 @@ spec = do
         let actual = MultiLayer {layer1 = "A", sub = SubLayer {layer2 = "B", items = [Node {val = 1, next = Leaf 2}]}}
             expected = MultiLayer {layer1 = "X", sub = SubLayer {layer2 = "Y", items = [Node {val = 1, next = Leaf 3}]}}
         _ <- evaluate $ f actual
-        let expectedError = 
+        let expectedError =
               "function was not called with the expected arguments.\n" <>
               "  Specific differences:\n" <>
               "    - `layer1`:\n" <>
@@ -228,7 +235,7 @@ spec = do
         let actual = Config "Light" 1
             expected = Config "Dark" 99
         _ <- evaluate $ f actual
-        let expectedError = 
+        let expectedError =
               "function was not called with the expected arguments.\n" <>
               "  Specific differences:\n" <>
               "    - `theme`:\n" <>
