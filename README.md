@@ -9,6 +9,8 @@
 [![Stackage LTS](http://stackage.org/package/mockcat/badge/lts)](http://stackage.org/lts/package/mockcat)
 [![Build Status](https://github.com/pujoheadsoft/mockcat/workflows/Test/badge.svg)](https://github.com/pujoheadsoft/mockcat/actions)
 
+[🇯🇵 Japanese (日本語)](README-ja.md)
+
 </div>
 
 **Mockcat** is a lightweight, declarative mocking library for Haskell.  
