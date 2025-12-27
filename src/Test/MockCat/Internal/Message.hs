@@ -48,13 +48,20 @@ enclose e = fmap (\v -> e <> v <> e)
 
 -- Normalize a show-produced string for consistency in diffs
 formatStr :: String -> String
-formatStr s
-  | null s = s
-  | head s == '(' && last s == ')' = "(" <> formatInner (init (tail s)) <> ")"
-  | head s == '[' && last s == ')' = "[" <> formatInner (init (tail s)) <> "]" -- Wait, mismatch parens? No, just typo in my thought.
-  | head s == '[' && last s == ']' = "[" <> formatInner (init (tail s)) <> "]"
-  | head s == '{' && last s == '}' = "{" <> formatInner (init (tail s)) <> "}"
-  | otherwise = formatInner s
+formatStr s =
+  case s of
+    [] -> s
+    c:cs ->
+      case reverse cs of
+        [] -> formatInner s
+        l:ls ->
+          let inner = reverse ls
+          in case (c, l) of
+               ('(', ')') -> "(" <> formatInner inner <> ")"
+               ('[', ')') -> "[" <> formatInner inner <> "]" -- Preserving the weird legacy case
+               ('[', ']') -> "[" <> formatInner inner <> "]"
+               ('{', '}') -> "{" <> formatInner inner <> "}"
+               _          -> formatInner s
   where
     formatInner inner =
       let tokens = map (trim . quoteToken . trim) (splitByComma inner)
@@ -62,14 +69,15 @@ formatStr s
 
 -- Helper: quote a token if it looks like an unquoted alpha token
 quoteToken :: String -> String
-quoteToken s
-  | null s = s
-  | head s == '"' = s
-  | head s == '(' = s
-  | head s == '[' = s
-  | any isSpecial s = s -- Don't quote if it contains special characters indicating it's not a simple token
-  | not (null s) && isLower (head s) = '"' : s ++ "\""
-  | otherwise = s
+quoteToken s = case s of
+  [] -> s
+  '"':_ -> s
+  '(':_ -> s
+  '[':_ -> s
+  c:_
+    | any isSpecial s -> s
+    | isLower c -> '"' : s ++ "\""
+    | otherwise -> s
   where
     isSpecial c = c `elem` "{}= "
 
@@ -107,7 +115,7 @@ data Difference = Difference
   deriving (Show, Eq)
 
 formatDifferences :: [Difference] -> String
-formatDifferences [d] = 
+formatDifferences [d] =
   let label = if null (diffPath d) then "Specific difference:" else "Specific difference in `" <> diffPath d <> "`:"
    in intercalate "\n"
         [ "  " <> label,
@@ -115,7 +123,7 @@ formatDifferences [d] =
           "     but got: " <> diffActual d,
           "              " <> diffPointer (diffExpected d) (diffActual d)
         ]
-formatDifferences ds = 
+formatDifferences ds =
   "  Specific differences:\n" <> intercalate "\n" (map formatDiff ds)
   where
     formatDiff d =
@@ -130,36 +138,40 @@ structuralDiff :: String -> String -> [Difference]
 structuralDiff = structuralDiff' ""
 
 structuralDiff' :: String -> String -> String -> [Difference]
-structuralDiff' path expected actual =
-  if isList expected && isList actual
-    then
-      let items1 = extractListItems expected
-          items2 = extractListItems actual
-          -- We need to track indices for lists
-          indexedMismatches = filter (\(_, (i1, i2)) -> i1 /= i2) (zip [0 :: Int ..] (zip items1 items2))
-      in concatMap (\(idx, (i1, i2)) ->
-           let newPath = path <> "[" <> show idx <> "]"
-               nested = structuralDiff' newPath i1 i2
-            in if null nested
-                 then [Difference newPath i1 i2]
-                 else nested
-         ) indexedMismatches
-    else if isRecord expected && isRecord actual
-      then
-        let fields1 = extractFields expected
-            fields2 = extractFields actual
-            mismatches = filter (\(f1, f2) -> f1 /= f2 && isField f1 && isField f2) (zip fields1 fields2)
-         in concatMap (\(f1, f2) -> 
-              let fieldName = getFieldName f1
-                  val1 = getFieldValue f1
-                  val2 = getFieldValue f2
-                  newPath = if null path then fieldName else path <> "." <> fieldName
-                  nested = structuralDiff' newPath val1 val2
-               in if null nested
-                    then [Difference newPath val1 val2]
-                    else nested
-            ) mismatches
-    else []
+structuralDiff' path expected actual
+  | isList expected && isList actual = diffLists path expected actual
+  | isRecord expected && isRecord actual = diffRecords path expected actual
+  | otherwise = []
+
+diffLists :: String -> String -> String -> [Difference]
+diffLists path expected actual =
+  let items1 = extractListItems expected
+      items2 = extractListItems actual
+      -- We need to track indices for lists
+      indexedMismatches = filter (\(_, (i1, i2)) -> i1 /= i2) (zip [0 :: Int ..] (zip items1 items2))
+   in concatMap (\(idx, (i1, i2)) ->
+        let newPath = path <> "[" <> show idx <> "]"
+            nested = structuralDiff' newPath i1 i2
+         in if null nested
+              then [Difference newPath i1 i2]
+              else nested
+      ) indexedMismatches
+
+diffRecords :: String -> String -> String -> [Difference]
+diffRecords path expected actual =
+  let fields1 = extractFields expected
+      fields2 = extractFields actual
+      mismatches = filter (\(f1, f2) -> f1 /= f2 && isField f1 && isField f2) (zip fields1 fields2)
+   in concatMap (\(f1, f2) ->
+        let fieldName = getFieldName f1
+            val1 = getFieldValue f1
+            val2 = getFieldValue f2
+            newPath = if null path then fieldName else path <> "." <> fieldName
+            nested = structuralDiff' newPath val1 val2
+         in if null nested
+              then [Difference newPath val1 val2]
+              else nested
+      ) mismatches
 
 -- utilities for message formatting
 trim :: String -> String
@@ -170,7 +182,7 @@ trim = f . f
 splitByComma :: String -> [String]
 splitByComma = go (0 :: Int) (0 :: Int) (0 :: Int) ""
   where
-    go _ _ _ acc [] = if null acc then [] else [trim $ reverse acc]
+    go _ _ _ acc [] = [trim $ reverse acc | not (null acc)]
     go p l b acc (c : cs)
       | c == '(' = go (p + 1) l b (c : acc) cs
       | c == ')' = go (max 0 (p - 1)) l b (c : acc) cs
@@ -178,20 +190,14 @@ splitByComma = go (0 :: Int) (0 :: Int) (0 :: Int) ""
       | c == ']' = go p (max 0 (l - 1)) b (c : acc) cs
       | c == '{' = go p l (b + 1) (c : acc) cs
       | c == '}' = go p l (max 0 (b - 1)) (c : acc) cs
-      | c == ',' && p == 0 && l == 0 && b == 0 = (trim $ reverse acc) : go 0 0 0 "" cs
+      | c == ',' && p == 0 && l == 0 && b == 0 = trim (reverse acc) : go 0 0 0 "" cs
       | otherwise = go p l b (c : acc) cs
 
 formatInvocationList :: Show a => InvocationList a -> String
-formatInvocationList invocationList
-  | null invocationList = "Function was never called"
-  | length invocationList == 1 =
-    -- show single element without surrounding list brackets, but quote tokens appropriately
-    let s = formatStr (show (head invocationList))
-     in s
-  | otherwise =
-    -- for multiple invocations, show as a list but ensure tokens are quoted where appropriate
-    let ss = map (formatStr . show) invocationList
-     in "[" <> intercalate ", " ss <> "]"
+formatInvocationList invocationList = case invocationList of
+  [] -> "Function was never called"
+  [x] -> formatStr (show x)
+  _ -> "[" <> intercalate ", " (map (formatStr . show) invocationList) <> "]"
 
 _replace :: Show a => String -> a -> String
 _replace r s = unpack $ replace (pack r) (pack "") (pack (show s))
@@ -249,7 +255,11 @@ getFieldValue :: String -> String
 getFieldValue = trim . drop 1 . dropWhile (/= '=')
 
 isList :: String -> Bool
-isList s = not (null s) && head s == '[' && last s == ']'
+isList s = case s of
+  '[':cs -> case reverse cs of
+              ']':_ -> True
+              _ -> False
+  _ -> False
 
 extractListItems :: String -> [String]
 extractListItems s = maybe [] splitByComma (extractInner '[' ']' s)

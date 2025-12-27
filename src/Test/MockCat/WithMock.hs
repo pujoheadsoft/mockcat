@@ -81,10 +81,10 @@ import Data.Proxy (Proxy(..))
 --   types at registration time.
 newtype WithMockContext = WithMockContext (TVar [IO ()])
 
-class Monad m => MonadWithMockContext m where
+class MonadWithMockContext m where
   askWithMockContext :: m WithMockContext
 
-instance {-# OVERLAPPABLE #-} (Monad m, MonadReader WithMockContext m) => MonadWithMockContext m where
+instance {-# OVERLAPPABLE #-} (MonadReader WithMockContext m) => MonadWithMockContext m where
   askWithMockContext = ask
 
 -- | Expectation specification

@@ -135,7 +135,7 @@ prop_partial_order_duplicates = forAll genDupScript $ \xs -> length xs >= 2 ==> 
       base <- vectorOf size (arbitrary :: Gen Int)
       -- ensure at least one duplicate by forcing first element copy if all distinct
       pure $ ensureDup base
-    ensureDup ys = if length (nub ys) == length ys && not (null ys) then head ys : ys else ys
+    ensureDup ys = if length (nub ys) == length ys && not (null ys) then (case ys of (h:_) -> h : ys; [] -> ys) else ys
     -- Check that for each earlier unique value all its indices precede all indices of later unique values.
     isClusterOrdered us seqVals = all pairOrdered pairs
       where

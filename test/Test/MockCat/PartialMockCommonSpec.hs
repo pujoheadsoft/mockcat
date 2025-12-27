@@ -72,7 +72,6 @@ spec ::
   ( UserInputGetter (MockT IO)
   , ExplicitlyReturnMonadicValuesPartialTest (MockT IO)
   , Finder Int String (MockT IO)
-  , Verify.ResolvableParamsOf (Int -> String) ~ Param Int
   ) =>
   PartialMockDeps ->
   MockT IO () ->
@@ -166,7 +165,6 @@ specExplicitMonadicReturns (PartialMockDeps { _echo, _getBy }) = describe "Expli
 -- Group: Finder Behavior (Multi-param type class)
 specFinderBehavior ::
   ( Finder Int String (MockT IO)
-  , Verify.ResolvableParamsOf (Int -> String) ~ Param Int
   ) =>
   PartialMockDeps ->
   Spec

@@ -22,6 +22,7 @@ import Test.MockCat.WithMockSpec as WithMock
 import Test.MockCat.ErrorDiffSpec as ErrorDiff
 import Test.MockCat.THCompareSpec as THCompare
 import ReadmeVerifySpec as ReadmeVerify
+import Test.MockCat.UnsafeCheck ()
 import Test.QuickCheck (property)
 import qualified Property.ConcurrentCountProp as ConcurrencyProp
 import qualified Property.LazyEvalProp as LazyEvalProp

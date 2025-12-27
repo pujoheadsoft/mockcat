@@ -1,7 +1,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# OPTIONS_GHC -fplugin Test.Inspection.Plugin #-}
 {-# OPTIONS_GHC -Wno-unused-top-binds #-}
-module Test.MockCat.UnsafeCheck where
+module Test.MockCat.UnsafeCheck (module Test.MockCat.UnsafeCheck) where
 
 import GHC.IO (unsafePerformIO)
 import Test.Inspection (inspect, doesNotUse)

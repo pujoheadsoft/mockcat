@@ -12,7 +12,8 @@ import Test.Hspec
 import Language.Haskell.TH (pprint, Dec(..), Type(..), litE, stringL, listE, tupE)
 import Language.Haskell.TH.Syntax (nameBase)
 import Data.Char (isDigit, isLower)
-import Data.List (foldl', sort, nub)
+import Data.List (sort, nub)
+import qualified Data.List as L
 import Data.Maybe (mapMaybe)
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as T
@@ -94,7 +95,7 @@ squeezePunctuation =
   . T.replace (T.pack ") r ()") (T.pack " r ()")
   where
     applyReplacements reps txt =
-      foldl'
+      L.foldl'
         (\acc (from, to) -> T.replace (T.pack from) (T.pack to) acc)
         txt
         reps
