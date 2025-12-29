@@ -93,7 +93,6 @@ test-suite mockcat-test
       Test.MockCat.AssociationListSpec
       Test.MockCat.ConcurrencySpec
       Test.MockCat.ConsSpec
-      Test.MockCat.ErrorDiffSpec
       Test.MockCat.ExampleSpec
       Test.MockCat.Impl
       Test.MockCat.Internal.MockRegistrySpec
@@ -104,6 +103,7 @@ test-suite mockcat-test
       Test.MockCat.PartialMockSpec
       Test.MockCat.PartialMockTHSpec
       Test.MockCat.SharedSpecDefs
+      Test.MockCat.ShouldBeCalledErrorDiffSpec
       Test.MockCat.ShouldBeCalledMockMSpec
       Test.MockCat.ShouldBeCalledSpec
       Test.MockCat.StubSpec
@@ -116,6 +116,7 @@ test-suite mockcat-test
       Test.MockCat.TypeClassSpec
       Test.MockCat.TypeClassTHSpec
       Test.MockCat.UnsafeCheck
+      Test.MockCat.WithMockErrorDiffSpec
       Test.MockCat.WithMockSpec
       Paths_mockcat
   hs-source-dirs:

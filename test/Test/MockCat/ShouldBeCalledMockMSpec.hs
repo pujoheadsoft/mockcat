@@ -2,6 +2,7 @@
 {-# LANGUAGE TypeApplications #-}
 {-# OPTIONS_GHC -Wno-type-defaults #-}
 {-# OPTIONS_GHC -Wno-unused-do-bind #-}
+{-# OPTIONS_GHC -fno-hpc #-}
 module Test.MockCat.ShouldBeCalledMockMSpec (spec) where
 
 import Control.Exception (ErrorCall(..), try)

@@ -2,8 +2,9 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# OPTIONS_GHC -Wno-partial-fields #-}
+{-# OPTIONS_GHC -fno-hpc #-}
 
-module Test.MockCat.ErrorDiffSpec (spec) where
+module Test.MockCat.ShouldBeCalledErrorDiffSpec (spec) where
 
 import Test.Hspec (Spec, describe, it, shouldThrow, errorCall)
 import Test.MockCat

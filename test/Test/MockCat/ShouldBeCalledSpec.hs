@@ -2,6 +2,7 @@
 {-# LANGUAGE TypeApplications #-}
 {-# OPTIONS_GHC -Wno-type-defaults #-}
 {-# OPTIONS_GHC -Wno-unused-do-bind #-}
+{-# OPTIONS_GHC -fno-hpc #-}
 {- HLINT ignore "Use newtype instead of data" -}
 
 module Test.MockCat.ShouldBeCalledSpec (spec) where

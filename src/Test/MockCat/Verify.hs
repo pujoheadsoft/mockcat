@@ -437,8 +437,12 @@ inPartialOrder = OrderSpec PartiallySequence
 --   This accepts both raw values and Param chains.
 --
 --   > f `shouldBeCalled` calledWith "a"
-calledWith :: params -> VerificationSpec params
-calledWith = SimpleVerification
+calledWith ::
+  forall params.
+  (ToNormalizedArg params) =>
+  params ->
+  VerificationSpec (NormalizeWithArg params)
+calledWith = SimpleVerification . toNormalizedArg
 
 -- | Create a simple verification without arguments.
 --   It verifies that the function was called at least once, with ANY arguments.

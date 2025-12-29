@@ -68,9 +68,9 @@ spec = do
       case result of
         Left (ErrorCall msg) -> do
           let expected =
-                "function was not called the expected number of times with the expected arguments.\n" <>
-                "  expected: 1\n" <>
-                "   but got: 0"
+                "function was not called with the expected arguments.\n" <>
+                "  expected: \"a\"\n" <>
+                "  but the function was never called"
           msg `shouldBe` expected
         _ -> fail "Expected ErrorCall"
 

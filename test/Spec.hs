@@ -19,7 +19,8 @@ import Test.MockCat.TH.FunctionBuilderSpec as THFunctionBuilder
 import Test.MockCat.ShouldBeCalledSpec as ShouldBeCalled
 import Test.MockCat.ShouldBeCalledMockMSpec as ShouldBeCalledMockM
 import Test.MockCat.WithMockSpec as WithMock
-import Test.MockCat.ErrorDiffSpec as ErrorDiff
+import Test.MockCat.ShouldBeCalledErrorDiffSpec as ShouldBeCalledErrorDiff
+import Test.MockCat.WithMockErrorDiffSpec as WithMockErrorDiff
 import Test.MockCat.THCompareSpec as THCompare
 import ReadmeVerifySpec as ReadmeVerify
 import Test.MockCat.UnsafeCheck ()
@@ -57,7 +58,8 @@ main = hspec $ do
     ShouldBeCalled.spec
     ShouldBeCalledMockM.spec
     WithMock.spec
-    ErrorDiff.spec
+    ShouldBeCalledErrorDiff.spec
+    WithMockErrorDiff.spec
     ReadmeVerify.spec
     describe "Property Concurrency" $ do
       it "total apply count is preserved across threads" $ property ConcurrencyProp.prop_concurrent_total_apply_count

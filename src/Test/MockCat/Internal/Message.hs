@@ -84,28 +84,36 @@ quoteToken s = case s of
 verifyFailedMessage :: Show a => Maybe MockName -> InvocationList a -> a -> VerifyFailed
 verifyFailedMessage name invocationList expected =
   let expectedStr = formatStr (show expected)
-      actualStr = formatInvocationList invocationList
-      diffLine = "            " <> diffPointer expectedStr actualStr
       mainMessage = "function" <> mockNameLabel name <> " was not called with the expected arguments."
-   in VerifyFailed $ case structuralDiff expectedStr actualStr of
+   in VerifyFailed $ case invocationList of
         [] ->
-           intercalate "\n"
-             [ mainMessage,
-               "  expected: " <> expectedStr,
-               "   but got: " <> actualStr,
-               diffLine
-             ]
-        ds ->
-           let diffMessages = formatDifferences ds
-            in intercalate "\n"
-                 [ mainMessage,
-                   diffMessages,
-                   "",
-                   "Full context:",
-                   "  expected: " <> expectedStr,
-                   "   but got: " <> actualStr,
-                   diffLine
-                 ]
+          intercalate "\n"
+            [ mainMessage,
+              "  expected: " <> expectedStr,
+              "  but the function was never called"
+            ]
+        _ ->
+          let actualStr = formatInvocationList invocationList
+              diffLine = "            " <> diffPointer expectedStr actualStr
+           in case structuralDiff expectedStr actualStr of
+                [] ->
+                  intercalate "\n"
+                    [ mainMessage,
+                      "  expected: " <> expectedStr,
+                      "   but got: " <> actualStr,
+                      diffLine
+                    ]
+                ds ->
+                  let diffMessages = formatDifferences ds
+                   in intercalate "\n"
+                        [ mainMessage,
+                          diffMessages,
+                          "",
+                          "Full context:",
+                          "  expected: " <> expectedStr,
+                          "   but got: " <> actualStr,
+                          diffLine
+                        ]
 
 data Difference = Difference
   { diffPath :: String,
@@ -195,7 +203,7 @@ splitByComma = go (0 :: Int) (0 :: Int) (0 :: Int) ""
 
 formatInvocationList :: Show a => InvocationList a -> String
 formatInvocationList invocationList = case invocationList of
-  [] -> "Function was never called"
+  [] -> "(never called)"
   [x] -> formatStr (show x)
   _ -> "[" <> intercalate ", " (map (formatStr . show) invocationList) <> "]"
 

@@ -19,7 +19,7 @@ for v in "${VERSIONS[@]}"; do
   # Run in background, piping output to sed to add a prefix
   # set -o pipefail ensures that if cabal fails, the pipeline fails
   (
-    cabal v2-test --enable-tests --disable-optimization --ghc-options="-Werror" -w ~/.ghcup/bin/ghc-$v 2>&1 | sed -u "s/^/[$v] /"
+    cabal v2-test --enable-tests --enable-coverage --disable-optimization --ghc-options="-Werror" -w ~/.ghcup/bin/ghc-$v 2>&1 | sed -u "s/^/[$v] /"
   ) &
   pid=$!
   PIDS+=("$pid")

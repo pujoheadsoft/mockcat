@@ -59,7 +59,9 @@ import Test.MockCat.Verify
   , verifyOrder
   , verifyResolvedAny
   , verifyCallCount
+  , verify
   , ResolvedMock(..)
+  , VerificationSpec(..)
   , TimesSpec(..)
   , times
   , once
@@ -71,6 +73,7 @@ import Test.MockCat.Verify
 import Test.MockCat.Internal.Types
   ( CountVerifyMethod(..)
   , VerifyOrderMethod(..)
+  , VerifyMatchType(..)
   )
 import Test.MockCat.Param (Param(..), param)
 import Data.Kind (Type)
@@ -136,14 +139,16 @@ verifyExpectation ::
 verifyExpectation mockFn expectation = do
   resolved <- requireResolved mockFn
   case expectation of
+    CountExpectation (Equal 1) args ->
+      verify mockFn (MatchAny args)
     CountExpectation method args ->
       verifyCount mockFn args method
     CountAnyExpectation count ->
       verifyCallCount (resolvedMockName resolved) (resolvedMockRecorder resolved) count
     OrderExpectation method argsList ->
       verifyOrder method mockFn argsList
-    SimpleExpectation _ ->
-      verifyResolvedAny resolved
+    SimpleExpectation args ->
+      verify mockFn (MatchAny args)
     AnyExpectation ->
       verifyResolvedAny resolved
 
@@ -160,6 +165,10 @@ instance ExtractParams (Expectations params ()) where
   type ExpParams (Expectations params ()) = params
   extractParams _ = Proxy
 
+instance ExtractParams (VerificationSpec params) where
+  type ExpParams (VerificationSpec params) = params
+  extractParams _ = Proxy
+
 instance ExtractParams (fn -> Expectations params ()) where
   type ExpParams (fn -> Expectations params ()) = params
   extractParams _ = Proxy
@@ -174,6 +183,15 @@ class BuildExpectations fn exp where
 --   The params type must match ResolvableParamsOf fn
 instance forall fn params. (ResolvableParamsOf fn ~ params) => BuildExpectations fn (Expectations params ()) where
   buildExpectations _ = runExpectations
+
+instance forall fn params. (ResolvableParamsOf fn ~ params) => BuildExpectations fn (VerificationSpec params) where
+  buildExpectations _ spec =
+    case spec of
+      CountVerification method args -> [CountExpectation method args]
+      CountAnyVerification method -> [CountAnyExpectation method]
+      OrderVerification method argsList -> [OrderExpectation method argsList]
+      SimpleVerification args -> [SimpleExpectation args]
+      AnyVerification -> [AnyExpectation]
 
 -- | Instance for function form (fn -> Expectations params ())
 --   This allows passing a function that receives the mock function
