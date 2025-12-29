@@ -96,6 +96,7 @@ test-suite mockcat-test
       Test.MockCat.ConsSpec
       Test.MockCat.ExampleSpec
       Test.MockCat.HPCFallbackSpec
+      Test.MockCat.HPCNestSpec
       Test.MockCat.Impl
       Test.MockCat.Internal.MockRegistrySpec
       Test.MockCat.MockSpec
