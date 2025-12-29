@@ -369,6 +369,11 @@ A. Yes. Internally uses `TVar` to count atomically, so it records accurately eve
 </details>
 
 <details>
+<summary><strong>Q. Can I run tests with code coverage (HPC)?</strong></summary>
+A. Yes (since v1.1.0.0). Mockcat natively handles the instability of `StableName` introduced by HPC instrumentation, so you can run `stack test --coverage` without issues.
+</details>
+
+<details>
 <summary><strong>Q. What code does `makeMock` generate?</strong></summary>
 A. It generates a `MockT m` instance for the specified typeclass, and stub generation function definitions named `_methodName` corresponding to each method.
 </details>
@@ -411,5 +416,6 @@ mockcat is continuously tested in CI across these configurations:
 | 9.6.3 | 3.10.3.0 / 3.12.1.0 | Ubuntu, macOS, Windows |
 | 9.8.2 | 3.10.3.0 / 3.12.1.0 | Ubuntu, macOS, Windows |
 | 9.10.1 | 3.10.3.0 / 3.12.1.0 | Ubuntu, macOS, Windows |
+| 9.12.2 | 3.12.1.0 | Ubuntu, macOS, Windows |
 
 _Happy Mocking!_ 🐱

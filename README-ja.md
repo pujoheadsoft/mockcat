@@ -367,6 +367,11 @@ A. はい。内部で `TVar` を使用してアトミックにカウントして
 </details>
 
 <details>
+<summary><strong>Q. コードカバレッジ (HPC) を有効にしてテストを実行できますか？</strong></summary>
+A. はい (v1.1.0.0 以降)。Mockcat は HPC によって生じる 不安定さを内部で吸収するため、`stack test --coverage` を問題なく実行できます。
+</details>
+
+<details>
 <summary><strong>Q. `makeMock` が生成するコードは何ですか？</strong></summary>
 A. 指定された型クラスの `MockT m` インスタンスと、各メソッドに対応する `_メソッド名` というスタブ生成関数定義です。
 </details>

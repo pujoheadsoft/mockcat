@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to the
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
+## [1.1.0.0] - 2025-12-29
+### Added
+- **HPC Coverage Support**: Verification logic now robustly handles unstable `StableNames` caused by HPC instrumentation (`stack test --coverage`).
+- **Optimization Hardening**: Protected verification logic against GHC optimizations (CSE/LICM) to ensure stable tests in optimized builds.
+
+### Changed
+- **Automatic History Reset**: `runMockT` and `withMock` now strictly scope mock history. History is automatically reset to prevent interference between sequential tests or Property-Based Testing iterations.
+
 ## [1.0.0.0] - 2025-12-24
 ### Changed
 - **DSL Reboot**: Replaced `|>` with `~>` as the primary parameter chain operator (representing the "mock arrow").
