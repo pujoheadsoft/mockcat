@@ -4,6 +4,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ExistentialQuantification #-}
 
+
 module Test.MockCat.Internal.Registry.Core
   ( attachVerifierToFn
   , lookupVerifierForFn
@@ -18,6 +19,7 @@ module Test.MockCat.Internal.Registry.Core
   , withAllUnitGuards
   , markUnitUsed
   , isGuardActive
+  , getLastRecorder
   ) where
 
 import Control.Concurrent.STM
@@ -31,13 +33,15 @@ import Control.Concurrent.STM
   )
 import Control.Exception (bracket_)
 import Control.Monad (forM_)
-import Data.Dynamic (Dynamic, toDyn)
+import Control.Concurrent (ThreadId, myThreadId)
+import Data.Dynamic (Dynamic, toDyn, fromDynamic)
 import Data.Typeable (Typeable)
 import Data.IntMap.Strict (IntMap)
 import qualified Data.IntMap.Strict as IntMap
+import qualified Data.Map.Strict as Map
 import System.IO.Unsafe (unsafePerformIO)
 import Test.MockCat.Internal.Types (MockName, InvocationRecorder(..))
-import System.Mem.StableName (StableName, eqStableName, hashStableName, makeStableName)
+import Test.MockCat.Internal.GHC.StableName (StableName, eqStableName, hashStableName, makeStableName)
 
 data SomeStableName = forall a. SomeStableName (StableName a)
 
@@ -73,6 +77,33 @@ type Registry = IntMap [Entry]
 registry :: TVar Registry
 registry = (unsafePerformIO $ newTVarIO IntMap.empty) :: TVar Registry
 
+-- | Thread-local storage for mock history in the current thread.
+--   Used for:
+--   1. 'expects' to retrieve the recorder without StableName lookup.
+--   2. 'lookupVerifierForFn' fallback when StableName lookup fails (HPC workaround).
+threadMockHistory :: TVar (Map.Map ThreadId [(Maybe MockName, Dynamic)])
+threadMockHistory = unsafePerformIO $ newTVarIO Map.empty
+{-# NOINLINE threadMockHistory #-}
+
+-- | Add a recorder to the current thread's history.
+addToHistory :: Maybe MockName -> Dynamic -> IO ()
+addToHistory name dyn = do
+  tid <- myThreadId
+  atomically $ modifyTVar' threadMockHistory $ \m ->
+    Map.insertWith (++) tid [(name, dyn)] m
+
+-- | Get the last registered recorder (peek only, does not remove).
+getLastRecorder :: Typeable a => IO (Maybe MockName, Maybe a)
+getLastRecorder = do
+  tid <- myThreadId
+  atomically $ do
+    store <- readTVar threadMockHistory
+    case Map.lookup tid store of
+      Nothing -> pure (Nothing, Nothing)
+      Just [] -> pure (Nothing, Nothing)
+      Just ((name, dyn) : _) -> pure (name, fromDynamic dyn)
+
+
 
 attachVerifierToFn ::
   forall fn params.
@@ -85,19 +116,30 @@ attachVerifierToFn fn (name, payload) = attachDynamicVerifierToFn fn (name, toDy
 lookupVerifierForFn ::
   forall fn.
   fn ->
-  IO (Maybe (Maybe MockName, Dynamic))
+  IO [(Maybe MockName, Dynamic)]
 lookupVerifierForFn fn = do
   stable <- makeStableName fn
-  let
-    key = hashStableName stable
-    stableFn = toFnStable stable
-  store <- readTVarIO registry
-  -- ONLY use direct StableName matching in the registry.
-  -- Name-based resolution via lookupNameByHash here is unsafe because it can
-  -- return a verifier from a previous session if the hash collided or was reused.
-  case IntMap.lookup key store >>= findMatch stableFn of
-    Just res -> pure (Just res)
-    Nothing -> pure Nothing
+  let key = hashStableName stable
+  let stableFn = toFnStable stable
+  
+  -- 1. Try StableName lookup
+  mbMatch <- atomically $ do
+    m <- readTVar registry
+    case IntMap.lookup key m of
+      Nothing -> pure Nothing
+      Just entries -> pure $ findMatch stableFn entries
+      
+  case mbMatch of
+    Just match -> pure [match]
+    Nothing -> do
+      -- 2. Fallback: return thread's mock history
+      --    This handles case where StableName is unstable (e.g. HPC enabled)
+      tid <- myThreadId
+      atomically $ do
+        hist <- readTVar threadMockHistory
+        case Map.lookup tid hist of
+           Nothing -> pure []
+           Just list -> pure list
 
 attachDynamicVerifierToFn :: forall fn. fn -> (Maybe MockName, Dynamic) -> IO ()
 attachDynamicVerifierToFn fn (name, payload) = do
@@ -111,6 +153,8 @@ attachDynamicVerifierToFn fn (name, payload) = do
   let entry = toEntry name stableFn payload
   atomically $
     modifyTVar' registry $ \m -> IntMap.alter (updateEntries entry stableFn) key m
+  -- Save for expects and fallback lookup
+  addToHistory name payload
 
 toEntry :: Maybe MockName -> FnStableName -> Dynamic -> Entry
 toEntry (Just n) stableFn p = NamedEntry stableFn n p

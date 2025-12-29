@@ -15,15 +15,15 @@ spec = do
       let f = (+ 1) :: Int -> Int
       ref <- newTVarIO InvocationRecord { invocations = [] :: [Int], invocationCounts = empty }
       _ <- attachVerifierToFn f (Just "name", InvocationRecorder ref ParametricFunction)
-      verifier <- lookupVerifierForFn f
-      case verifier of
-        Just (mockName, dyn) -> do
+      results <- lookupVerifierForFn f
+      case results of
+        [(mockName, dyn)] -> do
           mockName `shouldBe` Just "name"
           case (fromDynamic dyn :: Maybe (InvocationRecorder Int)) of
             Just (InvocationRecorder vref _) -> do
               r <- readTVarIO vref
               r `shouldBe` InvocationRecord { invocations = [] :: [Int], invocationCounts = empty }
             Nothing -> expectationFailure "payload dynamic mismatch"
-        Nothing -> expectationFailure "lookupStubFn returned Nothing"
+        _ -> expectationFailure "lookupStubFn returned unexpected number of results"
 
 

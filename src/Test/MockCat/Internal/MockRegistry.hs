@@ -15,6 +15,7 @@ module Test.MockCat.Internal.MockRegistry
   , withAllUnitGuards
   , markUnitUsed
   , isGuardActive
+  , getLastRecorder
   ) where
 
 import Test.MockCat.Internal.Registry.Core
@@ -27,6 +28,7 @@ import Test.MockCat.Internal.Registry.Core
   , withAllUnitGuards
   , markUnitUsed
   , isGuardActive
+  , getLastRecorder
   )
 import GHC.IO (evaluate)
 import Control.Concurrent.STM (TVar, atomically, writeTVar)

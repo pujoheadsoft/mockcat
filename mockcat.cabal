@@ -41,6 +41,7 @@ library
       Test.MockCat.AssociationList
       Test.MockCat.Cons
       Test.MockCat.Internal.Builder
+      Test.MockCat.Internal.GHC.StableName
       Test.MockCat.Internal.Message
       Test.MockCat.Internal.MockRegistry
       Test.MockCat.Internal.Registry.Core

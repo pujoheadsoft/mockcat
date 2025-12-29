@@ -32,7 +32,7 @@ import Test.MockCat.Cons ((:>))
 import Data.Typeable (Typeable, eqT)
 import Test.MockCat.Internal.MockRegistry (lookupVerifierForFn, withAllUnitGuards)
 import Data.Type.Equality ((:~:) (Refl))
-import Data.Dynamic (fromDynamic)
+import Data.Dynamic (fromDynamic, Dynamic)
 import GHC.TypeLits (TypeError, ErrorMessage(..), Symbol)
 
 -- | Class for verifying mock function.
@@ -77,7 +77,37 @@ verifyResolvedAny (ResolvedMock mockName recorder) = do
         [ "Function" <> mockNameLabel mockName <> " was never called"
         ]
 
+-- | Verify that mock was called with specific arguments using resolved mock directly.
+--   This avoids StableName lookup and is HPC-safe.
+verifyResolvedMatch :: (Eq params, Show params) => ResolvedMock params -> VerifyMatchType params -> IO ()
+verifyResolvedMatch (ResolvedMock mockName recorder) matchType = do
+  invocationList <- readInvocationList (invocationRef recorder)
+  case doVerify mockName invocationList matchType of
+    Nothing -> pure ()
+    Just (VerifyFailed msg) ->
+      errorWithoutStackTrace msg `seq` pure ()
 
+-- | Verify call count with specific arguments using resolved mock directly.
+--   This avoids StableName lookup and is HPC-safe.
+verifyResolvedCount :: Eq params => ResolvedMock params -> params -> CountVerifyMethod -> IO ()
+verifyResolvedCount (ResolvedMock mockName recorder) v method = do
+  invocationList <- readInvocationList (invocationRef recorder)
+  let callCount = length (filter (v ==) invocationList)
+  if compareCount method callCount
+    then pure ()
+    else
+      errorWithoutStackTrace $
+        countWithArgsMismatchMessage mockName method callCount
+
+-- | Verify call order using resolved mock directly.
+--   This avoids StableName lookup and is HPC-safe.
+verifyResolvedOrder :: (Eq params, Show params) => VerifyOrderMethod -> ResolvedMock params -> [params] -> IO ()
+verifyResolvedOrder method (ResolvedMock mockName recorder) matchers = do
+  invocationList <- readInvocationList (invocationRef recorder)
+  case doVerifyOrder method mockName invocationList matchers of
+    Nothing -> pure ()
+    Just (VerifyFailed msg) ->
+      errorWithoutStackTrace msg `seq` pure ()
 
 compareCount :: CountVerifyMethod -> Int -> Bool
 compareCount (Equal e) a = a == e
@@ -279,11 +309,16 @@ resolveForVerification target = do
       Just Refl -> withAllUnitGuards fetch
       Nothing -> fetch
   case result of
-    Nothing -> pure Nothing
-    Just (name, dynVerifier) ->
+    [] -> pure Nothing
+    candidates -> findCompatible candidates
+
+  where
+    findCompatible :: [(Maybe MockName, Dynamic)] -> IO (Maybe (Maybe MockName, InvocationRecorder params))
+    findCompatible [] = pure Nothing
+    findCompatible ((name, dynVerifier) : rest) =
       case fromDynamic @(InvocationRecorder params) dynVerifier of
         Just verifier -> pure $ Just (name, verifier)
-        Nothing -> pure Nothing
+        Nothing -> findCompatible rest
 
 
 -- | Verify that a function was called the expected number of times

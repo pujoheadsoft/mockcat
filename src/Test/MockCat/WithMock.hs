@@ -10,6 +10,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE TypeApplications #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 
 {- | withMock: Declarative mock expectations DSL
@@ -54,12 +55,11 @@ import Test.MockCat.Verify
   ( ResolvableParamsOf
   , ResolvableMock
 
-  , requireResolved
-  , verifyCount
-  , verifyOrder
   , verifyResolvedAny
   , verifyCallCount
-  , verify
+  , verifyResolvedMatch
+  , verifyResolvedCount
+  , verifyResolvedOrder
   , ResolvedMock(..)
   , VerificationSpec(..)
   , TimesSpec(..)
@@ -74,7 +74,9 @@ import Test.MockCat.Internal.Types
   ( CountVerifyMethod(..)
   , VerifyOrderMethod(..)
   , VerifyMatchType(..)
+  , InvocationRecorder(..)
   )
+import qualified Test.MockCat.Internal.MockRegistry as MockRegistry
 import Test.MockCat.Param (Param(..), param)
 import Data.Kind (Type)
 import Data.Proxy (Proxy(..))
@@ -126,29 +128,27 @@ withMock action = do
   sequence_ actions
   pure result
 
--- | Verify a single expectation
-verifyExpectation ::
-  ( ResolvableMock m
-  , ResolvableParamsOf m ~ params
-  , Show params
+-- | Verify a single expectation using already-resolved mock.
+--   This avoids StableName lookup and is HPC-safe.
+verifyExpectationDirect ::
+  ( Show params
   , Eq params
   ) =>
-  m ->
+  ResolvedMock params ->
   Expectation params ->
   IO ()
-verifyExpectation mockFn expectation = do
-  resolved <- requireResolved mockFn
+verifyExpectationDirect resolved expectation = do
   case expectation of
     CountExpectation (Equal 1) args ->
-      verify mockFn (MatchAny args)
+      verifyResolvedMatch resolved (MatchAny args)
     CountExpectation method args ->
-      verifyCount mockFn args method
+      verifyResolvedCount resolved args method
     CountAnyExpectation count ->
       verifyCallCount (resolvedMockName resolved) (resolvedMockRecorder resolved) count
     OrderExpectation method argsList ->
-      verifyOrder method mockFn argsList
+      verifyResolvedOrder method resolved argsList
     SimpleExpectation args ->
-      verify mockFn (MatchAny args)
+      verifyResolvedMatch resolved (MatchAny args)
     AnyExpectation ->
       verifyResolvedAny resolved
 
@@ -218,8 +218,14 @@ expects mockFnM exp = do
   -- Try to help type inference by using exp first
   let _ = extractParams exp :: Proxy params
   mockFn <- mockFnM
+  -- Get the recorder from the thread-local store (set by mock/register)
+  -- This avoids StableName lookup and is HPC-safe
+  (mockName, mRecorder) <- liftIO $ MockRegistry.getLastRecorder @(InvocationRecorder params)
+  let resolved = case mRecorder of
+        Just recorder -> ResolvedMock mockName recorder
+        Nothing -> error "expects: mock recorder not found. Use mock inside withMock/runMockT."
   let expectations = buildExpectations mockFn exp
-  let actions = map (verifyExpectation mockFn) expectations
+  let actions = map (verifyExpectationDirect resolved) expectations
   liftIO $ atomically $ modifyTVar' ctxVar (++ actions)
   pure mockFn
 
