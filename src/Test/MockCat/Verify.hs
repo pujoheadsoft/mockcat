@@ -20,7 +20,7 @@ module Test.MockCat.Verify where
 
 import Control.Concurrent.STM (TVar, readTVarIO)
 import Test.MockCat.Internal.Types
-import Control.Monad (guard, when, unless)
+import Control.Monad (guard, when)
 import Data.List (elemIndex, intercalate)
 import Data.Maybe
 import Test.MockCat.Param
@@ -45,12 +45,16 @@ verify ::
   VerifyMatchType (ResolvableParamsOf m) ->
   IO ()
 verify m matchType = do
-  ResolvedMock mockName recorder <- requireResolved m
+  candidates <- requireResolved m
+  checkCandidates candidates $ \resolvedMock ->
+    doVerifyResolved resolvedMock matchType
+
+doVerifyResolved :: (Eq params, Show params) => ResolvedMock params -> VerifyMatchType params -> IO (Maybe String)
+doVerifyResolved (ResolvedMock mockName recorder) matchType = do
   invocationList <- readInvocationList (invocationRef recorder)
   case doVerify mockName invocationList matchType of
-    Nothing -> pure ()
-    Just (VerifyFailed msg) ->
-      errorWithoutStackTrace msg `seq` pure ()
+    Nothing -> pure Nothing
+    Just (VerifyFailed msg) -> pure (Just msg)
 
 doVerify :: (Eq a, Show a) => Maybe MockName -> InvocationList a -> VerifyMatchType a -> Maybe VerifyFailed
 doVerify name list (MatchAny a) = do
@@ -125,14 +129,14 @@ verifyCount ::
   CountVerifyMethod ->
   IO ()
 verifyCount m v method = do
-  ResolvedMock mockName recorder <- requireResolved m
-  invocationList <- readInvocationList (invocationRef recorder)
-  let callCount = length (filter (v ==) invocationList)
-  if compareCount method callCount
-    then pure ()
-    else
-      errorWithoutStackTrace $
-        countWithArgsMismatchMessage mockName method callCount
+  candidates <- requireResolved m
+  checkCandidates candidates $ \(ResolvedMock mockName recorder) -> do
+    invocationList <- readInvocationList (invocationRef recorder)
+    let callCount = length (filter (v ==) invocationList)
+    if compareCount method callCount
+      then pure Nothing
+      else
+        pure $ Just $ countWithArgsMismatchMessage mockName method callCount
 
 -- | Generate error message for count mismatch with arguments
 countWithArgsMismatchMessage :: Maybe MockName -> CountVerifyMethod -> Int -> String
@@ -155,12 +159,12 @@ verifyOrder ::
   [ResolvableParamsOf m] ->
   IO ()
 verifyOrder method m matchers = do
-  ResolvedMock mockName recorder <- requireResolved m
-  invocationList <- readInvocationList (invocationRef recorder)
-  case doVerifyOrder method mockName invocationList matchers of
-    Nothing -> pure ()
-    Just (VerifyFailed msg) ->
-      errorWithoutStackTrace msg `seq` pure ()
+  candidates <- requireResolved m
+  checkCandidates candidates $ \(ResolvedMock mockName recorder) -> do
+    invocationList <- readInvocationList (invocationRef recorder)
+    case doVerifyOrder method mockName invocationList matchers of
+      Nothing -> pure Nothing
+      Just (VerifyFailed msg) -> pure (Just msg)
 
 doVerifyOrder ::
   (Eq a, Show a) =>
@@ -301,38 +305,53 @@ resolveForVerification ::
   , Typeable (InvocationRecorder params)
   ) =>
   target ->
-  IO (Maybe (Maybe MockName, InvocationRecorder params))
+  IO [(Maybe MockName, InvocationRecorder params)]
 resolveForVerification target = do
   let fetch = lookupVerifierForFn target
   result <-
     case eqT :: Maybe (params :~: ()) of
       Just Refl -> withAllUnitGuards fetch
       Nothing -> fetch
-  case result of
-    [] -> pure Nothing
-    candidates -> findCompatible candidates
+  findCompatible result
 
   where
-    findCompatible :: [(Maybe MockName, Dynamic)] -> IO (Maybe (Maybe MockName, InvocationRecorder params))
-    findCompatible [] = pure Nothing
+    findCompatible :: [(Maybe MockName, Dynamic)] -> IO [(Maybe MockName, InvocationRecorder params)]
+    findCompatible [] = pure []
     findCompatible ((name, dynVerifier) : rest) =
       case fromDynamic @(InvocationRecorder params) dynVerifier of
-        Just verifier -> pure $ Just (name, verifier)
+        Just verifier -> do
+          matchRest <- findCompatible rest
+          pure $ (name, verifier) : matchRest
         Nothing -> findCompatible rest
 
 
+-- | Verify that the mock was called the expected number of times
+--   Returns Nothing on success, or Just errorMessage on failure.
+tryVerifyCallCount ::
+  Maybe MockName ->
+  InvocationRecorder params ->
+  CountVerifyMethod ->
+  IO (Maybe String)
+tryVerifyCallCount maybeName recorder method = do
+  invocationList <- readInvocationList (invocationRef recorder)
+  let callCount = length invocationList
+  if compareCount method callCount
+    then pure Nothing
+    else pure $ Just $ countMismatchMessage maybeName method callCount
+
 -- | Verify that a function was called the expected number of times
+--   Throw error if verification fails.
 verifyCallCount ::
   Maybe MockName ->
   InvocationRecorder params ->
   CountVerifyMethod ->
   IO ()
 verifyCallCount maybeName recorder method = do
-  invocationList <- readInvocationList (invocationRef recorder)
-  let callCount = length invocationList
-  unless (compareCount method callCount) $
-    errorWithoutStackTrace $
-      countMismatchMessage maybeName method callCount
+  result <- tryVerifyCallCount maybeName recorder method
+  case result of
+    Nothing -> pure ()
+    Just msg -> errorWithoutStackTrace msg
+
 
 -- | Generate error message for count mismatch
 countMismatchMessage :: Maybe MockName -> CountVerifyMethod -> Int -> String
@@ -366,11 +385,12 @@ requireResolved ::
   , Typeable (InvocationRecorder params)
   ) =>
   target ->
-  IO (ResolvedMock params)
+  IO [ResolvedMock params]
 requireResolved target = do
-  resolveForVerification target >>= \case
-    Just (name, recorder) -> pure $ ResolvedMock name recorder
-    Nothing -> verificationFailure
+  candidates <- resolveForVerification target
+  case candidates of
+    [] -> verificationFailure
+    _ -> pure $ map (\(name, recorder) -> ResolvedMock name recorder) candidates
 
 verificationFailureMessage :: String
 verificationFailureMessage =
@@ -556,14 +576,27 @@ inPartialOrderWith args = OrderVerification PartiallySequence (map toNormalizedA
 class ShouldBeCalled m spec where
   shouldBeCalled :: HasCallStack => m -> spec -> IO ()
 
+-- | Helper to verify multiple candidates. Passes if at least one candidate succeeds.
+-- If all fail, throws the first error (or combined error).
+checkCandidates :: [ResolvedMock params] -> (ResolvedMock params -> IO (Maybe String)) -> IO ()
+checkCandidates [] _ = verificationFailure
+checkCandidates candidates verifyFn = do
+  results <- mapM verifyFn candidates
+  let failures = catMaybes results
+  -- If number of failures is less than number of candidates, it means at least one succeeded.
+  if length failures < length candidates
+    then pure ()
+    else errorWithoutStackTrace $ intercalate "\n\n" failures
+
 -- | Instance for times spec alone (without arguments)
 instance
   ( ResolvableMockWithParams m params
   , RequireCallable "shouldBeCalled" m
   ) => ShouldBeCalled m TimesSpec where
   shouldBeCalled m (TimesSpec method) = do
-    ResolvedMock mockName verifier <- requireResolved m
-    verifyCallCount mockName verifier method
+    candidates <- requireResolved m
+    checkCandidates candidates $ \(ResolvedMock mockName verifier) ->
+      tryVerifyCallCount mockName verifier method
 
 -- | Instance for VerificationSpec (handles all verification types)
 instance {-# OVERLAPPING #-}
@@ -572,45 +605,59 @@ instance {-# OVERLAPPING #-}
   , Show params
   , RequireCallable "shouldBeCalled" m
   ) => ShouldBeCalled m (VerificationSpec params) where
-  shouldBeCalled m spec = case spec of
-    CountVerification method args ->
-      verifyCount m args method
-    CountAnyVerification count ->
-      do
-        ResolvedMock mockName recorder <- requireResolved m
-        verifyCallCount mockName recorder count
+  shouldBeCalled m spec = do
+    candidates <- requireResolved m
+    checkCandidates candidates $ \resolvedMock ->
+      verifySpec resolvedMock spec
+
+verifySpec :: (Eq params, Show params) => ResolvedMock params -> VerificationSpec params -> IO (Maybe String)
+verifySpec (ResolvedMock mockName recorder) spec = do
+  invocationList <- readInvocationList (invocationRef recorder)
+  case spec of
+    CountVerification method args -> do
+      let callCount = length (filter (args ==) invocationList)
+      if compareCount method callCount
+        then pure Nothing
+        else pure $ Just $ countWithArgsMismatchMessage mockName method callCount
+    
+    CountAnyVerification method ->
+      tryVerifyCallCount mockName recorder method
+      
     OrderVerification method argsList ->
-      verifyOrder method m argsList
+      case doVerifyOrder method mockName invocationList argsList of
+        Nothing -> pure Nothing
+        Just (VerifyFailed msg) -> pure $ Just msg
+        
     SimpleVerification args ->
-      verify m (MatchAny args)
-    AnyVerification ->
-      do
-        ResolvedMock mockName recorder <- requireResolved m
-        invocationList <- readInvocationList (invocationRef recorder)
-        when (null invocationList) $
-          errorWithoutStackTrace $
-            intercalate
-              "\n"
-              [ "Function" <> mockNameLabel mockName <> " was never called"
-              ]
+      case doVerify mockName invocationList (MatchAny args) of
+        Nothing -> pure Nothing
+        Just (VerifyFailed msg) -> pure $ Just msg
+        
+    AnyVerification -> do
+      -- Logic for AnyVerification (called at least once)
+      if null invocationList
+        then pure $ Just $ intercalate "\n" ["Function" <> mockNameLabel mockName <> " was never called"]
+        else pure Nothing
 
 -- | Instance for Param chains (e.g., "a" ~> "b")
 instance {-# OVERLAPPING #-}
   ( ResolvableMockWithParams m (Param a :> rest)
   , Eq (Param a :> rest)
   , Show (Param a :> rest)
+  , RequireCallable "shouldBeCalled" m
   ) => ShouldBeCalled m (Param a :> rest) where
   shouldBeCalled m args =
-    verify m (MatchAny args)
+    shouldBeCalled m (SimpleVerification args)
 
 -- | Instance for single Param (e.g., param "a")
 instance {-# OVERLAPPING #-}
   ( ResolvableMockWithParams m (Param a)
   , Eq (Param a)
   , Show (Param a)
+  , RequireCallable "shouldBeCalled" m
   ) => ShouldBeCalled m (Param a) where
   shouldBeCalled m args =
-    verify m (MatchAny args)
+    shouldBeCalled m (SimpleVerification args)
 
 -- | Instance for raw values (e.g., "a")
 --   This converts raw values to Param at runtime
@@ -620,6 +667,7 @@ instance {-# OVERLAPPABLE #-}
   , Show (Param a)
   , Show a
   , Eq a
+  , RequireCallable "shouldBeCalled" m
   ) => ShouldBeCalled m a where
   shouldBeCalled m arg =
-    verify m (MatchAny (param arg))
+    shouldBeCalled m (SimpleVerification (param arg))

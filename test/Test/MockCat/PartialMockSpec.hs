@@ -39,10 +39,11 @@ ensureVerifiable ::
   target ->
   m ()
 ensureVerifiable target =
-  liftIO $
-    Verify.resolveForVerification target >>= \case
-      Just _ -> pure ()
-      Nothing -> Verify.verificationFailure
+  liftIO $ do
+    candidates <- Verify.resolveForVerification target
+    case candidates of
+      [] -> Verify.verificationFailure
+      _ -> pure ()
 
 
 instance UserInputGetter IO where

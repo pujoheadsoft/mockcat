@@ -16,6 +16,7 @@ import Control.Exception (try, SomeException, evaluate)
 import Control.Concurrent.Async (forConcurrently_)
 import UnliftIO (withRunInIO)
 import Test.MockCat hiding (any)
+import Property.Generators (resetMockHistory)
 
 --------------------------------------------------------------------------------
 -- 1. Predicate negative: failing inputs raise & are not counted
@@ -23,6 +24,7 @@ import Test.MockCat hiding (any)
 
 prop_predicate_negative_not_counted :: Property
 prop_predicate_negative_not_counted = forAll genVals $ \xs -> monadicIO $ do
+  run resetMockHistory
   f <- run $ mock (expect even "even" ~> True)
   outcomes <- run $ mapM (\x -> (try (evaluate (f x)) :: IO (Either SomeException Bool))) xs
   let evens = length (filter even xs)
@@ -54,6 +56,7 @@ makeAutoLiftMock [t|ParLazyAction|]
 
 prop_lazy_partial_force_concurrency :: Property
 prop_lazy_partial_force_concurrency = forAll genPlan $ \(arg, mask) -> monadicIO $ do
+  run resetMockHistory
   let forcedCount = length (filter id mask)
   run $ runMockT $ do
     -- expectation: arg -> arg; count only forced executions
@@ -82,6 +85,7 @@ prop_lazy_partial_force_concurrency = forAll genPlan $ \(arg, mask) -> monadicIO
 
 prop_partial_order_interleaved_duplicates :: Property
 prop_partial_order_interleaved_duplicates = forAll genPair $ \(a,b) -> a /= b ==> monadicIO $ do
+  run resetMockHistory
   -- Pattern a a b : [a,b] subsequence succeeds, [b,a] fails.
   f <- run $ mock $ cases [ param a ~> True
                                 , param a ~> True

@@ -18,6 +18,7 @@ import Property.Generators
 -- | Property: executing a non-empty script yields exact order success.
 prop_inorder_succeeds :: Property
 prop_inorder_succeeds = forAll scriptGen $ \scr@(Script xs) -> not (null xs) ==> monadicIO $ do
+  run resetMockHistory
   f <- run $ buildUnaryMock scr
   run $ runScript f scr
   run $ f `shouldBeCalled` inOrderWith (param <$> xs)
@@ -26,6 +27,7 @@ prop_inorder_succeeds = forAll scriptGen $ \scr@(Script xs) -> not (null xs) ==>
 -- | Property: a single adjacent swap causes order verification failure.
 prop_adjacent_swap_fails :: Property
 prop_adjacent_swap_fails = forAll scriptGen $ \(Script xs) -> length xs >= 2 ==> monadicIO $ do
+  run resetMockHistory
   let distinct = nub xs
   if length distinct /= length xs
     then assert True  -- discard scripts with duplicates; they can mask order errors
@@ -50,6 +52,7 @@ chooseSubsequence xs = do
 -- | Property: any non-empty subsequence (order-preserving) passes partial order check.
 prop_partial_order_subset_succeeds :: Property
 prop_partial_order_subset_succeeds = forAll scriptGen $ \scr@(Script xs) -> not (null xs) ==> monadicIO $ do
+  run resetMockHistory
   subset <- run $ generate $ chooseSubsequence xs
   f <- run $ buildUnaryMock scr
   run $ runScript f scr
@@ -59,6 +62,7 @@ prop_partial_order_subset_succeeds = forAll scriptGen $ \scr@(Script xs) -> not 
 -- | Property: selecting two distinct values and reversing them causes partial order failure.
 prop_partial_order_reversed_pair_fails :: Property
 prop_partial_order_reversed_pair_fails = forAll scriptGen $ \scr@(Script xs) -> length xs >= 2 ==> monadicIO $ do
+  run resetMockHistory
   if length (nub xs) /= length xs
     then assert True -- discard non-unique scripts to avoid accidental subsequences
     else do

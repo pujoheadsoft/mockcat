@@ -23,6 +23,7 @@ import Test.MockCat.ShouldBeCalledErrorDiffSpec as ShouldBeCalledErrorDiff
 import Test.MockCat.WithMockErrorDiffSpec as WithMockErrorDiff
 import Test.MockCat.THCompareSpec as THCompare
 import ReadmeVerifySpec as ReadmeVerify
+import qualified Test.MockCat.HPCFallbackSpec as HPCFallback
 import Test.MockCat.UnsafeCheck ()
 import Test.QuickCheck (property)
 import qualified Property.ConcurrentCountProp as ConcurrencyProp
@@ -61,6 +62,7 @@ main = hspec $ do
     ShouldBeCalledErrorDiff.spec
     WithMockErrorDiff.spec
     ReadmeVerify.spec
+    HPCFallback.spec
     describe "Property Concurrency" $ do
       it "total apply count is preserved across threads" $ property ConcurrencyProp.prop_concurrent_total_apply_count
     describe "Property Lazy Evaluation" $ do

@@ -130,6 +130,7 @@ data Verification f
 -}
 runMockT :: MonadIO m => MockT m a -> m a
 runMockT (MockT r) = do
+  liftIO Registry.resetMockHistory
   defsVar <- liftIO $ newTVarIO []
   expectsVar <- liftIO $ newTVarIO []
   fwdRef <- liftIO $ newIORef Map.empty

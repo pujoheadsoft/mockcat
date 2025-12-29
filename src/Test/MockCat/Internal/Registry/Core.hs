@@ -20,6 +20,7 @@ module Test.MockCat.Internal.Registry.Core
   , markUnitUsed
   , isGuardActive
   , getLastRecorder
+  , resetMockHistory
   ) where
 
 import Control.Concurrent.STM
@@ -102,6 +103,12 @@ getLastRecorder = do
       Nothing -> pure (Nothing, Nothing)
       Just [] -> pure (Nothing, Nothing)
       Just ((name, dyn) : _) -> pure (name, fromDynamic dyn)
+
+-- | Reset the mock history for the current thread.
+resetMockHistory :: IO ()
+resetMockHistory = do
+  tid <- myThreadId
+  atomically $ modifyTVar' threadMockHistory (Map.delete tid)
 
 
 

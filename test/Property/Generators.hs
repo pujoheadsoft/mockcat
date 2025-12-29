@@ -4,10 +4,12 @@ module Property.Generators
   , scriptGen
   , buildUnaryMock
   , runScript
+  , resetMockHistory
   ) where
 
 import Test.QuickCheck
 import Test.MockCat
+import Test.MockCat.Internal.MockRegistry (resetMockHistory)
 
 -- | A simple script: sequence of argument values for a unary function.
 newtype Script a = Script { unScript :: [a] } deriving (Show, Eq)

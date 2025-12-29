@@ -20,6 +20,7 @@ import Data.List (nub)
 import Data.Proxy (Proxy(..))
 import Test.MockCat
 import Control.Monad.IO.Class (liftIO)
+import Property.Generators (resetMockHistory)
 
 perCall :: Int -> a -> a
 perCall i x = case i of
@@ -33,6 +34,7 @@ perCall i x = case i of
 -- the total recorded calls equals count of even inputs attempted.
 prop_predicate_param_match_counts :: Property
 prop_predicate_param_match_counts = forAll genVals $ \xs -> monadicIO $ do
+  run resetMockHistory
   -- build predicate mock: (Int -> Bool) returning True for all evens
   f <- run $ mock (expect even "even" ~> True)
   results <- run $ mapM (\x -> try (evaluate (f x)) :: IO (Either SomeException Bool)) xs
@@ -54,6 +56,7 @@ prop_predicate_param_match_counts = forAll genVals $ \xs -> monadicIO $ do
 -- saturate at the last value.
 prop_multicase_progression :: Property
 prop_multicase_progression = forAll genSeq $ \(arg, rs, extra) -> monadicIO $ do
+  run resetMockHistory
   f <- run $ mock $ cases [ param arg ~> r | r <- rs ]
   let totalCalls = length rs + extra
   -- NOTE [GHC9.4 duplicate-call counting]
@@ -87,6 +90,7 @@ prop_multicase_progression = forAll genSeq $ \(arg, rs, extra) -> monadicIO $ do
 -- The first run enforces a single invocation; the second expects zero for a fresh mock.
 prop_runMockT_isolation :: Property
 prop_runMockT_isolation = monadicIO $ do
+  run resetMockHistory
   -- Run 1: expect one call
   r1 <- run $ try $ runMockT $ do
     f <- liftIO $ mock (param (1 :: Int) ~> True)
@@ -113,6 +117,7 @@ prop_runMockT_isolation = monadicIO $ do
 -- list of first occurrences; reversing that list (when length >=2) fails.
 prop_partial_order_duplicates :: Property
 prop_partial_order_duplicates = forAll genDupScript $ \xs -> length xs >= 2 ==> monadicIO $ do
+  run resetMockHistory
   -- build mock over sequence
   f <- run $ mock $ cases [ param x ~> True | x <- xs ]
   run $ forM_ xs $ \x -> f x `seq` pure ()
