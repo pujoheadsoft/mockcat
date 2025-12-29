@@ -1,4 +1,5 @@
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# OPTIONS_GHC -fno-hpc #-}
 module Property.OrderProps
   ( prop_inorder_succeeds
   , prop_adjacent_swap_fails

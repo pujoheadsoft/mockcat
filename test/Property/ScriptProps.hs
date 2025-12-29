@@ -1,4 +1,5 @@
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# OPTIONS_GHC -fno-hpc #-}
 module Property.ScriptProps
   ( prop_script_count_matches
   ) where

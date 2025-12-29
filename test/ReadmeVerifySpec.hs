@@ -9,7 +9,7 @@
 {-# LANGUAGE TypeOperators #-}
 {-# OPTIONS_GHC -Wno-missing-export-lists #-}
 {-# OPTIONS_GHC -Wno-unused-do-bind #-}
-
+{-# OPTIONS_GHC -fno-hpc #-}
 module ReadmeVerifySpec where
 
 import Test.Hspec
