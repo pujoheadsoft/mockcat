@@ -52,7 +52,7 @@ verifyResolvedMatch (ResolvedMock mockName recorder) matchType = do
       errorWithoutStackTrace msg `seq` pure ()
 
 -- | Verify call count with specific arguments using resolved mock directly.
-verifyResolvedCount :: Eq params => ResolvedMock params -> params -> CountVerifyMethod -> IO ()
+verifyResolvedCount :: (Eq params, Show params) => ResolvedMock params -> params -> CountVerifyMethod -> IO ()
 verifyResolvedCount (ResolvedMock mockName recorder) v method = do
   invocationList <- readInvocationList (invocationRef recorder)
   let callCount = length (filter (v ==) invocationList)
@@ -60,7 +60,19 @@ verifyResolvedCount (ResolvedMock mockName recorder) v method = do
     then pure ()
     else
       errorWithoutStackTrace $
-        countWithArgsMismatchMessage mockName method callCount
+        -- If we expected some calls (e.g. atLeast 1) but got 0, and there were OTHER calls,
+        -- show the closest match diff to help debugging.
+        if callCount == 0 && not (null invocationList)
+           && expectsPositive method
+          then countWithArgsMismatchMessageWithDiff mockName v invocationList
+          else countWithArgsMismatchMessage mockName method callCount
+
+expectsPositive :: CountVerifyMethod -> Bool
+expectsPositive (Equal n) = n > 0
+expectsPositive (GreaterThanEqual n) = n > 0
+expectsPositive (GreaterThan _) = True
+expectsPositive (LessThan _) = False -- usually "less than 2" allows 0, so 0 is valid.
+expectsPositive (LessThanEqual _) = False -- "at most N" allows 0.
 
 -- | Verify overall call count (ignoring arguments)
 verifyResolvedCallCount :: ResolvedMock params -> CountVerifyMethod -> IO ()

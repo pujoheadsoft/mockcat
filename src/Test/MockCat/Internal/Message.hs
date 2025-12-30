@@ -232,6 +232,74 @@ chooseNearest actual expectations =
       scores = map (\e -> (commonPrefixLen actual e, e)) expectations
    in snd $ maximumBy (comparing fst) scores
 
+countWithArgsMismatchMessageWithDiff :: Show a => Maybe MockName -> a -> [a] -> String
+countWithArgsMismatchMessageWithDiff mockName expected actuals =
+  let expectedStr = formatStr (show expected)
+      actualStrs = map (formatStr . show) actuals
+      (nearest, nearestIdx) = chooseNearestWithIndex expectedStr actualStrs
+      diffLine = "            " <> diffPointer expectedStr nearest
+
+      header = "function" <> mockNameLabel mockName <> " was not called with the expected arguments."
+
+      closestMatchSection =
+        intercalate "\n"
+          [ "  Closest match:"
+          , "    expected: " <> expectedStr
+          , "     but got: " <> nearest
+          , diffLine
+          ]
+
+      diffs = case structuralDiff expectedStr nearest of
+        [] -> ""
+        ds -> formatDifferences ds
+
+      historySection = formatCallHistory actualStrs nearestIdx
+   in intercalate "\n" $
+        [ header
+        , ""
+        , closestMatchSection
+        ]
+        ++ (if null diffs then [] else [diffs])
+        ++
+        [ ""
+        , historySection
+        ]
+
+chooseNearestWithIndex :: String -> [String] -> (String, Int)
+chooseNearestWithIndex _ [] = ("", -1)
+chooseNearestWithIndex pivot candidates =
+  let commonPrefixLen s1 s2 = length $ takeWhile id $ zipWith (==) s1 s2
+      scores = zipWith (\idx c -> (commonPrefixLen pivot c, c, idx)) [0..] candidates
+      (_, bestStr, bestIdx) = maximumBy (comparing (\(score, _, _) -> score)) scores
+   in (bestStr, bestIdx)
+
+formatCallHistory :: [String] -> Int -> String
+formatCallHistory actuals nearestIdx =
+  let count = length actuals
+      limit = 5
+      (shown, hidden) = splitAt limit actuals
+      
+      formatItem idx s =
+        let num = idx + 1
+            prefix = if idx == nearestIdx then "    [Closest] " else "              "
+            -- number alignment: "1. " vs "10. "
+            numStr = show num <> "."
+            paddedNum = if num < 10 then numStr <> " " else numStr
+         in prefix <> paddedNum <> s
+
+      items = zipWith formatItem [0..] shown
+      
+      moreMessage = 
+        if null hidden 
+          then [] 
+          else ["              ... (" <> show (length hidden) <> " more calls)"]
+
+   in intercalate "\n"
+        ( [ "  Call history (" <> show count <> " calls):" ]
+          ++ items
+          ++ moreMessage
+        )
+
 
 isRecord :: String -> Bool
 isRecord s = '{' `elem` s && '}' `elem` s
