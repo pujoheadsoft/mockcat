@@ -1,4 +1,7 @@
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -23,6 +26,7 @@ module Test.MockCat.Mock
   , mock
   , mockM
   , createNamedMockFnWithParams
+  , CreateMockFn(..)
   , stub
   , shouldBeCalled
   , times
@@ -44,20 +48,25 @@ module Test.MockCat.Mock
   , casesIO
   , label
   , Label
+  , MockDispatch(..)
+  , IsMockSpec
   ) where
 
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.State (get, put)
+import Control.Concurrent.STM (TVar, atomically, modifyTVar')
 import Data.Kind (Type)
 import Data.Proxy (Proxy(..))
 import Data.Typeable (Typeable)
 import Prelude hiding (lookup)
 import Test.MockCat.Internal.Builder
-import qualified Test.MockCat.Internal.MockRegistry as MockRegistry ( register )
+import Test.MockCat.Internal.Verify (verifyExpectationDirect)
+import qualified Test.MockCat.Internal.MockRegistry as MockRegistry ( register, getLastRecorder )
 import Test.MockCat.Internal.Types
 import Test.MockCat.Param
 import Test.MockCat.Verify
 import Test.MockCat.Cons (Head(..), (:>)(..))
+
 
 -- | Type family to convert raw values to mock parameters.
 --   Raw values (like "foo") are converted to Head :> Param a,
@@ -125,13 +134,64 @@ class CreateMockFn a where
 class CreateStubFn a where
   stubImpl :: a
 
+-- | Type family to distinguish MockSpec from other parameters.
+type family IsMockSpec p :: Bool where
+  IsMockSpec (MockSpec p e) = 'True
+  IsMockSpec other = 'False
+
+-- | Internal class for dispatching named mocks based on parameter type.
+--   This resolves overlapping instances between generic params and MockSpec.
+--   The 'flag' parameter avoids instance overlap.
+class MockDispatch (flag :: Bool) p m fn where
+  mockDispatchImpl :: Label -> p -> m fn
+
+-- Generic instance for named mocks (flag ~ 'False)
+instance
+  ( MonadIO m
+  , CreateMock p
+  , MockBuilder (ToMockParams p) fn verifyParams
+  , Typeable verifyParams
+  , Typeable fn
+  , IsMockSpec p ~ 'False
+  ) =>
+  MockDispatch 'False p m fn
+  where
+  mockDispatchImpl (Label name) p = do
+    let params = toParams p
+    BuiltMock { builtMockFn = fn, builtMockRecorder = recorder } <- buildMock (Just name) params
+    liftIO $ MockRegistry.register (Just name) recorder fn
+
+-- Specific instance for MockSpec (flag ~ 'True)
+instance
+  ( MonadIO m
+  , MonadWithMockContext m
+  , CreateMock params
+  , MockBuilder (ToMockParams params) fn verifyParams
+  , Show verifyParams
+  , Eq verifyParams
+  , Typeable verifyParams
+  , Typeable fn
+  ) =>
+  MockDispatch 'True (MockSpec params [Expectation verifyParams]) m fn
+  where
+  mockDispatchImpl (Label name) (MockSpec params exps) = do
+    BuiltMock { builtMockFn = fn, builtMockRecorder = recorder } <- buildMock (Just name) (toParams params)
+    liftIO $ MockRegistry.register (Just name) recorder fn
+    
+    WithMockContext ctxRef <- askWithMockContext
+    let resolved = ResolvedMock (Just name) recorder
+    let verifyAction = mapM_ (verifyExpectationDirect resolved) exps
+    liftIO $ atomically $ modifyTVar' ctxRef (++ [verifyAction])
+
+    pure fn
+
 -- | Create a mock function with verification hooks attached (unnamed version).
 --   The returned function mimics a pure function (via 'unsafePerformIO') but records its calls for later verification.
 --
 --   > f <- mock $ "a" ~> "b"
 --   > f "a" `shouldBe` "b"
 --   > f `shouldBeCalled` "a"
-instance
+instance {-# OVERLAPPABLE #-}
   ( MonadIO m
   , CreateMock p
   , MockBuilder (ToMockParams p) fn verifyParams
@@ -145,23 +205,45 @@ instance
     BuiltMock { builtMockFn = fn, builtMockRecorder = recorder } <- buildMock Nothing params
     liftIO $ MockRegistry.register Nothing recorder fn
 
+-- | Create a mock function from MockSpec.
+--   MockSpec can optionally contain expectations.
+--   If expectations are present, they are automatically registered.
+--
+--   > f <- mock $ any ~> True
+--   > f <- mock $ any ~> True `expects` do called once
+instance {-# OVERLAPPING #-}
+  ( MonadIO m
+  , MonadWithMockContext m
+  , CreateMock params
+  , MockBuilder (ToMockParams params) fn verifyParams
+  , Show verifyParams
+  , Eq verifyParams
+  , Typeable verifyParams
+  , Typeable fn
+  ) =>
+  CreateMockFn (MockSpec params [Expectation verifyParams] -> m fn)
+  where
+  mockImpl (MockSpec params exps) = do
+    BuiltMock { builtMockFn = fn, builtMockRecorder = recorder } <- buildMock Nothing (toParams params)
+    liftIO $ MockRegistry.register Nothing recorder fn
+    
+    WithMockContext ctxRef <- askWithMockContext
+    let resolved = ResolvedMock Nothing recorder
+    let verifyAction = mapM_ (verifyExpectationDirect resolved) exps
+    liftIO $ atomically $ modifyTVar' ctxRef (++ [verifyAction])
+
+    pure fn
+
 -- | Create a named mock function.
 --   The name is used in error messages to help you identify which mock failed.
 --
 --   > f <- mock (label "MyAPI") $ "a" ~> "b"
-instance {-# OVERLAPPING #-}
-  ( MonadIO m
-  , CreateMock p
-  , MockBuilder (ToMockParams p) fn verifyParams
-  , Typeable verifyParams
-  , Typeable fn
+instance {-# OVERLAPPING #-} forall p m fn.
+  ( MockDispatch (IsMockSpec p) p m fn
   ) =>
   CreateMockFn (Label -> p -> m fn)
   where
-  mockImpl (Label name) p = do
-    let params = toParams p
-    BuiltMock { builtMockFn = fn, builtMockRecorder = recorder } <- buildMock (Just name) params
-    liftIO $ MockRegistry.register (Just name) recorder fn
+  mockImpl = mockDispatchImpl @(IsMockSpec p)
 
 -- | Create a mock function with verification hooks attached.
 --

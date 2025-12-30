@@ -1,6 +1,8 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# OPTIONS_GHC -Wno-missing-export-lists #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Use null" #-}
@@ -11,11 +13,14 @@ module Test.MockCat.Internal.Types where
 
 import Control.Monad (ap)
 import Control.Concurrent.STM (TVar)
-import Data.Maybe
+import Data.Maybe (listToMaybe)
 import GHC.IO (unsafePerformIO)
 import Test.MockCat.AssociationList (AssociationList)
 import Prelude hiding (lookup)
-import Control.Monad.State ( State )
+import Control.Monad.State ( State, MonadState, execState, modify )
+import Control.Monad.Reader (MonadReader, ask)
+
+type MockName = String
 
 data InvocationRecorder params = InvocationRecorder
   { invocationRef :: TVar (InvocationRecord params)
@@ -27,6 +32,11 @@ data BuiltMock fn params = BuiltMock
   { builtMockFn :: fn
   , builtMockRecorder :: InvocationRecorder params
   }
+
+data ResolvedMock params = ResolvedMock {
+  resolvedMockName :: Maybe MockName,
+  resolvedMockRecorder :: InvocationRecorder params
+}
 
 data FunctionNature
   = PureConstant
@@ -49,6 +59,7 @@ data CountVerifyMethod
   | GreaterThanEqual Int
   | LessThan Int
   | GreaterThan Int
+  deriving (Eq)
 
 instance Show CountVerifyMethod where
   show (Equal e) = show e
@@ -77,6 +88,7 @@ newtype VerifyFailed = VerifyFailed Message
 data VerifyOrderMethod
   = ExactlySequence
   | PartiallySequence
+  deriving (Show, Eq)
 
 data VerifyOrderResult a = VerifyOrderResult
   { index :: Int,
@@ -88,8 +100,6 @@ type Message = String
 
 data VerifyMatchType a = MatchAny a | MatchAll a
 
-type MockName = String
-
 safeIndex :: [a] -> Int -> Maybe a
 safeIndex xs n
   | n < 0 = Nothing
@@ -98,3 +108,40 @@ safeIndex xs n
 {-# NOINLINE perform #-}
 perform :: IO a -> a
 perform = unsafePerformIO
+
+-- | Mock expectation context holds verification actions to run at the end
+--   of the `withMock` block. Storing `IO ()` avoids forcing concrete param
+--   types at registration time.
+newtype WithMockContext = WithMockContext (TVar [IO ()])
+
+class MonadWithMockContext m where
+  askWithMockContext :: m WithMockContext
+
+instance {-# OVERLAPPABLE #-} (MonadReader WithMockContext m) => MonadWithMockContext m where
+  askWithMockContext = ask
+
+-- | Expectation specification
+data Expectation params where
+  -- | Count expectation with specific arguments
+  CountExpectation :: CountVerifyMethod -> params -> Expectation params
+  -- | Count expectation without arguments (any arguments)
+  CountAnyExpectation :: CountVerifyMethod -> Expectation params
+  -- | Order expectation
+  OrderExpectation :: VerifyOrderMethod -> [params] -> Expectation params
+  -- | Simple expectation (at least once) with arguments
+  SimpleExpectation :: params -> Expectation params
+  -- | Simple expectation (at least once) without arguments
+  AnyExpectation :: Expectation params
+  deriving (Show, Eq)
+
+-- | Expectations builder (Monad instance for do syntax)
+newtype Expectations params a = Expectations (State [Expectation params] a)
+  deriving (Functor, Applicative, Monad, MonadState [Expectation params])
+
+-- | Run the Expectations monad to get a list of Expectation
+runExpectations :: Expectations params () -> [Expectation params]
+runExpectations (Expectations s) = execState s []
+
+-- | Add an expectation to the list
+addExpectation :: Expectation params -> Expectations params ()
+addExpectation e = modify (++ [e])

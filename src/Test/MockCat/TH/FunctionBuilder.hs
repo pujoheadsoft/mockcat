@@ -1,4 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
+-- Force recompile 1
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -51,10 +52,10 @@ import Language.Haskell.TH
   )
 import Language.Haskell.TH.Lib
 import Language.Haskell.TH.Syntax (nameBase, Specificity (SpecifiedSpec))
-import Test.MockCat.Mock ( MockBuilder )
+import Test.MockCat.Mock ( MockBuilder, CreateMockFn, mock, label, Label(..), MockDispatch(..), IsMockSpec )
 import qualified Test.MockCat.Internal.MockRegistry as Registry
 import Test.MockCat.Internal.Builder (buildMock)
-import Test.MockCat.Internal.Types (BuiltMock(..))
+import Test.MockCat.Internal.Types (BuiltMock(..), InvocationRecorder)
 import Test.MockCat.Cons (Head(..), (:>)(..))
 import Test.MockCat.MockT
   ( MockT (..),
@@ -78,7 +79,7 @@ import Test.MockCat.TH.ClassAnalysis
 import Test.MockCat.Verify (ResolvableParamsOf)
 import Data.Dynamic (Dynamic, toDyn)
 import Data.Proxy (Proxy(..))
-import Data.List (find, nubBy)
+import Data.List (find, nubBy, nub)
 import Data.Typeable (Typeable)
 import Language.Haskell.TH.Ppr (pprint)
 import Unsafe.Coerce (unsafeCoerce)
@@ -192,158 +193,174 @@ createNoInlinePragma :: Name -> Q Dec
 createNoInlinePragma name = pragInlD name NoInline FunLike AllPhases
 
 doCreateMockFnDecs :: (Quote m) => MockType -> String -> Name -> Name -> Type -> Name -> Type -> m [Dec]
-doCreateMockFnDecs mockType funNameStr mockFunName params funType monadVarName updatedType = do
+doCreateMockFnDecs mockType funNameStr mockFunName params funTypeInput monadVarName updatedType = do
+  let funType = sanitizeType [monadVarName] funTypeInput
   newFunSig <- do
-    let verifyParams = createMockBuilderVerifyParams updatedType
-        mockBuilderPred =
-          AppT (AppT (AppT (ConT ''MockBuilder) (VarT params)) funType) verifyParams
-        eqConstraint =
-          [ AppT
-              (AppT EqualityT (AppT (ConT ''ResolvableParamsOf) funType))
-              verifyParams
-          | not (null (collectTypeVars funType))
-          ]
-        baseCtx =
-          ([mockBuilderPred | verifyParams /= TupleT 0])
-            ++ [AppT (ConT ''MonadIO) (VarT monadVarName)]
-        typeablePreds = createTypeablePreds [funType, verifyParams]
-        ctx = case mockType of
-          Partial ->
-            baseCtx ++ partialAdditionalPredicates funType verifyParams ++ typeablePreds
-          Total ->
-            baseCtx ++ eqConstraint ++ typeablePreds
-        resultType =
+    let resultType =
           AppT
             (AppT ArrowT (VarT params))
             (AppT (AppT (ConT ''MockT) (VarT monadVarName)) funType)
-    sigD mockFunName (pure (ForallT [] ctx resultType))
+        
+        mockTType = AppT (ConT ''MockT) (VarT monadVarName)
+        flag = AppT (ConT ''IsMockSpec) (VarT params)
+        createMockFnPred =
+          AppT (AppT (AppT (AppT (ConT ''MockDispatch) flag) (VarT params)) mockTType) funType
+        
+        recType = AppT (ConT ''InvocationRecorder) (AppT (ConT ''ResolvableParamsOf) funType)
+        recConstraint = AppT (ConT ''Typeable) recType
+        
+        paramsType = AppT (ConT ''ResolvableParamsOf) funType
+        paramsConstraint = AppT (ConT ''Typeable) paramsType
 
-  mockBody <- createMockBody funNameStr [|p|] funType
+        baseCtx =
+          [createMockFnPred, AppT (ConT ''MonadIO) (VarT monadVarName), recConstraint, paramsConstraint]
+          ++ createTypeablePreds [funType]
+        
+        ctx = case mockType of
+          Partial -> baseCtx
+          Total -> baseCtx
+    
+    let vars = collectFreeVars funType ++ [params, monadVarName]
+    let tvs = map (\n -> PlainTV n SpecifiedSpec) (nub vars)
+    sigD mockFunName (pure (ForallT tvs ctx resultType))
+
+  mockBody <- createMockBody funNameStr [|p|] (VarT params)
   newFun <- funD mockFunName [clause [varP $ mkName "p"] (normalB (pure mockBody)) []]
 
   pure $ newFunSig : [newFun]
 
 doCreateConstantMockFnDecs :: (Quote m) => MockType -> String -> Name -> Type -> Name -> m [Dec]
-doCreateConstantMockFnDecs Partial funNameStr mockFunName _ monadVarName = do
-  stubVar <- newName "r"
+doCreateConstantMockFnDecs Partial funNameStr mockFunName ty monadVarName = do
+  let stubVar = mkName "p"
+  let params = mkName "p" 
+  let tySanitized = sanitizeType [monadVarName] ty
+  let resultType =
+        AppT
+          (AppT ArrowT (VarT stubVar))
+          (AppT (AppT (ConT ''MockT) (VarT monadVarName)) tySanitized)
+      
+  let mockTType = AppT (ConT ''MockT) (VarT monadVarName)
+  let flag = AppT (ConT ''IsMockSpec) (VarT stubVar)
+  let createMockFnPred =
+          AppT (AppT (AppT (AppT (ConT ''MockDispatch) flag) (VarT stubVar)) mockTType) tySanitized
+
+  let recType = AppT (ConT ''InvocationRecorder) (AppT (ConT ''ResolvableParamsOf) tySanitized)
+  let recConstraint = AppT (ConT ''Typeable) recType
+  
+  let paramsType = AppT (ConT ''ResolvableParamsOf) tySanitized
+  let paramsConstraint = AppT (ConT ''Typeable) paramsType
+
   let ctx =
-        [ AppT
-            (AppT EqualityT (AppT (ConT ''ResolvableParamsOf) (VarT stubVar)))
-            (TupleT 0)
+        [ createMockFnPred
         , AppT (ConT ''MonadIO) (VarT monadVarName)
         , AppT (ConT ''Typeable) (VarT stubVar)
         , AppT (ConT ''Show) (VarT stubVar)
         , AppT (ConT ''Eq) (VarT stubVar)
+        , recConstraint
+        , paramsConstraint
         ]
-      resultType =
-        AppT
-          (AppT ArrowT (VarT stubVar))
-          (AppT (AppT (ConT ''MockT) (VarT monadVarName)) (VarT stubVar))
+        ++ createTypeablePreds [tySanitized]
+  let vars = collectFreeVars tySanitized ++ [stubVar, monadVarName]
+  let tvs = map (\n -> PlainTV n SpecifiedSpec) (nub vars)
   newFunSig <-
     sigD
       mockFunName
       ( pure
           (ForallT
-              [ PlainTV stubVar SpecifiedSpec
-              , PlainTV monadVarName SpecifiedSpec
-              ]
+              tvs
               ctx
               resultType
           )
       )
-  headParam <- [|Head :> param p|]
-  mockBody <- createMockBody funNameStr (pure headParam) (VarT stubVar)
+  mockBody <- createMockBody funNameStr [|p|] (VarT stubVar)
   newFun <- funD mockFunName [clause [varP $ mkName "p"] (normalB (pure mockBody)) []]
   pure $ newFunSig : [newFun]
 doCreateConstantMockFnDecs Total funNameStr mockFunName ty monadVarName = do
-  (newFunSig, funTypeForBody) <- case ty of
-    AppT (ConT _) (VarT mv) | mv == monadVarName -> do
-      a <- newName "a"
-      let ctx =
-            [ AppT (ConT ''MonadIO) (VarT monadVarName)
-            , AppT (AppT EqualityT (AppT (ConT ''ResolvableParamsOf) (VarT a))) (TupleT 0)
-            , AppT (ConT ''Typeable) (VarT a)
-            , AppT (ConT ''Show) (VarT a)
-            , AppT (ConT ''Eq) (VarT a)
-            ]
-          resultType =
-            AppT
-              (AppT ArrowT (VarT a))
-              (AppT (AppT (ConT ''MockT) (VarT monadVarName)) (VarT a))
-      sig <- sigD
-        mockFunName
-        ( pure
-            (ForallT
-                [PlainTV a SpecifiedSpec, PlainTV monadVarName SpecifiedSpec]
-                ctx
-                resultType
-            )
-        )
-      pure (sig, VarT a)
+  case ty of
+    -- Case 3: Generic (Polymorphic p)
     _ -> do
-      let headParamType = AppT (AppT (ConT ''(:>)) (ConT ''Head)) (AppT (ConT ''Param) ty)
-          verifyParams' = createMockBuilderVerifyParams ty
-          mockBuilderPred' = AppT (AppT (AppT (ConT ''MockBuilder) headParamType) ty) (TupleT 0)
-          ctx =
-            [ AppT (ConT ''MonadIO) (VarT monadVarName)
-            ]
-            ++ ([mockBuilderPred' | verifyParams' /= TupleT 0])
-            ++ createTypeablePreds [ty]
-          resultType =
+      let params = mkName "p"
+      let tySanitized = sanitizeType [monadVarName] ty
+      let resultType =
             AppT
-              (AppT ArrowT ty)
-              (AppT (AppT (ConT ''MockT) (VarT monadVarName)) ty)
-      sig <- sigD mockFunName (pure (ForallT [PlainTV monadVarName SpecifiedSpec] ctx resultType))
-      pure (sig, ty)
-  headParam <- [|Head :> param p|]
-  mockBody <- createMockBody funNameStr (pure headParam) funTypeForBody
-  newFun <- funD mockFunName [clause [varP $ mkName "p"] (normalB (pure mockBody)) []]
-  pure $ newFunSig : [newFun]
+              (AppT ArrowT (VarT params))
+              (AppT (AppT (ConT ''MockT) (VarT monadVarName)) tySanitized)
+          
+          mockTType = AppT (ConT ''MockT) (VarT monadVarName)
+          flag = AppT (ConT ''IsMockSpec) (VarT params)
+          createMockFnPred =
+              AppT (AppT (AppT (AppT (ConT ''MockDispatch) flag) (VarT params)) mockTType) tySanitized
+
+          recType = AppT (ConT ''InvocationRecorder) (AppT (ConT ''ResolvableParamsOf) tySanitized)
+          recConstraint = AppT (ConT ''Typeable) recType
+          
+          paramsType = AppT (ConT ''ResolvableParamsOf) tySanitized
+          paramsConstraint = AppT (ConT ''Typeable) paramsType
+
+          ctx =
+            [ createMockFnPred
+            , AppT (ConT ''MonadIO) (VarT monadVarName)
+            , recConstraint
+            , paramsConstraint
+            ]
+            ++ createTypeablePreds [tySanitized]
+      let tvs = map (\n -> PlainTV n SpecifiedSpec) (nub (collectFreeVars tySanitized ++ [params, monadVarName]))
+      newFunSig <- sigD mockFunName (pure (ForallT tvs ctx resultType))
+
+      mockBody <- createMockBody funNameStr [|p|] (VarT params)
+      newFun <- funD mockFunName [clause [varP params] (normalB (pure mockBody)) []]
+      pure [newFunSig, newFun]
 
 doCreateEmptyVerifyParamMockFnDecs :: (Quote m) => String -> Name -> Name -> Type -> Name -> Type -> m [Dec]
-doCreateEmptyVerifyParamMockFnDecs funNameStr mockFunName params funType monadVarName updatedType = do
+doCreateEmptyVerifyParamMockFnDecs funNameStr mockFunName params funTypeInput monadVarName updatedType = do
+  let funType = sanitizeType [monadVarName] funTypeInput
   newFunSig <- do
     let verifyParams = createMockBuilderVerifyParams updatedType
-        mockBuilderPred = AppT (AppT (AppT (ConT ''MockBuilder) (VarT params)) funType) verifyParams
-        eqConstraint =
-          [ AppT
-              (AppT EqualityT (AppT (ConT ''ResolvableParamsOf) funType))
-              verifyParams
-          | not (null (collectTypeVars funType))
-          ]
-        ctx =
-          [mockBuilderPred]
-            ++ [AppT (ConT ''MonadIO) (VarT monadVarName)]
-            ++ eqConstraint
-            ++ createTypeablePreds [funType, verifyParams]
         resultType =
           AppT
             (AppT ArrowT (VarT params))
             (AppT (AppT (ConT ''MockT) (VarT monadVarName)) funType)
-    sigD mockFunName (pure (ForallT [] ctx resultType))
+        
+        mockTType = AppT (ConT ''MockT) (VarT monadVarName)
+        flag = AppT (ConT ''IsMockSpec) (VarT params)
+        createMockFnPred =
+          AppT (AppT (AppT (AppT (ConT ''MockDispatch) flag) (VarT params)) mockTType) funType
 
-  mockBody <- createMockBody funNameStr [|p|] funType
+        recType = AppT (ConT ''InvocationRecorder) (AppT (ConT ''ResolvableParamsOf) funType)
+        recConstraint = AppT (ConT ''Typeable) recType
+        
+        paramsType = AppT (ConT ''ResolvableParamsOf) funType
+        paramsConstraint = AppT (ConT ''Typeable) paramsType
+
+        ctx =
+          [createMockFnPred]
+            ++ [AppT (ConT ''MonadIO) (VarT monadVarName)]
+            ++ [recConstraint, paramsConstraint]
+            ++ createTypeablePreds [funType, verifyParams]
+    
+    let vars = collectFreeVars funType ++ [params, monadVarName]
+    let tvs = map (\n -> PlainTV n SpecifiedSpec) (nub vars)
+    sigD mockFunName (pure (ForallT tvs ctx resultType))
+
+  mockBody <- createMockBody funNameStr [|p|] (VarT params)
   newFun <- funD mockFunName [clause [varP $ mkName "p"] (normalB (pure mockBody)) []]
 
   pure $ newFunSig : [newFun]
 
 createMockBody :: (Quote m) => String -> m Exp -> Type -> m Exp
-createMockBody funNameStr paramsExp _funType = do
+createMockBody funNameStr paramsExp paramsType = do
   params <- paramsExp
+  let flag = AppT (ConT ''IsMockSpec) paramsType
   [|
     MockT $ do
-      -- Build the mock instance and its verifier directly so we have access
-      -- to the verifier value (avoids runtime type-mismatch when resolving).
-      BuiltMock { builtMockFn = mockInstance, builtMockRecorder = verifier } <- liftIO $ buildMock (Just $(litE (stringL funNameStr))) $(pure params)
-      -- Register and get the canonical wrapper (preserved for async safety)
-      canonicalInstance <- liftIO $ Registry.register (Just $(litE (stringL funNameStr))) verifier mockInstance
+      mockInstance <- unMockT $ $(appTypeE (varE 'mockDispatchImpl) (pure flag)) (label $(litE (stringL funNameStr))) $(pure params)
       addDefinition
         ( Definition
             (Proxy :: Proxy $(litT (strTyLit funNameStr)))
-            canonicalInstance
+            mockInstance
             NoVerification
         )
-      pure canonicalInstance
+      pure mockInstance
     |]
 
 createFnName :: Name -> MockOptions -> String
@@ -355,10 +372,39 @@ findParam pa definitions = do
   let definition = find (\(Definition s _ _) -> symbolVal s == symbolVal pa) definitions
   fmap (\(Definition _ mockFunction _) -> toDyn mockFunction) definition
 
+collectFreeVars :: Type -> [Name]
+collectFreeVars (ForallT bndrs _ t) =
+  let boundNames = map getTVName bndrs
+   in filter (`notElem` boundNames) (collectFreeVars t)
+collectFreeVars (AppT t1 t2) = collectFreeVars t1 ++ collectFreeVars t2
+collectFreeVars (SigT t _) = collectFreeVars t
+collectFreeVars (VarT n) = [n]
+collectFreeVars _ = []
+
+getTVName :: TyVarBndr flag -> Name
+getTVName (PlainTV n _) = n
+getTVName (KindedTV n _ _) = n
+
 typeToNames :: Type -> [Q Name]
 typeToNames (AppT (AppT ArrowT _) t2) = newName "a" : typeToNames t2
 typeToNames (ForallT _ _ ty) = typeToNames ty
 typeToNames _ = []
+
+sanitizeType :: [Name] -> Type -> Type
+sanitizeType kept (AppT t1 t2) = AppT (sanitizeType kept t1) (sanitizeType kept t2)
+sanitizeType kept (SigT t k) = SigT (sanitizeType kept t) (sanitizeType kept k)
+sanitizeType kept (VarT n)
+  | n `elem` kept = VarT n
+  | otherwise = VarT (mkName (nameBase n))
+sanitizeType kept (ForallT bndrs ctx t) =
+  let sanitizeBndr (PlainTV n flag)
+        | n `elem` kept = PlainTV n flag
+        | otherwise = PlainTV (mkName (nameBase n)) flag
+      sanitizeBndr (KindedTV n flag k)
+        | n `elem` kept = KindedTV n flag (sanitizeType kept k)
+        | otherwise = KindedTV (mkName (nameBase n)) flag (sanitizeType kept k)
+  in ForallT (map sanitizeBndr bndrs) (map (sanitizeType kept) ctx) (sanitizeType kept t)
+sanitizeType _ t = t
 
 safeIndex :: [a] -> Int -> Maybe a
 safeIndex [] _ = Nothing

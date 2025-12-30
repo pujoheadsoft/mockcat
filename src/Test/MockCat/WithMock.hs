@@ -14,20 +14,6 @@
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 
 {- | withMock: Declarative mock expectations DSL
-
-This module provides a declarative way to define mock functions with expectations
-that are automatically verified when the 'withMock' block completes.
-
-Example:
-
-@
-withMock $ do
-  mockFn <- mock (any ~> True)
-    `expects` do
-      called once `with` "a"
-  
-  evaluate $ mockFn "a"
-@
 -}
 module Test.MockCat.WithMock
   ( withMock
@@ -40,82 +26,49 @@ module Test.MockCat.WithMock
   , once
   , never
   , atLeast
+  , atMost
+  , greaterThan
+  , lessThan
   , anything
   , WithMockContext(..)
   , MonadWithMockContext(..)
   , Expectation(..)
   , Expectations(..)
+  , verifyExpectationDirect
   ) where
 
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Reader (ReaderT(..), runReaderT, MonadReader(..), ask)
 import Control.Concurrent.STM (TVar, newTVarIO, readTVarIO, modifyTVar', atomically)
 import Control.Monad.State (State, get, put, modify, execState)
-import Test.MockCat.Verify
-  ( ResolvableParamsOf
-  , ResolvableMock
-
+import Test.MockCat.Verify (ShouldBeCalled(..), VerificationSpec(..), TimesSpec(..), times, once, never, atLeast, atMost, greaterThan, lessThan, anything, inOrder, inPartialOrder, calledWith)
+import Test.MockCat.Internal.Verify
+  ( verifyExpectationDirect
   , verifyResolvedAny
   , verifyCallCount
   , verifyResolvedMatch
   , verifyResolvedCount
   , verifyResolvedOrder
-  , ResolvedMock(..)
-  , VerificationSpec(..)
-  , TimesSpec(..)
-  , times
-  , once
-  , never
-  , atLeast
-  , anything
-
   )
 import Test.MockCat.Internal.Types
   ( CountVerifyMethod(..)
   , VerifyOrderMethod(..)
   , VerifyMatchType(..)
   , InvocationRecorder(..)
+  , WithMockContext(..)
+  , MonadWithMockContext(..)
+  , Expectation(..)
+  , Expectations(..)
+  , runExpectations
+  , addExpectation
+  , MockName
+  , ResolvedMock(..)
   )
 import qualified Test.MockCat.Internal.MockRegistry as MockRegistry
-import Test.MockCat.Param (Param(..), param)
+import Test.MockCat.Param (Param(..), param, MockSpec(..), ArgsOf)
 import Data.Kind (Type)
 import Data.Proxy (Proxy(..))
 
--- | Mock expectation context holds verification actions to run at the end
---   of the `withMock` block. Storing `IO ()` avoids forcing concrete param
---   types at registration time.
-newtype WithMockContext = WithMockContext (TVar [IO ()])
-
-class MonadWithMockContext m where
-  askWithMockContext :: m WithMockContext
-
-instance {-# OVERLAPPABLE #-} (MonadReader WithMockContext m) => MonadWithMockContext m where
-  askWithMockContext = ask
-
--- | Expectation specification
-data Expectation params where
-  -- | Count expectation with specific arguments
-  CountExpectation :: CountVerifyMethod -> params -> Expectation params
-  -- | Count expectation without arguments (any arguments)
-  CountAnyExpectation :: CountVerifyMethod -> Expectation params
-  -- | Order expectation
-  OrderExpectation :: VerifyOrderMethod -> [params] -> Expectation params
-  -- | Simple expectation (at least once) with arguments
-  SimpleExpectation :: params -> Expectation params
-  -- | Simple expectation (at least once) without arguments
-  AnyExpectation :: Expectation params
-
--- | Expectations builder (Monad instance for do syntax)
-newtype Expectations params a = Expectations (State [Expectation params] a)
-  deriving (Functor, Applicative, Monad)
-
--- | Run Expectations to get a list of expectations
-runExpectations :: Expectations params a -> [Expectation params]
-runExpectations (Expectations s) = execState s []
-
--- | Add an expectation to the builder
-addExpectation :: Expectation params -> Expectations params ()
-addExpectation exp = Expectations $ modify (++ [exp])
 
 -- | Run a block with mock expectations that are automatically verified
 withMock :: ReaderT WithMockContext IO a -> IO a
@@ -128,33 +81,9 @@ withMock action = do
   sequence_ actions
   pure result
 
--- | Verify a single expectation using already-resolved mock.
---   This avoids StableName lookup and is HPC-safe.
-verifyExpectationDirect ::
-  ( Show params
-  , Eq params
-  ) =>
-  ResolvedMock params ->
-  Expectation params ->
-  IO ()
-verifyExpectationDirect resolved expectation = do
-  case expectation of
-    CountExpectation (Equal 1) args ->
-      verifyResolvedMatch resolved (MatchAny args)
-    CountExpectation method args ->
-      verifyResolvedCount resolved args method
-    CountAnyExpectation count ->
-      verifyCallCount (resolvedMockName resolved) (resolvedMockRecorder resolved) count
-    OrderExpectation method argsList ->
-      verifyResolvedOrder method resolved argsList
-    SimpleExpectation args ->
-      verifyResolvedMatch resolved (MatchAny args)
-    AnyExpectation ->
-      verifyResolvedAny resolved
-
 -- | Attach expectations to a mock function
 --   Supports both single expectation and multiple expectations in a do block
-infixl 0 `expects`
+infixr 0 `expects`
 
 -- | Type class to extract params type from an expectation expression
 class ExtractParams exp where
@@ -173,19 +102,18 @@ instance ExtractParams (fn -> Expectations params ()) where
   type ExpParams (fn -> Expectations params ()) = params
   extractParams _ = Proxy
 
--- | Register expectations for a mock function
---   Accepts an Expectations builder
---   The params type is inferred from the mock function type or the expectation
-class BuildExpectations fn exp where
-  buildExpectations :: fn -> exp -> [Expectation (ResolvableParamsOf fn)]
+-- | Type class for building expectations from various expression types.
+-- This is used to convert the expectation DSL into a list of Expectation values.
+class BuildExpectationsForParams exp params | exp -> params where
+  buildExpectationsForParams :: exp -> [Expectation params]
 
--- | Instance for direct Expectations value
---   The params type must match ResolvableParamsOf fn
-instance forall fn params. (ResolvableParamsOf fn ~ params) => BuildExpectations fn (Expectations params ()) where
-  buildExpectations _ = runExpectations
+-- | Instance for Expectations monad
+instance BuildExpectationsForParams (Expectations params ()) params where
+  buildExpectationsForParams = runExpectations
 
-instance forall fn params. (ResolvableParamsOf fn ~ params) => BuildExpectations fn (VerificationSpec params) where
-  buildExpectations _ spec =
+-- | Instance for VerificationSpec
+instance BuildExpectationsForParams (VerificationSpec params) params where
+  buildExpectationsForParams spec =
     case spec of
       CountVerification method args -> [CountExpectation method args]
       CountAnyVerification method -> [CountAnyExpectation method]
@@ -193,41 +121,18 @@ instance forall fn params. (ResolvableParamsOf fn ~ params) => BuildExpectations
       SimpleVerification args -> [SimpleExpectation args]
       AnyVerification -> [AnyExpectation]
 
--- | Instance for function form (fn -> Expectations params ())
---   This allows passing a function that receives the mock function
-instance forall fn params. (ResolvableParamsOf fn ~ params) => BuildExpectations fn (fn -> Expectations params ()) where
-  buildExpectations fn f = runExpectations (f fn)
-
+-- | Attach expectations to paramerters.
+--   This creates a MockSpec which can be passed to 'mock' or typeclass mock methods.
+--   
+--   > mock $ any ~> True `expects` do ...
 expects ::
-  forall m fn exp params.
-  ( MonadIO m
-  , MonadWithMockContext m
-  , ResolvableMock fn
-  , ResolvableParamsOf fn ~ params
-  , ExtractParams exp
-  , ExpParams exp ~ params
-  , BuildExpectations fn exp
-  , Show params
-  , Eq params
+  forall params exp.
+  ( BuildExpectationsForParams exp (ArgsOf params)
   ) =>
-  m fn ->
+  params ->
   exp ->
-  m fn
-expects mockFnM exp = do
-  (WithMockContext ctxVar) <- askWithMockContext
-  -- Try to help type inference by using exp first
-  let _ = extractParams exp :: Proxy params
-  mockFn <- mockFnM
-  -- Get the recorder from the thread-local store (set by mock/register)
-  -- This avoids StableName lookup and is HPC-safe
-  (mockName, mRecorder) <- liftIO $ MockRegistry.getLastRecorder @(InvocationRecorder params)
-  let resolved = case mRecorder of
-        Just recorder -> ResolvedMock mockName recorder
-        Nothing -> error "expects: mock recorder not found. Use mock inside withMock/runMockT."
-  let expectations = buildExpectations mockFn exp
-  let actions = map (verifyExpectationDirect resolved) expectations
-  liftIO $ atomically $ modifyTVar' ctxVar (++ actions)
-  pure mockFn
+  MockSpec params [Expectation (ArgsOf params)]
+expects params exp = MockSpec params (buildExpectationsForParams exp)
 
 -- | Create a count expectation builder
 --   The params type is inferred from the mock function in expects
@@ -308,4 +213,3 @@ instance
   where
   calledInSequence args =
     addExpectation (OrderExpectation PartiallySequence (map param args))
-

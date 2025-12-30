@@ -24,6 +24,9 @@ module Test.MockCat.TypeClassCommonSpec where
 import Prelude hiding (readFile, writeFile, any)
 import Test.Hspec
 import Test.MockCat
+import Test.MockCat.MockT
+import Test.MockCat.Mock
+import Test.MockCat.Cons (Head(..), (:>)(..))
 import Data.Kind (Type)
 import Data.Text (Text, pack, isInfixOf)
 import Control.Exception (ErrorCall(..), displayException)
@@ -131,9 +134,9 @@ type family ArgsOfF (f :: Type) :: Type where
   ArgsOfF r = ()
 
 -- Generic Mock alias for a function type f
-type MockFor f = forall params. (MockBuilder params f (ArgsOfF f)) => params -> MockT IO f
+type MockFor f = forall params. (MockDispatch (IsMockSpec params) params (MockT IO) f) => params -> MockT IO f
 -- Generic Mock alias for an arbitrary base monad m
-type MockForM m f = forall params. (MockBuilder params f (ArgsOfF f)) => params -> MockT m f
+type MockForM m f = forall params. (MockDispatch (IsMockSpec params) params (MockT m) f) => params -> MockT m f
 
 -- Per-spec dependency records to group required builders/mocks
 data BasicDeps = BasicDeps
@@ -148,7 +151,7 @@ data MixedDeps = MixedDeps
   }
 
 data MultipleDeps = MultipleDeps
-  { _ask      :: Environment -> MockT IO Environment
+  { _ask      :: MockFor Environment
   , _readFile :: MockFor (FilePath -> Text)
   , _writeFile:: MockFor (FilePath -> Text -> ())
   , _post     :: MockFor (Text -> ())
@@ -157,7 +160,7 @@ data MultipleDeps = MultipleDeps
 
 
 data ReaderContextDeps = ReaderContextDeps
-  { _ask      :: Environment -> MockT IO Environment
+  { _ask      :: MockFor Environment
   , _readFile :: MockFor (FilePath -> Text)
   , _writeFile:: MockFor (FilePath -> Text -> ())
   }
@@ -201,11 +204,11 @@ data ExplicitMonadicReturnDeps = ExplicitMonadicReturnDeps
   }
 
 data DefaultMethodDeps = DefaultMethodDeps
-  { _defaultAction :: Int -> MockT IO Int
+  { _defaultAction :: MockFor Int
   }
 
 data AssociatedTypeFamiliesDeps = AssociatedTypeFamiliesDeps
-  { _produce :: Int -> MockT IO Int
+  { _produce :: MockFor Int
   }
 
 data ConcurrencyAndUnliftIODeps = ConcurrencyAndUnliftIODeps
@@ -241,7 +244,7 @@ pattern ExplicitReturnDeps :: MockFor (String -> IO Int) -> MockFor (String -> I
 pattern ExplicitReturnDeps a b <- ExplicitMonadicReturnDeps { _getByExplicit = a, _echoExplicit = b }
   where ExplicitReturnDeps a b = ExplicitMonadicReturnDeps { _getByExplicit = a, _echoExplicit = b }
 
-pattern AssocTypeDeps :: (Int -> MockT IO Int) -> AssociatedTypeFamiliesDeps
+pattern AssocTypeDeps :: MockFor Int -> AssociatedTypeFamiliesDeps
 pattern AssocTypeDeps f <- AssociatedTypeFamiliesDeps { _produce = f }
   where AssocTypeDeps f = AssociatedTypeFamiliesDeps { _produce = f }
 
@@ -347,8 +350,8 @@ specBasicStubbingAndVerification (BasicDeps { _readFile, _writeFile }) = do
 
   it "Program skips file write when input content contains 'ngWord'" do
     result <- runMockT do
-      _ <- _readFile ("input.txt" ~> pack "contains ngWord")
-      _ <- _writeFile ("output.txt" ~> any ~> ())
+      _ <- _readFile  ("input.txt" ~> pack "contains ngWord")
+      _ <- _writeFile $ ("output.txt" ~> any ~> ())
         `expects` do
           called never
       operationProgram "input.txt" "output.txt"
@@ -367,8 +370,8 @@ specMixedMockingStrategies (MixedDeps { _readFile, _writeFile, _post }) = do
 
     result <- runMockT do
       _ <- _readFile $ "input.txt" ~> pack "content"
-      _ <- _writeFile ("output.text" ~> pack "modifiedContent" ~> ())
-      _ <- _post (pack "modifiedContent" ~> ())
+      _ <- _writeFile $ ("output.text" ~> pack "modifiedContent" ~> ())
+      _ <- _post $ (pack "modifiedContent" ~> ())
       operationProgram2 "input.txt" "output.text" modifyContentStub
 
     result `shouldBe` ()
@@ -387,9 +390,9 @@ specMultipleTypeclassConstraints (MultipleDeps { _ask, _readFile, _writeFile, _p
 
     result <- runMockT do
       _ <- _ask env
-      _ <- _readFile ("input.txt" ~> pack "content")
-      _ <- _writeFile ("output.text" ~> pack "modifiedContent" ~> ())
-      _ <- _post ((pack "modifiedContent" <> pack ("+" <> show env)) ~> ())
+      _ <- _readFile $ ("input.txt" ~> pack "content")
+      _ <- _writeFile $ ("output.text" ~> pack "modifiedContent" ~> ())
+      _ <- _post $ ((pack "modifiedContent" <> pack ("+" <> show env)) ~> ())
       apiFileOperationProgram modifyContentStub
 
     result `shouldBe` ()
@@ -406,8 +409,8 @@ specMonadReaderContextMocking (ReaderContextDeps { _ask, _readFile, _writeFile }
   it "Program successfully uses MonadReader to find paths and executes FileOperation" do
     r <- runMockT do
       _ <- _ask (Environment "input.txt" "output.txt")
-      _ <- _readFile ("input.txt" ~> pack "content")
-      _ <- _writeFile ("output.txt" ~> pack "content" ~> ())
+      _ <- _readFile  ("input.txt" ~> pack "content")
+      _ <- _writeFile  ("output.txt" ~> pack "content" ~> ())
       operationProgram3
     r `shouldBe` ()
 
@@ -564,7 +567,7 @@ specDefaultMethodMocking ::
 specDefaultMethodMocking (DefaultMethodDeps { _defaultAction }) = do
   it "Default method is successfully overridden and stubbed value is returned" do
     result <- runMockT do
-      _ <- _defaultAction (99 :: Int)
+      _ <- _defaultAction (Head :> param (99 :: Int))
       defaultAction
     result `shouldBe` 99
 
@@ -577,7 +580,7 @@ specAssociatedTypeFamiliesSupport ::
 specAssociatedTypeFamiliesSupport (AssociatedTypeFamiliesDeps { _produce }) = do
   it "Associated Type family is correctly resolved and mocked stub value is returned" do
     v <- runMockT do
-      _ <- _produce (321 :: Int)
+      _ <- _produce (Head :> param (321 :: Int))
       produce
     v `shouldBe` 321
 
@@ -633,7 +636,7 @@ specBasicVerificationFailureDetection ::
 specBasicVerificationFailureDetection (BasicDeps { _readFile, _writeFile }) = describe "verification failures (FileOperation)" do
     it "Error when read stub is defined but target function readFile is never called" do
       (runMockT @IO do
-        _ <- _readFile ("input.txt" ~> pack "content")
+        _ <- _readFile $ "input.txt" ~> pack "content"
           `expects` do
             called once
         -- readFile is never called
@@ -641,7 +644,7 @@ specBasicVerificationFailureDetection (BasicDeps { _readFile, _writeFile }) = de
 
     it "Error when write stub is defined but target function writeFile is never called" do
       (runMockT @IO do
-        _ <- _writeFile ("output.txt" ~> pack "content" ~> ())
+        _ <- _writeFile $ "output.txt" ~> pack "content" ~> ()
           `expects` do
             called once
         -- writeFile is never called
@@ -649,10 +652,10 @@ specBasicVerificationFailureDetection (BasicDeps { _readFile, _writeFile }) = de
 
     it "Error when read stub expects call but only writeFile is executed" do
       (runMockT @IO do
-        _ <- _readFile ("input.txt" ~> pack "content")
+        _ <- _readFile $ "input.txt" ~> pack "content"
           `expects` do
             called once
-        _ <- _writeFile ("output.txt" ~> pack "content" ~> ())
+        _ <- _writeFile  ("output.txt" ~> pack "content" ~> ())
         -- readFile is never called, only writeFile is called
         do
           writeFile "output.txt" (pack "content")
@@ -660,8 +663,8 @@ specBasicVerificationFailureDetection (BasicDeps { _readFile, _writeFile }) = de
 
     it "Error when write stub expects call but only readFile is executed" do
       (runMockT @IO do
-        _ <- _readFile ("input.txt" ~> pack "content")
-        _ <- _writeFile ("output.txt" ~> pack "content" ~> ())
+        _ <- _readFile  ("input.txt" ~> pack "content")
+        _ <- _writeFile $ "output.txt" ~> pack "content" ~> ()
           `expects` do
             called once
         -- writeFile is never called, only readFile is called
@@ -676,7 +679,7 @@ specMonadReaderVerificationFailureDetection ::
 specMonadReaderVerificationFailureDetection (ReaderContextDeps { _ask }) = describe "verification failures (Reader Environment)" do
     it "Error when MonadReader stub _ask is defined but target function ask is never called" do
       (runMockT @IO do
-        _ <- _ask (Environment "input.txt" "output.txt")
+        _ <- _ask $ Head :> param (Environment "input.txt" "output.txt")
           `expects` do
             called once
         -- ask is never called
@@ -688,14 +691,14 @@ specImplicitReturnVerificationFailureDetection ::
 specImplicitReturnVerificationFailureDetection (ImplicitMonadicReturnDeps { _getBy, _echo }) = describe "verification failures (TestClass)" do
     it "Error when _getBy stub expects call but getBy is never executed" do
       (runMockT @IO do
-        _ <- _getBy ("s" ~> pure @IO (10 :: Int))
+        _ <- _getBy $ "s" ~> pure @IO (10 :: Int)
           `expects` do
             called once
         pure ()) `shouldThrow` missingCall "_getBy"
 
     it "Error when _echo stub expects call but echo is never executed" do
       (runMockT @IO do
-        _ <- _echo ("10" ~> pure @IO ())
+        _ <- _echo $ "10" ~> pure @IO ()
           `expects` do
             called once
         pure ()) `shouldThrow` missingCall "_echo"
@@ -706,35 +709,35 @@ specMultiParamVerificationFailureDetection ::
 specMultiParamVerificationFailureDetection (MultiParamTypeClassArityDeps { _fn2_1Sub, _fn2_2Sub, _fn3_1Sub, _fn3_2Sub, _fn3_3Sub }) = describe "verification failures (SubVars)" do
     it "Error when _fn2_1Sub stub expects call but fn2_1Sub is never executed" do
       (runMockT @IO do
-        _ <- _fn2_1Sub ("alpha" ~> pure @IO ())
+        _ <- _fn2_1Sub $ "alpha" ~> pure @IO ()
           `expects` do
             called once
         pure ()) `shouldThrow` missingCall "_fn2_1Sub"
 
     it "Error when _fn2_2Sub stub expects call but fn2_2Sub is never executed" do
       (runMockT @IO do
-        _ <- _fn2_2Sub ("beta" ~> pure @IO ())
+        _ <- _fn2_2Sub $ "beta" ~> pure @IO ()
           `expects` do
             called once
         pure ()) `shouldThrow` missingCall "_fn2_2Sub"
 
     it "Error when _fn3_1Sub stub expects call but fn3_1Sub is never executed" do
       (runMockT @IO do
-        _ <- _fn3_1Sub ("gamma" ~> pure @IO ())
+        _ <- _fn3_1Sub $ "gamma" ~> pure @IO ()
           `expects` do
             called once
         pure ()) `shouldThrow` missingCall "_fn3_1Sub"
 
     it "Error when _fn3_2Sub stub expects call but fn3_2Sub is never executed" do
       (runMockT @IO do
-        _ <- _fn3_2Sub ("delta" ~> pure @IO ())
+        _ <- _fn3_2Sub $ "delta" ~> pure @IO ()
           `expects` do
             called once
         pure ()) `shouldThrow` missingCall "_fn3_2Sub"
 
     it "Error when _fn3_3Sub stub expects call but fn3_3Sub is never executed" do
       (runMockT @IO do
-        _ <- _fn3_3Sub ("epsilon" ~> pure @IO ())
+        _ <- _fn3_3Sub $ "epsilon" ~> pure @IO ()
           `expects` do
             called once
         pure ()) `shouldThrow` missingCall "_fn3_3Sub"
@@ -745,7 +748,7 @@ specArgumentMatchingVerificationFailureDetection ::
 specArgumentMatchingVerificationFailureDetection (ArgumentPatternMatchingDeps { _getValueBy }) = describe "verification failures (MultiApply)" do
     it "Error when multi-case stub _getValueBy expects call but getValueBy is never executed" do
       (runMockT @IO do
-        _ <- _getValueBy (do onCase $ "a" ~> pure @IO "ax")
+        _ <- _getValueBy $ do onCase $ "a" ~> pure @IO "ax"
           `expects` do
             called once
         pure ()) `shouldThrow` missingCall "_getValueBy"
@@ -756,7 +759,7 @@ specFunDepsVerificationFailureDetection ::
 specFunDepsVerificationFailureDetection (FunctionalDependenciesDeps { _fnParam3_1, _fnParam3_2, _fnParam3_3 }) = describe "verification failures (ParamThreeMonad)" do
     it "Error when FunDep stub _fnParam3_1 expects call but fnParam3_1 is never executed" do
       (runMockT @IO do
-        _ <- _fnParam3_1 (do
+        _ <- _fnParam3_1 $ (do
                onCase $ (1 :: Int) ~> True ~> pure @IO "combined")
           `expects` do
             called once
@@ -764,14 +767,14 @@ specFunDepsVerificationFailureDetection (FunctionalDependenciesDeps { _fnParam3_
 
     it "Error when FunDep stub _fnParam3_2 expects call but fnParam3_2 is never executed" do
       (runMockT @IO do
-        _ <- _fnParam3_2 (casesIO [1 :: Int])
+        _ <- _fnParam3_2 $ casesIO [1 :: Int]
           `expects` do
             called once
         pure ()) `shouldThrow` missingCall "_fnParam3_2"
 
     it "Error when FunDep stub _fnParam3_3 expects call but fnParam3_3 is never executed" do
       (runMockT @IO do
-        _ <- _fnParam3_3 (casesIO [True])
+        _ <- _fnParam3_3 $ casesIO [True]
           `expects` do
             called once
         pure ()) `shouldThrow` missingCall "_fnParam3_3"
@@ -782,14 +785,14 @@ specExplicitReturnVerificationFailureDetection ::
 specExplicitReturnVerificationFailureDetection (ExplicitMonadicReturnDeps { _getByExplicit, _echoExplicit }) = describe "verification failures (ExplicitReturn)" do
     it "Error when explicit stub _getByExplicit expects call but getByExplicit is never executed" do
       (runMockT @IO do
-        _ <- _getByExplicit ("key" ~> pure @IO (42 :: Int))
+        _ <- _getByExplicit $ "key" ~> pure @IO (42 :: Int)
           `expects` do
             called once
         pure ()) `shouldThrow` missingCall "_getByExplicit"
 
     it "Error when explicit stub _echoExplicit expects call but echoExplicit is never executed" do
       (runMockT @IO do
-        _ <- _echoExplicit ("value" ~> pure @IO ())
+        _ <- _echoExplicit $ "value" ~> pure @IO ()
           `expects` do
             called once
         pure ()) `shouldThrow` missingCall "_echoExplicit"
@@ -801,14 +804,14 @@ specAdvancedTypesVerificationFailureDetection ::
 specAdvancedTypesVerificationFailureDetection (DefaultMethodDeps { _defaultAction }) (AssociatedTypeFamiliesDeps { _produce }) = describe "verification failures (Default/Assoc)" do
     it "Error when default method stub _defaultAction expects call but defaultAction is never executed" do
       (runMockT @IO do
-        _ <- _defaultAction (99 :: Int)
+        _ <- _defaultAction $ (Head :> param (99 :: Int))
           `expects` do
             called once
         pure ()) `shouldThrow` missingCall "_defaultAction"
 
     it "Error when associated type stub _produce expects call but produce is never executed" do
       (runMockT @IO do
-        _ <- _produce (321 :: Int)
+        _ <- _produce $ (Head :> param (321 :: Int))
           `expects` do
             called once
         pure ()) `shouldThrow` missingCall "_produce"
@@ -819,14 +822,14 @@ specSequentialStubbingVerificationFailureDetection ::
 specSequentialStubbingVerificationFailureDetection (SequentialIODeps { _readTTY, _writeTTY }) = describe "verification failures (TTY)" do
     it "Error when sequential stub _readTTY expects call but readTTY is never executed" do
       (runMockT @IO do
-        _ <- _readTTY (casesIO ["a", ""])
+        _ <- _readTTY $ casesIO ["a", ""]
           `expects` do
             called once
         pure ()) `shouldThrow` missingCall "_readTTY"
 
     it "Error when sequential stub _writeTTY expects call but writeTTY is never executed" do
       (runMockT @IO do
-        _ <- _writeTTY ("a" ~> pure @IO ())
+        _ <- _writeTTY $ "a" ~> pure @IO ()
           `expects` do
             called once
         pure ()) `shouldThrow` missingCall "_writeTTY"

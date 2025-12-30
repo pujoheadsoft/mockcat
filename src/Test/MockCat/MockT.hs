@@ -29,9 +29,8 @@ import Data.Data (Proxy, Typeable)
 import Data.IORef (newIORef, IORef)
 import Data.Dynamic (Dynamic)
 import UnliftIO (MonadUnliftIO(..))
-import Test.MockCat.Internal.Types (InvocationRecorder)
+import Test.MockCat.Internal.Types (InvocationRecorder, WithMockContext(..), MonadWithMockContext(..))
 import Test.MockCat.Verify (ResolvableParamsOf)
-import Test.MockCat.WithMock (WithMockContext(..), MonadWithMockContext(..))
 import Control.Concurrent.MVar (MVar)
 import qualified Data.Map.Strict as Map
 import qualified Test.MockCat.Internal.Registry.Core as Registry

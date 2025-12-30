@@ -1,4 +1,5 @@
 {-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# OPTIONS_GHC -fno-cse -fno-full-laziness #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TemplateHaskell #-}
@@ -9,6 +10,7 @@
 {-# LANGUAGE TypeOperators #-}
 {-# OPTIONS_GHC -Wno-unused-do-bind #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
 module Test.MockCat.WithMockSpec (spec) where
 
@@ -44,40 +46,40 @@ spec :: Spec
 spec = do
   describe "withMock basic functionality" $ do
     it "simple mock with expects" $ do
-      withMock $ do
-        mockFn <- mock (any ~> True)
+      withMock $ do 
+        mockFn <- mock $ (any ~> True)
           `expects` (called once `with` "a")
         liftIO $ mockFn "a" `shouldBe` True
 
     it "simple mock with expects using param" $ do
-      withMock $ do
-        mockFn <- mock (any ~> True)
+      withMock $ do 
+        mockFn <- mock $ (any ~> True)
           `expects` (called once `with` param "a")
         liftIO $ mockFn "a" `shouldBe` True
 
     it "fails when not called" $ do
-      withMock (do
-        _ <- mock (any ~> True)
+      withMock (do 
+        _ <- mock $ (any ~> True)
           `expects` (called once `with` "a")
         pure ()) `shouldThrow` anyErrorCall
 
     it "error message when not called" $ do
-      result <- try $ withMock $ do
-        _ <- mock (any ~> True)
+      result <- try $ withMock $ do 
+        _ <- mock $ (any ~> True)
           `expects` (called once `with` "a")
         pure ()
       case result of
         Left (ErrorCall msg) -> do
           let expected =
-                "function was not called with the expected arguments.\n" <>
-                "  expected: \"a\"\n" <>
-                "  but the function was never called"
+                "function was not called the expected number of times with the expected arguments.\n" <>
+                "  expected: 1\n" <>
+                "   but got: 0"
           msg `shouldBe` expected
         _ -> fail "Expected ErrorCall"
 
     it "atLeast expectation" $ do
-      withMock $ do
-        mockFn <- mock (any ~> True)
+      withMock $ do 
+        mockFn <- mock $ (any ~> True)
           `expects` (called (atLeast 2) `with` "a")
 
         void $ liftIO $ evaluate $ mockFn "a"
@@ -85,21 +87,21 @@ spec = do
         void $ liftIO $ evaluate $ mockFn "a"
 
     it "anything expectation" $ do
-      withMock $ do
-        mockFn <- mock (any ~> True)
+      withMock $ do 
+        mockFn <- mock $ (any ~> True)
           `expects` called once
 
         void $ liftIO $ evaluate $ mockFn "a"
 
     it "anything expectation fails when not called" $ do
-      withMock (do
-        _ <- mock (any @String ~> True)
+      withMock (do 
+        _ <- mock $ (any @String ~> True)
           `expects` called once
         pure ()) `shouldThrow` anyErrorCall
 
     it "anything expectation error message when not called" $ do
-      result <- try $ withMock $ do
-        _ <- mock (any @String ~> True)
+      result <- try $ withMock $ do 
+        _ <- mock $ (any @String ~> True)
           `expects` called once
         pure ()
       case result of
@@ -112,35 +114,35 @@ spec = do
         _ -> fail "Expected ErrorCall"
 
     it "never expectation without args succeeds when not called" $ do
-      withMock $ do
-        _ <- mock (any @String ~> True)
+      withMock $ do 
+        _ <- mock $ (any @String ~> True)
           `expects` called never
         pure ()
 
     it "never expectation without args fails when called" $ do
-      withMock (do
-        mockFn <- mock (any @String ~> True)
+      withMock (do 
+        mockFn <- mock $ (any @String ~> True)
           `expects` called never
         liftIO $ mockFn "a" `shouldBe` True
         pure ()) `shouldThrow` anyErrorCall
 
     it "never expectation with args succeeds when not called with that arg" $ do
-      withMock $ do
-        mockFn <- mock (any @String ~> True)
+      withMock $ do 
+        mockFn <- mock $ (any @String ~> True)
           `expects` (called never `with` "z")
         liftIO $ mockFn "a" `shouldBe` True
         pure ()
 
     it "never expectation with args fails when called with that arg" $ do
-      withMock (do
-        mockFn <- mock (any @String ~> True)
+      withMock (do 
+        mockFn <- mock $ (any @String ~> True)
           `expects` (called never `with` "z")
         liftIO $ mockFn "z" `shouldBe` True
         pure ()) `shouldThrow` anyErrorCall
 
     it "multiple expectations in do block" $ do
-      withMock $ do
-        mockFn <- mock (any @String ~> True)
+      withMock $ do 
+        mockFn <- mock $ (any @String ~> True)
           `expects` do
             called (times 2) `with` "a"
             called once `with` "b"
@@ -150,8 +152,8 @@ spec = do
         pure ()
 
     it "multiple expectations in do block fails when not all satisfied" $ do
-      withMock (do
-        mockFn <- mock (any @String ~> True)
+      withMock (do 
+        mockFn <- mock $ (any @String ~> True)
           `expects` do
             called (times 2) `with` "a"
             called once `with` "b"
@@ -161,8 +163,8 @@ spec = do
         pure ()) `shouldThrow` anyErrorCall
 
     it "multiple expectations in do block with never" $ do
-      withMock $ do
-        mockFn <- mock (any @String ~> True)
+      withMock $ do 
+        mockFn <- mock $ (any @String ~> True)
           `expects` do
             called once `with` "a"
             called never `with` "z"
@@ -170,8 +172,8 @@ spec = do
         pure ()
 
     it "multiple expectations in do block with never fails when violated" $ do
-      withMock (do
-        mockFn <- mock (any @String ~> True)
+      withMock (do 
+        mockFn <- mock $ (any @String ~> True)
           `expects` do
             called once `with` "a"
             called never `with` "z"
@@ -180,8 +182,8 @@ spec = do
         pure ()) `shouldThrow` anyErrorCall
 
     it "multiple expectations with different counts" $ do
-      withMock $ do
-        mockFn <- mock (any @String ~> True)
+      withMock $ do 
+        mockFn <- mock $ (any @String ~> True)
           `expects` do
             called (times 3) `with` "a"
             called (atLeast 2) `with` "b"
@@ -195,8 +197,8 @@ spec = do
         pure ()
 
     it "multiple expectations fails when count is insufficient" $ do
-      withMock (do
-        mockFn <- mock (any @String ~> True)
+      withMock (do 
+        mockFn <- mock $ (any @String ~> True)
           `expects` do
             called (times 3) `with` "a"
             called once `with` "b"
@@ -207,8 +209,8 @@ spec = do
         pure ()) `shouldThrow` anyErrorCall
 
     it "multiple expectations fails when atLeast is not satisfied" $ do
-      withMock (do
-        mockFn <- mock (any @String ~> True)
+      withMock (do 
+        mockFn <- mock $ (any @String ~> True)
           `expects` do
             called (atLeast 2) `with` "a"
             called once `with` "b"
@@ -218,8 +220,8 @@ spec = do
         pure ()) `shouldThrow` anyErrorCall
 
     it "multiple expectations with mixed never and count" $ do
-      withMock $ do
-        mockFn <- mock (any @String ~> True)
+      withMock $ do 
+        mockFn <- mock $ (any @String ~> True)
           `expects` do
             called (times 2) `with` "a"
             called never `with` "z"
@@ -230,8 +232,8 @@ spec = do
         pure ()
 
     it "multiple expectations with never fails when never is violated" $ do
-      withMock (do
-        mockFn <- mock (any @String ~> True)
+      withMock (do 
+        mockFn <- mock $ (any @String ~> True)
           `expects` do
             called (times 2) `with` "a"
             called never `with` "z"
@@ -244,8 +246,8 @@ spec = do
 
   describe "withMock verification failures" $ do
     it "fails when called fewer times than expected" $ do
-      withMock (do
-        mockFn <- mock (any ~> True)
+      withMock (do 
+        mockFn <- mock $ (any ~> True)
           `expects` do
             called (times 3) `with` "a"
 
@@ -254,8 +256,8 @@ spec = do
         pure ()) `shouldThrow` anyErrorCall
 
     it "fails when called with unexpected arguments" $ do
-      withMock (do
-        mockFn <- mock (any ~> True)
+      withMock (do 
+        mockFn <- mock $ (any ~> True)
           `expects` do
             called once `with` "a"
 
@@ -263,8 +265,8 @@ spec = do
         pure ()) `shouldThrow` anyErrorCall
 
     it "fails when called but never expected" $ do
-      withMock (do
-        mockFn <- mock (any ~> True)
+      withMock (do 
+        mockFn <- mock $ (any ~> True)
           `expects` do
             called never `with` "z"
 
@@ -283,8 +285,8 @@ spec = do
 
   describe "order verification" $ do
     it "calledInOrder succeeds when called in correct order" $ do
-      withMock $ do
-        mockFn <- mock (any @String ~> True)
+      withMock $ do 
+        mockFn <- mock $ (any @String ~> True)
           `expects` do
             calledInOrder ["a", "b", "c"]
 
@@ -294,8 +296,8 @@ spec = do
         pure ()
 
     it "calledInOrder fails when called in wrong order" $ do
-      withMock (do
-        mockFn <- mock (any @String ~> True)
+      withMock (do 
+        mockFn <- mock $ (any @String ~> True)
           `expects` do
             calledInOrder ["a", "b", "c"]
 
@@ -305,8 +307,8 @@ spec = do
         pure ()) `shouldThrow` anyErrorCall
 
     it "calledInOrder fails when not all calls are made" $ do
-      withMock (do
-        mockFn <- mock (any @String ~> True)
+      withMock (do 
+        mockFn <- mock $ (any @String ~> True)
           `expects` do
             calledInOrder ["a", "b", "c"]
 
@@ -316,8 +318,8 @@ spec = do
         pure ()) `shouldThrow` anyErrorCall
 
     it "calledInSequence succeeds when sequence is followed" $ do
-      withMock $ do
-        mockFn <- mock (any @String ~> True)
+      withMock $ do 
+        mockFn <- mock $ (any @String ~> True)
           `expects` do
             calledInSequence ["a", "c"]
 
@@ -327,8 +329,8 @@ spec = do
         pure ()
 
     it "calledInSequence fails when sequence is violated" $ do
-      withMock (do
-        mockFn <- mock (any @String ~> True)
+      withMock (do 
+        mockFn <- mock $ (any @String ~> True)
           `expects` do
             calledInSequence ["a", "c"]
 
@@ -337,8 +339,8 @@ spec = do
         pure ()) `shouldThrow` anyErrorCall
 
     it "calledInSequence succeeds with extra calls in between" $ do
-      withMock $ do
-        mockFn <- mock (any @String ~> True)
+      withMock $ do 
+        mockFn <- mock $ (any @String ~> True)
           `expects` do
             calledInSequence ["a", "c"]
 
@@ -350,12 +352,12 @@ spec = do
 
   describe "multiple mocks" $ do
     it "can define multiple mocks in withMock" $ do
-      withMock $ do
-        fn1 <- mock (any @String ~> True)
+      withMock $ do 
+        fn1 <- mock $ (any @String ~> True)
           `expects` do
-            called once `with` "a"
+            called once `with` "a" 
 
-        fn2 <- mock (any @String ~> any @String ~> False)
+        fn2 <- mock $ (any @String ~> any @String ~> False)
           `expects` do
             called once `with` ("x" ~> "y")
 
@@ -366,15 +368,15 @@ spec = do
   describe "withMock scope isolation" $ do
     it "mocks from different withMock blocks do not interfere" $ do
       -- First withMock block: expect one call
-      withMock $ do
-        fn1 <- mock (any ~> True)
+      withMock $ do 
+        fn1 <- mock $ (any ~> True)
           `expects` do
             called once `with` "a"
         liftIO $ evaluate $ fn1 "a"
 
       -- Second withMock block: expect zero (if leaked, would see 1 and fail)
-      withMock $ do
-        _ <- mock (any ~> True)
+      withMock $ do 
+        _ <- mock $ (any ~> True)
           `expects` do
             called never `with` "a"
         pure ()
@@ -382,21 +384,21 @@ spec = do
     it "multiple sequential withMock blocks are independent" $ do
       -- Block 1: call with "x"
       withMock $ do
-        fn1 <- mock (any ~> True)
+        fn1 <- mock $ (any ~> True)
           `expects` do
             called once `with` "x"
         liftIO $ evaluate $ fn1 "x"
 
       -- Block 2: call with "y"
       withMock $ do
-        fn2 <- mock (any ~> True)
+        fn2 <- mock $ (any ~> True)
           `expects` do
             called once `with` "y"
         liftIO $ evaluate $ fn2 "y"
 
       -- Block 3: no calls
       withMock $ do
-        _ <- mock (any ~> True)
+        _ <- mock $ (any ~> True)
           `expects` do
             called never `with` "z"
         pure ()
@@ -404,7 +406,7 @@ spec = do
   describe "withMock concurrency" $ do
     it "counts calls across parallel threads" $ do
       withMock $ do
-        mockFn <- mock (any ~> True)
+        mockFn <- mock $ (any ~> True)
           `expects` do
             called (times 10)
 
@@ -417,7 +419,7 @@ spec = do
 
     it "handles concurrent calls with different arguments" $ do
       withMock $ do
-        mockFn <- mock (any ~> True)
+        mockFn <- mock $ (any ~> True)
           `expects` do
             called (times 5) `with` "a"
             called (times 5) `with` "b"
@@ -435,7 +437,7 @@ spec = do
           total = threads * callsPerThread :: Int
 
       withMock $ do
-        mockFn <- mock (any ~> True)
+        mockFn <- mock $ (any ~> True)
           `expects` do
             called (times total)
 
@@ -450,7 +452,7 @@ spec = do
 
     it "concurrent calls preserve order expectations" $ do
       withMock $ do
-        mockFn <- mock (any @String ~> True)
+        mockFn <- mock $ (any @String ~> True)
           `expects` do
             calledInOrder ["first", "second", "third"]
 

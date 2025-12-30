@@ -34,6 +34,7 @@ import Prelude hiding (lookup)
 import Control.Monad.State
 import Test.MockCat.Internal.Types
 import Test.MockCat.Internal.Message
+import Test.MockCat.Internal.Message
 
 -- | Class for building a curried function.
 -- The purpose of this class is to automatically generate and provide
@@ -150,6 +151,8 @@ instance
         recorder = InvocationRecorder ref PureConstant
     pure (BuiltMock fn recorder)
 
+
+
 -- | Instance for building a stub for a value (backward compatibility).
 instance
   MockBuilder (Param r) r ()
@@ -219,6 +222,8 @@ instance {-# OVERLAPPABLE #-}
   ) => MockIOBuilder (Param a :> rest) fn args where
   buildIO name params =
     buildWithRecorderIO (\ref inputParams -> executeInvocation ref (singleInvocationStep name params inputParams))
+
+
 
 
 buildWithRecorder ::

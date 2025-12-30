@@ -55,6 +55,8 @@ stripQualifiers =
       , "Show."
       , "Classes."
       , "Internal."
+      , "Test.MockCat.Mock."
+      , "Test.MockCat.Types."
       ])
   where
     stripPrefixes [] t = t
@@ -365,7 +367,7 @@ spec = describe "TH generated vs handwritten instances" do
           expectationFailure "TH generated signature not found: _toUserInput"
         Just sig ->
           normalizeSignature sig
-            `shouldSatisfy` not . T.isInfixOf (T.pack "ResolvableParamsOf") . T.pack
+            `shouldSatisfy` T.isInfixOf (T.pack "ResolvableParamsOf") . T.pack
 
     it "_produce signature matches handwritten" $
       assertHelperSigMatches typeClassSpecPath generatedAssocSigMap "_produce"

@@ -70,9 +70,7 @@ collectTypeableTargets ty =
     VarT _ -> [ty]
     AppT _ _ ->
       let (f, args) = splitApps ty
-      in if isStandardTypeCon f
-         then concatMap collectTypeableTargets args
-         else [ty]
+      in ty : collectTypeableTargets f ++ concatMap collectTypeableTargets args
     SigT t _ -> collectTypeableTargets t
     ParensT t -> collectTypeableTargets t
     InfixT t1 _ t2 -> collectTypeableTargets t1 ++ collectTypeableTargets t2

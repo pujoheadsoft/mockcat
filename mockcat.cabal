@@ -46,6 +46,7 @@ library
       Test.MockCat.Internal.MockRegistry
       Test.MockCat.Internal.Registry.Core
       Test.MockCat.Internal.Types
+      Test.MockCat.Internal.Verify
       Test.MockCat.Mock
       Test.MockCat.MockT
       Test.MockCat.Param

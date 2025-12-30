@@ -99,8 +99,10 @@ spec = do
           verifyParams = AppT (ConT ''Param) (VarT a)
           preds = createTypeablePreds [funType, verifyParams]
       normalize preds `shouldMatchList`
-        [ "Typeable a"
+        [ "Typeable (a -> b)"
+        , "Typeable a"
         , "Typeable b"
+        , "Typeable (Param a)"
         ]
 
     it "extracts type families without decomposing them" $ do
@@ -109,6 +111,7 @@ spec = do
           preds = createTypeablePreds [assoc]
       normalize preds `shouldMatchList`
         [ "Typeable (ResultType m)"
+        , "Typeable m"
         ]
 
     it "generates nothing for concrete types only" $ do

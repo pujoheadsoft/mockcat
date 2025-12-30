@@ -35,7 +35,7 @@ import Control.Monad.IO.Unlift (MonadUnliftIO)
 import qualified Test.MockCat.Verify as Verify
 import Test.MockCat.SharedSpecDefs
 import qualified Test.MockCat.TypeClassCommonSpec as SpecCommon
-import Test.MockCat.Internal.Types (BuiltMock(..))
+import Test.MockCat.Internal.Types (BuiltMock(..), InvocationRecorder)
 import qualified Test.MockCat.Internal.MockRegistry as Registry (register)
 
 -- | No-op. Previously used StableName-based verification check, which breaks under HPC.
@@ -82,52 +82,52 @@ instance MonadIO m => MonadReader SpecCommon.Environment (MockT m) where
 --   state f = lift (state f)
 
 _ask ::
-  ( Verify.ResolvableParamsOf env ~ ()
+  ( MockDispatch (IsMockSpec params) params (MockT m) env
   , MonadIO m
+  , Typeable m
+  , Verify.ResolvableParamsOf env ~ ()
   , Typeable env
-  , Show env
-  , Eq env
   ) =>
-  env ->
+  params ->
   MockT m env
 _ask p = MockT $ do
-  mockInstance <- liftIO $ createNamedMockFnWithParams "ask" (Head :> param p)
+  mockInstance <- unMockT $ mock (label "ask") p
   ensureVerifiable mockInstance
   addDefinition (Definition (Proxy :: Proxy "ask") mockInstance NoVerification)
   pure mockInstance
 
 _readFile ::
-  ( MockBuilder params (FilePath -> Text) (Param FilePath)
+  ( MockDispatch (IsMockSpec params) params (MockT m) (FilePath -> Text)
   , MonadIO m
   ) =>
   params ->
   MockT m (FilePath -> Text)
 _readFile p = MockT $ do
-  mockInstance <- liftIO $ createNamedMockFnWithParams "readFile" p
+  mockInstance <- unMockT $ mock (label "readFile") p
   ensureVerifiable mockInstance
   addDefinition (Definition (Proxy :: Proxy "readFile") mockInstance NoVerification)
   pure mockInstance
 
 _writeFile ::
-  ( MockBuilder params (FilePath -> Text -> ()) (Param FilePath :> Param Text)
+  ( MockDispatch (IsMockSpec params) params (MockT m) (FilePath -> Text -> ())
   , MonadIO m
   ) =>
   params ->
   MockT m (FilePath -> Text -> ())
 _writeFile p = MockT $ do
-  mockInstance <- liftIO $ createNamedMockFnWithParams "writeFile" p
+  mockInstance <- unMockT $ mock (label "writeFile") p
   ensureVerifiable mockInstance
   addDefinition (Definition (Proxy :: Proxy "writeFile") mockInstance NoVerification)
   pure mockInstance
 
 _post ::
-  ( MockBuilder params (Text -> ()) (Param Text)
+  ( MockDispatch (IsMockSpec params) params (MockT m) (Text -> ())
   , MonadIO m
   ) =>
   params ->
   MockT m (Text -> ())
 _post p = MockT $ do
-  mockFn <- liftIO $ createNamedMockFnWithParams "post" p
+  mockFn <- unMockT $ mock (label "post") p
   ensureVerifiable mockFn
   addDefinition (Definition (Proxy :: Proxy "post") mockFn NoVerification)
   pure mockFn
@@ -292,7 +292,7 @@ instance (MonadUnliftIO m) => MonadAsync (MockT m) where
   mapConcurrently = traverse
 
 _getBy ::
-  ( MockBuilder params (String -> m Int) (Param String)
+  ( MockDispatch (IsMockSpec params) params (MockT m) (String -> m Int)
   , MonadIO m
   , Typeable m
   , Verify.ResolvableParamsOf (String -> m Int) ~ Param String
@@ -300,13 +300,13 @@ _getBy ::
   params ->
   MockT m (String -> m Int)
 _getBy p = MockT $ do
-  mockInstance <- liftIO $ createNamedMockFnWithParams "_getBy" p
+  mockInstance <- unMockT $ mock (label "_getBy") p
   ensureVerifiable mockInstance
   addDefinition (Definition (Proxy :: Proxy "_getBy") mockInstance NoVerification)
   pure mockInstance
 
 _echo ::
-  ( MockBuilder params (String -> m ()) (Param String)
+  ( MockDispatch (IsMockSpec params) params (MockT m) (String -> m ())
   , MonadIO m
   , Typeable m
   , Verify.ResolvableParamsOf (String -> m ()) ~ Param String
@@ -314,13 +314,13 @@ _echo ::
   params ->
   MockT m (String -> m ())
 _echo p = MockT $ do
-  mockInstance <- liftIO $ createNamedMockFnWithParams "_echo" p
+  mockInstance <- unMockT $ mock (label "_echo") p
   ensureVerifiable mockInstance
   addDefinition (Definition (Proxy :: Proxy "_echo") mockInstance NoVerification)
   pure mockInstance
 
 _fn2_1Sub ::
-  ( MockBuilder params (String -> m ()) (Param String)
+  ( MockDispatch (IsMockSpec params) params (MockT m) (String -> m ())
   , MonadIO m
   , Typeable m
   , Verify.ResolvableParamsOf (String -> m ()) ~ Param String
@@ -328,13 +328,13 @@ _fn2_1Sub ::
   params ->
   MockT m (String -> m ())
 _fn2_1Sub p = MockT $ do
-  mockInstance <- liftIO $ createNamedMockFnWithParams "_fn2_1Sub" p
+  mockInstance <- unMockT $ mock (label "_fn2_1Sub") p
   ensureVerifiable mockInstance
   addDefinition (Definition (Proxy :: Proxy "_fn2_1Sub") mockInstance NoVerification)
   pure mockInstance
 
 _fn2_2Sub ::
-  ( MockBuilder params (String -> m ()) (Param String)
+  ( MockDispatch (IsMockSpec params) params (MockT m) (String -> m ())
   , MonadIO m
   , Typeable m
   , Verify.ResolvableParamsOf (String -> m ()) ~ Param String
@@ -342,13 +342,13 @@ _fn2_2Sub ::
   params ->
   MockT m (String -> m ())
 _fn2_2Sub p = MockT $ do
-  mockInstance <- liftIO $ createNamedMockFnWithParams "_fn2_2Sub" p
+  mockInstance <- unMockT $ mock (label "_fn2_2Sub") p
   ensureVerifiable mockInstance
   addDefinition (Definition (Proxy :: Proxy "_fn2_2Sub") mockInstance NoVerification)
   pure mockInstance
 
 _fn3_1Sub ::
-  ( MockBuilder params (String -> m ()) (Param String)
+  ( MockDispatch (IsMockSpec params) params (MockT m) (String -> m ())
   , MonadIO m
   , Typeable m
   , Verify.ResolvableParamsOf (String -> m ()) ~ Param String
@@ -356,13 +356,13 @@ _fn3_1Sub ::
   params ->
   MockT m (String -> m ())
 _fn3_1Sub p = MockT $ do
-  mockInstance <- liftIO $ createNamedMockFnWithParams "_fn3_1Sub" p
+  mockInstance <- unMockT $ mock (label "_fn3_1Sub") p
   ensureVerifiable mockInstance
   addDefinition (Definition (Proxy :: Proxy "_fn3_1Sub") mockInstance NoVerification)
   pure mockInstance
 
 _fn3_2Sub ::
-  ( MockBuilder params (String -> m ()) (Param String)
+  ( MockDispatch (IsMockSpec params) params (MockT m) (String -> m ())
   , MonadIO m
   , Typeable m
   , Verify.ResolvableParamsOf (String -> m ()) ~ Param String
@@ -370,13 +370,13 @@ _fn3_2Sub ::
   params ->
   MockT m (String -> m ())
 _fn3_2Sub p = MockT $ do
-  mockInstance <- liftIO $ createNamedMockFnWithParams "_fn3_2Sub" p
+  mockInstance <- unMockT $ mock (label "_fn3_2Sub") p
   ensureVerifiable mockInstance
   addDefinition (Definition (Proxy :: Proxy "_fn3_2Sub") mockInstance NoVerification)
   pure mockInstance
 
 _fn3_3Sub ::
-  ( MockBuilder params (String -> m ()) (Param String)
+  ( MockDispatch (IsMockSpec params) params (MockT m) (String -> m ())
   , MonadIO m
   , Typeable m
   , Verify.ResolvableParamsOf (String -> m ()) ~ Param String
@@ -384,13 +384,13 @@ _fn3_3Sub ::
   params ->
   MockT m (String -> m ())
 _fn3_3Sub p = MockT $ do
-  mockInstance <- liftIO $ createNamedMockFnWithParams "_fn3_3Sub" p
+  mockInstance <- unMockT $ mock (label "_fn3_3Sub") p
   ensureVerifiable mockInstance
   addDefinition (Definition (Proxy :: Proxy "_fn3_3Sub") mockInstance NoVerification)
   pure mockInstance
 
 _getValueBy ::
-  ( MockBuilder params (String -> m String) (Param String)
+  ( MockDispatch (IsMockSpec params) params (MockT m) (String -> m String)
   , MonadIO m
   , Typeable m
   , Verify.ResolvableParamsOf (String -> m String) ~ Param String
@@ -398,13 +398,13 @@ _getValueBy ::
   params ->
   MockT m (String -> m String)
 _getValueBy p = MockT $ do
-  mockInstance <- liftIO $ createNamedMockFnWithParams "_getValueBy" p
+  mockInstance <- unMockT $ mock (label "_getValueBy") p
   ensureVerifiable mockInstance
   addDefinition (Definition (Proxy :: Proxy "_getValueBy") mockInstance NoVerification)
   pure mockInstance
 
 _fnState ::
-  ( MockBuilder params (Maybe s -> m s) (Param (Maybe s))
+  ( MockDispatch (IsMockSpec params) params (MockT m) (Maybe s -> m s)
   , MonadIO m
   , Typeable m
   , Typeable s
@@ -413,12 +413,12 @@ _fnState ::
   params ->
   MockT m (Maybe s -> m s)
 _fnState p = MockT $ do
-  mockInstance <- liftIO $ createNamedMockFnWithParams "_fnState" p
+  mockInstance <- unMockT $ mock (label "_fnState") p
   addDefinition (Definition (Proxy :: Proxy "_fnState") mockInstance NoVerification)
   pure mockInstance
 
 _fnState2 ::
-  ( MockBuilder params (String -> m ()) (Param String)
+  ( MockDispatch (IsMockSpec params) params (MockT m) (String -> m ())
   , MonadIO m
   , Typeable m
   , Verify.ResolvableParamsOf (String -> m ()) ~ Param String
@@ -426,13 +426,12 @@ _fnState2 ::
   params ->
   MockT m (String -> m ())
 _fnState2 p = MockT $ do
-  BuiltMock { builtMockFn = mockInstance, builtMockRecorder = verifier } <- liftIO $ buildMock (Just "_fnState2") p
-  registeredFn <- liftIO $ Registry.register (Just "_fnState2") verifier mockInstance
-  addDefinition (Definition (Proxy :: Proxy "_fnState2") registeredFn NoVerification)
+  mockInstance <- unMockT $ mock (label "_fnState2") p
+  addDefinition (Definition (Proxy :: Proxy "_fnState2") mockInstance NoVerification)
   pure mockInstance
 
 _fnParam3_1 ::
-  ( MockBuilder params (Int -> Bool -> m String) (Param Int :> Param Bool)
+  ( MockDispatch (IsMockSpec params) params (MockT m) (Int -> Bool -> m String)
   , MonadIO m
   , Typeable m
   , Verify.ResolvableParamsOf (Int -> Bool -> m String) ~ (Param Int :> Param Bool)
@@ -440,13 +439,13 @@ _fnParam3_1 ::
   params ->
   MockT m (Int -> Bool -> m String)
 _fnParam3_1 p = MockT $ do
-  mockInstance <- liftIO $ createNamedMockFnWithParams "_fnParam3_1" p
+  mockInstance <- unMockT $ mock (label "_fnParam3_1") p
   ensureVerifiable mockInstance
   addDefinition (Definition (Proxy :: Proxy "_fnParam3_1") mockInstance NoVerification)
   pure mockInstance
 
 _fnParam3_2 ::
-  ( MockBuilder params (m Int) ()
+  ( MockDispatch (IsMockSpec params) params (MockT m) (m Int)
   , MonadIO m
   , Typeable m
   , Verify.ResolvableParamsOf (m Int) ~ ()
@@ -454,13 +453,13 @@ _fnParam3_2 ::
   params ->
   MockT m (m Int)
 _fnParam3_2 p = MockT $ do
-  mockInstance <- liftIO $ createNamedMockFnWithParams "_fnParam3_2" p
+  mockInstance <- unMockT $ mock (label "_fnParam3_2") p
   ensureVerifiable mockInstance
   addDefinition (Definition (Proxy :: Proxy "_fnParam3_2") mockInstance NoVerification)
   pure mockInstance
 
 _fnParam3_3 ::
-  ( MockBuilder params (m Bool) ()
+  ( MockDispatch (IsMockSpec params) params (MockT m) (m Bool)
   , MonadIO m
   , Typeable m
   , Verify.ResolvableParamsOf (m Bool) ~ ()
@@ -468,13 +467,13 @@ _fnParam3_3 ::
   params ->
   MockT m (m Bool)
 _fnParam3_3 p = MockT $ do
-  mockInstance <- liftIO $ createNamedMockFnWithParams "_fnParam3_3" p
+  mockInstance <- unMockT $ mock (label "_fnParam3_3") p
   ensureVerifiable mockInstance
   addDefinition (Definition (Proxy :: Proxy "_fnParam3_3") mockInstance NoVerification)
   pure mockInstance
 
 _getByExplicit ::
-  ( MockBuilder params (String -> m Int) (Param String)
+  ( MockDispatch (IsMockSpec params) params (MockT m) (String -> m Int)
   , MonadIO m
   , Typeable m
   , Verify.ResolvableParamsOf (String -> m Int) ~ Param String
@@ -482,13 +481,13 @@ _getByExplicit ::
   params ->
   MockT m (String -> m Int)
 _getByExplicit p = MockT $ do
-  mockInstance <- liftIO $ createNamedMockFnWithParams "_getByExplicit" p
+  mockInstance <- unMockT $ mock (label "_getByExplicit") p
   ensureVerifiable mockInstance
   addDefinition (Definition (Proxy :: Proxy "_getByExplicit") mockInstance NoVerification)
   pure mockInstance
 
 _echoExplicit ::
-  ( MockBuilder params (String -> m ()) (Param String)
+  ( MockDispatch (IsMockSpec params) params (MockT m) (String -> m ())
   , MonadIO m
   , Typeable m
   , Verify.ResolvableParamsOf (String -> m ()) ~ Param String
@@ -496,37 +495,37 @@ _echoExplicit ::
   params ->
   MockT m (String -> m ())
 _echoExplicit p = MockT $ do
-  mockInstance <- liftIO $ createNamedMockFnWithParams "_echoExplicit" p
+  mockInstance <- unMockT $ mock (label "_echoExplicit") p
   ensureVerifiable mockInstance
   addDefinition (Definition (Proxy :: Proxy "_echoExplicit") mockInstance NoVerification)
   pure mockInstance
 
 _defaultAction ::
   ( MonadIO m
+  , MockDispatch (IsMockSpec params) params (MockT m) a
   , Verify.ResolvableParamsOf a ~ ()
   , Typeable a
-  , Show a
-  , Eq a
   ) =>
-  a ->
+  params ->
   MockT m a
-_defaultAction value = MockT $ do
-  mockInstance <- liftIO $ createNamedMockFnWithParams "_defaultAction" (Head :> param value)
+_defaultAction p = MockT $ do
+  mockInstance <- unMockT $ mock (label "_defaultAction") p
   ensureVerifiable mockInstance
   addDefinition (Definition (Proxy :: Proxy "_defaultAction") mockInstance NoVerification)
   pure mockInstance
 
 _produce ::
-  ( MonadIO m
-  , Verify.ResolvableParamsOf a ~ ()
-  , Typeable a
-  , Show a
-  , Eq a
+  ( MockDispatch (IsMockSpec p) p (MockT m) (ResultType m)
+  , MonadIO m
+  , Typeable (InvocationRecorder (Verify.ResolvableParamsOf (ResultType m)))
+  , Typeable (Verify.ResolvableParamsOf (ResultType m))
+  , Typeable (ResultType m)
+  , Typeable m
   ) =>
-  a ->
-  MockT m a
-_produce value = MockT $ do
-  mockInstance <- liftIO $ createNamedMockFnWithParams "_produce" (Head :> param value)
+  p ->
+  MockT m (ResultType m)
+_produce p = MockT $ do
+  mockInstance <- unMockT $ mock (label "_produce") p
   ensureVerifiable mockInstance
   addDefinition (Definition (Proxy :: Proxy "_produce") mockInstance NoVerification)
   pure mockInstance
@@ -547,7 +546,7 @@ instance MonadIO m => Teletype (MockT m) where
     lift result
 
 _readTTY ::
-  ( MockBuilder params (m String) ()
+  ( MockDispatch (IsMockSpec params) params (MockT m) (m String)
   , MonadIO m
   , Typeable m
   , Verify.ResolvableParamsOf (m String) ~ ()
@@ -555,13 +554,13 @@ _readTTY ::
   params ->
   MockT m (m String)
 _readTTY p = MockT $ do
-  mockInstance <- liftIO $ createNamedMockFnWithParams "_readTTY" p
+  mockInstance <- unMockT $ mock (label "_readTTY") p
   ensureVerifiable mockInstance
   addDefinition (Definition (Proxy :: Proxy "_readTTY") mockInstance NoVerification)
   pure mockInstance
 
 _writeTTY ::
-  ( MockBuilder params (String -> m ()) (Param String)
+  ( MockDispatch (IsMockSpec params) params (MockT m) (String -> m ())
   , MonadIO m
   , Typeable m
   , Verify.ResolvableParamsOf (String -> m ()) ~ Param String
@@ -569,7 +568,7 @@ _writeTTY ::
   params ->
   MockT m (String -> m ())
 _writeTTY p = MockT $ do
-  mockInstance <- liftIO $ createNamedMockFnWithParams "_writeTTY" p
+  mockInstance <- unMockT $ mock (label "_writeTTY") p
   ensureVerifiable mockInstance
   addDefinition (Definition (Proxy :: Proxy "_writeTTY") mockInstance NoVerification)
   pure mockInstance

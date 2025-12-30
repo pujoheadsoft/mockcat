@@ -17,6 +17,11 @@ module Test.MockCat.PartialMockCommonSpec
   , PartialMockDeps(..)
   ) where
 
+
+import Test.MockCat.Cons (Head(..), (:>)(..))
+import Test.MockCat.Mock (MockDispatch, IsMockSpec, CreateMockFn)
+import Test.MockCat.MockT (MockT)
+import Test.MockCat.Internal.Types (InvocationRecorder)
 import Prelude hiding (readFile, writeFile)
 import Test.Hspec (Spec, it, shouldBe, describe, shouldThrow, Selector)
 import Test.MockCat
@@ -41,30 +46,13 @@ import Unsafe.Coerce (unsafeCoerce)
 
 -- Dependency record to group builders
 data PartialMockDeps = PartialMockDeps
-  { _getInput    :: forall r m. (Verify.ResolvableParamsOf r ~ (), MonadIO m, Typeable r, Show r, Eq r) => r -> MockT m r
-  , _getBy       :: forall params. ( MockBuilder params (String -> IO Int) (Param String)
-                                   , Typeable (String -> IO Int)
-                                   , Verify.ResolvableParamsOf (String -> IO Int) ~ Param String
-                                   ) => params -> MockT IO (String -> IO Int)
-  , _echo        :: forall params. ( MockBuilder params (String -> IO ()) (Param String)
-                                   , Typeable (String -> IO ())
-                                   , Verify.ResolvableParamsOf (String -> IO ()) ~ Param String
-                                   ) => params -> MockT IO (String -> IO ())
-  , _writeFile   :: forall params m. ( MockBuilder params (FilePath -> Text -> ()) (Param FilePath :> Param Text)
-                                     , MonadIO m
-                                     , Typeable (FilePath -> Text -> ())
-                                     , Verify.ResolvableParamsOf (FilePath -> Text -> ()) ~ (Param FilePath :> Param Text)
-                                     ) => params -> MockT m (FilePath -> Text -> ())
-  , _findIds     :: forall r m. (Verify.ResolvableParamsOf r ~ (), MonadIO m, Typeable r, Show r, Eq r) => r -> MockT m r
-  , _findById    :: forall params m. ( MockBuilder params (Int -> String) (Param Int)
-                                     , MonadIO m
-                                     , Typeable (Int -> String)
-                                     , Verify.ResolvableParamsOf (Int -> String) ~ Param Int
-                                     ) => params -> MockT m (Int -> String)
-  , _findByIdNI  :: forall params. ( MockBuilder params (Int -> IO String) (Param Int)
-                                     , Typeable (Int -> IO String)
-                                     , Verify.ResolvableParamsOf (Int -> IO String) ~ Param Int
-                                     ) => params -> MockT IO (Int -> IO String)
+  { _getInput    :: forall params m. (MockDispatch (IsMockSpec params) params (MockT m) String, MonadIO m, Typeable (Verify.ResolvableParamsOf String), Typeable params, Show params, Eq params) => params -> MockT m String
+  , _getBy       :: forall params. (MockDispatch (IsMockSpec params) params (MockT IO) (String -> IO Int)) => params -> MockT IO (String -> IO Int)
+  , _echo        :: forall params. (MockDispatch (IsMockSpec params) params (MockT IO) (String -> IO ())) => params -> MockT IO (String -> IO ())
+  , _writeFile   :: forall params m. (MockDispatch (IsMockSpec params) params (MockT m) (FilePath -> Text -> ()), MonadIO m) => params -> MockT m (FilePath -> Text -> ())
+  , _findIds     :: forall p a m. (MockDispatch (IsMockSpec p) p (MockT m) [a], MonadIO m, Typeable p, Show p, Eq p, Typeable (InvocationRecorder (Verify.ResolvableParamsOf [a])), Typeable (Verify.ResolvableParamsOf [a]), Typeable [a], Typeable a) => p -> MockT m [a]
+  , _findById    :: forall params m. (MockDispatch (IsMockSpec params) params (MockT m) (Int -> String), MonadIO m) => params -> MockT m (Int -> String)
+  , _findByIdNI  :: forall params. (MockDispatch (IsMockSpec params) params (MockT IO) (Int -> IO String)) => params -> MockT IO (Int -> IO String)
   }
 
 -- Main Entry Point
@@ -275,7 +263,7 @@ specVerificationFailures (PartialMockDeps { _findIds, _findById }) = describe "V
 
   it "fails when _findIds is defined but findIds is never called" do
     (runMockT @IO do
-      _ <- _findIds ([1 :: Int, 2] :: [Int])
+      _ <- _findIds $ Head :> param ([1 :: Int, 2] :: [Int])
         `expects` do
           called once
       -- findIds is never called
@@ -287,7 +275,7 @@ specVerificationFailures (PartialMockDeps { _findIds, _findById }) = describe "V
             onCase $ (1 :: Int) ~> "id1"
             onCase $ (2 :: Int) ~> "id2"
             onCase $ (3 :: Int) ~> "id3"
-      _ <- _findById casesDef `expects` do
+      _ <- _findById $ casesDef `expects` do
         called once
       -- findById is never called
       pure ()) `shouldThrow` missingCall "_findById"

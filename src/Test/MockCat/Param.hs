@@ -19,6 +19,7 @@ module Test.MockCat.Param
     value,
     param,
     ConsGen(..),
+    MockSpec(..),
     expect,
     expect_,
     any,
@@ -35,13 +36,24 @@ module Test.MockCat.Param
 where
 
 import Test.MockCat.Cons ((:>) (..), Head(..))
+import Test.MockCat.Internal.Types (Cases)
 import Unsafe.Coerce (unsafeCoerce)
 import Prelude hiding (any)
 import Data.Typeable (Typeable, typeOf)
 import Foreign.Ptr (Ptr, ptrToIntPtr, castPtr, IntPtr)
 import qualified Data.Text as T (Text)
 
-infixr 0 ~>
+infixr 1 ~>
+
+-- | MockSpec wraps stub parameters with optional expectations.
+-- The 'exps' type parameter is () when no expectations are set,
+-- or a list of expectations when 'expects' has been applied.
+-- This design ensures 'expects' can only be applied to MockSpec,
+-- not to the result of 'mock'.
+data MockSpec params exps = MockSpec
+  { specParams :: params
+  , specExpectations :: exps
+  } deriving (Show, Eq)
 
 data Param v where
   -- | A parameter that expects a specific value.
@@ -119,6 +131,7 @@ param v = ExpectValue v (show v)
 -- | Type family to untie the knot for ConsGen instances
 type family Normalize a where
   Normalize (a :> b) = a :> b
+  Normalize Head = Head
   Normalize (Param a) = Param a
   Normalize a = Param a
 
@@ -133,6 +146,9 @@ instance {-# OVERLAPPING #-} ToParamArg (Param a) where
 
 instance {-# OVERLAPPABLE #-} (Normalize a ~ Param a, WrapParam a) => ToParamArg a where
   toParamArg = wrap
+
+instance {-# OVERLAPPING #-} ToParamArg Head where
+  toParamArg = id
 
 class ToParamResult b where
   toParamResult :: b -> Normalize b
@@ -149,6 +165,7 @@ instance {-# OVERLAPPABLE #-} (Normalize b ~ Param b, WrapParam b) => ToParamRes
 class ConsGen a b where
   (~>) :: a -> b -> Normalize a :> Normalize b
 
+-- | Instance for chaining parameters
 instance (ToParamArg a, ToParamResult b) => ConsGen a b where
   (~>) a b = (:>) (toParamArg a) (toParamResult b)
 
@@ -179,8 +196,11 @@ expect_ f = ExpectCondition f "[some condition]"
 -- | The type of the argument parameters of the parameters.
 type family ArgsOf params where
   ArgsOf (Head :> Param r) = ()                        -- Constant value has no arguments
+  ArgsOf (IO a) = ()
   ArgsOf (Param a :> Param r) = Param a
   ArgsOf (Param a :> rest) = Param a :> ArgsOf rest
+  ArgsOf (Cases a b) = ArgsOf a
+  ArgsOf a = ()
 
 -- | Class for projecting the arguments of the parameter.
 class ProjectionArgs params where
