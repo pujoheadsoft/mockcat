@@ -1,5 +1,4 @@
 {-# LANGUAGE BlockArguments #-}
-
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeOperators #-}
@@ -30,7 +29,7 @@ import GHC.TypeLits (KnownSymbol, symbolVal)
 import Unsafe.Coerce (unsafeCoerce)
 
 import qualified Test.MockCat.Verify as Verify
-import Test.MockCat.Internal.Types (InvocationRecorder)
+
 
 
 ensureVerifiable ::
@@ -213,8 +212,6 @@ instance (MonadIO m, Finder a b m) => Finder a b (MockT m) where
 _findIds ::
   ( MockDispatch (IsMockSpec p) p (MockT m) [a]
   , MonadIO m
-  , Typeable (InvocationRecorder (Verify.ResolvableParamsOf [a]))
-  , Typeable (Verify.ResolvableParamsOf [a])
   , Typeable [a]
   ) =>
   p ->

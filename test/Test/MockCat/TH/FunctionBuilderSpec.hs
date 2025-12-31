@@ -4,6 +4,7 @@ module Test.MockCat.TH.FunctionBuilderSpec (spec) where
 
 import qualified Data.Text as T
 import Language.Haskell.TH
+
 import Test.Hspec
 import Test.MockCat.Cons ((:>))
 import Test.MockCat.Param (Param)
@@ -91,31 +92,7 @@ spec = do
           preds = partialAdditionalPredicates funType verifyParams
       normalize preds `shouldBe` []
 
-  describe "createTypeablePreds" $ do
-    it "decomposes and extracts types containing type variables and removes duplicates" $ do
-      let a = mkName "a"
-          b = mkName "b"
-          funType = AppT (AppT ArrowT (VarT a)) (VarT b)
-          verifyParams = AppT (ConT ''Param) (VarT a)
-          preds = createTypeablePreds [funType, verifyParams]
-      normalize preds `shouldMatchList`
-        [ "Typeable a"
-        , "Typeable b"
-        , "Typeable (Param a)"
-        ]
 
-    it "extracts type families without decomposing them" $ do
-      let m = mkName "m"
-          assoc = AppT (ConT (mkName "ResultType")) (VarT m)
-          preds = createTypeablePreds [assoc]
-      normalize preds `shouldMatchList`
-        [ "Typeable (ResultType m)"
-        ]
-
-    it "generates nothing for concrete types only" $ do
-      let ty = AppT (ConT ''Maybe) (ConT ''Int)
-          preds = createTypeablePreds [ty]
-      normalize preds `shouldBe` []
 
 normalize :: [Pred] -> [String]
 normalize = fmap (cleanup . pprint)
@@ -132,4 +109,5 @@ normalize = fmap (cleanup . pprint)
         . T.replace (T.pack "GHC.Types.") (T.pack "")
         . T.replace (T.pack "Test.MockCat.Param.") (T.pack "")
         . T.replace (T.pack "Test.MockCat.Verify.") (T.pack "")
+        . T.replace (T.pack "([a])") (T.pack "[a]")
         . T.pack

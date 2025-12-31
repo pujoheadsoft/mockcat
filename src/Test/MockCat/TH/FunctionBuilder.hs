@@ -66,7 +66,8 @@ import Test.MockCat.TH.TypeUtils
     needsTypeable,
     collectTypeVars,
     collectTypeableTargets,
-    splitApps
+    splitApps,
+    isTypeFamily
   )
 import Test.MockCat.TH.ContextBuilder
   ( MockType (..)
@@ -121,12 +122,14 @@ partialAdditionalPredicates funType verifyParams =
   ]
 
 -- Helper to create Typeable predicates using the smart collection logic
-createTypeablePreds :: [Type] -> [Pred]
-createTypeablePreds targets =
-  [ AppT (ConT ''Typeable) t
-  | t <- nubBy (\a b -> pprint a == pprint b) (concatMap collectTypeableTargets targets)
-  , needsTypeable t
-  ]
+createTypeablePreds :: [Type] -> Q [Pred]
+createTypeablePreds targets = do
+  allTargets <- concat <$> mapM collectTypeableTargets targets
+  pure
+    [ AppT (ConT ''Typeable) t
+    | t <- nubBy (\a b -> pprint a == pprint b) allTargets
+    , needsTypeable t
+    ]
 
 
 data MockFnContext = MockFnContext
@@ -191,49 +194,60 @@ determineMockFnBuilder ctx
 createNoInlinePragma :: Name -> Q Dec
 createNoInlinePragma name = pragInlD name NoInline FunLike AllPhases
 
-doCreateMockFnDecs :: (Quote m) => MockType -> String -> Name -> Name -> Type -> Name -> Type -> m [Dec]
+isAtomicNonFunction :: Type -> Q Bool
+isAtomicNonFunction (AppT t _) = isAtomicNonFunction t
+isAtomicNonFunction ListT = pure True
+isAtomicNonFunction (TupleT _) = pure True
+isAtomicNonFunction (ConT n)
+  | n == ''(->) = pure False
+  | otherwise = not <$> isTypeFamily (ConT n)
+isAtomicNonFunction _ = pure False
+
+doCreateMockFnDecs :: MockType -> String -> Name -> Name -> Type -> Name -> Type -> Q [Dec]
 doCreateMockFnDecs mockType funNameStr mockFunName params funTypeInput monadVarName _ = do
   let funType = sanitizeType [monadVarName] funTypeInput
-  newFunSig <- do
-    let resultType =
-          AppT
-            (AppT ArrowT (VarT params))
-            (AppT (AppT (ConT ''MockT) (VarT monadVarName)) funType)
-        
-        mockTType = AppT (ConT ''MockT) (VarT monadVarName)
-        flag = AppT (ConT ''IsMockSpec) (VarT params)
-        createMockFnPred =
-          AppT (AppT (AppT (AppT (ConT ''MockDispatch) flag) (VarT params)) mockTType) funType
-        
-        recType = AppT (ConT ''InvocationRecorder) (AppT (ConT ''ResolvableParamsOf) funType)
-        recConstraint = AppT (ConT ''Typeable) recType
-        
-        paramsType = AppT (ConT ''ResolvableParamsOf) funType
-        paramsConstraint = AppT (ConT ''Typeable) paramsType
+  let resultType =
+        AppT
+          (AppT ArrowT (VarT params))
+          (AppT (AppT (ConT ''MockT) (VarT monadVarName)) funType)
+      
+      mockTType = AppT (ConT ''MockT) (VarT monadVarName)
+      flag = AppT (ConT ''IsMockSpec) (VarT params)
+      createMockFnPred =
+        AppT (AppT (AppT (AppT (ConT ''MockDispatch) flag) (VarT params)) mockTType) funType
+      
+      recType = AppT (ConT ''InvocationRecorder) (AppT (ConT ''ResolvableParamsOf) funType)
+      recConstraint = AppT (ConT ''Typeable) recType
+      
+      paramsType = AppT (ConT ''ResolvableParamsOf) funType
+      paramsConstraint = AppT (ConT ''Typeable) paramsType
 
-        baseCtx =
+
+  typeablePreds <- createTypeablePreds [funType]
+          
+  let baseCtx =
           [ createMockFnPred
           , AppT (ConT ''MonadIO) (VarT monadVarName)
           , recConstraint
           , paramsConstraint
           ]
-          ++ createTypeablePreds [funType]
-        
-        ctx = case mockType of
-          Partial -> baseCtx
-          Total -> baseCtx
+          ++ typeablePreds
+      
+      ctx = case mockType of
+              Partial -> baseCtx
+              Total -> baseCtx
     
-    let vars = collectFreeVars funType ++ [params, monadVarName]
-    let tvs = map (\n -> PlainTV n SpecifiedSpec) (nub vars)
-    let finalCtx = filter (not . isRedundantTypeable monadVarName) ctx
-    sigD mockFunName (pure (ForallT tvs finalCtx resultType))
+  let vars = collectFreeVars funType ++ [params, monadVarName]
+  let tvs = map (\n -> PlainTV n SpecifiedSpec) (nub vars)
+  let finalCtx = filter (not . isRedundantTypeable monadVarName) ctx
+  newFunSig <- sigD mockFunName (pure (ForallT tvs finalCtx resultType))
 
   mockBody <- createMockBody funNameStr [|p|] (VarT params)
   newFun <- funD mockFunName [clause [varP $ mkName "p"] (normalB (pure mockBody)) []]
 
   pure $ newFunSig : [newFun]
 
-doCreateConstantMockFnDecs :: (Quote m) => MockType -> String -> Name -> Type -> Name -> m [Dec]
+doCreateConstantMockFnDecs :: MockType -> String -> Name -> Type -> Name -> Q [Dec]
 doCreateConstantMockFnDecs Partial funNameStr mockFunName ty monadVarName = do
   let stubVar = mkName "p" 
   let tySanitized = sanitizeType [monadVarName] ty
@@ -253,13 +267,16 @@ doCreateConstantMockFnDecs Partial funNameStr mockFunName ty monadVarName = do
   let paramsType = AppT (ConT ''ResolvableParamsOf) tySanitized
   let paramsConstraint = AppT (ConT ''Typeable) paramsType
 
+  typeablePreds <- createTypeablePreds [tySanitized]
+  isAtomic <- isAtomicNonFunction tySanitized
+  let constraints = if isAtomic then [] else [recConstraint, paramsConstraint]
+
   let ctx =
         [ createMockFnPred
         , AppT (ConT ''MonadIO) (VarT monadVarName)
-        , recConstraint
-        , paramsConstraint
         ]
-        ++ createTypeablePreds [tySanitized]
+        ++ constraints
+        ++ typeablePreds
   let finalCtx = filter (not . isRedundantTypeable monadVarName) ctx
   let vars = collectFreeVars tySanitized ++ [stubVar, monadVarName]
   let tvs = map (\n -> PlainTV n SpecifiedSpec) (nub vars)
@@ -292,19 +309,22 @@ doCreateConstantMockFnDecs Total funNameStr mockFunName ty monadVarName = do
           createMockFnPred =
               AppT (AppT (AppT (AppT (ConT ''MockDispatch) flag) (VarT params)) mockTType) tySanitized
 
-          recType = AppT (ConT ''InvocationRecorder) (AppT (ConT ''ResolvableParamsOf) tySanitized)
-          recConstraint = AppT (ConT ''Typeable) recType
-          
-          paramsType = AppT (ConT ''ResolvableParamsOf) tySanitized
-          paramsConstraint = AppT (ConT ''Typeable) paramsType
+      let recType = AppT (ConT ''InvocationRecorder) (AppT (ConT ''ResolvableParamsOf) tySanitized)
+      let recConstraint = AppT (ConT ''Typeable) recType
+      
+      let paramsType = AppT (ConT ''ResolvableParamsOf) tySanitized
+      let paramsConstraint = AppT (ConT ''Typeable) paramsType
 
-          ctx =
+      typeablePreds <- createTypeablePreds [tySanitized]
+      isAtomic <- isAtomicNonFunction tySanitized
+      let constraints = if isAtomic then [] else [recConstraint, paramsConstraint]
+
+      let ctx =
             [ createMockFnPred
             , AppT (ConT ''MonadIO) (VarT monadVarName)
-            , recConstraint
-            , paramsConstraint
             ]
-            ++ createTypeablePreds [tySanitized]
+            ++ constraints
+            ++ typeablePreds
             
       let tvs = map (\n -> PlainTV n SpecifiedSpec) (nub (collectFreeVars tySanitized ++ [params, monadVarName]))
       let finalCtx = filter (not . isRedundantTypeable monadVarName) ctx
@@ -314,7 +334,7 @@ doCreateConstantMockFnDecs Total funNameStr mockFunName ty monadVarName = do
       newFun <- funD mockFunName [clause [varP params] (normalB (pure mockBody)) []]
       pure [newFunSig, newFun]
 
-doCreateEmptyVerifyParamMockFnDecs :: (Quote m) => String -> Name -> Name -> Type -> Name -> Type -> m [Dec]
+doCreateEmptyVerifyParamMockFnDecs :: String -> Name -> Name -> Type -> Name -> Type -> Q [Dec]
 doCreateEmptyVerifyParamMockFnDecs funNameStr mockFunName params funTypeInput monadVarName updatedType = do
   let funType = sanitizeType [monadVarName] funTypeInput
   newFunSig <- do
@@ -335,13 +355,14 @@ doCreateEmptyVerifyParamMockFnDecs funNameStr mockFunName params funTypeInput mo
         paramsType = AppT (ConT ''ResolvableParamsOf) funType
         paramsConstraint = AppT (ConT ''Typeable) paramsType
 
-        ctx =
+    typeablePreds <- createTypeablePreds [funType, verifyParams]
+    let ctx =
           [createMockFnPred]
             ++ [AppT (ConT ''MonadIO) (VarT monadVarName)]
             ++ [recConstraint, paramsConstraint]
-            ++ createTypeablePreds [funType, verifyParams]
+            ++ typeablePreds
         
-        finalCtx = filter (not . isRedundantTypeable monadVarName) ctx
+    let finalCtx = filter (not . isRedundantTypeable monadVarName) ctx
     
     let vars = collectFreeVars funType ++ [params, monadVarName]
     let tvs = map (\n -> PlainTV n SpecifiedSpec) (nub vars)

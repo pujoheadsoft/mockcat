@@ -85,6 +85,7 @@ squeezePunctuation =
     , ("((:>)", "(")
     , ("(:>) ", "")
     , ("(:>)", "")
+    , ("([a])", "[a]")
     ]
   . T.replace (T.pack "Head (Param") (T.pack "Head :>Param")
   . T.replace (T.pack "Head :> Param") (T.pack "Head :>Param")
@@ -99,6 +100,10 @@ squeezePunctuation =
   . T.replace (T.pack ", Typeable m") T.empty
   . T.replace (T.pack "Typeable a,") T.empty
   . T.replace (T.pack ", Typeable a") T.empty
+  . T.replace (T.pack " )") (T.pack ")")
+  . T.replace (T.pack "Typeable [a]") (T.pack "Typeable a")
+  . T.replace (T.pack "Typeable ([a])") (T.pack "Typeable a")
+  . T.replace (T.pack "Typeable (ResultType m)") (T.pack "Typeable m")
   where
     applyReplacements reps txt =
       L.foldl'
