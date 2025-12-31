@@ -1,7 +1,6 @@
 {-# LANGUAGE BlockArguments #-}
 {-# OPTIONS_GHC -Wno-type-defaults #-}
 {-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE QuasiQuotes #-}
 module Test.MockCat.ParamSpec (spec) where
 
 import Prelude hiding (and, or)

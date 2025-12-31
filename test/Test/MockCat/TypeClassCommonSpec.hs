@@ -10,13 +10,13 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE ConstraintKinds #-}
-{-# OPTIONS_GHC -Wno-orphans #-}
-{-# OPTIONS_GHC -Wno-name-shadowing #-}
-{-# OPTIONS_GHC -Wno-missing-export-lists #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE OverloadedRecordDot #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
+{-# OPTIONS_GHC -Wno-name-shadowing #-}
+{-# OPTIONS_GHC -Wno-missing-export-lists #-}
 {- HLINT ignore "Use newtype instead of data" -}
 
 module Test.MockCat.TypeClassCommonSpec where
@@ -388,9 +388,9 @@ specMultipleTypeclassConstraints (MultipleDeps { _ask, _readFile, _writeFile, _p
 
     result <- runMockT do
       _ <- _ask env
-      _ <- _readFile $ ("input.txt" ~> pack "content")
-      _ <- _writeFile $ ("output.text" ~> pack "modifiedContent" ~> ())
-      _ <- _post $ ((pack "modifiedContent" <> pack ("+" <> show env)) ~> ())
+      _ <- _readFile ("input.txt" ~> pack "content")
+      _ <- _writeFile ("output.text" ~> pack "modifiedContent" ~> ())
+      _ <- _post (pack "modifiedContent" <> pack ("+" <> show env) ~> ())
       apiFileOperationProgram modifyContentStub
 
     result `shouldBe` ()

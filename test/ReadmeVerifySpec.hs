@@ -2,8 +2,6 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE QuasiQuotes #-}
-
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -19,6 +17,7 @@ import Test.Hspec
 import Test.MockCat
 import Prelude hiding (readFile, writeFile, any)
 import Control.Monad (when)
+
 
 -- -------------------------------------------------------
 -- 2. Typeclass Mocking Definitions

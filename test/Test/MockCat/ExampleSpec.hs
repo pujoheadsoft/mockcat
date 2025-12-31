@@ -6,8 +6,6 @@
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 {-# OPTIONS_GHC -Wno-unused-do-bind #-}
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE QuasiQuotes #-}
-{-# OPTIONS_GHC -Wno-redundant-constraints #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -45,6 +43,7 @@ echoProgram = do
 makeMock [t|Teletype|]
 
 
+
 class Monad m => StrictTest m where
   strictFunc :: String -> m ()
 
@@ -52,6 +51,8 @@ instance StrictTest IO where
   strictFunc _ = pure ()
 
 makeMock [t|StrictTest|]
+
+
 
 spec :: Spec
 spec = do
