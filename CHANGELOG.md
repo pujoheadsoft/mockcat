@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to the
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
+## [1.2.1.0] - 2026-01-01
+### Added
+- **Dynamic Language Extension Detection**: `mockcat` now automatically identifies and requests only necessary extensions (e.g., `MultiParamTypeClasses`, `UndecidableInstances`) based on the target class definition.
+- **Granular Extension Optimization**: Simple multi-parameter type classes no longer require `AllowAmbiguousTypes` or `FunctionalDependencies` unless they are actually used.
+
+### Fixed
+- Resolved `NoVerification` scope issues in Template Haskell generated code.
+- Resolved ambiguous `any` occurrences in internal Template Haskell logic.
+- Fixed several typos in Template Haskell error messages.
+
 ## [1.2.0.0] - 2025-12-31
 ### Changed
 - **Breaking Change**: Changed the fixity of `expects` operator to `infixl 0` to resolve precedence issues with `$`.
