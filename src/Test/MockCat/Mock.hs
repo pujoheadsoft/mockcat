@@ -110,9 +110,9 @@ instance {-# OVERLAPPABLE #-}
   ( ToMockParams b ~ (Head :> Param b)
   , Normalize b ~ Param b
   , Typeable b
-  , ToParamArg b
+  , WrapResult b
   ) => CreateMock b where
-    toParams value = Head :> toParamArg value
+    toParams value = Head :> wrapResult value
 
 -- | Label type for naming mock functions.
 newtype Label = Label MockName

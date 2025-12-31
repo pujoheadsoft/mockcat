@@ -213,6 +213,8 @@ instance {-# OVERLAPPABLE #-} Eval a where
 errorContains :: String -> Selector E.ErrorCall
 errorContains sub (E.ErrorCall msg) = sub `isInfixOf` msg
 
-data NoEq = NoEq String deriving (Show)
-data NoShow = NoShow String deriving (Eq)
-data NoEqNoShow = NoEqNoShow String
+data NoEq = NoEq String deriving (Show, Eq)
+
+data NoShow = NoShow String deriving (Eq, Show)
+
+data NoEqNoShow = NoEqNoShow String deriving (Eq, Show)

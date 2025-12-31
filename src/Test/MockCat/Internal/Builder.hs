@@ -50,18 +50,19 @@ class BuildCurried args r fn | args r -> fn where
 buildCurried :: forall args r fn. BuildCurried args r fn => (args -> IO r) -> fn
 buildCurried = buildCurriedImpl
 
-instance (WrapParam a, fn ~ (a -> r)) => BuildCurried (Param a) r fn where
-  buildCurriedImpl f a = perform (f (wrap a))
+instance (ToParamArg a, Normalize a ~ Param a, fn ~ (a -> r)) => BuildCurried (Param a) r fn where
+  buildCurriedImpl f a = perform (f (toParamArg a))
 
 instance
   ( BuildCurried rest r fn
-  , WrapParam a
+  , ToParamArg a
+  , Normalize a ~ Param a
   , fn' ~ (a -> fn)
   ) =>
   BuildCurried (Param a :> rest) r fn'
   where
   buildCurriedImpl input a =
-    buildCurriedImpl @rest @r @fn (input . (\rest -> wrap a :> rest))
+    buildCurriedImpl @rest @r @fn (input . (\rest -> toParamArg a :> rest))
 
 -- | Class for building a curried pure function without relying on IO.
 class BuildCurriedPure args r fn | args r -> fn where
@@ -71,18 +72,19 @@ class BuildCurriedPure args r fn | args r -> fn where
 buildCurriedPure :: forall args r fn. BuildCurriedPure args r fn => (args -> r) -> fn
 buildCurriedPure = buildCurriedPureImpl
 
-instance (WrapParam a, fn ~ (a -> r)) => BuildCurriedPure (Param a) r fn where
-  buildCurriedPureImpl f a = f (wrap a)
+instance (ToParamArg a, Normalize a ~ Param a, fn ~ (a -> r)) => BuildCurriedPure (Param a) r fn where
+  buildCurriedPureImpl f a = f (toParamArg a)
 
 instance
   ( BuildCurriedPure rest r fn
-  , WrapParam a
+  , ToParamArg a
+  , Normalize a ~ Param a
   , fn' ~ (a -> fn)
   ) =>
   BuildCurriedPure (Param a :> rest) r fn'
   where
   buildCurriedPureImpl input a =
-    buildCurriedPureImpl @rest @r @fn (input . (\rest -> wrap a :> rest))
+    buildCurriedPureImpl @rest @r @fn (input . (\rest -> toParamArg a :> rest))
 
 -- | Class for building a curried function whose result stays in IO.
 class BuildCurriedIO args r fn | args r -> fn where
@@ -92,18 +94,19 @@ class BuildCurriedIO args r fn | args r -> fn where
 buildCurriedIO :: forall args r fn. BuildCurriedIO args r fn => (args -> IO r) -> fn
 buildCurriedIO = buildCurriedIOImpl
 
-instance (WrapParam a, fn ~ (a -> IO r)) => BuildCurriedIO (Param a) r fn where
-  buildCurriedIOImpl f a = f (wrap a)
+instance (ToParamArg a, Normalize a ~ Param a, fn ~ (a -> IO r)) => BuildCurriedIO (Param a) r fn where
+  buildCurriedIOImpl f a = f (toParamArg a)
 
 instance
   ( BuildCurriedIO rest r fn
-  , WrapParam a
+  , ToParamArg a
+  , Normalize a ~ Param a
   , fn' ~ (a -> fn)
   ) =>
   BuildCurriedIO (Param a :> rest) r fn'
   where
   buildCurriedIOImpl input a =
-    buildCurriedIOImpl @rest @r @fn (input . (\rest -> wrap a :> rest))
+    buildCurriedIOImpl @rest @r @fn (input . (\rest -> toParamArg a :> rest))
 
 -- | Class for creating a stub corresponding to the parameter description.
 class MockBuilder params fn verifyParams | params -> fn, params -> verifyParams where

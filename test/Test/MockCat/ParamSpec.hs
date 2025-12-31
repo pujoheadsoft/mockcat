@@ -41,8 +41,8 @@ spec = do
         param 10 == param 11 `shouldBe` False
       it "any (non-Eq type)" do
         (P.any :: Param NoEq) == (P.any :: Param NoEq) `shouldBe` True
-      it "ValueWrapper (non-Eq type) - always False" do
-        wrap NoEq == wrap NoEq `shouldBe` False
+      it "ValueWrapper (non-Eq type) - same pointer matches" do
+        P.wrapResult NoEq == P.wrapResult NoEq `shouldBe` True
 
     describe "Returns True if the expected value condition is met." do
       it "any" do

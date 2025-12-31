@@ -25,12 +25,12 @@ data SubLayer = SubLayer
     items :: [DeepNode]
   } deriving (Show, Eq, Generic)
 
-instance WrapParam User where wrap v = ExpectValue v (show v)
-instance WrapParam Config where wrap v = ExpectValue v (show v)
-instance WrapParam ComplexUser where wrap v = ExpectValue v (show v)
-instance WrapParam DeepNode where wrap v = ExpectValue v (show v)
-instance WrapParam MultiLayer where wrap v = ExpectValue v (show v)
-instance WrapParam SubLayer where wrap v = ExpectValue v (show v)
+instance WrapArg User where wrapArg v = ExpectValue v (show v)
+instance WrapArg Config where wrapArg v = ExpectValue v (show v)
+instance WrapArg ComplexUser where wrapArg v = ExpectValue v (show v)
+instance WrapArg DeepNode where wrapArg v = ExpectValue v (show v)
+instance WrapArg MultiLayer where wrapArg v = ExpectValue v (show v)
+instance WrapArg SubLayer where wrapArg v = ExpectValue v (show v)
 
 spec :: Spec
 spec = do

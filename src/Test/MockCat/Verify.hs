@@ -312,8 +312,8 @@ instance ToNormalizedArg (Param a :> rest) where
 instance ToNormalizedArg (Param a) where
   toNormalizedArg = id
 
-instance {-# OVERLAPPABLE #-} (NormalizeWithArg a ~ Param a, WrapParam a) => ToNormalizedArg a where
-  toNormalizedArg = wrap
+instance {-# OVERLAPPABLE #-} (NormalizeWithArg a ~ Param a, WrapArg a) => ToNormalizedArg a where
+  toNormalizedArg = wrapArg
 
 
 
