@@ -1,8 +1,6 @@
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE IncoherentInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# OPTIONS_GHC -Wno-missing-export-lists #-}
@@ -18,6 +16,7 @@ import Test.MockCat.Internal.Message
 import Test.MockCat.Param (EqParams(..))
 
 import Prelude hiding (lookup)
+import Data.Foldable (for_)
 
 -- | Verify an expectation directly against a resolved mock.
 --   This is used by 'mock' when expectations are provided.
@@ -78,8 +77,7 @@ expectsPositive (LessThanEqual _) = False -- "at most N" allows 0.
 
 -- | Verify overall call count (ignoring arguments)
 verifyResolvedCallCount :: ResolvedMock params -> CountVerifyMethod -> IO ()
-verifyResolvedCallCount (ResolvedMock mockName recorder) method =
-  verifyCallCount mockName recorder method
+verifyResolvedCallCount (ResolvedMock mockName recorder) = verifyCallCount mockName recorder
 
 -- | Verify call order using resolved mock directly.
 verifyResolvedOrder :: (EqParams params, Show params) => VerifyOrderMethod -> ResolvedMock params -> [params] -> IO ()
@@ -104,9 +102,7 @@ verifyCallCount ::
   IO ()
 verifyCallCount maybeName recorder method = do
   result <- tryVerifyCallCount maybeName recorder method
-  case result of
-    Nothing -> pure ()
-    Just msg -> errorWithoutStackTrace msg
+  for_ result errorWithoutStackTrace
 
 tryVerifyCallCount ::
   Maybe MockName ->
@@ -156,7 +152,7 @@ doVerify name list (MatchAny a) = do
   guard $ not (elemEqParams a list)
   pure $ verifyFailedMessage name list a
 doVerify name list (MatchAll a) = do
-  guard $ Prelude.any (\x -> not (eqParams a x)) list
+  guard $ not (all (eqParams a) list)
   pure $ verifyFailedMessage name list a
 
 doVerifyOrder ::
@@ -171,7 +167,7 @@ doVerifyOrder ExactlySequence name calledValues expectedValues
       pure $ verifyFailedOrderParamCountMismatch name calledValues expectedValues
   | otherwise = do
       let unexpectedOrders = collectUnExpectedOrder calledValues expectedValues
-      guard $ length unexpectedOrders > 0
+      guard $ not (null unexpectedOrders)
       pure $ verifyFailedSequence name unexpectedOrders
 doVerifyOrder PartiallySequence name calledValues expectedValues
   | length calledValues < length expectedValues = do
