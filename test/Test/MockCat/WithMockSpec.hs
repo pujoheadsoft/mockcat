@@ -460,4 +460,3 @@ spec = do
           runInIO $ void $ liftIO $ evaluate $ mockFn "first"
           runInIO $ void $ liftIO $ evaluate $ mockFn "second"
           runInIO $ void $ liftIO $ evaluate $ mockFn "third"
-

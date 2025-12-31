@@ -95,6 +95,7 @@ test-suite mockcat-test
       Test.MockCat.AssociationListSpec
       Test.MockCat.ConcurrencySpec
       Test.MockCat.ConsSpec
+      Test.MockCat.DeferredTypeErrorsSpec
       Test.MockCat.ExampleSpec
       Test.MockCat.HPCFallbackSpec
       Test.MockCat.HPCNestSpec
@@ -102,6 +103,7 @@ test-suite mockcat-test
       Test.MockCat.Internal.MockRegistrySpec
       Test.MockCat.MockSpec
       Test.MockCat.MockTSpec
+      Test.MockCat.MultipleMocksSpec
       Test.MockCat.ParamSpec
       Test.MockCat.PartialMockCommonSpec
       Test.MockCat.PartialMockSpec
