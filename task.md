@@ -1,0 +1,43 @@
+# Tasks
+
+- [x] Refactor `TypeClassSpec.hs` manual mocks
+    - [x] Create python script for `TypeClassSpec.hs` update
+    - [x] Run script and fix parse errors
+    - [x] Add missing `Typeable` constraints
+    - [x] Fix `_fnState2` and other special cases
+- [x] Refactor `PartialMockSpec.hs` manual mocks
+    - [x] Create python script for `PartialMockSpec.hs` update
+    - [x] Fix `_getInput` and `_findIds` signatures (polymorphism vs concrete types)
+    - [x] Fix `PartialMockDeps` constraints and signatures in `PartialMockCommonSpec.hs`
+- [x] Fix `FunctionBuilder.hs` (Template Haskell generation)
+    - [x] Fix `Generic` constant mock generation (Case 3) return type logic (`tySanitized`)
+    - [x] Fix `Partial` constant mock generation parameter passing (remove `Head` wrapper)
+    - [x] Ensure `InvocationRecorder` and constraints match `PartialMockDeps`
+- [x] Fix Property Tests (`Property/*.hs`)
+    - [x] Enable `TypeApplications` extension
+    - [x] Fix `expects` precedence with `$`
+- [x] Fix `Internal/Types.hs`
+    - [x] Add `deriving (Show, Eq)` to `Expectation` and helper types (`CountVerifyMethod`, `VerifyOrderMethod`)
+- [x] Verify with `stack test`
+    - [x] Improve build successful (compilation passes)
+- [x] Implement Error Message Diff
+    - [x] Analyze `WithMockErrorDiffSpec.hs` failures related to indentation and caret alignment
+    - [x] Update `Message.hs` to use 12-space base indentation for correct alignment
+    - [x] Correct test expectations in `WithMockErrorDiffSpec.hs` using precise debug output
+    - [x] Verify all `WithMockErrorDiffSpec` tests pass with `stack test`
+- [x] Unify `shouldBeCalled` error diffs with `withMock` format
+    - [x] Refactor `verifyFailedMessage` in `Message.hs`
+    - [x] Update `ShouldBeCalledErrorDiffSpec.hs` expectations
+    - [x] Fix GHC 9.8.4 build warnings
+    - [x] Remove unused imports in `Verify.hs`, `Builder.hs`
+    - [x] Remove unused imports and do-binds in `Mock.hs`
+    - [x] Remove unused imports and `ExtractParams` in `WithMock.hs`
+    - [x] Temporarily suppress redundant constraint warnings in `PartialMockSpec.hs`, `TypeClassSpec.hs`, `ReadmeVerifySpec.hs` (GHC 9.8.4)
+    - [x] Remove redundant imports in `PartialMockCommonSpec.hs` and `TypeClassCommonSpec.hs`
+- [x] Final Cleanup
+    - [x] Properly remove redundant constraints
+    - [x] Refine `FunctionBuilder.hs` (Preserve `Typeable m`, filter `Typeable (m a)`)
+    - [x] Verify `ExampleSpec` and other tests pass without warnings
+- [x] Fix `ReadmeVerifySpec.hs` (Imports, use `makeMock`)
+    in `PartialMockSpec.hs`, `TypeClassSpec.hs`, `ReadmeVerifySpec.hs` (remove pragma and clean code)
+```

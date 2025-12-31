@@ -63,14 +63,22 @@ collectTypeVars (UInfixT t1 _ t2) = collectTypeVars t1 ++ collectTypeVars t2
 collectTypeVars (ForallT _ _ t) = collectTypeVars t
 collectTypeVars (ImplicitParamT _ t) = collectTypeVars t
 collectTypeVars _ = []
+    
+peel :: Type -> Type
+peel (SigT t _) = peel t
+peel (ParensT t) = peel t
+peel t = t
 
 collectTypeableTargets :: Type -> [Type]
 collectTypeableTargets ty =
   case ty of
     VarT _ -> [ty]
     AppT _ _ ->
-      let (f, args) = splitApps ty
-      in ty : collectTypeableTargets f ++ concatMap collectTypeableTargets args
+      (let (headTy, args) = splitApps ty
+       in case peel headTy of
+            VarT _ -> peel headTy : concatMap collectTypeableTargets args 
+            ArrowT -> concatMap collectTypeableTargets args
+            _ -> [ty])
     SigT t _ -> collectTypeableTargets t
     ParensT t -> collectTypeableTargets t
     InfixT t1 _ t2 -> collectTypeableTargets t1 ++ collectTypeableTargets t2

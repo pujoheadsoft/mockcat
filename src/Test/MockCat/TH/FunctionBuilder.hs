@@ -212,7 +212,11 @@ doCreateMockFnDecs mockType funNameStr mockFunName params funTypeInput monadVarN
         paramsConstraint = AppT (ConT ''Typeable) paramsType
 
         baseCtx =
-          [createMockFnPred, AppT (ConT ''MonadIO) (VarT monadVarName), recConstraint, paramsConstraint]
+          [ createMockFnPred
+          , AppT (ConT ''MonadIO) (VarT monadVarName)
+          , recConstraint
+          , paramsConstraint
+          ]
           ++ createTypeablePreds [funType]
         
         ctx = case mockType of
