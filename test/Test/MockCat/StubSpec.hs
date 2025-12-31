@@ -58,5 +58,17 @@ spec = do
       f "value1" "value2" `shouldBe` True
       f "value2" "value3" `shouldBe` False
 
+  describe "user-defined type" $ do
+    it "stub with user-defined type arguments and return value" $ do
+      let f = stub $ Post 1 "title" ~> Post 2 "title2"
+      f (Post 1 "title") `shouldBe` Post 2 "title2"
+
+    it "stub with user-defined type partial application" $ do
+      let f = stub $ Post 1 "title" ~> Post 2 "title2" ~> True
+      f (Post 1 "title") (Post 2 "title2") `shouldBe` True
+
+data Post = Post { postId :: Int, title :: String }
+  deriving (Eq, Show)
+
 errorContains :: String -> Selector ErrorCall
 errorContains sub (ErrorCall msg) = sub `isInfixOf` msg

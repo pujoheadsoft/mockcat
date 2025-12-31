@@ -10,6 +10,7 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE TypeApplications #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 {-# OPTIONS_GHC -Wno-unused-do-bind #-}
@@ -17,9 +18,9 @@
 module Test.MockCat.TypeClassSpec (spec) where
 
 import Data.Text (Text)
-import Test.Hspec (Spec)
+import Test.Hspec (Spec, describe, it, shouldBe, pendingWith)
 import Test.MockCat
-import Prelude hiding (readFile, writeFile)
+import Prelude hiding (readFile, writeFile, any)
 import Data.Data
 import Data.List (find)
 import GHC.TypeLits (KnownSymbol, symbolVal)
@@ -600,3 +601,29 @@ spec = do
         , SpecCommon.concurrencyDeps              = SpecCommon.ConcurrencyDeps _readFile
         }
   SpecCommon.spec deps
+
+  describe "user-defined type in type class" $ do
+    it "should support user-defined types in MockT" $ do
+      pendingWith "Crashing GHC RTS"
+      let p = Post 1 "title"
+      -- runMockT manages the MockTEnv context
+      runMockT @IO $ do
+        mockFn <- mock (label "_processPost") (any ~> True) `expects` (called once `with` p)
+        addDefinition (Definition (Proxy :: Proxy "_processPost") mockFn NoVerification)
+        
+        result <- processPost p
+        liftIO $ result `shouldBe` True
+
+data Post = Post { postId :: Int, title :: String }
+  deriving (Eq, Show)
+
+class Monad m => UserDefinedClass m where
+  processPost :: Post -> m Bool
+
+instance MonadIO m => UserDefinedClass (MockT m) where
+  processPost p = MockT do
+    defs <- getDefinitions
+    let
+      mockFn = fromMaybe (error "no answer found stub function `_processPost`.") $ findParam (Proxy :: Proxy "_processPost") defs
+      !result = mockFn p
+    lift result

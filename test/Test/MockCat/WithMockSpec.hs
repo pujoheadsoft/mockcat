@@ -29,6 +29,9 @@ import Control.Exception (try, ErrorCall(..))
 -- Generate mocks for FileOperation
 makeAutoLiftMock [t|FileOperation|]
 
+data Post = Post { postId :: Int, title :: String }
+  deriving (Eq, Show)
+
 perCall :: Int -> a -> a
 perCall _ x = x
 
@@ -43,6 +46,27 @@ operationProgram inputPath outputPath = do
 
 spec :: Spec
 spec = do
+  describe "user-defined type comparison" $ do
+    it "should be able to compare user-defined types with Eq and Show" $ do
+      withMock $ do
+        let p = Post 1 "title"
+        f <- mock (p ~> True)
+        liftIO $ f p `shouldBe` True
+
+    it "should work with expects and specific value" $ do
+      withMock $ do
+        let p = Post 1 "title"
+        f <- mock (any ~> True)
+          `expects` (called once `with` p)
+        liftIO $ f p `shouldBe` True
+
+    it "should work with expects and ANY" $ do
+      withMock $ do
+        let p = Post 1 "title"
+        f <- mock (any @Post ~> True)
+          `expects` (called once `with` any @Post)
+        liftIO $ f p `shouldBe` True
+
   describe "withMock basic functionality" $ do
     it "simple mock with expects" $ do
       withMock $ do 
@@ -92,12 +116,6 @@ spec = do
 
         void $ liftIO $ evaluate $ mockFn "a"
 
-    it "anything expectation fails when not called" $ do
-      withMock (do 
-        _ <- mock (any @String ~> True)
-          `expects` called once
-        pure ()) `shouldThrow` anyErrorCall
-
     it "anything expectation error message when not called" $ do
       result <- try $ withMock $ do 
         _ <- mock (any @String ~> True)
@@ -111,6 +129,10 @@ spec = do
                 "   but got: 0"
           msg `shouldBe` expected
         _ -> fail "Expected ErrorCall"
+
+
+
+
 
     it "never expectation without args succeeds when not called" $ do
       withMock $ do 

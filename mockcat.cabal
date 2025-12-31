@@ -122,7 +122,6 @@ test-suite mockcat-test
       Test.MockCat.TypeClassSpec
       Test.MockCat.TypeClassTHSpec
       Test.MockCat.UnsafeCheck
-      Test.MockCat.UserDefinedTypeSpec
       Test.MockCat.WithMockErrorDiffSpec
       Test.MockCat.WithMockSpec
       Paths_mockcat
