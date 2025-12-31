@@ -35,7 +35,7 @@ spec = describe "HPC Nesting and Isolation" $ do
 
   it "withMock (using expects) is immune to history reset" $ do
     withMock $ do
-      f <- mock $ (param "a" ~> True) 
+      f <- mock (param "a" ~> True) 
            `expects` do
              called once `with` "a"
       
@@ -60,7 +60,7 @@ spec = describe "HPC Nesting and Isolation" $ do
   it "Nested withMock blocks work correctly even with same-type mocks" $ do
     withMock $ do
       -- Outer mock
-      outer <- mock $ (param "a" ~> True) 
+      outer <- mock (param "a" ~> True) 
            `expects` do
              called once
       
@@ -70,7 +70,7 @@ spec = describe "HPC Nesting and Isolation" $ do
         -- Inner withMock
         withMock $ do
           -- Inner mock with SAME signature
-          inner <- mock $ (param "a" ~> True)
+          inner <- mock (param "a" ~> True)
                `expects` do
                  called once
           
@@ -110,7 +110,7 @@ spec = describe "HPC Nesting and Isolation" $ do
       _ <- liftIO $ evaluate (f "a")
       
       liftIO $ withMock $ do
-        g <- mock $ param "b" ~> True `expects` do called once
+        g <- mock (param "b" ~> True) `expects` do called once
         _ <- liftIO $ evaluate (g "b")
         pure ()
       

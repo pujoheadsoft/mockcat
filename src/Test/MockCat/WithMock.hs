@@ -37,11 +37,11 @@ module Test.MockCat.WithMock
   , verifyExpectationDirect
   ) where
 
-import Control.Monad.IO.Class ()
+import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.Reader (ReaderT(..), runReaderT)
-import Control.Concurrent.STM (newTVarIO, readTVarIO)
+import Control.Concurrent.STM (newTVarIO, readTVarIO, atomically, modifyTVar')
 import Control.Monad.State (get, put, modify)
-import Test.MockCat.Verify (VerificationSpec(..), TimesSpec(..), times, once, never, atLeast, atMost, greaterThan, lessThan, anything)
+import Test.MockCat.Verify (TimesSpec(..), times, once, never, atLeast, atMost, greaterThan, lessThan, anything, ResolvableMock, ResolvableParamsOf)
 import Test.MockCat.Internal.Verify
   ( verifyExpectationDirect
   )
@@ -53,9 +53,15 @@ import Test.MockCat.Internal.Types
   , Expectations(..)
   , runExpectations
   , addExpectation
+  , InvocationRecorder(..)
+  , ResolvedMock(..)
   )
+import qualified Test.MockCat.Internal.MockRegistry as MockRegistry
 
-import Test.MockCat.Param (Param(..), param, MockSpec(..), ArgsOf)
+import Test.MockCat.Param (Param(..), param)
+import Data.Kind (Type)
+import Data.Proxy (Proxy(..))
+
 
 
 -- | Run a block with mock expectations that are automatically verified
@@ -71,41 +77,68 @@ withMock action = do
 
 -- | Attach expectations to a mock function
 --   Supports both single expectation and multiple expectations in a do block
-infixr 0 `expects`
+infixl 0 `expects`
 
+-- | Type class to extract params type from an expectation expression
+class ExtractParams exp where
+  type ExpParams exp :: Type
+  extractParams :: exp -> Proxy (ExpParams exp)
 
+instance ExtractParams (Expectations params ()) where
+  type ExpParams (Expectations params ()) = params
+  extractParams _ = Proxy
 
--- | Type class for building expectations from various expression types.
--- This is used to convert the expectation DSL into a list of Expectation values.
-class BuildExpectationsForParams exp params | exp -> params where
-  buildExpectationsForParams :: exp -> [Expectation params]
+instance ExtractParams (fn -> Expectations params ()) where
+  type ExpParams (fn -> Expectations params ()) = params
+  extractParams _ = Proxy
 
--- | Instance for Expectations monad
-instance BuildExpectationsForParams (Expectations params ()) params where
-  buildExpectationsForParams = runExpectations
+-- | Register expectations for a mock function
+--   Accepts an Expectations builder
+--   The params type is inferred from the mock function type or the expectation
+class BuildExpectations fn exp where
+  buildExpectations :: fn -> exp -> [Expectation (ResolvableParamsOf fn)]
 
--- | Instance for VerificationSpec
-instance BuildExpectationsForParams (VerificationSpec params) params where
-  buildExpectationsForParams spec =
-    case spec of
-      CountVerification method args -> [CountExpectation method args]
-      CountAnyVerification method -> [CountAnyExpectation method]
-      OrderVerification method argsList -> [OrderExpectation method argsList]
-      SimpleVerification args -> [SimpleExpectation args]
-      AnyVerification -> [AnyExpectation]
+-- | Instance for direct Expectations value
+--   The params type must match ResolvableParamsOf fn
+instance forall fn params. (ResolvableParamsOf fn ~ params) => BuildExpectations fn (Expectations params ()) where
+  buildExpectations _ = runExpectations
 
--- | Attach expectations to paramerters.
---   This creates a MockSpec which can be passed to 'mock' or typeclass mock methods.
---   
---   > mock $ any ~> True `expects` do ...
+-- | Instance for function form (fn -> Expectations params ())
+--   This allows passing a function that receives the mock function
+instance forall fn params. (ResolvableParamsOf fn ~ params) => BuildExpectations fn (fn -> Expectations params ()) where
+  buildExpectations fn f = runExpectations (f fn)
+
 expects ::
-  forall params exp.
-  ( BuildExpectationsForParams exp (ArgsOf params)
+  forall m fn exp params.
+  ( MonadIO m
+  , MonadWithMockContext m
+  , ResolvableMock fn
+  , ResolvableParamsOf fn ~ params
+  , ExtractParams exp
+  , ExpParams exp ~ params
+  , BuildExpectations fn exp
+  , Show params
+  , Eq params
+
   ) =>
-  params ->
+  m fn ->
   exp ->
-  MockSpec params [Expectation (ArgsOf params)]
-expects params exp = MockSpec params (buildExpectationsForParams exp)
+  m fn
+expects mockFnM exp = do
+  (WithMockContext ctxVar) <- askWithMockContext
+  -- Try to help type inference by using exp first
+  let _ = extractParams exp :: Proxy params
+  mockFn <- mockFnM
+  -- Get the recorder from the thread-local store (set by mock/register)
+  -- This avoids StableName lookup and is HPC-safe
+  (mockName, mRecorder) <- liftIO $ MockRegistry.getLastRecorder @(InvocationRecorder params)
+  let resolved = case mRecorder of
+        Just recorder -> ResolvedMock mockName recorder
+        Nothing -> error "expects: mock recorder not found. Use mock inside withMock/runMockT."
+  let expectations = buildExpectations mockFn exp
+  let actions = map (verifyExpectationDirect resolved) expectations
+  liftIO $ atomically $ modifyTVar' ctxVar (++ actions)
+  pure mockFn
 
 -- | Create a count expectation builder
 --   The params type is inferred from the mock function in expects

@@ -15,7 +15,7 @@ spec = do
     it "distinguishes mocks of different types" do
       -- Case 1: Different types should be distinguishable by type check in fallback
       f <- mock $ "a" ~> (1 :: Int)
-      g <- mock $ (1 :: Int) ~> "b"
+      g <- mock ((1 :: Int) ~> "b")
       
       -- Verify f (String -> Int)
       f "a" `shouldBe` 1

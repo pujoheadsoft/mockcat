@@ -25,7 +25,7 @@ makeAutoLiftMock [t|LazyUnaryAction|]
 prop_lazy_unforced_not_counted :: Property
 prop_lazy_unforced_not_counted = monadicIO $ do
   run $ runMockT $ do
-    _ <- _lazyUnaryAction $ (param (10 :: Int) ~> (42 :: Int))
+    _ <- _lazyUnaryAction ((param (10 :: Int) ~> (42 :: Int)))
       `expects` do
         called never
     -- Do NOT force the call; only build a thunk.
@@ -38,7 +38,7 @@ prop_lazy_unforced_not_counted = monadicIO $ do
 prop_lazy_forced_counted :: Property
 prop_lazy_forced_counted = monadicIO $ do
   run $ runMockT $ do
-    _ <- _lazyUnaryAction $ (param (10 :: Int) ~> (7 :: Int))
+    _ <- _lazyUnaryAction ((param (10 :: Int) ~> (7 :: Int)))
       `expects` do
         called once
     v <- lazyUnaryAction 10   -- forcing the monadic action executes the mock

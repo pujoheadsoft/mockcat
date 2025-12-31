@@ -260,7 +260,7 @@ specVerificationFailures (PartialMockDeps { _findIds, _findById }) = describe "V
 
   it "fails when _findIds is defined but findIds is never called" do
     (runMockT @IO do
-      _ <- _findIds $ Head :> param ([1 :: Int, 2] :: [Int])
+      _ <- _findIds (Head :> param ([1 :: Int, 2] :: [Int]))
         `expects` do
           called once
       -- findIds is never called
@@ -272,7 +272,7 @@ specVerificationFailures (PartialMockDeps { _findIds, _findById }) = describe "V
             onCase $ (1 :: Int) ~> "id1"
             onCase $ (2 :: Int) ~> "id2"
             onCase $ (3 :: Int) ~> "id3"
-      _ <- _findById $ casesDef `expects` do
+      _ <- _findById casesDef `expects` do
         called once
       -- findById is never called
       pure ()) `shouldThrow` missingCall "_findById"
