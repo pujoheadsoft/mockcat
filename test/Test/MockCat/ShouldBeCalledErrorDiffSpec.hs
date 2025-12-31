@@ -8,6 +8,7 @@ module Test.MockCat.ShouldBeCalledErrorDiffSpec (spec) where
 
 import Test.Hspec (Spec, describe, it, shouldThrow, errorCall)
 import Test.MockCat
+import Test.MockCat.SharedSpecDefs (Post(..))
 import Control.Exception (evaluate)
 import Prelude hiding (any)
 import GHC.Generics (Generic)
@@ -24,8 +25,6 @@ data SubLayer = SubLayer
   { layer2 :: String,
     items :: [DeepNode]
   } deriving (Show, Eq, Generic)
-
-
 
 spec :: Spec
 spec = do
@@ -44,6 +43,28 @@ spec = do
             \  Call history (1 calls):\n\
             \    [Closest] 1. \"hello haskell\""
       f `shouldBeCalled` "hello world" `shouldThrow` errorCall expectedError
+
+    it "shows diff for user-defined type (Post)" do
+      f <- mock (Post 2 "wrong" ~> "ok")
+      _ <- evaluate $ f (Post 2 "wrong")
+      let expectedError =
+            "function was not called with the expected arguments.\n\
+            \\n\
+            \  Closest match:\n\
+            \    expected: Post {postId = 1, title = \"title\"}\n\
+            \     but got: Post {postId = 2, title = \"wrong\"}\n\
+            \              " <> replicate 15 ' ' <> "^^^^^^^^^^^^^^^^^^^\n\
+            \  Specific differences:\n\
+            \    - `postId`:\n\
+            \        expected: 1\n\
+            \         but got: 2\n\
+            \    - `title`:\n\
+            \        expected: \"title\"\n\
+            \         but got: \"wrong\"\n\
+            \\n\
+            \  Call history (1 calls):\n\
+            \    [Closest] 1. Post {postId = 2, title = \"wrong\"}"
+      f `shouldBeCalled` Post 1 "title" `shouldThrow` errorCall expectedError
 
     it "shows diff for long list" do
       f <- mock ((any :: Param [Int]) ~> "ok")

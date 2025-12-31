@@ -8,6 +8,7 @@ module Test.MockCat.WithMockErrorDiffSpec (spec) where
 
 import Test.Hspec (Spec, describe, it, shouldThrow, errorCall)
 import Test.MockCat
+import Test.MockCat.SharedSpecDefs (Post(..))
 import Control.Exception (evaluate)
 import Control.Monad.IO.Class (liftIO)
 import Prelude hiding (any)
@@ -46,6 +47,27 @@ spec = do
       withMock (do
         f <- mock ((any :: Param String) ~> "ok") `expects` (called once `with` "hello world")
         _ <- liftIO $ evaluate $ f "hello haskell"
+        pure ()
+        ) `shouldThrow` errorCall expectedError
+
+    it "shows diff for user-defined type (Post)" do
+      let expectedError =
+            "function was not called with the expected arguments.\n\
+            \  Specific differences:\n\
+            \    - `postId`:\n\
+            \        expected: 1\n\
+            \         but got: 2\n\
+            \    - `title`:\n\
+            \        expected: \"title\"\n\
+            \         but got: \"wrong\"\n\
+            \\n\
+            \Full context:\n\
+            \  expected: Post {postId = 1, title = \"title\"}\n\
+            \   but got: Post {postId = 2, title = \"wrong\"}\n\
+            \                           ^^^^^^^^^^^^^^^^^^^"
+      withMock (do
+        f <- mock (Post 1 "title" ~> "ok")
+        _ <- liftIO $ evaluate $ f (Post 2 "wrong")
         pure ()
         ) `shouldThrow` errorCall expectedError
 
