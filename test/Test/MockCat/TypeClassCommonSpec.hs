@@ -213,6 +213,10 @@ data ConcurrencyAndUnliftIODeps = ConcurrencyAndUnliftIODeps
   { _readFile :: MockFor (FilePath -> Text)
   }
 
+data UserDefinedTypeDeps = UserDefinedTypeDeps
+  { _processPost :: MockFor (Post -> Bool)
+  }
+
 -- backward-compatible constructor pattern synonyms (preserve old names used by test modules)
 pattern TtyDeps :: MockFor (IO String) -> MockFor (String -> IO ()) -> SequentialIODeps
 pattern TtyDeps r w <- SequentialIODeps { _readTTY = r, _writeTTY = w }
@@ -276,6 +280,7 @@ data SpecDeps = SpecDeps
   , associatedTypeFamiliesDeps        :: AssociatedTypeFamiliesDeps
   , concurrencyAndUnliftIODeps        :: ConcurrencyAndUnliftIODeps
   , concurrencyDeps                   :: ConcurrencyAndUnliftIODeps
+  , userDefinedTypeDeps               :: UserDefinedTypeDeps
   }
 
 -- SpecDeps is defined above; test modules construct a `SpecDeps` and call the individual specs
@@ -300,6 +305,7 @@ spec ::
   , AssocTypeTest (MockT IO)
   , ResultType (MockT IO) ~ Int
   , MonadAsync (MockT IO)
+  , UserDefinedClass (MockT IO)
   ) =>
   SpecDeps ->
   Spec
@@ -319,6 +325,7 @@ spec deps = do
   specAssociatedTypeFamiliesSupport deps.associatedTypeFamiliesDeps
   specConcurrencyAndUnliftIO deps.concurrencyAndUnliftIODeps
   specMonadReaderContextMocking deps.readerContextDeps
+  specUserDefinedTypeSupport deps.userDefinedTypeDeps
 
   -- Verification failures
   specBasicVerificationFailureDetection deps.basicDeps
@@ -623,6 +630,22 @@ specConcurrencyAndUnliftIO (ConcurrencyAndUnliftIODeps { _readFile }) = do
       pure content
 
     result `shouldBe` pack "test content"
+
+specUserDefinedTypeSupport ::
+  ( UserDefinedClass (MockT IO)
+  ) =>
+  UserDefinedTypeDeps ->
+  Spec
+specUserDefinedTypeSupport (UserDefinedTypeDeps { _processPost }) = do
+  it "User defined class method handles shared user-defined type correctly" do
+    let p = Post 1 "title"
+    runMockT @IO $ do
+      _ <- _processPost $ do
+         -- verify that we can match exactly on the user defined type
+         onCase $ p ~> True
+      
+      result <- processPost p 
+      liftIO $ result `shouldBe` True
 
 -- Verification Failure Tests
 

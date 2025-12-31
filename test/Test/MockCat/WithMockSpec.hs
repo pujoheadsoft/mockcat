@@ -29,8 +29,7 @@ import Control.Exception (try, ErrorCall(..))
 -- Generate mocks for FileOperation
 makeAutoLiftMock [t|FileOperation|]
 
-data Post = Post { postId :: Int, title :: String }
-  deriving (Eq, Show)
+
 
 perCall :: Int -> a -> a
 perCall _ x = x

@@ -39,7 +39,9 @@ module Test.MockCat.SharedSpecDefs
     TestClass(..),
     Teletype(..),
     UserInput(..),
-    UserInputGetter(..)
+    UserInputGetter(..),
+    Post(..),
+    UserDefinedClass(..)
   )
 where
 
@@ -155,3 +157,9 @@ findValueNI :: FinderNoImplicit a b m => m [b]
 findValueNI = do
   ids <- findIdsNI
   mapM findByIdNI ids
+
+data Post = Post { postId :: Int, title :: String }
+  deriving (Eq, Show)
+
+class Monad m => UserDefinedClass m where
+  processPost :: Post -> m Bool

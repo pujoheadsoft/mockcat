@@ -18,7 +18,7 @@
 module Test.MockCat.TypeClassSpec (spec) where
 
 import Data.Text (Text)
-import Test.Hspec (Spec, describe, it, shouldBe, pendingWith)
+import Test.Hspec (Spec)
 import Test.MockCat
 import Prelude hiding (readFile, writeFile, any)
 import Data.Data
@@ -571,6 +571,27 @@ _writeTTY p = MockT $ do
   addDefinition (Definition (Proxy :: Proxy "_writeTTY") mockInstance NoVerification)
   pure mockInstance
 
+_processPost ::
+  ( MockDispatch (IsMockSpec params) params (MockT m) (Post -> Bool)
+  , MonadIO m
+  ) =>
+  params ->
+  MockT m (Post -> Bool)
+_processPost p = MockT $ do
+  mockInstance <- unMockT $ mock (label "_processPost") p
+  ensureVerifiable mockInstance
+  addDefinition (Definition (Proxy :: Proxy "_processPost") mockInstance NoVerification)
+  pure mockInstance
+
+instance MonadIO m => UserDefinedClass (MockT m) where
+  processPost p = MockT do
+    defs <- getDefinitions
+    let
+      mockFn :: Post -> Bool
+      mockFn = fromMaybe (error "no answer found stub function `_processPost`.") $ findParam (Proxy :: Proxy "_processPost") defs
+      !result = mockFn p
+    lift $ pure result
+
 spec :: Spec
 spec = do
   -- build SpecDeps and call aggregated spec entrypoint
@@ -599,31 +620,6 @@ spec = do
         , SpecCommon.assocTypeDeps                = SpecCommon.AssocTypeDeps _produce
         , SpecCommon.concurrencyAndUnliftIODeps   = SpecCommon.ConcurrencyAndUnliftIODeps _readFile
         , SpecCommon.concurrencyDeps              = SpecCommon.ConcurrencyDeps _readFile
+        , SpecCommon.userDefinedTypeDeps          = SpecCommon.UserDefinedTypeDeps _processPost
         }
   SpecCommon.spec deps
-
-  describe "user-defined type in type class" $ do
-    it "should support user-defined types in MockT" $ do
-      pendingWith "Crashing GHC RTS"
-      let p = Post 1 "title"
-      -- runMockT manages the MockTEnv context
-      runMockT @IO $ do
-        mockFn <- mock (label "_processPost") (any ~> True) `expects` (called once `with` p)
-        addDefinition (Definition (Proxy :: Proxy "_processPost") mockFn NoVerification)
-        
-        result <- processPost p
-        liftIO $ result `shouldBe` True
-
-data Post = Post { postId :: Int, title :: String }
-  deriving (Eq, Show)
-
-class Monad m => UserDefinedClass m where
-  processPost :: Post -> m Bool
-
-instance MonadIO m => UserDefinedClass (MockT m) where
-  processPost p = MockT do
-    defs <- getDefinitions
-    let
-      mockFn = fromMaybe (error "no answer found stub function `_processPost`.") $ findParam (Proxy :: Proxy "_processPost") defs
-      !result = mockFn p
-    lift result

@@ -41,6 +41,7 @@ makeMock [t|ExplicitlyReturnMonadicValuesTest|]
 makeAutoLiftMock [t|DefaultMethodTest|]
 makeAutoLiftMock [t|AssocTypeTest|]
 makeMock [t|TestClass|]
+makeAutoLiftMock [t|UserDefinedClass|]
 
 instance (MonadUnliftIO m) => MonadAsync (MockT m) where
   mapConcurrently = traverse
@@ -77,5 +78,6 @@ spec = do
         , SpecCommon.assocTypeDeps                = SpecCommon.AssocTypeDeps _produce
         , SpecCommon.concurrencyAndUnliftIODeps   = SpecCommon.ConcurrencyAndUnliftIODeps _readFile
         , SpecCommon.concurrencyDeps              = SpecCommon.ConcurrencyDeps _readFile
+        , SpecCommon.userDefinedTypeDeps          = SpecCommon.UserDefinedTypeDeps _processPost
         }
   SpecCommon.spec deps

@@ -4,6 +4,7 @@ module Test.MockCat.StubSpec where
 
 import Test.Hspec
 import Test.MockCat
+import Test.MockCat.SharedSpecDefs (Post(..))
 import Control.Exception (evaluate, ErrorCall(..))
 import Data.List (isInfixOf)
 
@@ -67,8 +68,7 @@ spec = do
       let f = stub $ Post 1 "title" ~> Post 2 "title2" ~> True
       f (Post 1 "title") (Post 2 "title2") `shouldBe` True
 
-data Post = Post { postId :: Int, title :: String }
-  deriving (Eq, Show)
+
 
 errorContains :: String -> Selector ErrorCall
 errorContains sub (ErrorCall msg) = sub `isInfixOf` msg

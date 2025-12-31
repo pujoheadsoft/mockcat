@@ -104,12 +104,12 @@ instance {-# OVERLAPPABLE #-} WrapResult a where
 
 instance Eq (Param a) where
   ExpectValue a _ == ExpectValue b _ = a == b
-  ValueWrapper a _ == ValueWrapper b _ = compareFunction a b
   ExpectValue a _ == ValueWrapper b _ = a == b
-  ValueWrapper a _ == ExpectValue b _ = a == b
   ExpectValue a _ == ExpectCondition m _ = m a
-  ExpectCondition m _ == ExpectValue b _ = m b
+  ValueWrapper a _ == ValueWrapper b _ = compareFunction a b
+  ValueWrapper a _ == ExpectValue b _ = a == b
   ValueWrapper a _ == ExpectCondition m _ = m a
+  ExpectCondition m _ == ExpectValue b _ = m b
   ExpectCondition m _ == ValueWrapper a _ = m a
   ExpectCondition _ "any" == ExpectCondition _ _ = True
   ExpectCondition _ _ == ExpectCondition _ "any" = True
