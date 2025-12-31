@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to the
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
+## [1.2.0.0] - 2025-12-31
+### Changed
+- **Breaking Change**: Changed the fixity of `expects` operator to `infixl 0` to resolve precedence issues with `$`.
+    - **Impact**: Code using `mock $ ... expects ...` will now fail to compile.
+    - **Migration**: Wrap the mock definition in parentheses: `mock (... ~> ...) expects ...`.
+- **Breaking Change**: `expects` now strictly enforces that it can only be applied to a mock creation action (`m fn`).
+    - Attempting to apply `expects` directly to a `MockSpec` (e.g. `(any ~> 1) expects ...`) or an already instantiated function will result in a compile-time `TypeError`.
+- Removed redundant `Typeable` constraints from `expects`, enabling cleaner builds on GHC 9.8+.
+
 ## [1.1.0.0] - 2025-12-29
 ### Added
 - **HPC Coverage Support**: Verification logic now robustly handles unstable `StableNames` caused by HPC instrumentation (`stack test --coverage`).

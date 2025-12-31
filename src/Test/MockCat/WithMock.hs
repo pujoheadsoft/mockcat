@@ -9,7 +9,6 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TypeApplications #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 
@@ -119,7 +118,6 @@ expects ::
   , BuildExpectations fn exp
   , Show params
   , Eq params
-
   ) =>
   m fn ->
   exp ->

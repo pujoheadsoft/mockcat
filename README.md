@@ -18,7 +18,7 @@ By using the dedicated **Mock Arrow (`~>`)** operator, you can describe mock beh
 
 ```haskell
 -- Define
-f <- mock $ "input" ~> "output"
+f <- mock ("input" ~> "output")
 
 -- Verify
 f `shouldBeCalled` "input"
@@ -60,8 +60,8 @@ See how simple writing tests in Haskell can be.
 
 | | **Before: Handwritten...** 😫 | **After: Mockcat** 🐱✨ |
 | :--- | :--- | :--- |
-| **Definition (Stub)**<br />"I want to return<br />this value for this arg" | <pre>f :: String -> IO String<br />f arg = case arg of<br />  "a" -> pure "b"<br />  _   -> error "unexpected"</pre><br />_Even simple branching consumes many lines._ | <pre>-- Use stub if verification is unneeded (Pure)<br />let f = stub $<br />  "a" ~> "b"</pre><br />_Behaves as a completely pure function._ |
-| **Verification (Verify)**<br />"I want to test<br />if it was called correctly" | <pre>-- Need to implement recording logic<br />ref <- newIORef []<br />let f arg = do<br />      modifyIORef ref (arg:)<br />      ...<br /><br />-- Verification logic<br />calls <- readIORef ref<br />calls `shouldBe` ["a"]</pre><br />_※ This is just one example. Real-world setups often require even more boilerplate._ | <pre>-- Use mock if verification is needed (Recorded internally)<br />f <- mock $ "a" ~> "b"<br /><br />-- Just state what you want to verify<br />f `shouldBeCalled` "a"</pre><br />_Recording is automatic.<br />Focus on the "Why" and "What", not the "How"._ |
+| **Definition (Stub)**<br />"I want to return<br />this value for this arg" | <pre>f :: String -> IO String<br />f arg = case arg of<br />  "a" -> pure "b"<br />  _   -> error "unexpected"</pre><br />_Even simple branching consumes many lines._ | <pre>-- Use stub if verification is unneeded (Pure)<br />let f = stub ("a" ~> "b")</pre><br />_Behaves as a completely pure function._ |
+| **Verification (Verify)**<br />"I want to test<br />if it was called correctly" | <pre>-- Need to implement recording logic<br />ref <- newIORef []<br />let f arg = do<br />      modifyIORef ref (arg:)<br />      ...<br /><br />-- Verification logic<br />calls <- readIORef ref<br />calls `shouldBe` ["a"]</pre><br />_※ This is just one example. Real-world setups often require even more boilerplate._ | <pre>-- Use mock if verification is needed (Recorded internally)<br />f <- mock ("a" ~> "b")<br /><br />-- Just state what you want to verify<br />f `shouldBeCalled` "a"</pre><br />_Recording is automatic.<br />Focus on the "Why" and "What", not the "How"._ |
 
 ### Key Features
 
@@ -70,10 +70,16 @@ See how simple writing tests in Haskell can be.
 *   **Verify by "Condition", not just Value**: Works even if arguments lack `Eq` instances. You can verify based on "what properties it should satisfy" (Predicates) rather than just strict equality.
 *   **Helpful Error Messages**: Shows "structural diffs" on failure, highlighting exactly what didn't match.
     ```text
-    Expected arguments were not called.
-      expected: [Record { name = "Alice", age = 20 }]
-       but got: [Record { name = "Alice", age = 21 }]
-                                                ^^
+    function was not called with the expected arguments.
+
+      Closest match:
+        expected: Record { name = "Alice", age = 20 }
+         but got: Record { name = "Alice", age = 21 }
+                                             ^^^
+      Specific difference in `age`:
+        expected: 20
+         but got: 21
+                  ^^
     ```
 *   **Intent-Driven Types**: Types exist not to restrict you, but to naturally guide you in expressing your testing intent.
 
@@ -113,7 +119,7 @@ spec :: Spec
 spec = do
   it "Quick Start Demo" do
     -- 1. Create a mock (Return 42 when receiving "Hello")
-    f <- mock $ "Hello" ~> (42 :: Int)
+    f <- mock ("Hello" ~> (42 :: Int))
 
     -- 2. Use it as a function
     let result = f "Hello"
@@ -128,9 +134,9 @@ spec = do
 ### At a Glance: Matchers
 | Matcher | Description | Example |
 | :--- | :--- | :--- |
-| **`any`** | Matches any value | `f <- mock $ any ~> True` |
-| **`expect`** | Matches condition | `f <- mock $ expect (> 5) "gt 5" ~> True` |
-| **`"val"`** | Matches value (Eq) | `f <- mock $ "val" ~> True` |
+| **`any`** | Matches any value | `f <- mock (any ~> True)` |
+| **`expect`** | Matches condition | `f <- mock (expect (> 5) "gt 5" ~> True)` |
+| **`"val"`** | Matches value (Eq) | `f <- mock ("val" ~> True)` |
 | **`inOrder`** | Order verification | ``f `shouldBeCalled` inOrderWith ["a", "b"]`` |
 | **`inPartial`**| Partial order | ``f `shouldBeCalled` inPartialOrderWith ["a", "c"]`` |
 
@@ -153,7 +159,7 @@ The most basic usage. Creates a function that returns values for specific argume
 
 ```haskell
 -- Function that returns True for "a" -> "b"
-f <- mock $ "a" ~> "b" ~> True
+f <- mock ("a" ~> "b" ~> True)
 ```
 
 **Flexible Matching**:
@@ -161,10 +167,10 @@ You can specify conditions (predicates) instead of concrete values.
 
 ```haskell
 -- Arbitrary string (param any)
-f <- mock $ any ~> True
+f <- mock (any ~> True)
 
 -- Condition (expect)
-f <- mock $ expect (> 5) "> 5" ~> True
+f <- mock (expect (> 5) "> 5" ~> True)
 ```
 
 ### 2. Typeclass Mocking (`makeMock`)
@@ -230,6 +236,13 @@ withMock $ do
   f "arg"
 ```
 
+> [!IMPORTANT]
+> When using `expects` (declarative verification), you MUST wrap the mock definition in **parentheses `(...)`**.
+> The `$` operator pattern used in previous versions (`mock $ ... expected ...`) will cause compilation errors due to precedence changes.
+>
+> ❌ `mock $ any ~> True expects ...`
+> ✅ `mock (any ~> True) expects ...`
+
 > [!NOTE]
 > You can also use `expects` for declarative verification inside `runMockT` blocks.
 > This provides a unified experience where "Mock Creation" and "Expectation Declaration" complete within a single block.
@@ -243,7 +256,7 @@ Mockcat provides **matchers** to verify properties of functions, not just value 
 
 ```haskell
 -- Return True regardless of the argument
-f <- mock $ any ~> True
+f <- mock (any ~> True)
 
 -- Verify that it was called (arguments don't matter)
 f `shouldBeCalled` any
@@ -256,7 +269,7 @@ Powerfully useful for types without `Eq` (like functions) or when checking parti
 
 ```haskell
 -- Return False only if the argument starts with "error"
-f <- mock $ do
+f <- mock do
   onCase $ expect (\s -> "error" `isPrefixOf` s) "start with error" ~> False
   onCase $ any ~> True
 ```
@@ -301,7 +314,7 @@ test = runMockT do
 Used when you want a function returning `IO` to have different side effects (results) for each call.
 
 ```haskell
-f <- mock $ do
+f <- mock do
   onCase $ "get" ~> pure @IO 1 -- 1st call
   onCase $ "get" ~> pure @IO 2 -- 2nd call
 ```
@@ -311,7 +324,7 @@ f <- mock $ do
 You can attach labels to display function names in error messages.
 
 ```haskell
-f <- mock (label "myAPI") $ "arg" ~> True
+f <- mock (label "myAPI") ("arg" ~> True)
 ```
 
 ---
@@ -401,7 +414,7 @@ If you have `OverloadedStrings` enabled, string literals may cause ambiguity err
 Add explicit type annotations to resolve this.
 
 ```haskell
-mock $ ("value" :: String) ~> True
+mock (("value" :: String) ~> True)
 ```
 
 ---

@@ -18,7 +18,7 @@
 
 ```haskell
 -- 定義 (Define)
-f <- mock $ "input" ~> "output"
+f <- mock ("input" ~> "output")
 
 -- 検証 (Verify)
 f `shouldBeCalled` "input"
@@ -60,8 +60,8 @@ Mockcat を使うことで、テスト記述は次のようになります。
 
 | | **Before: 手書き...** 😫 | **After: Mockcat** 🐱✨ |
 | :--- | :--- | :--- |
-| **定義 (Stub)**<br />「この引数には<br />この値を返したい」 | <pre>f :: String -> IO String<br />f arg = case arg of<br />  "a" -> pure "b"<br />  _   -> error "unexpected"</pre><br />_単純な分岐を書くだけでも行数を消費します。_ | <pre>-- 検証不要なら stub (純粋)<br />let f = stub $<br />  "a" ~> "b"</pre><br />_完全な純粋関数として振る舞います。_ |
-| **検証 (Verify)**<br />「正しく呼ばれたか<br />テストしたい」 | <pre>-- 記録の仕組みから作る必要がある<br />ref <- newIORef []<br />let f arg = do<br />      modifyIORef ref (arg:)<br />      ...<br /><br />-- 検証ロジック<br />calls <- readIORef ref<br />calls `shouldBe` ["a"]</pre><br />_※ これはよくある一例です。実際にはさらに補助コードが増えがちです。_ | <pre>-- 検証したいなら mock (内部で記録)<br />f <- mock $ "a" ~> "b"<br /><br />-- 検証したい内容を書くだけ<br />f `shouldBeCalled` "a"</pre><br />_記録は自動。<br />「何を検証するか」という本質に集中できます。_ |
+| **定義 (Stub)**<br />「この引数には<br />この値を返したい」 | <pre>f :: String -> IO String<br />f arg = case arg of<br />  "a" -> pure "b"<br />  _   -> error "unexpected"</pre><br />_単純な分岐を書くだけでも行数を消費します。_ | <pre>-- 検証不要なら stub (純粋)<br />let f = stub ("a" ~> "b")</pre><br />_完全な純粋関数として振る舞います。_ |
+| **検証 (Verify)**<br />「正しく呼ばれたか<br />テストしたい」 | <pre>-- 記録の仕組みから作る必要がある<br />ref <- newIORef []<br />let f arg = do<br />      modifyIORef ref (arg:)<br />      ...<br /><br />-- 検証ロジック<br />calls <- readIORef ref<br />calls `shouldBe` ["a"]</pre><br />_※ これはよくある一例です。実際にはさらに補助コードが増えがちです。_ | <pre>-- 検証したいなら mock (内部で記録)<br />f <- mock ("a" ~> "b")<br /><br />-- 検証したい内容を書くだけ<br />f `shouldBeCalled` "a"</pre><br />_記録は自動。<br />「何を検証するか」という本質に集中できます。_ |
 
 ### 主な特徴
 
@@ -70,10 +70,16 @@ Mockcat を使うことで、テスト記述は次のようになります。
 *   **値ではなく「条件」で検証**: 引数が `Eq` インスタンスを持っていなくても問題ありません。値の一致だけでなく、「どのような性質を満たすべきか」という条件 (Predicate) で検証できます。
 *   **圧倒的に親切なエラー**: テスト失敗時、どこが違うのかを「構造差分」で表示します。
     ```text
-    Expected arguments were not called.
-      expected: [Record { name = "Alice", age = 20 }]
-       but got: [Record { name = "Alice", age = 21 }]
-                                                ^^
+    function was not called with the expected arguments.
+
+      Closest match:
+        expected: Record { name = "Alice", age = 20 }
+         but got: Record { name = "Alice", age = 21 }
+                                             ^^^
+      Specific difference in `age`:
+        expected: 20
+         but got: 21
+                  ^^
     ```
 *   **意図を導く型設計**: 型はあなたの記述を縛るものではなく、テストの意図（何を期待しているか）を自然に表現させるために存在します。
 
@@ -113,7 +119,7 @@ spec :: Spec
 spec = do
   it "Quick Start Demo" do
     -- 1. モックを作成 ("Hello" を受け取ったら 42 を返す)
-    f <- mock $ "Hello" ~> (42 :: Int)
+    f <- mock ("Hello" ~> (42 :: Int))
 
     -- 2. 関数として使う
     let result = f "Hello"
@@ -128,9 +134,9 @@ spec = do
 ### At a Glance: Matchers
 | Matcher | Description | Example |
 | :--- | :--- | :--- |
-| **`any`** | どんな値でも許可 | `f <- mock $ any ~> True` |
-| **`expect`** | 条件(述語)で検証 | `f <- mock $ expect (> 5) "gt 5" ~> True` |
-| **`"val"`** | 値の一致 (Eq) | `f <- mock $ "val" ~> True` |
+| **`any`** | どんな値でも許可 | `f <- mock (any ~> True)` |
+| **`expect`** | 条件(述語)で検証 | `f <- mock (expect (> 5) "gt 5" ~> True)` |
+| **`"val"`** | 値の一致 (Eq) | `f <- mock ("val" ~> True)` |
 | **`inOrder`** | 順序検証 | ``f `shouldBeCalled` inOrderWith ["a", "b"]`` |
 | **`inPartial`**| 部分順序 | ``f `shouldBeCalled` inPartialOrderWith ["a", "c"]`` |
 
@@ -151,7 +157,7 @@ Mockcat は、テストの目的や好みに応じて 2 つの検証スタイル
 
 ```haskell
 -- "a" -> "b" -> True を返す関数
-f <- mock $ "a" ~> "b" ~> True
+f <- mock ("a" ~> "b" ~> True)
 ```
 
 **柔軟なマッチング**:
@@ -159,10 +165,10 @@ f <- mock $ "a" ~> "b" ~> True
 
 ```haskell
 -- 任意の文字列 (param any)
-f <- mock $ any ~> True
+f <- mock (any ~> True)
 
 -- 条件式 (expect)
-f <- mock $ expect (> 5) "> 5" ~> True
+f <- mock (expect (> 5) "> 5" ~> True)
 ```
 
 ### 2. 型クラスのモック (`makeMock`)
@@ -228,6 +234,13 @@ withMock $ do
   f "arg"
 ```
 
+> [!IMPORTANT]
+> `expects`（宣言的検証）を使用する場合、モック定義部分は必ず **括弧 `(...)`** で囲んでください。
+> 以前のバージョンで使用できた `$` 演算子 (`mock $ ... expected ...`) は、優先順位の関係でコンパイルエラーになります。
+>
+> ❌ `mock $ any ~> True expects ...`
+> ✅ `mock (any ~> True) expects ...`
+
 > [!NOTE]
 > `runMockT` ブロックの中でも、同様に `expects` を使った宣言的検証が可能です。
 > つまり、「モック生成」と「期待値宣言」が１つのブロック内で完結する統一された体験を提供します。
@@ -241,7 +254,7 @@ Mockcat は、値の一致だけでなく、関数の性質を検証するため
 
 ```haskell
 -- どんな引数で呼ばれても True を返す
-f <- mock $ any ~> True
+f <- mock (any ~> True)
 
 -- 何でもいいから呼ばれたことを検証
 f `shouldBeCalled` any
@@ -254,7 +267,7 @@ f `shouldBeCalled` any
 
 ```haskell
 -- 引数が "error" で始まる場合のみ False を返す
-f <- mock $ do
+f <- mock do
   onCase $ expect (\s -> "error" `isPrefixOf` s) "start with error" ~> False
   onCase $ any ~> True
 ```
@@ -299,7 +312,7 @@ test = runMockT do
 `IO` を返す関数で、呼び出しごとに副作用（結果）を変えたい場合に使います。
 
 ```haskell
-f <- mock $ do
+f <- mock do
   onCase $ "get" ~> pure @IO 1 -- 1回目
   onCase $ "get" ~> pure @IO 2 -- 2回目
 ```
@@ -309,7 +322,7 @@ f <- mock $ do
 エラーメッセージに関数名を表示させたい場合は、ラベルを付けられます。
 
 ```haskell
-f <- mock (label "myAPI") $ "arg" ~> True
+f <- mock (label "myAPI") ("arg" ~> True)
 ```
 
 ---
@@ -399,7 +412,7 @@ import qualified Test.MockCat as MC
 その場合は明示的に型注釈を付けてください。
 
 ```haskell
-mock $ ("value" :: String) ~> True
+mock (("value" :: String) ~> True)
 ```
 
 ---
