@@ -43,7 +43,6 @@ import Test.MockCat.Internal.Types (Cases)
 import Unsafe.Coerce (unsafeCoerce)
 import Prelude hiding (any)
 import Data.Typeable (Typeable, typeOf)
-import Data.Word (Word)
 import Foreign.Ptr (Ptr, ptrToIntPtr, castPtr, IntPtr)
 import qualified Data.Text as T (Text)
 
@@ -97,24 +96,24 @@ instance {-# OVERLAPPING #-} WrapResult Char where
 instance {-# OVERLAPPING #-} WrapResult T.Text where
   wrapResult v = ExpectValue v (show v)
 
-instance {-# OVERLAPPING #-} (Show a, Eq a) => WrapResult (Maybe a) where
+instance {-# OVERLAPPABLE #-} (Show a, Eq a) => WrapResult (Maybe a) where
   wrapResult v = ExpectValue v (show v)
 
-instance {-# INCOHERENT #-} WrapResult a where
+instance {-# OVERLAPPABLE #-} WrapResult a where
   wrapResult v = ValueWrapper v "ValueWrapper"
 
 instance Eq (Param a) where
-  (ExpectValue a _) == (ExpectValue b _) = a == b
-  (ExpectValue a _) == (ExpectCondition m2 _) = m2 a
-  (ExpectCondition m1 _) == (ExpectValue b _) = m1 b
-  (ExpectCondition _ "any") == (ExpectCondition _ _) = True
-  (ExpectCondition _ _) == (ExpectCondition _ "any") = True
-  (ExpectCondition _ l1) == (ExpectCondition _ l2) = l1 == l2
-  ValueWrapper a _ == ExpectCondition m _ = m a
-  ExpectCondition m _ == ValueWrapper a _ = m a
+  ExpectValue a _ == ExpectValue b _ = a == b
+  ValueWrapper a _ == ValueWrapper b _ = compareFunction a b
   ExpectValue a _ == ValueWrapper b _ = a == b
   ValueWrapper a _ == ExpectValue b _ = a == b
-  ValueWrapper a _ == ValueWrapper b _ = compareFunction a b
+  ExpectValue a _ == ExpectCondition m _ = m a
+  ExpectCondition m _ == ExpectValue b _ = m b
+  ValueWrapper a _ == ExpectCondition m _ = m a
+  ExpectCondition m _ == ValueWrapper a _ = m a
+  ExpectCondition _ "any" == ExpectCondition _ _ = True
+  ExpectCondition _ _ == ExpectCondition _ "any" = True
+  ExpectCondition _ l1 == ExpectCondition _ l2 = l1 == l2
 
 instance Show (Param v) where
   show (ExpectValue _ l) = l
@@ -157,8 +156,9 @@ instance {-# OVERLAPPING #-} (EqParams a, EqParams b) => EqParams (a :> b) where
 instance {-# OVERLAPPING #-} EqParams Head where
   eqParams _ _ = True
 
-instance {-# INCOHERENT #-} Eq a => EqParams a where
-  eqParams = (==)
+instance EqParams () where
+  eqParams _ _ = True
+
 
 
 instance {-# OVERLAPPING #-} ToParamArg Head where

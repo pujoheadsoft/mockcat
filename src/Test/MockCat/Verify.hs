@@ -48,7 +48,7 @@ import GHC.TypeLits (TypeError, ErrorMessage(..), Symbol)
 -- | Class for verifying mock function.
 verify ::
   ( ResolvableMock m
-  , Eq (ResolvableParamsOf m)
+  , EqParams (ResolvableParamsOf m)
   , Show (ResolvableParamsOf m)
   ) =>
   m ->
@@ -59,7 +59,7 @@ verify m matchType = do
   checkCandidates candidates $ \resolvedMock ->
     doVerifyResolved resolvedMock matchType
 
-doVerifyResolved :: (Eq params, Show params) => ResolvedMock params -> VerifyMatchType params -> IO (Maybe String)
+doVerifyResolved :: (EqParams params, Show params) => ResolvedMock params -> VerifyMatchType params -> IO (Maybe String)
 doVerifyResolved (ResolvedMock mockName recorder) matchType = do
   invocationList <- readInvocationList (invocationRef recorder)
   case doVerify mockName invocationList matchType of

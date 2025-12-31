@@ -57,7 +57,7 @@ import Test.MockCat.Internal.Types
   )
 import qualified Test.MockCat.Internal.MockRegistry as MockRegistry
 
-import Test.MockCat.Param (Param(..), param)
+import Test.MockCat.Param (Param(..), param, EqParams(..))
 import Data.Kind (Type)
 import Data.Proxy (Proxy(..))
 
@@ -117,7 +117,7 @@ expects ::
   , ExpParams exp ~ params
   , BuildExpectations fn exp
   , Show params
-  , Eq params
+  , EqParams params
   ) =>
   m fn ->
   exp ->
