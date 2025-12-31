@@ -56,7 +56,9 @@ cat <<EOF > "$CONSUMER_DIR/app/Main.hs"
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Main where
 
@@ -76,7 +78,7 @@ main = do
   putStrLn "Running Consumer Verification..."
 
   res <- runMockT \$ do
-    _readFile \$ ("config" :: String) ~> pure @IO ("mocked content" :: String)
+    _readFile (("config" :: String) ~> pure @IO ("mocked content" :: String))
     readFile "config"
   
   putStrLn \$ "Filesystem result: " ++ res
