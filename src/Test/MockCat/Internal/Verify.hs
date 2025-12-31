@@ -1,4 +1,5 @@
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE IncoherentInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE LambdaCase #-}
@@ -10,16 +11,17 @@ module Test.MockCat.Internal.Verify where
 
 import Control.Concurrent.STM (readTVarIO, TVar)
 import Control.Monad (guard, when)
-import Data.List (intercalate, elemIndex)
+import Data.List (intercalate)
 import Data.Maybe (catMaybes, isNothing)
 import Test.MockCat.Internal.Types
 import Test.MockCat.Internal.Message
+import Test.MockCat.Param (EqParams(..))
 
 import Prelude hiding (lookup)
 
 -- | Verify an expectation directly against a resolved mock.
 --   This is used by 'mock' when expectations are provided.
-verifyExpectationDirect :: (Eq params, Show params) => ResolvedMock params -> Expectation params -> IO ()
+verifyExpectationDirect :: (EqParams params, Show params) => ResolvedMock params -> Expectation params -> IO ()
 verifyExpectationDirect resolved (CountExpectation method args) =
   verifyResolvedCount resolved args method
 verifyExpectationDirect resolved (CountAnyExpectation method) =
@@ -43,7 +45,7 @@ verifyResolvedAny (ResolvedMock mockName recorder) = do
         ]
 
 -- | Verify that mock was called with specific arguments using resolved mock directly.
-verifyResolvedMatch :: (Eq params, Show params) => ResolvedMock params -> VerifyMatchType params -> IO ()
+verifyResolvedMatch :: (EqParams params, Show params) => ResolvedMock params -> VerifyMatchType params -> IO ()
 verifyResolvedMatch (ResolvedMock mockName recorder) matchType = do
   invocationList <- readInvocationList (invocationRef recorder)
   case doVerify mockName invocationList matchType of
@@ -52,10 +54,10 @@ verifyResolvedMatch (ResolvedMock mockName recorder) matchType = do
       errorWithoutStackTrace msg `seq` pure ()
 
 -- | Verify call count with specific arguments using resolved mock directly.
-verifyResolvedCount :: (Eq params, Show params) => ResolvedMock params -> params -> CountVerifyMethod -> IO ()
+verifyResolvedCount :: (EqParams params, Show params) => ResolvedMock params -> params -> CountVerifyMethod -> IO ()
 verifyResolvedCount (ResolvedMock mockName recorder) v method = do
   invocationList <- readInvocationList (invocationRef recorder)
-  let callCount = length (filter (v ==) invocationList)
+  let callCount = length (filter (`eqParams` v) invocationList)
   if compareCount method callCount
     then pure ()
     else
@@ -80,7 +82,7 @@ verifyResolvedCallCount (ResolvedMock mockName recorder) method =
   verifyCallCount mockName recorder method
 
 -- | Verify call order using resolved mock directly.
-verifyResolvedOrder :: (Eq params, Show params) => VerifyOrderMethod -> ResolvedMock params -> [params] -> IO ()
+verifyResolvedOrder :: (EqParams params, Show params) => VerifyOrderMethod -> ResolvedMock params -> [params] -> IO ()
 verifyResolvedOrder method (ResolvedMock mockName recorder) matchers = do
   invocationList <- readInvocationList (invocationRef recorder)
   case doVerifyOrder method mockName invocationList matchers of
@@ -149,16 +151,16 @@ countMismatchMessage maybeName method callCount =
     showCountMethod (LessThan n) = "< " <> show n
     showCountMethod (GreaterThan n) = "> " <> show n
 
-doVerify :: (Eq a, Show a) => Maybe MockName -> InvocationList a -> VerifyMatchType a -> Maybe VerifyFailed
+doVerify :: (EqParams a, Show a) => Maybe MockName -> InvocationList a -> VerifyMatchType a -> Maybe VerifyFailed
 doVerify name list (MatchAny a) = do
-  guard $ notElem a list
+  guard $ not (elemEqParams a list)
   pure $ verifyFailedMessage name list a
 doVerify name list (MatchAll a) = do
-  guard $ Prelude.any (a /=) list
+  guard $ Prelude.any (\x -> not (eqParams a x)) list
   pure $ verifyFailedMessage name list a
 
 doVerifyOrder ::
-  (Eq a, Show a) =>
+  (EqParams a, Show a) =>
   VerifyOrderMethod ->
   Maybe MockName ->
   InvocationList a ->
@@ -190,13 +192,13 @@ verifyFailedPartiallySequence name calledValues expectedValues =
         intercalate "\n" $ ("    " <>) . show <$> calledValues
       ]
 
-isOrderNotMatched :: Eq a => InvocationList a -> [a] -> Bool
+isOrderNotMatched :: EqParams a => InvocationList a -> [a] -> Bool
 isOrderNotMatched calledValues expectedValues =
   isNothing $
     foldl
       ( \candidates e -> do
           candidates >>= \c -> do
-            index <- elemIndex e c
+            index <- elemIndexEqParams e c
             Just $ drop (index + 1) c
       )
       (Just calledValues)
@@ -220,16 +222,30 @@ verifyFailedSequence name fails =
       ( ("function" <> mockNameLabel name <> " was not called with the expected arguments in the expected order.") : (verifyOrderFailedMesssage <$> fails)
       )
 
-collectUnExpectedOrder :: Eq a => InvocationList a -> [a] -> [VerifyOrderResult a]
+collectUnExpectedOrder :: EqParams a => InvocationList a -> [a] -> [VerifyOrderResult a]
 collectUnExpectedOrder calledValues expectedValues =
   catMaybes $
     mapWithIndex
       ( \i expectedValue -> do
           let calledValue = calledValues !! i
-          guard $ expectedValue /= calledValue
+          guard $ not (expectedValue `eqParams` calledValue)
           pure VerifyOrderResult {index = i, calledValue = calledValue, expectedValue}
       )
       expectedValues
 
 mapWithIndex :: (Int -> a -> b) -> [a] -> [b]
 mapWithIndex f xs = [f i x | (i, x) <- zip [0 ..] xs]
+
+elemEqParams :: EqParams a => a -> [a] -> Bool
+elemEqParams _ [] = False
+elemEqParams x (y:ys) = eqParams x y || elemEqParams x ys
+
+elemIndexEqParams :: EqParams a => a -> [a] -> Maybe Int
+elemIndexEqParams x = go 0
+  where
+    go _ [] = Nothing
+    go i (y:ys)
+      | eqParams x y = Just i
+      | otherwise    = go (i+1) ys
+
+

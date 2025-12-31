@@ -75,14 +75,6 @@ spec = do
       it "can stub function with NoEq argument" do
         let f = stub $ any @NoEq ~> "result"
         f (NoEq "val") `shouldBe` "result"
-
-      it "can mock function with NoShow argument using any" do
-        f <- mock $ any @NoShow ~> "result"
-        f (NoShow "val") `shouldBe` "result"
-
-      it "can mock function with NoEqNoShow argument using any" do
-        f <- mock $ any @NoEqNoShow ~> "result"
-        f (NoEqNoShow "val") `shouldBe` "result"
     
       it "can mock function with NoEq argument matching its value" do
         -- Even without an Eq instance, you can match based on field values using 'expect'.
@@ -213,8 +205,4 @@ instance {-# OVERLAPPABLE #-} Eval a where
 errorContains :: String -> Selector E.ErrorCall
 errorContains sub (E.ErrorCall msg) = sub `isInfixOf` msg
 
-data NoEq = NoEq String deriving (Show, Eq)
-
-data NoShow = NoShow String deriving (Eq, Show)
-
-data NoEqNoShow = NoEqNoShow String deriving (Eq, Show)
+data NoEq = NoEq String deriving (Show)

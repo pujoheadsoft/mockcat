@@ -312,8 +312,8 @@ instance ToNormalizedArg (Param a :> rest) where
 instance ToNormalizedArg (Param a) where
   toNormalizedArg = id
 
-instance {-# OVERLAPPABLE #-} (NormalizeWithArg a ~ Param a, WrapArg a) => ToNormalizedArg a where
-  toNormalizedArg = wrapArg
+instance {-# OVERLAPPABLE #-} (NormalizeWithArg a ~ Param a, ToParamParam a, Normalize a ~ Param a) => ToNormalizedArg a where
+  toNormalizedArg = toParamParam
 
 
 
@@ -381,7 +381,7 @@ instance
 -- | Instance for VerificationSpec (handles all verification types)
 instance {-# OVERLAPPING #-}
   ( ResolvableMockWithParams m params
-  , Eq params
+  , EqParams params
   , Show params
   , RequireCallable "shouldBeCalled" m
   ) => ShouldBeCalled m (VerificationSpec params) where
@@ -390,12 +390,12 @@ instance {-# OVERLAPPING #-}
     checkCandidates candidates $ \resolvedMock ->
       verifySpec resolvedMock spec
 
-verifySpec :: (Eq params, Show params) => ResolvedMock params -> VerificationSpec params -> IO (Maybe String)
+verifySpec :: (Typeable params, EqParams params, Show params) => ResolvedMock params -> VerificationSpec params -> IO (Maybe String)
 verifySpec (ResolvedMock mockName recorder) spec = do
   invocationList <- readInvocationList (invocationRef recorder)
   case spec of
     CountVerification method args -> do
-      let callCount = length (filter (args ==) invocationList)
+      let callCount = length (filter (`eqParams` args) invocationList)
       if compareCount method callCount
         then pure Nothing
         else pure $ Just $ countWithArgsMismatchMessage mockName method callCount
@@ -421,7 +421,7 @@ verifySpec (ResolvedMock mockName recorder) spec = do
 -- | Instance for Param chains (e.g., "a" ~> "b")
 instance {-# OVERLAPPING #-}
   ( ResolvableMockWithParams m (Param a :> rest)
-  , Eq (Param a :> rest)
+  , EqParams (Param a :> rest)
   , Show (Param a :> rest)
   , RequireCallable "shouldBeCalled" m
   ) => ShouldBeCalled m (Param a :> rest) where
@@ -431,7 +431,7 @@ instance {-# OVERLAPPING #-}
 -- | Instance for single Param (e.g., param "a")
 instance {-# OVERLAPPING #-}
   ( ResolvableMockWithParams m (Param a)
-  , Eq (Param a)
+  , EqParams (Param a)
   , Show (Param a)
   , RequireCallable "shouldBeCalled" m
   ) => ShouldBeCalled m (Param a) where
@@ -442,7 +442,7 @@ instance {-# OVERLAPPING #-}
 --   This converts raw values to Param at runtime
 instance {-# OVERLAPPABLE #-}
   ( ResolvableMockWithParams m (Param a)
-  , Eq (Param a)
+  , EqParams (Param a)
   , Show (Param a)
   , Show a
   , Eq a

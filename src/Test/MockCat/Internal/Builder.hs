@@ -344,7 +344,7 @@ type ParamConstraints params args r =
   , ProjectionReturn params
   , ArgsOf params ~ args
   , ReturnOf params ~ Param r
-  , Eq args
+  , EqParams args
   , Show args
   )
 
@@ -352,13 +352,13 @@ extractReturnValue :: ParamConstraints params args r => Maybe MockName -> params
 extractReturnValue name params inputParams = do
   validateOnly name (projArgs params) inputParams `seq` returnValue params
 
-validateOnly :: (Eq a, Show a) => Maybe MockName -> a -> a -> ()
+validateOnly :: (EqParams a, Show a) => Maybe MockName -> a -> a -> ()
 validateOnly name expected actual = do
   validateParamsPure name expected actual
 
-validateParamsPure :: (Eq a, Show a) => Maybe MockName -> a -> a -> ()
+validateParamsPure :: (EqParams a, Show a) => Maybe MockName -> a -> a -> ()
 validateParamsPure name expected actual =
-  if expected == actual
+  if expected `eqParams` actual
     then ()
     else errorWithoutStackTrace $ message name expected actual
 
@@ -382,7 +382,7 @@ findReturnValuePure ::
   args ->
   Maybe r
 findReturnValuePure paramsList inputParams = do
-  let matchedParams = filter (\params -> projArgs params == inputParams) paramsList
+  let matchedParams = filter (\params -> projArgs params `eqParams` inputParams) paramsList
   case matchedParams of
     [] -> Nothing
     _ -> do
@@ -411,7 +411,7 @@ singleInvocationStep ::
   InvocationStep args r
 singleInvocationStep name params inputParams record@InvocationRecord {invocations, invocationCounts} = do
   let expected = projArgs params
-  if expected == inputParams
+  if expected `eqParams` inputParams
     then
       (InvocationRecord {
         invocations = invocations ++ [inputParams]
@@ -427,7 +427,7 @@ casesInvocationStep ::
   InvocationStep args r
 casesInvocationStep name paramsList inputParams InvocationRecord {invocations, invocationCounts} = do
   let newInvocations = invocations ++ [inputParams]
-      matchedParams = filter (\params -> projArgs params == inputParams) paramsList
+      matchedParams = filter (\params -> projArgs params `eqParams` inputParams) paramsList
       expectedArgs = projArgs <$> paramsList
     in case matchedParams of
         [] ->
@@ -435,9 +435,9 @@ casesInvocationStep name paramsList inputParams InvocationRecord {invocations, i
             Left (messageForMultiMock name expectedArgs inputParams)
           )
         _ ->
-          let calledCount = fromMaybe 0 (lookup inputParams invocationCounts)
+          let calledCount = fromMaybe 0 (lookupEqParams inputParams invocationCounts)
               index = min calledCount (length matchedParams - 1)
-              nextCounter = incrementCount inputParams invocationCounts
+              nextCounter = incrementCountEqParams inputParams invocationCounts
               nextRecord =
                 InvocationRecord
                   { invocations = newInvocations,
@@ -450,3 +450,15 @@ casesInvocationStep name paramsList inputParams InvocationRecord {invocations, i
                   )
                 Just selected ->
                   (nextRecord, Right (returnValue selected))
+
+lookupEqParams :: EqParams k => k -> [(k, v)] -> Maybe v
+lookupEqParams _ [] = Nothing
+lookupEqParams k ((x,y):xs)
+  | eqParams k x = Just y
+  | otherwise    = lookupEqParams k xs
+
+incrementCountEqParams :: (EqParams k, Num v) => k -> [(k, v)] -> [(k, v)]
+incrementCountEqParams k [] = [(k, 1)]
+incrementCountEqParams k ((x,y):xs)
+  | eqParams k x = (x, y + 1) : xs
+  | otherwise    = (x, y) : incrementCountEqParams k xs

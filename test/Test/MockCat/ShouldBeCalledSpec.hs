@@ -751,7 +751,7 @@ spec = do
 errorContains :: String -> Selector ErrorCall
 errorContains sub (ErrorCall msg) = sub `isInfixOf` msg
 
-data NoEq = NoEq String deriving (Show, Eq)
+data NoEq = NoEq String deriving (Show)
 
-instance WrapArg NoEq where wrapArg v = ExpectValue v (show v)
+
 

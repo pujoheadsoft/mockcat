@@ -15,7 +15,7 @@
 -- Parameters are used both for setting up expectations and for verification.
 module Test.MockCat.Param
   ( Param(..),
-    WrapArg(wrapArg),
+    EqParams(..),
     WrapResult(wrapResult),
     value,
     param,
@@ -23,6 +23,9 @@ module Test.MockCat.Param
     MockSpec(..),
     expect,
     expect_,
+    ToParamParam(..),
+    ToParamArg(..),
+    Normalize,
     any,
     ArgsOf,
     ProjectionArgs,
@@ -31,8 +34,7 @@ module Test.MockCat.Param
     ProjectionReturn,
     projReturn,
     returnValue,
-    Normalize,
-    ToParamArg(..)
+
   )
 where
 
@@ -41,6 +43,7 @@ import Test.MockCat.Internal.Types (Cases)
 import Unsafe.Coerce (unsafeCoerce)
 import Prelude hiding (any)
 import Data.Typeable (Typeable, typeOf)
+import Data.Word (Word)
 import Foreign.Ptr (Ptr, ptrToIntPtr, castPtr, IntPtr)
 import qualified Data.Text as T (Text)
 
@@ -64,40 +67,6 @@ data Param v where
   -- | A parameter that wraps a value without Eq or Show constraints.
   ValueWrapper :: v -> String -> Param v
 
--- | Class for wrapping raw values into Param for arguments.
--- Requires Show and Eq to enable comparison and display.
-class WrapArg a where
-  wrapArg :: a -> Param a
-
-instance {-# OVERLAPPING #-} WrapArg String where
-  wrapArg s = ExpectValue s (show s)
-
-instance {-# OVERLAPPING #-} WrapArg Int where
-  wrapArg v = ExpectValue v (show v)
-
-instance {-# OVERLAPPING #-} WrapArg Integer where
-  wrapArg v = ExpectValue v (show v)
-
-instance {-# OVERLAPPING #-} WrapArg Bool where
-  wrapArg v = ExpectValue v (show v)
-
-instance {-# OVERLAPPING #-} WrapArg Double where
-  wrapArg v = ExpectValue v (show v)
-
-instance {-# OVERLAPPING #-} WrapArg Float where
-  wrapArg v = ExpectValue v (show v)
-
-instance {-# OVERLAPPING #-} WrapArg Char where
-  wrapArg v = ExpectValue v (show v)
-
-instance {-# OVERLAPPING #-} WrapArg T.Text where
-  wrapArg v = ExpectValue v (show v)
-
-instance {-# OVERLAPPING #-} (Show a, Eq a) => WrapArg [a] where
-  wrapArg v = ExpectValue v (show v)
-
-instance {-# OVERLAPPING #-} (Show a, Eq a) => WrapArg (Maybe a) where
-  wrapArg v = ExpectValue v (show v)
 
 -- | Class for wrapping raw values into Param for results.
 -- Does not require Eq or Show, but will use them if available for better display.
@@ -172,19 +141,73 @@ type family Normalize a where
 class ToParamArg a where
   toParamArg :: a -> Normalize a
 
+
 instance {-# OVERLAPPING #-} (Typeable (a -> b)) => ToParamArg (a -> b) where
   toParamArg f = ValueWrapper f (showFunction f)
+
+class EqParams a where
+  eqParams :: a -> a -> Bool
+
+instance {-# OVERLAPPING #-} EqParams (Param a) where
+  eqParams = (==)
+
+instance {-# OVERLAPPING #-} (EqParams a, EqParams b) => EqParams (a :> b) where
+  (a1 :> b1) `eqParams` (a2 :> b2) = a1 `eqParams` a2 && b1 `eqParams` b2
+
+instance {-# OVERLAPPING #-} EqParams Head where
+  eqParams _ _ = True
+
+instance {-# INCOHERENT #-} Eq a => EqParams a where
+  eqParams = (==)
+
 
 instance {-# OVERLAPPING #-} ToParamArg Head where
   toParamArg = id
 
-instance {-# OVERLAPPING #-} ToParamArg (Param a) where
-  toParamArg = id
-
-instance {-# OVERLAPPABLE #-} (Normalize a ~ Param a, Show a, Eq a) => ToParamArg a where
+instance {-# OVERLAPPING #-} ToParamArg Int where
   toParamArg v = ExpectValue v (show v)
 
+instance {-# OVERLAPPING #-} ToParamArg Integer where
+  toParamArg v = ExpectValue v (show v)
 
+instance {-# OVERLAPPING #-} ToParamArg Double where
+  toParamArg v = ExpectValue v (show v)
+
+instance {-# OVERLAPPING #-} ToParamArg Float where
+  toParamArg v = ExpectValue v (show v)
+
+instance {-# OVERLAPPING #-} ToParamArg Bool where
+  toParamArg v = ExpectValue v (show v)
+
+instance {-# OVERLAPPING #-} ToParamArg Char where
+  toParamArg v = ExpectValue v (show v)
+
+instance {-# OVERLAPPING #-} ToParamArg Word where
+  toParamArg v = ExpectValue v (show v)
+
+instance {-# OVERLAPPING #-} ToParamArg T.Text where
+  toParamArg v = ExpectValue v (show v)
+
+instance {-# OVERLAPPING #-} (Show a, Eq a) => ToParamArg [a] where
+  toParamArg v = ExpectValue v (show v)
+
+instance {-# OVERLAPPING #-} (Show a, Eq a) => ToParamArg (Maybe a) where
+  toParamArg v = ExpectValue v (show v)
+
+instance {-# OVERLAPPABLE #-} (Normalize a ~ Param a, Typeable a, Show a) => ToParamArg a where
+  toParamArg v = ValueWrapper v (show v)
+
+class ToParamParam a where
+  toParamParam :: a -> Normalize a
+
+instance {-# OVERLAPPING #-} ToParamParam (Param a) where
+  toParamParam = id
+
+instance {-# OVERLAPPING #-} (Typeable (a -> b)) => ToParamParam (a -> b) where
+  toParamParam f = ValueWrapper f (showFunction f)
+
+instance {-# OVERLAPPABLE #-} (Normalize a ~ Param a, Show a, Eq a) => ToParamParam a where
+  toParamParam v = ExpectValue v (show v)
 
 class ToParamResult b where
   toParamResult :: b -> Normalize b
@@ -202,8 +225,8 @@ class ConsGen a b where
   (~>) :: a -> b -> Normalize a :> Normalize b
 
 -- | Instance for chaining parameters
-instance (ToParamArg a, ToParamResult b) => ConsGen a b where
-  (~>) a b = (:>) (toParamArg a) (toParamResult b)
+instance (ToParamParam a, ToParamResult b) => ConsGen a b where
+  a ~> b = toParamParam a :> toParamResult b
 
 -- | Make a parameter to which any value is expected to apply.
 --   Use with type application to specify the type: @any \@String@

@@ -150,6 +150,8 @@ instance
   ( MonadIO m
   , CreateMock p
   , MockBuilder (ToMockParams p) fn verifyParams
+  , Show verifyParams
+  , EqParams verifyParams
   , Typeable verifyParams
   , Typeable fn
   , IsMockSpec p ~ 'False
@@ -168,7 +170,7 @@ instance
   , CreateMock params
   , MockBuilder (ToMockParams params) fn verifyParams
   , Show verifyParams
-  , Eq verifyParams
+  , EqParams verifyParams
   , Typeable verifyParams
   , Typeable fn
   ) =>
@@ -195,6 +197,8 @@ instance {-# OVERLAPPABLE #-}
   ( MonadIO m
   , CreateMock p
   , MockBuilder (ToMockParams p) fn verifyParams
+  , Show verifyParams
+  , EqParams verifyParams
   , Typeable verifyParams
   , Typeable fn
   ) =>
@@ -217,7 +221,7 @@ instance {-# OVERLAPPING #-}
   , CreateMock params
   , MockBuilder (ToMockParams params) fn verifyParams
   , Show verifyParams
-  , Eq verifyParams
+  , EqParams verifyParams
   , Typeable verifyParams
   , Typeable fn
   ) =>
