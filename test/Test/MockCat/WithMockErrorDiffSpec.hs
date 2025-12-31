@@ -44,7 +44,7 @@ spec = do
             \  Closest match:\n\
             \    expected: \"hello world\"\n\
             \     but got: \"hello haskell\"\n\
-            \            " <> replicate 7 ' ' <> "^^^^^^^^\n\
+            \            " <> replicate 9 ' ' <> "^^^^^^^^\n\
             \\n\
             \  Call history (1 calls):\n\
             \    [Closest] 1. \"hello haskell\""
@@ -61,7 +61,7 @@ spec = do
             \  Closest match:\n\
             \    expected: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]\n\
             \     but got: [1, 2, 3, 4, 5, 0, 7, 8, 9, 10]\n\
-            \            " <> replicate 16 ' ' <> "^^^^^^^^^^^^^^^\n\
+            \            " <> replicate 18 ' ' <> "^^^^^^^^^^^^^^^\n\
             \  Specific difference in `[5]`:\n\
             \    expected: 6\n\
             \     but got: 0\n\
@@ -82,7 +82,7 @@ spec = do
             \  Closest match:\n\
             \    expected: User {name = \"Fagen\", age = 30}\n\
             \     but got: User {name = \"Fagen\", age = 20}\n\
-            \            " <> replicate 28 ' ' <> "^^^\n\
+            \            " <> replicate 30 ' ' <> "^^^\n\
             \  Specific difference in `age`:\n\
             \    expected: 30\n\
             \     but got: 20\n\
@@ -133,7 +133,7 @@ spec = do
             \  Closest match:\n\
             \    expected: ComplexUser {name = \"Alice\", config = Config {theme = \"Dark\", level = 1}}\n\
             \     but got: ComplexUser {name = \"Alice\", config = Config {theme = \"Light\", level = 1}}\n\
-            \            " <> replicate 55 ' ' <> "^^^^^^^^^^^^^^^^^^^\n\
+            \            " <> replicate 57 ' ' <> replicate 19 '^' <> "\n\
             \  Specific difference in `config.theme`:\n\
             \    expected: \"Dark\"\n\
             \     but got: \"Light\"\n\
@@ -154,7 +154,7 @@ spec = do
             \  Closest match:\n\
             \    expected: [[1,2], [3,5]]\n\
             \     but got: [[1,2], [3,4]]\n\
-            \            " <> replicate 11 ' ' <> "^^^\n\
+            \            " <> replicate 13 ' ' <> "^^^\n\
             \  Specific difference in `[1][1]`:\n\
             \    expected: 5\n\
             \     but got: 4\n\
@@ -177,7 +177,7 @@ spec = do
             \  Closest match:\n\
             \    expected: ComplexUser {name = \"Bob\", config = Config {theme = \"Dark\", level = 1}}\n\
             \     but got: ComplexUser {name = \"Alice\", config = Config {theme = \"Light\", level = 2}}\n\
-            \            " <> replicate 21 ' ' <> replicate 53 '^' <> "\n\
+            \            " <> replicate 23 ' ' <> replicate 53 '^' <> "\n\
             \  Specific differences:\n\
             \    - `name`:\n\
             \        expected: \"Bob\"\n\
@@ -207,7 +207,7 @@ spec = do
                 \  Closest match:\n\
                 \    expected: \"{ name = \\\"Bob\\\" }\"\n\
                 \     but got: \"{ name = \\\"Alice\\\"\"\n\
-                \            " <> replicate 12 ' ' <> "^^^^^^^^\n\
+                \            " <> replicate 14 ' ' <> "^^^^^^^^\n\
                 \\n\
                 \  Call history (1 calls):\n\
                 \    [Closest] 1. \"{ name = \\\"Alice\\\"\""
@@ -219,16 +219,16 @@ spec = do
 
       it "handles completely broken structure strings" do
          let actual = "NotARecord {,,,,,}"
-             expected = "NotARecord { a = 1 }"
-             expectedError =
+         let expected = "NotARecord { a = 1 }"
+         let expectedError =
                 "function was not called with the expected arguments.\n\
                 \\n\
                 \  Closest match:\n\
                 \    expected: \"NotARecord { a = 1 }\"\n\
                 \     but got: \"NotARecord {,,,,,}\"\n\
-                \            " <> replicate 13 ' ' <> "^^^^^^^^^\n\
+                \            " <> replicate 15 ' ' <> "^^^^^^^^^\n\
                 \\n\
-            \  Call history (1 calls):\n\
+                \  Call history (1 calls):\n\
                 \    [Closest] 1. \"NotARecord {,,,,,}\""
          withMock (do
            f <- mock $ (any :: Param String) ~> "ok" `expects` (called once `with` expected)
@@ -243,18 +243,18 @@ spec = do
             expected = Node{val = 1, next = Node{val = 2, next = Node{val = 3, next = Node{val = 4, next = Node{val = 5, next = Leaf 1}}}}}
             expectedError =
               "function was not called with the expected arguments.\n\
-            \\n\
-            \  Closest match:\n\
-            \    expected: Node {val = 1, next = Node {val = 2, next = Node {val = 3, next = Node {val = 4, next = Node {val = 5, next = Leaf 1}}}}}\n\
-            \     but got: Node {val = 1, next = Node {val = 2, next = Node {val = 3, next = Node {val = 4, next = Node {val = 5, next = Leaf 0}}}}}\n\
-            \            " <> replicate 115 ' ' <> "^^^^^^\n\
-            \  Specific difference in `next.next.next.next.next`:\n\
-            \    expected: Leaf 1\n\
-            \     but got: Leaf 0\n\
-            \              " <> replicate 5 ' ' <> "^\n\
-            \\n\
-            \  Call history (1 calls):\n\
-            \    [Closest] 1. Node {val = 1, next = Node {val = 2, next = Node {val = 3, next = Node {val = 4, next = Node {val = 5, next = Leaf 0}}}}}"
+              \\n\
+              \  Closest match:\n\
+              \    expected: Node {val = 1, next = Node {val = 2, next = Node {val = 3, next = Node {val = 4, next = Node {val = 5, next = Leaf 1}}}}}\n\
+              \     but got: Node {val = 1, next = Node {val = 2, next = Node {val = 3, next = Node {val = 4, next = Node {val = 5, next = Leaf 0}}}}}\n\
+              \            " <> replicate 117 ' ' <> "^^^^^^\n\
+              \  Specific difference in `next.next.next.next.next`:\n\
+              \    expected: Leaf 1\n\
+              \     but got: Leaf 0\n\
+              \              " <> replicate 5 ' ' <> "^\n\
+              \\n\
+              \  Call history (1 calls):\n\
+              \    [Closest] 1. Node {val = 1, next = Node {val = 2, next = Node {val = 3, next = Node {val = 4, next = Node {val = 5, next = Leaf 0}}}}}"
         withMock (do
           f <- mock $ (any :: Param DeepNode) ~> "ok" `expects` (called once `with` expected)
           _ <- liftIO $ evaluate $ f actual
@@ -266,24 +266,24 @@ spec = do
             expected = MultiLayer {layer1 = "X", sub = SubLayer {layer2 = "Y", items = [Node {val = 1, next = Leaf 3}]}}
             expectedError =
               "function was not called with the expected arguments.\n\
-            \\n\
-            \  Closest match:\n\
-            \    expected: MultiLayer {layer1 = \"X\", sub = SubLayer {layer2 = \"Y\", items = [Node {val = 1, next = Leaf 3}]}}\n\
-            \     but got: MultiLayer {layer1 = \"A\", sub = SubLayer {layer2 = \"B\", items = [Node {val = 1, next = Leaf 2}]}}\n\
-            \            " <> replicate 22 ' ' <> replicate 75 '^' <> "\n\
-            \  Specific differences:\n\
-            \    - `layer1`:\n\
-            \        expected: \"X\"\n\
-            \         but got: \"A\"\n\
-            \    - `sub.layer2`:\n\
-            \        expected: \"Y\"\n\
-            \         but got: \"B\"\n\
-            \    - `sub.items[0].next`:\n\
-            \        expected: Leaf 3\n\
-            \         but got: Leaf 2\n\
-            \\n\
-            \  Call history (1 calls):\n\
-            \    [Closest] 1. MultiLayer {layer1 = \"A\", sub = SubLayer {layer2 = \"B\", items = [Node {val = 1, next = Leaf 2}]}}"
+              \\n\
+              \  Closest match:\n\
+              \    expected: MultiLayer {layer1 = \"X\", sub = SubLayer {layer2 = \"Y\", items = [Node {val = 1, next = Leaf 3}]}}\n\
+              \     but got: MultiLayer {layer1 = \"A\", sub = SubLayer {layer2 = \"B\", items = [Node {val = 1, next = Leaf 2}]}}\n\
+              \            " <> replicate 24 ' ' <> replicate 75 '^' <> "\n\
+              \  Specific differences:\n\
+              \    - `layer1`:\n\
+              \        expected: \"X\"\n\
+              \         but got: \"A\"\n\
+              \    - `sub.layer2`:\n\
+              \        expected: \"Y\"\n\
+              \         but got: \"B\"\n\
+              \    - `sub.items[0].next`:\n\
+              \        expected: Leaf 3\n\
+              \         but got: Leaf 2\n\
+              \\n\
+              \  Call history (1 calls):\n\
+              \    [Closest] 1. MultiLayer {layer1 = \"A\", sub = SubLayer {layer2 = \"B\", items = [Node {val = 1, next = Leaf 2}]}}"
         withMock (do
           f <- mock $ (any :: Param MultiLayer) ~> "ok" `expects` (called once `with` expected)
           _ <- liftIO $ evaluate $ f actual
@@ -295,21 +295,21 @@ spec = do
             expected = Config "Dark" 99
             expectedError =
               "function was not called with the expected arguments.\n\
-            \\n\
-            \  Closest match:\n\
-            \    expected: Config {theme = \"Dark\", level = 99}\n\
-            \     but got: Config {theme = \"Light\", level = 1}\n\
-            \                             ^^^^^^^^^^^^^^^^^^\n\
-            \  Specific differences:\n\
-            \    - `theme`:\n\
-            \        expected: \"Dark\"\n\
-            \         but got: \"Light\"\n\
-            \    - `level`:\n\
-            \        expected: 99\n\
-            \         but got: 1\n\
-            \\n\
-            \  Call history (1 calls):\n\
-            \    [Closest] 1. Config {theme = \"Light\", level = 1}"
+              \\n\
+              \  Closest match:\n\
+              \    expected: Config {theme = \"Dark\", level = 99}\n\
+              \     but got: Config {theme = \"Light\", level = 1}\n\
+              \            " <> replicate 19 ' ' <> replicate 18 '^' <> "\n\
+              \  Specific differences:\n\
+              \    - `theme`:\n\
+              \        expected: \"Dark\"\n\
+              \         but got: \"Light\"\n\
+              \    - `level`:\n\
+              \        expected: 99\n\
+              \         but got: 1\n\
+              \\n\
+              \  Call history (1 calls):\n\
+              \    [Closest] 1. Config {theme = \"Light\", level = 1}"
         withMock (do
           f <- mock $ (any :: Param Config) ~> "ok" `expects` (called once `with` expected)
           _ <- liftIO $ evaluate $ f actual

@@ -11,10 +11,10 @@ module Test.MockCat.Internal.Verify where
 import Control.Concurrent.STM (readTVarIO, TVar)
 import Control.Monad (guard, when)
 import Data.List (intercalate, elemIndex)
-import Data.Maybe (listToMaybe, catMaybes, isNothing)
+import Data.Maybe (catMaybes, isNothing)
 import Test.MockCat.Internal.Types
 import Test.MockCat.Internal.Message
-import Test.MockCat.AssociationList (AssociationList)
+
 import Prelude hiding (lookup)
 
 -- | Verify an expectation directly against a resolved mock.

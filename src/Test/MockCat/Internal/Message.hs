@@ -92,28 +92,7 @@ verifyFailedMessage name invocationList expected =
               "  expected: " <> expectedStr,
               "  but the function was never called"
             ]
-        _ ->
-          let actualStr = formatInvocationList invocationList
-              diffLine = "            " <> diffPointer expectedStr actualStr
-           in case structuralDiff expectedStr actualStr of
-                [] ->
-                  intercalate "\n"
-                    [ mainMessage,
-                      "  expected: " <> expectedStr,
-                      "   but got: " <> actualStr,
-                      diffLine
-                    ]
-                ds ->
-                  let diffMessages = formatDifferences ds
-                   in intercalate "\n"
-                        [ mainMessage,
-                          diffMessages,
-                          "",
-                          "Full context:",
-                          "  expected: " <> expectedStr,
-                          "   but got: " <> actualStr,
-                          diffLine
-                        ]
+        _ -> countWithArgsMismatchMessageWithDiff name expected invocationList
 
 data Difference = Difference
   { diffPath :: String,
@@ -237,7 +216,7 @@ countWithArgsMismatchMessageWithDiff mockName expected actuals =
   let expectedStr = formatStr (show expected)
       actualStrs = map (formatStr . show) actuals
       (nearest, nearestIdx) = chooseNearestWithIndex expectedStr actualStrs
-      diffLine = "            " <> diffPointer expectedStr nearest
+      diffLine = "              " <> diffPointer expectedStr nearest
 
       header = "function" <> mockNameLabel mockName <> " was not called with the expected arguments."
 

@@ -24,9 +24,7 @@ module Test.MockCat.TypeClassCommonSpec where
 import Prelude hiding (readFile, writeFile, any)
 import Test.Hspec
 import Test.MockCat
-import Test.MockCat.MockT
-import Test.MockCat.Mock
-import Test.MockCat.Cons (Head(..), (:>)(..))
+
 import Data.Kind (Type)
 import Data.Text (Text, pack, isInfixOf)
 import Control.Exception (ErrorCall(..), displayException)

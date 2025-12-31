@@ -33,7 +33,7 @@ module Test.MockCat.TH.FunctionBuilder
   )
 where
 
-import Control.Monad.IO.Class (MonadIO, liftIO)
+import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.Trans.Class (lift)
 import Language.Haskell.TH
   ( Dec (..),
@@ -52,11 +52,9 @@ import Language.Haskell.TH
   )
 import Language.Haskell.TH.Lib
 import Language.Haskell.TH.Syntax (nameBase, Specificity (SpecifiedSpec))
-import Test.MockCat.Mock ( MockBuilder, CreateMockFn, mock, label, Label(..), MockDispatch(..), IsMockSpec )
-import qualified Test.MockCat.Internal.MockRegistry as Registry
-import Test.MockCat.Internal.Builder (buildMock)
-import Test.MockCat.Internal.Types (BuiltMock(..), InvocationRecorder)
-import Test.MockCat.Cons (Head(..), (:>)(..))
+import Test.MockCat.Mock (IsMockSpec, MockDispatch(..), label)
+import Test.MockCat.Internal.Types (InvocationRecorder)
+import Test.MockCat.Cons ((:>)(..))
 import Test.MockCat.MockT
   ( MockT (..),
     Definition (..),
@@ -67,7 +65,8 @@ import Test.MockCat.TH.TypeUtils
   ( isNotConstantFunctionType,
     needsTypeable,
     collectTypeVars,
-    collectTypeableTargets
+    collectTypeableTargets,
+    splitApps
   )
 import Test.MockCat.TH.ContextBuilder
   ( MockType (..)
@@ -86,7 +85,7 @@ import Unsafe.Coerce (unsafeCoerce)
 import GHC.TypeLits (KnownSymbol, symbolVal)
  
 
-import Test.MockCat.Param (Param, param)
+import Test.MockCat.Param (Param)
 import Test.MockCat.TH.Types (MockOptions(..))
 
 createMockBuilderVerifyParams :: Type -> Type
@@ -193,7 +192,7 @@ createNoInlinePragma :: Name -> Q Dec
 createNoInlinePragma name = pragInlD name NoInline FunLike AllPhases
 
 doCreateMockFnDecs :: (Quote m) => MockType -> String -> Name -> Name -> Type -> Name -> Type -> m [Dec]
-doCreateMockFnDecs mockType funNameStr mockFunName params funTypeInput monadVarName updatedType = do
+doCreateMockFnDecs mockType funNameStr mockFunName params funTypeInput monadVarName _ = do
   let funType = sanitizeType [monadVarName] funTypeInput
   newFunSig <- do
     let resultType =
@@ -222,7 +221,8 @@ doCreateMockFnDecs mockType funNameStr mockFunName params funTypeInput monadVarN
     
     let vars = collectFreeVars funType ++ [params, monadVarName]
     let tvs = map (\n -> PlainTV n SpecifiedSpec) (nub vars)
-    sigD mockFunName (pure (ForallT tvs ctx resultType))
+    let finalCtx = filter (not . isRedundantTypeable monadVarName) ctx
+    sigD mockFunName (pure (ForallT tvs finalCtx resultType))
 
   mockBody <- createMockBody funNameStr [|p|] (VarT params)
   newFun <- funD mockFunName [clause [varP $ mkName "p"] (normalB (pure mockBody)) []]
@@ -231,8 +231,7 @@ doCreateMockFnDecs mockType funNameStr mockFunName params funTypeInput monadVarN
 
 doCreateConstantMockFnDecs :: (Quote m) => MockType -> String -> Name -> Type -> Name -> m [Dec]
 doCreateConstantMockFnDecs Partial funNameStr mockFunName ty monadVarName = do
-  let stubVar = mkName "p"
-  let params = mkName "p" 
+  let stubVar = mkName "p" 
   let tySanitized = sanitizeType [monadVarName] ty
   let resultType =
         AppT
@@ -253,13 +252,11 @@ doCreateConstantMockFnDecs Partial funNameStr mockFunName ty monadVarName = do
   let ctx =
         [ createMockFnPred
         , AppT (ConT ''MonadIO) (VarT monadVarName)
-        , AppT (ConT ''Typeable) (VarT stubVar)
-        , AppT (ConT ''Show) (VarT stubVar)
-        , AppT (ConT ''Eq) (VarT stubVar)
         , recConstraint
         , paramsConstraint
         ]
         ++ createTypeablePreds [tySanitized]
+  let finalCtx = filter (not . isRedundantTypeable monadVarName) ctx
   let vars = collectFreeVars tySanitized ++ [stubVar, monadVarName]
   let tvs = map (\n -> PlainTV n SpecifiedSpec) (nub vars)
   newFunSig <-
@@ -268,7 +265,7 @@ doCreateConstantMockFnDecs Partial funNameStr mockFunName ty monadVarName = do
       ( pure
           (ForallT
               tvs
-              ctx
+              finalCtx
               resultType
           )
       )
@@ -304,8 +301,10 @@ doCreateConstantMockFnDecs Total funNameStr mockFunName ty monadVarName = do
             , paramsConstraint
             ]
             ++ createTypeablePreds [tySanitized]
+            
       let tvs = map (\n -> PlainTV n SpecifiedSpec) (nub (collectFreeVars tySanitized ++ [params, monadVarName]))
-      newFunSig <- sigD mockFunName (pure (ForallT tvs ctx resultType))
+      let finalCtx = filter (not . isRedundantTypeable monadVarName) ctx
+      newFunSig <- sigD mockFunName (pure (ForallT tvs finalCtx resultType))
 
       mockBody <- createMockBody funNameStr [|p|] (VarT params)
       newFun <- funD mockFunName [clause [varP params] (normalB (pure mockBody)) []]
@@ -337,10 +336,12 @@ doCreateEmptyVerifyParamMockFnDecs funNameStr mockFunName params funTypeInput mo
             ++ [AppT (ConT ''MonadIO) (VarT monadVarName)]
             ++ [recConstraint, paramsConstraint]
             ++ createTypeablePreds [funType, verifyParams]
+        
+        finalCtx = filter (not . isRedundantTypeable monadVarName) ctx
     
     let vars = collectFreeVars funType ++ [params, monadVarName]
     let tvs = map (\n -> PlainTV n SpecifiedSpec) (nub vars)
-    sigD mockFunName (pure (ForallT tvs ctx resultType))
+    sigD mockFunName (pure (ForallT tvs finalCtx resultType))
 
   mockBody <- createMockBody funNameStr [|p|] (VarT params)
   newFun <- funD mockFunName [clause [varP $ mkName "p"] (normalB (pure mockBody)) []]
@@ -426,8 +427,8 @@ generateInstanceMockFnBody fnNameStr args r opts = do
       let findDef = find (\(Definition s _ _) -> symbolVal s == $(litE (stringL fnNameStr))) defs
       case findDef of
         Just (Definition _ mf _) -> do
-          let mock = unsafeCoerce mf
-          let $(bangP $ varP r) = $(generateStubFn args [|mock|])
+          let mockFn = unsafeCoerce mf
+          let $(bangP $ varP r) = $(generateStubFn args [|mockFn|])
           $(pure returnExp)
         Nothing -> error $ "no answer found stub function `" ++ fnNameStr ++ "`."
     |]
@@ -443,14 +444,43 @@ generateInstanceRealFnBody fnName fnNameStr args r opts = do
       let findDef = find (\(Definition s _ _) -> symbolVal s == $(litE (stringL fnNameStr))) defs
       case findDef of
         Just (Definition _ mf _) -> do
-          let mock = unsafeCoerce mf
-          let $(bangP $ varP r) = $(generateStubFn args [|mock|])
+          let mockFn = unsafeCoerce mf
+          let $(bangP $ varP r) = $(generateStubFn args [|mockFn|])
           $(pure returnExp)
         Nothing -> lift $ $(foldl appE (varE fnName) args)
     |]
 
 generateStubFn :: [Q Exp] -> Q Exp -> Q Exp
-generateStubFn [] mock = mock
-generateStubFn args mock = foldl appE mock args
+generateStubFn [] mockFn = mockFn
+generateStubFn args mockFn = foldl appE mockFn args
+
+
+isRedundantTypeable :: Name -> Pred -> Bool
+isRedundantTypeable monadName (AppT (ConT n) t)
+  | n == ''Typeable =
+      if null (collectFreeVars t)
+        then True
+        else case t of
+          VarT vn | nameBase vn == nameBase monadName -> False
+          _ -> if any (\v -> nameBase v == nameBase monadName) (collectFreeVars t)
+                 then not (isProtectedType t)
+                 else False
+  where
+    isProtectedType ty =
+      let (headTy, _) = splitApps ty
+      in case headTy of
+           ConT hn -> nameBase hn `elem` protectedTypes
+           _ -> False
+
+    protectedTypes =
+      [ "ResolvableParamsOf"
+      , "ResultType"
+      , "InvocationRecorder"
+      , "PrependParam"
+      , "FunctionParams"
+      ]
+isRedundantTypeable _ _ = False
+
+
 
 

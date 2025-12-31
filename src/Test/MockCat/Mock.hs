@@ -54,14 +54,14 @@ module Test.MockCat.Mock
 
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.State (get, put)
-import Control.Concurrent.STM (TVar, atomically, modifyTVar')
+import Control.Concurrent.STM (atomically, modifyTVar')
 import Data.Kind (Type)
 import Data.Proxy (Proxy(..))
 import Data.Typeable (Typeable)
 import Prelude hiding (lookup)
 import Test.MockCat.Internal.Builder
 import Test.MockCat.Internal.Verify (verifyExpectationDirect)
-import qualified Test.MockCat.Internal.MockRegistry as MockRegistry ( register, getLastRecorder )
+import qualified Test.MockCat.Internal.MockRegistry as MockRegistry ( register )
 import Test.MockCat.Internal.Types
 import Test.MockCat.Param
 import Test.MockCat.Verify
@@ -176,7 +176,7 @@ instance
   where
   mockDispatchImpl (Label name) (MockSpec params exps) = do
     BuiltMock { builtMockFn = fn, builtMockRecorder = recorder } <- buildMock (Just name) (toParams params)
-    liftIO $ MockRegistry.register (Just name) recorder fn
+    _ <- liftIO $ MockRegistry.register (Just name) recorder fn
     
     WithMockContext ctxRef <- askWithMockContext
     let resolved = ResolvedMock (Just name) recorder
@@ -225,7 +225,7 @@ instance {-# OVERLAPPING #-}
   where
   mockImpl (MockSpec params exps) = do
     BuiltMock { builtMockFn = fn, builtMockRecorder = recorder } <- buildMock Nothing (toParams params)
-    liftIO $ MockRegistry.register Nothing recorder fn
+    _ <- liftIO $ MockRegistry.register Nothing recorder fn
     
     WithMockContext ctxRef <- askWithMockContext
     let resolved = ResolvedMock Nothing recorder

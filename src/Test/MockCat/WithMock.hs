@@ -37,37 +37,25 @@ module Test.MockCat.WithMock
   , verifyExpectationDirect
   ) where
 
-import Control.Monad.IO.Class (MonadIO(..))
-import Control.Monad.Reader (ReaderT(..), runReaderT, MonadReader(..), ask)
-import Control.Concurrent.STM (TVar, newTVarIO, readTVarIO, modifyTVar', atomically)
-import Control.Monad.State (State, get, put, modify, execState)
-import Test.MockCat.Verify (ShouldBeCalled(..), VerificationSpec(..), TimesSpec(..), times, once, never, atLeast, atMost, greaterThan, lessThan, anything, inOrder, inPartialOrder, calledWith)
+import Control.Monad.IO.Class ()
+import Control.Monad.Reader (ReaderT(..), runReaderT)
+import Control.Concurrent.STM (newTVarIO, readTVarIO)
+import Control.Monad.State (get, put, modify)
+import Test.MockCat.Verify (VerificationSpec(..), TimesSpec(..), times, once, never, atLeast, atMost, greaterThan, lessThan, anything)
 import Test.MockCat.Internal.Verify
   ( verifyExpectationDirect
-  , verifyResolvedAny
-  , verifyCallCount
-  , verifyResolvedMatch
-  , verifyResolvedCount
-  , verifyResolvedOrder
   )
 import Test.MockCat.Internal.Types
-  ( CountVerifyMethod(..)
-  , VerifyOrderMethod(..)
-  , VerifyMatchType(..)
-  , InvocationRecorder(..)
+  ( VerifyOrderMethod(..)
   , WithMockContext(..)
   , MonadWithMockContext(..)
   , Expectation(..)
   , Expectations(..)
   , runExpectations
   , addExpectation
-  , MockName
-  , ResolvedMock(..)
   )
-import qualified Test.MockCat.Internal.MockRegistry as MockRegistry
+
 import Test.MockCat.Param (Param(..), param, MockSpec(..), ArgsOf)
-import Data.Kind (Type)
-import Data.Proxy (Proxy(..))
 
 
 -- | Run a block with mock expectations that are automatically verified
@@ -85,22 +73,7 @@ withMock action = do
 --   Supports both single expectation and multiple expectations in a do block
 infixr 0 `expects`
 
--- | Type class to extract params type from an expectation expression
-class ExtractParams exp where
-  type ExpParams exp :: Type
-  extractParams :: exp -> Proxy (ExpParams exp)
 
-instance ExtractParams (Expectations params ()) where
-  type ExpParams (Expectations params ()) = params
-  extractParams _ = Proxy
-
-instance ExtractParams (VerificationSpec params) where
-  type ExpParams (VerificationSpec params) = params
-  extractParams _ = Proxy
-
-instance ExtractParams (fn -> Expectations params ()) where
-  type ExpParams (fn -> Expectations params ()) = params
-  extractParams _ = Proxy
 
 -- | Type class for building expectations from various expression types.
 -- This is used to convert the expectation DSL into a list of Expectation values.

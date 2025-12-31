@@ -34,7 +34,7 @@ import Prelude hiding (lookup)
 import Control.Monad.State
 import Test.MockCat.Internal.Types
 import Test.MockCat.Internal.Message
-import Test.MockCat.Internal.Message
+
 
 -- | Class for building a curried function.
 -- The purpose of this class is to automatically generate and provide

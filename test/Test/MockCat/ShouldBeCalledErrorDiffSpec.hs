@@ -16,9 +16,6 @@ data User = User { name :: String, age :: Int } deriving (Show, Eq, Generic)
 data Config = Config { theme :: String, level :: Int } deriving (Show, Eq, Generic)
 data ComplexUser = ComplexUser { name :: String, config :: Config } deriving (Show, Eq, Generic)
 data DeepNode = Leaf Int | Node { val :: Int, next :: DeepNode } deriving (Show, Eq, Generic)
--- No longer partial if we use it carefully, but let's just use it.
--- Actually, to avoid the warning entirely, we could use different field names or separate types,
--- but for a test it is fine. I will just use anyException for the RED phase.
 data MultiLayer = MultiLayer
   { layer1 :: String,
     sub :: SubLayer
@@ -43,9 +40,14 @@ spec = do
       _ <- evaluate $ f "hello haskell"
       let expectedError =
             "function was not called with the expected arguments.\n\
-            \  expected: \"hello world\"\n\
-            \   but got: \"hello haskell\"\n\
-            \                   ^^^^^^^^"
+            \\n\
+            \  Closest match:\n\
+            \    expected: \"hello world\"\n\
+            \     but got: \"hello haskell\"\n\
+            \            " <> replicate 9 ' ' <> "^^^^^^^^\n\
+            \\n\
+            \  Call history (1 calls):\n\
+            \    [Closest] 1. \"hello haskell\""
       f `shouldBeCalled` "hello world" `shouldThrow` errorCall expectedError
 
     it "shows diff for long list" do
@@ -53,15 +55,18 @@ spec = do
       _ <- evaluate $ f [1, 2, 3, 4, 5, 0, 7, 8, 9, 10]
       let expectedError =
             "function was not called with the expected arguments.\n\
+            \\n\
+            \  Closest match:\n\
+            \    expected: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]\n\
+            \     but got: [1, 2, 3, 4, 5, 0, 7, 8, 9, 10]\n\
+            \            " <> replicate 18 ' ' <> "^^^^^^^^^^^^^^^\n\
             \  Specific difference in `[5]`:\n\
             \    expected: 6\n\
             \     but got: 0\n\
             \              ^\n\
             \\n\
-            \Full context:\n\
-            \  expected: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]\n\
-            \   but got: [1, 2, 3, 4, 5, 0, 7, 8, 9, 10]\n\
-            \                            ^^^^^^^^^^^^^^^"
+            \  Call history (1 calls):\n\
+            \    [Closest] 1. [1, 2, 3, 4, 5, 0, 7, 8, 9, 10]"
       f `shouldBeCalled` [1..10] `shouldThrow` errorCall expectedError
 
     it "shows diff for record" do
@@ -69,15 +74,18 @@ spec = do
       _ <- evaluate $ f (User "Fagen" 20)
       let expectedError =
             "function was not called with the expected arguments.\n\
+            \\n\
+            \  Closest match:\n\
+            \    expected: User {name = \"Fagen\", age = 30}\n\
+            \     but got: User {name = \"Fagen\", age = 20}\n\
+            \            " <> replicate 30 ' ' <> "^^^\n\
             \  Specific difference in `age`:\n\
             \    expected: 30\n\
             \     but got: 20\n\
             \              ^^\n\
             \\n\
-            \Full context:\n\
-            \  expected: User {name = \"Fagen\", age = 30}\n\
-            \   but got: User {name = \"Fagen\", age = 20}\n\
-            \                                        ^^^"
+            \  Call history (1 calls):\n\
+            \    [Closest] 1. User {name = \"Fagen\", age = 20}"
       f `shouldBeCalled` User "Fagen" 30 `shouldThrow` errorCall expectedError
 
     it "shows diff for inOrderWith" do
@@ -111,15 +119,18 @@ spec = do
       _ <- evaluate $ f (ComplexUser "Alice" (Config "Light" 1))
       let expectedError =
             "function was not called with the expected arguments.\n\
+            \\n\
+            \  Closest match:\n\
+            \    expected: ComplexUser {name = \"Alice\", config = Config {theme = \"Dark\", level = 1}}\n\
+            \     but got: ComplexUser {name = \"Alice\", config = Config {theme = \"Light\", level = 1}}\n\
+            \            " <> replicate 57 ' ' <> replicate 19 '^' <> "\n\
             \  Specific difference in `config.theme`:\n\
             \    expected: \"Dark\"\n\
             \     but got: \"Light\"\n\
             \               ^^^^^^\n\
             \\n\
-            \Full context:\n\
-            \  expected: ComplexUser {name = \"Alice\", config = Config {theme = \"Dark\", level = 1}}\n\
-            \   but got: ComplexUser {name = \"Alice\", config = Config {theme = \"Light\", level = 1}}\n\
-            \                                                                   ^^^^^^^^^^^^^^^^^^^"
+            \  Call history (1 calls):\n\
+            \    [Closest] 1. ComplexUser {name = \"Alice\", config = Config {theme = \"Light\", level = 1}}"
       f `shouldBeCalled` ComplexUser "Alice" (Config "Dark" 1) `shouldThrow` errorCall expectedError
 
     it "shows diff for nested list" do
@@ -127,15 +138,18 @@ spec = do
       _ <- evaluate $ f [[1, 2], [3, 4]]
       let expectedError =
             "function was not called with the expected arguments.\n\
+            \\n\
+            \  Closest match:\n\
+            \    expected: [[1,2], [3,5]]\n\
+            \     but got: [[1,2], [3,4]]\n\
+            \            " <> replicate 13 ' ' <> "^^^\n\
             \  Specific difference in `[1][1]`:\n\
             \    expected: 5\n\
             \     but got: 4\n\
             \              ^\n\
             \\n\
-            \Full context:\n\
-            \  expected: [[1,2], [3,5]]\n\
-            \   but got: [[1,2], [3,4]]\n\
-            \                       ^^^"
+            \  Call history (1 calls):\n\
+            \    [Closest] 1. [[1,2], [3,4]]"
       f `shouldBeCalled` [[1, 2], [3, 5]] `shouldThrow` errorCall expectedError
 
     it "shows multiple differences in nested record" do
@@ -145,6 +159,11 @@ spec = do
       _ <- evaluate $ f actual
       let expectedError =
             "function was not called with the expected arguments.\n\
+            \\n\
+            \  Closest match:\n\
+            \    expected: ComplexUser {name = \"Bob\", config = Config {theme = \"Dark\", level = 1}}\n\
+            \     but got: ComplexUser {name = \"Alice\", config = Config {theme = \"Light\", level = 2}}\n\
+            \            " <> replicate 23 ' ' <> replicate 53 '^' <> "\n\
             \  Specific differences:\n\
             \    - `name`:\n\
             \        expected: \"Bob\"\n\
@@ -156,10 +175,8 @@ spec = do
             \        expected: 1\n\
             \         but got: 2\n\
             \\n\
-            \Full context:\n\
-            \  expected: ComplexUser {name = \"Bob\", config = Config {theme = \"Dark\", level = 1}}\n\
-            \   but got: ComplexUser {name = \"Alice\", config = Config {theme = \"Light\", level = 2}}\n\
-            \                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^"
+            \  Call history (1 calls):\n\
+            \    [Closest] 1. ComplexUser {name = \"Alice\", config = Config {theme = \"Light\", level = 2}}"
       f `shouldBeCalled` expected `shouldThrow` errorCall expectedError
 
     describe "robustness (broken formats)" do
@@ -170,21 +187,31 @@ spec = do
          _ <- evaluate $ f actual
          let expectedError =
                "function was not called with the expected arguments.\n\
-               \  expected: \"{ name = \\\"Bob\\\" }\"\n\
-               \   but got: \"{ name = \\\"Alice\\\"\"\n\
-               \                        ^^^^^^^^"
+               \\n\
+               \  Closest match:\n\
+               \    expected: \"{ name = \\\"Bob\\\" }\"\n\
+               \     but got: \"{ name = \\\"Alice\\\"\"\n\
+               \            " <> replicate 14 ' ' <> "^^^^^^^^\n\
+               \\n\
+               \  Call history (1 calls):\n\
+               \    [Closest] 1. \"{ name = \\\"Alice\\\"\""
          f `shouldBeCalled` expected `shouldThrow` errorCall expectedError
 
       it "handles completely broken structure strings" do
          f <- mock $ (any :: Param String) ~> "ok"
          let actual = "NotARecord {,,,,,}"
-             expected = "NotARecord { a = 1 }"
+         let expected = "NotARecord { a = 1 }"
          _ <- evaluate $ f actual
          let expectedError =
                "function was not called with the expected arguments.\n\
-               \  expected: \"NotARecord { a = 1 }\"\n\
-               \   but got: \"NotARecord {,,,,,}\"\n\
-               \                         ^^^^^^^^^"
+               \\n\
+               \  Closest match:\n\
+               \    expected: \"NotARecord { a = 1 }\"\n\
+               \     but got: \"NotARecord {,,,,,}\"\n\
+               \            " <> replicate 15 ' ' <> "^^^^^^^^^\n\
+               \\n\
+               \  Call history (1 calls):\n\
+               \    [Closest] 1. \"NotARecord {,,,,,}\""
          f `shouldBeCalled` expected `shouldThrow` errorCall expectedError
 
     describe "extreme structural cases" do
@@ -196,15 +223,18 @@ spec = do
         _ <- evaluate $ f actual
         let expectedError =
               "function was not called with the expected arguments.\n" <>
+              "\n" <>
+              "  Closest match:\n" <>
+              "    expected: Node {val = 1, next = Node {val = 2, next = Node {val = 3, next = Node {val = 4, next = Node {val = 5, next = Leaf 1}}}}}\n" <>
+              "     but got: Node {val = 1, next = Node {val = 2, next = Node {val = 3, next = Node {val = 4, next = Node {val = 5, next = Leaf 0}}}}}\n" <>
+              "            " <> replicate 117 ' ' <> "^^^^^^\n" <>
               "  Specific difference in `next.next.next.next.next`:\n" <>
               "    expected: Leaf 1\n" <>
               "     but got: Leaf 0\n" <>
               "              " <> replicate 5 ' ' <> "^\n" <>
               "\n" <>
-              "Full context:\n" <>
-              "  expected: Node {val = 1, next = Node {val = 2, next = Node {val = 3, next = Node {val = 4, next = Node {val = 5, next = Leaf 1}}}}}\n" <>
-              "   but got: Node {val = 1, next = Node {val = 2, next = Node {val = 3, next = Node {val = 4, next = Node {val = 5, next = Leaf 0}}}}}\n" <>
-              "            " <> replicate 115 ' ' <> "^^^^^^"
+              "  Call history (1 calls):\n" <>
+              "    [Closest] 1. Node {val = 1, next = Node {val = 2, next = Node {val = 3, next = Node {val = 4, next = Node {val = 5, next = Leaf 0}}}}}"
         f `shouldBeCalled` expected `shouldThrow` errorCall expectedError
 
       it "shows mismatches across multiple layers" do
@@ -214,6 +244,11 @@ spec = do
         _ <- evaluate $ f actual
         let expectedError =
               "function was not called with the expected arguments.\n" <>
+              "\n" <>
+              "  Closest match:\n" <>
+              "    expected: MultiLayer {layer1 = \"X\", sub = SubLayer {layer2 = \"Y\", items = [Node {val = 1, next = Leaf 3}]}}\n" <>
+              "     but got: MultiLayer {layer1 = \"A\", sub = SubLayer {layer2 = \"B\", items = [Node {val = 1, next = Leaf 2}]}}\n" <>
+              "            " <> replicate 24 ' ' <> replicate 75 '^' <> "\n" <>
               "  Specific differences:\n" <>
               "    - `layer1`:\n" <>
               "        expected: \"X\"\n" <>
@@ -225,10 +260,8 @@ spec = do
               "        expected: Leaf 3\n" <>
               "         but got: Leaf 2\n" <>
               "\n" <>
-              "Full context:\n" <>
-              "  expected: MultiLayer {layer1 = \"X\", sub = SubLayer {layer2 = \"Y\", items = [Node {val = 1, next = Leaf 3}]}}\n" <>
-              "   but got: MultiLayer {layer1 = \"A\", sub = SubLayer {layer2 = \"B\", items = [Node {val = 1, next = Leaf 2}]}}\n" <>
-              "            " <> replicate 22 ' ' <> replicate 75 '^'
+              "  Call history (1 calls):\n" <>
+              "    [Closest] 1. MultiLayer {layer1 = \"A\", sub = SubLayer {layer2 = \"B\", items = [Node {val = 1, next = Leaf 2}]}}"
         f `shouldBeCalled` expected `shouldThrow` errorCall expectedError
 
       it "handles cases where almost everything is different" do
@@ -238,6 +271,11 @@ spec = do
         _ <- evaluate $ f actual
         let expectedError =
               "function was not called with the expected arguments.\n" <>
+              "\n" <>
+              "  Closest match:\n" <>
+              "    expected: Config {theme = \"Dark\", level = 99}\n" <>
+              "     but got: Config {theme = \"Light\", level = 1}\n" <>
+              "            " <> replicate 19 ' ' <> replicate 18 '^' <> "\n" <>
               "  Specific differences:\n" <>
               "    - `theme`:\n" <>
               "        expected: \"Dark\"\n" <>
@@ -246,8 +284,6 @@ spec = do
               "        expected: 99\n" <>
               "         but got: 1\n" <>
               "\n" <>
-              "Full context:\n" <>
-              "  expected: Config {theme = \"Dark\", level = 99}\n" <>
-              "   but got: Config {theme = \"Light\", level = 1}\n" <>
-              "            " <> replicate 17 ' ' <> replicate 18 '^'
+              "  Call history (1 calls):\n" <>
+              "    [Closest] 1. Config {theme = \"Light\", level = 1}"
         f `shouldBeCalled` expected `shouldThrow` errorCall expectedError

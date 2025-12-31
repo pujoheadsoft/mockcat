@@ -18,26 +18,20 @@
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
 module Test.MockCat.Verify where
 
-import Control.Concurrent.STM (TVar, readTVarIO)
+
 import Test.MockCat.Internal.Verify
-  ( verifyExpectationDirect
-  , verifyResolvedAny
-  , verifyResolvedMatch
-  , verifyResolvedCount
-  , verifyResolvedCallCount
-  , verifyResolvedOrder
-  , verifyCallCount
-  , tryVerifyCallCount
+  ( tryVerifyCallCount
   , compareCount
-  , countMismatchMessage
   , countWithArgsMismatchMessage
   , doVerify
   , doVerifyOrder
   , readInvocationList
   )
 import Test.MockCat.Internal.Types
-import Control.Monad (guard, when)
-import Data.List (elemIndex, intercalate)
+
+
+import Control.Monad ()
+import Data.List (intercalate)
 import Data.Maybe
 import Test.MockCat.Param
 import Prelude hiding (lookup)

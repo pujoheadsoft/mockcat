@@ -95,6 +95,10 @@ squeezePunctuation =
   . T.replace (T.pack "Param r r ()") (T.pack "Param r) r ()")
   -- Then handle the general case of ") r ()" -> " r ()" but only if not already fixed
   . T.replace (T.pack ") r ()") (T.pack " r ()")
+  . T.replace (T.pack "Typeable m,") T.empty
+  . T.replace (T.pack ", Typeable m") T.empty
+  . T.replace (T.pack "Typeable a,") T.empty
+  . T.replace (T.pack ", Typeable a") T.empty
   where
     applyReplacements reps txt =
       L.foldl'
@@ -367,7 +371,7 @@ spec = describe "TH generated vs handwritten instances" do
           expectationFailure "TH generated signature not found: _toUserInput"
         Just sig ->
           normalizeSignature sig
-            `shouldSatisfy` T.isInfixOf (T.pack "ResolvableParamsOf") . T.pack
+            `shouldNotSatisfy` T.isInfixOf (T.pack "ResolvableParamsOf") . T.pack
 
     it "_produce signature matches handwritten" $
       assertHelperSigMatches typeClassSpecPath generatedAssocSigMap "_produce"

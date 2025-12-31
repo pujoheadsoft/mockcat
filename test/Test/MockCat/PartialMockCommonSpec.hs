@@ -18,9 +18,7 @@ module Test.MockCat.PartialMockCommonSpec
   ) where
 
 
-import Test.MockCat.Cons (Head(..), (:>)(..))
-import Test.MockCat.Mock (MockDispatch, IsMockSpec, CreateMockFn)
-import Test.MockCat.MockT (MockT)
+
 import Test.MockCat.Internal.Types (InvocationRecorder)
 import Prelude hiding (readFile, writeFile)
 import Test.Hspec (Spec, it, shouldBe, describe, shouldThrow, Selector)

@@ -12,7 +12,8 @@
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 {-# OPTIONS_GHC -Wno-unused-do-bind #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE QuasiQuotes #-}
+
 {-# LANGUAGE DuplicateRecordFields #-}
 
 module Test.MockCat.TypeClassSpec (spec) where
@@ -35,8 +36,8 @@ import Control.Monad.IO.Unlift (MonadUnliftIO)
 import qualified Test.MockCat.Verify as Verify
 import Test.MockCat.SharedSpecDefs
 import qualified Test.MockCat.TypeClassCommonSpec as SpecCommon
-import Test.MockCat.Internal.Types (BuiltMock(..), InvocationRecorder)
-import qualified Test.MockCat.Internal.MockRegistry as Registry (register)
+import Test.MockCat.Internal.Types (InvocationRecorder)
+
 
 -- | No-op. Previously used StableName-based verification check, which breaks under HPC.
 --   TH-generated code doesn't need this, so we make it a no-op for consistency.
@@ -84,7 +85,6 @@ instance MonadIO m => MonadReader SpecCommon.Environment (MockT m) where
 _ask ::
   ( MockDispatch (IsMockSpec params) params (MockT m) env
   , MonadIO m
-  , Typeable m
   , Verify.ResolvableParamsOf env ~ ()
   , Typeable env
   ) =>
@@ -520,7 +520,6 @@ _produce ::
   , Typeable (InvocationRecorder (Verify.ResolvableParamsOf (ResultType m)))
   , Typeable (Verify.ResolvableParamsOf (ResultType m))
   , Typeable (ResultType m)
-  , Typeable m
   ) =>
   p ->
   MockT m (ResultType m)

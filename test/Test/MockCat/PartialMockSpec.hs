@@ -1,4 +1,5 @@
 {-# LANGUAGE BlockArguments #-}
+
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeOperators #-}
@@ -140,9 +141,6 @@ _getInput ::
   ( MockDispatch (IsMockSpec params) params (MockT m) String
   , MonadIO m
   , Typeable (Verify.ResolvableParamsOf String)
-  , Typeable params
-  , Show params
-  , Eq params
   ) =>
   params ->
   MockT m String
@@ -216,13 +214,9 @@ instance (MonadIO m, Finder a b m) => Finder a b (MockT m) where
 _findIds ::
   ( MockDispatch (IsMockSpec p) p (MockT m) [a]
   , MonadIO m
-  , Typeable p
-  , Show p
-  , Eq p
   , Typeable (InvocationRecorder (Verify.ResolvableParamsOf [a]))
   , Typeable (Verify.ResolvableParamsOf [a])
   , Typeable [a]
-  , Typeable a
   ) =>
   p ->
   MockT m [a]
