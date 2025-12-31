@@ -179,12 +179,12 @@ Useful when you want to bring existing typeclasses directly into your tests. Gen
 
 ```haskell
 {-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeFamilies #-}
 
 class Monad m => FileSystem m where
   readFile :: FilePath -> m String
@@ -199,6 +199,9 @@ makeMock [t|FileSystem|]
 -- Automatically wraps pure values into the monad (m String).
 makeAutoLiftMock [t|FileSystem|]
 ```
+
+> [!NOTE]
+> If the class definition requires additional extensions (e.g., `MultiParamTypeClasses`, `UndecidableInstances`), Mockcat will display a detailed error message during compilation to guide you.
 
 Use `runMockT` block in your tests.
 

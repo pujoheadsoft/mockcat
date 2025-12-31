@@ -177,12 +177,12 @@ f <- mock (expect (> 5) "> 5" ~> True)
 
 ```haskell
 {-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeFamilies #-}
 
 class Monad m => FileSystem m where
   readFile :: FilePath -> m String
@@ -197,6 +197,9 @@ makeMock [t|FileSystem|]
 -- 純粋な値を自動的にモナド（m String など）に包んで返します。
 makeAutoLiftMock [t|FileSystem|]
 ```
+
+> [!NOTE]
+> クラスの定義に応じてさらなる言語拡張（`MultiParamTypeClasses` や `UndecidableInstances` など）が必要な場合、Mockcat はコンパイル時に詳細なエラーメッセージを表示して通知します。
 
 テストコード内では `runMockT` ブロックを使用します。
 
