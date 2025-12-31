@@ -21,7 +21,7 @@ module Test.MockCat.TH
   )
 where
 
-import Control.Monad (unless)
+import Control.Monad (unless, when)
 import Data.List (elemIndex, nub)
 import Data.Maybe (catMaybes)
 import qualified Data.Map.Strict as Map
@@ -31,6 +31,7 @@ import Language.Haskell.TH
     Dec (..),
     Exp (..),
     Extension (..),
+    FunDep,
     Info (..),
     Lit (..),
     Name,
@@ -256,10 +257,10 @@ makeAutoLiftPartialMock t = doMakeMock t Partial (options { implicitMonadicRetur
 
 doMakeMock :: Q Type -> MockType -> MockOptions -> Q [Dec]
 doMakeMock qType mockType options = do
-  verifyRequiredExtensions
   ty <- qType
   let className = getClassName ty
   classMetadata <- loadClassMetadata className
+  verifyRequiredExtensions (cmRequirements classMetadata)
   monadVarName <- selectMonadVarName classMetadata
   makeMockDecs
     ty
@@ -271,11 +272,41 @@ doMakeMock qType mockType options = do
     (cmDecs classMetadata)
     options
 
-verifyRequiredExtensions :: Q ()
-verifyRequiredExtensions =
+data ClassRequirements = ClassRequirements
+  { reqMultiParamTypeClasses :: Bool,
+    reqFunctionalDependencies :: Bool,
+    reqTypeFamilies :: Bool,
+    reqTypeOperators :: Bool,
+    reqHasContext :: Bool
+  }
+
+verifyRequiredExtensions :: ClassRequirements -> Q ()
+verifyRequiredExtensions requirements = do
+  -- Standard set of extensions required for Mockcat's machinery to function correctly
   mapM_
     verifyExtension
-    [DataKinds, FlexibleInstances, FlexibleContexts, TypeFamilies]
+    [ DataKinds,
+      FlexibleInstances,
+      FlexibleContexts,
+      TypeApplications,
+      ScopedTypeVariables,
+      TypeFamilies
+    ]
+
+  -- Additional extensions required based on the specific type class definition
+  when requirements.reqMultiParamTypeClasses (verifyExtension MultiParamTypeClasses)
+
+  when
+    ( (requirements.reqMultiParamTypeClasses && requirements.reqHasContext)
+        || requirements.reqFunctionalDependencies
+    )
+    (verifyExtension UndecidableInstances)
+
+  when requirements.reqFunctionalDependencies do
+    verifyExtension AllowAmbiguousTypes
+    verifyExtension FunctionalDependencies
+
+  when requirements.reqTypeOperators (verifyExtension TypeOperators)
 
 loadClassMetadata :: Name -> Q ClassMetadata
 loadClassMetadata className = do
@@ -283,15 +314,48 @@ loadClassMetadata className = do
   case info of
     ClassI (ClassD _ _ [] _ _) _ ->
       fail $ "A type parameter is required for class " <> show className
-    ClassI (ClassD cxt _ typeVars _ decs) _ ->
+    ClassI (ClassD cxt name typeVars fundeps decs) _ ->
       pure $
         ClassMetadata
           { cmName = className,
             cmContext = cxt,
             cmTypeVars = map convertTyVarBndr typeVars,
-            cmDecs = decs
+            cmDecs = decs,
+            cmRequirements = detectRequirements cxt name typeVars fundeps decs
           }
     other -> error $ "unsupported type: " <> show other
+
+detectRequirements :: Cxt -> Name -> [TyVarBndr a] -> [FunDep] -> [Dec] -> ClassRequirements
+detectRequirements cxt className typeVars fundeps decs =
+  ClassRequirements
+    { reqMultiParamTypeClasses = length typeVars > 1,
+      reqFunctionalDependencies = not (null fundeps),
+      reqTypeFamilies = P.any isTypeFamilyDec decs,
+      reqTypeOperators = P.any isOperatorName allNames,
+      reqHasContext = not (null cxt)
+    }
+  where
+    allNames = className : concatMap collectDecNames decs
+    isTypeFamilyDec (OpenTypeFamilyD _) = True
+    isTypeFamilyDec (ClosedTypeFamilyD _ _) = True
+    isTypeFamilyDec (DataFamilyD _ _ _) = True
+    isTypeFamilyDec (TySynInstD _) = True
+    isTypeFamilyDec (DataInstD {}) = True
+    isTypeFamilyDec _ = False
+
+    isOperatorName n = P.any (`elem` (":!#$%&*+./<=>?@\\^|-~" :: String)) (nameBase n)
+
+    collectDecNames (SigD n _) = [n]
+    collectDecNames (OpenTypeFamilyD (TypeFamilyHead n _ _ _)) = [n]
+    collectDecNames (ClosedTypeFamilyD (TypeFamilyHead n _ _ _) _) = [n]
+    collectDecNames (DataFamilyD n _ _) = [n]
+    collectDecNames (TySynInstD (TySynEqn _ lhs _)) = collectTypeNames lhs
+    collectDecNames _ = []
+
+    collectTypeNames (AppT t1 t2) = collectTypeNames t1 ++ collectTypeNames t2
+    collectTypeNames (ConT n) = [n]
+    collectTypeNames (VarT n) = [n]
+    collectTypeNames _ = []
 
 selectMonadVarName :: ClassMetadata -> Q Name
 selectMonadVarName metadata = do
@@ -451,7 +515,8 @@ data ClassMetadata = ClassMetadata
   { cmName :: Name,
     cmContext :: Cxt,
     cmTypeVars :: [TyVarBndr ()],
-    cmDecs :: [Dec]
+    cmDecs :: [Dec],
+    cmRequirements :: ClassRequirements
   }
 
 getMonadVarNames :: Cxt -> [TyVarBndr a] -> Q [Name]

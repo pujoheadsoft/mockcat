@@ -58,6 +58,7 @@ import Test.MockCat.Cons ((:>)(..))
 import Test.MockCat.MockT
   ( MockT (..),
     Definition (..),
+    Verification (..),
     getDefinitions,
     addDefinition
   )

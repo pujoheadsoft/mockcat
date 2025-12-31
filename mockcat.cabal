@@ -94,6 +94,7 @@ test-suite mockcat-test
       Support.ParamSpecNormalize
       Test.MockCat.AssociationListSpec
       Test.MockCat.ConcurrencySpec
+      Test.MockCat.ConfirmTHSpec
       Test.MockCat.ConsSpec
       Test.MockCat.DeferredTypeErrorsSpec
       Test.MockCat.ExampleSpec
