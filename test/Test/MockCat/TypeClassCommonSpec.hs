@@ -1,5 +1,4 @@
 {-# LANGUAGE BlockArguments #-}
-{-# OPTIONS_GHC -Wno-unused-do-bind #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE FlexibleContexts #-}

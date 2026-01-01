@@ -207,7 +207,7 @@ instance {-# OVERLAPPABLE #-}
   mockImpl p = do
     let params = toParams p
     BuiltMock { builtMockFn = fn, builtMockRecorder = recorder } <- buildMock Nothing params
-    liftIO $ MockRegistry.register Nothing recorder fn
+    _ <- liftIO $ MockRegistry.register Nothing recorder fn
     pure fn
 
 -- | Create a mock function from MockSpec.
