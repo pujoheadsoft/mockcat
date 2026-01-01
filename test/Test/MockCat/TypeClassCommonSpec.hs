@@ -17,6 +17,7 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 {-# OPTIONS_GHC -Wno-missing-export-lists #-}
+{-# OPTIONS_GHC -Wno-unused-do-bind #-}
 {- HLINT ignore "Use newtype instead of data" -}
 
 module Test.MockCat.TypeClassCommonSpec where

@@ -4,7 +4,6 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeOperators #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
-{-# OPTIONS_GHC -Wno-unused-do-bind #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -96,7 +95,7 @@ spec = do
 
   it "echo1" do
     result <- runMockT do
-      _readTTY $ pure @IO ""
+      _readTTY (pure @IO "") `expects` called once
       echoProgram
     result `shouldBe` ()
 
