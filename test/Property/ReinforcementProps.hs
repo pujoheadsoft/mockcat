@@ -1,4 +1,5 @@
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# OPTIONS_GHC -Wno-unused-do-bind #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE DataKinds #-}
@@ -61,7 +62,7 @@ prop_lazy_partial_force_concurrency = forAll genPlan $ \(arg, mask) -> monadicIO
   let forcedCount = length (filter id mask)
   run $ runMockT $ do
     -- expectation: arg -> arg; count only forced executions
-    _ <- _parLazy ((param arg ~> arg))
+    _parLazy ((param arg ~> arg))
       `expects` do
         called (times forcedCount)
     -- prepare thunks (NOT executed yet)

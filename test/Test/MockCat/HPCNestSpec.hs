@@ -1,4 +1,5 @@
 {-# LANGUAGE BlockArguments #-}
+{-# OPTIONS_GHC -Wno-unused-do-bind #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 module Test.MockCat.HPCNestSpec (spec) where
@@ -15,7 +16,7 @@ spec = describe "HPC Nesting and Isolation" $ do
   it "RunMockT nested in IO: outer mock with 'shouldBeCalled' becomes unverifiable inside runMockT" $ do
     outer <- mock (param "outer" ~> True)
     -- execution in IO context
-    _ <- evaluate (outer "outer")
+    evaluate (outer "outer")
 
     runMockT @IO $ do
       -- runMockT resets history, so 'outer' should not be verifiable here.
@@ -24,7 +25,7 @@ spec = describe "HPC Nesting and Isolation" $ do
 
   it "RunMockT nested in IO: outer mock is verifiable AFTER runMockT returns" $ do
     outer <- mock (param "outer" ~> True)
-    _ <- evaluate (outer "outer")
+    evaluate (outer "outer")
 
     runMockT @IO $ do
       pure ()
@@ -35,12 +36,11 @@ spec = describe "HPC Nesting and Isolation" $ do
 
   it "withMock (using expects) is immune to history reset" $ do
     withMock $ do
-      f <- mock (param "a" ~> True) 
-           `expects` do
+      f <- mock (param "a" ~> True) `expects` do
              called once `with` "a"
       
       liftIO $ do
-        _ <- evaluate (f "a")
+        evaluate (f "a")
         -- Nested runMockT clears history, but expectations capture the recorder directly.
         runMockT @IO $ pure ()
         
@@ -49,32 +49,30 @@ spec = describe "HPC Nesting and Isolation" $ do
   it "Sibling runMockT blocks are isolated" $ do
     runMockT @IO $ do
       f1 <- mock (param "a" ~> True)
-      _ <- liftIO $ evaluate (f1 "a")
+      liftIO $ evaluate (f1 "a")
       liftIO $ f1 `shouldBeCalled` "a"
     
     runMockT @IO $ do
       f2 <- mock (param "a" ~> True)
-      _ <- liftIO $ evaluate (f2 "a")
+      liftIO $ evaluate (f2 "a")
       liftIO $ f2 `shouldBeCalled` "a"
 
   it "Nested withMock blocks work correctly even with same-type mocks" $ do
     withMock $ do
       -- Outer mock
-      outer <- mock (param "a" ~> True) 
-           `expects` do
+      outer <- mock (param "a" ~> True) `expects` do
              called once
       
       liftIO $ do
-        _ <- evaluate (outer "a")
+        evaluate (outer "a")
         
         -- Inner withMock
         withMock $ do
           -- Inner mock with SAME signature
-          inner <- mock (param "a" ~> True)
-               `expects` do
+          inner <- mock (param "a" ~> True) `expects` do
                  called once
           
-          _ <- liftIO $ evaluate (inner "a")
+          liftIO $ evaluate (inner "a")
           pure ()
           
       pure ()
@@ -82,7 +80,7 @@ spec = describe "HPC Nesting and Isolation" $ do
   it "Nested runMockT: inner block clears outer block's history" $ do
     runMockT @IO $ do
       outer <- mock (param "a" ~> True)
-      _ <- liftIO $ evaluate (outer "a")
+      liftIO $ evaluate (outer "a")
       
       -- At this point, outer is verifiable
       liftIO $ outer `shouldBeCalled` "a"
@@ -96,7 +94,7 @@ spec = describe "HPC Nesting and Isolation" $ do
         
         -- Inner mock should work checking
         inner <- mock (param "b" ~> True)
-        _ <- liftIO $ evaluate (inner "b")
+        liftIO $ evaluate (inner "b")
         liftIO $ inner `shouldBeCalled` "b"
 
       -- After inner block returns, history is NOT restored (resetMockHistory is destructive).
@@ -107,11 +105,12 @@ spec = describe "HPC Nesting and Isolation" $ do
   it "withMock inside runMockT works correctly" $ do
     runMockT @IO $ do
       f <- mock (param "a" ~> True)
-      _ <- liftIO $ evaluate (f "a")
+      liftIO $ evaluate (f "a")
       
       liftIO $ withMock $ do
-        g <- mock (param "b" ~> True) `expects` do called once
-        _ <- liftIO $ evaluate (g "b")
+        g <- mock (param "b" ~> True)
+        pure g `expects` do called once
+        liftIO $ evaluate (g "b")
         pure ()
       
       -- withMock does not reset history, so 'f' should still be verifiable

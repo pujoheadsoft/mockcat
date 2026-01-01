@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-unused-do-bind #-}
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -78,14 +79,14 @@ specBasicPartialMocking (PartialMockDeps { _getInput, _writeFile }) programActio
   describe "UserInputGetter" do
     it "Get user input (has input)" do
       result <- runMockT do
-        _ <- _getInput ("value" :: String)
+        _getInput ("value" :: String)
         i <- getInput
         toUserInput i
       result `shouldBe` Just (UserInput "value")
 
     it "Get user input (no input)" do
       result <- runMockT do
-        _ <- _getInput ("" :: String)
+        _getInput ("" :: String)
         i <- getInput
         toUserInput i
       result `shouldBe` Nothing
@@ -93,35 +94,35 @@ specBasicPartialMocking (PartialMockDeps { _getInput, _writeFile }) programActio
   describe "FileOperation" do
     it "IO" do
       result <- runMockT do
-        _ <- _writeFile (("output.text" :: FilePath) ~> pack ("IO content" :: String) ~> ())
+        _writeFile (("output.text" :: FilePath) ~> pack ("IO content" :: String) ~> ())
         pure ()
       result `shouldBe` ()
 
     it "MaybeT" do
       result <- runMaybeT do
         runMockT do
-          _ <- _writeFile (("output.text" :: FilePath) ~> pack ("MaybeT content" :: String) ~> ())
+          _writeFile (("output.text" :: FilePath) ~> pack ("MaybeT content" :: String) ~> ())
           pure ()
       result `shouldBe` Just ()
 
     it "ReaderT" do
       result <- flip runReaderT "foo" do
         runMockT do
-          _ <- _writeFile (("output.text" :: FilePath) ~> pack ("ReaderT content foo" :: String) ~> ())
+          _writeFile (("output.text" :: FilePath) ~> pack ("ReaderT content foo" :: String) ~> ())
           pure ()
       result `shouldBe` ()
 
   describe "Handwritten Partial Mock Test" do
     it "IO" do
       result <- runMockT do
-        _ <- _writeFile (("output.text" :: FilePath) ~> pack ("IO content" :: String) ~> ())
+        _writeFile (("output.text" :: FilePath) ~> pack ("IO content" :: String) ~> ())
         programAction
       result `shouldBe` ()
 
     it "MaybeT" do
       result <- runMaybeT do
         runMockT do
-          _ <- _writeFile (("output.text" :: FilePath) ~> pack ("MaybeT content" :: String) ~> ())
+          _writeFile (("output.text" :: FilePath) ~> pack ("MaybeT content" :: String) ~> ())
           pure ()
       result `shouldBe` Just ()
 
@@ -135,14 +136,14 @@ specExplicitMonadicReturns ::
 specExplicitMonadicReturns (PartialMockDeps { _echo, _getBy }) = describe "Explicit Monadic Returns" do
   it "Return monadic value test" do
     result <- runMockT $ do
-      _ <- _echo $ ("3" :: String) ~> pure @IO ()
+      _echo $ ("3" :: String) ~> pure @IO ()
       v <- getByExplicitPartial "abc"
       echoExplicitPartial (show v)
     result `shouldBe` ()
 
   it "Override getBy via stub" do
     result <- runMockT do
-      _ <- _getBy $ ("abc" :: String) ~> pure @IO (123 :: Int)
+      _getBy $ ("abc" :: String) ~> pure @IO (123 :: Int)
       getByExplicitPartial "abc"
     result `shouldBe` 123
 
@@ -160,13 +161,13 @@ specFinderBehavior (PartialMockDeps { _findIds, _findById, _findByIdNI }) = desc
 
   it "partial findIds" do
     values <- runMockT $ do
-      _ <- _findIds ([1 :: Int, 2] :: [Int])
+      _findIds ([1 :: Int, 2] :: [Int])
       findValue @Int @String
     values `shouldBe` ["{id: 1}", "{id: 2}"]
 
   it "partial findById" do
     values <- runMockT $ do
-      _ <- _findById $ do
+      _findById $ do
         onCase $ (1 :: Int) ~> "id1"
         onCase $ (2 :: Int) ~> "id2"
         onCase $ (3 :: Int) ~> "id3"
@@ -175,7 +176,7 @@ specFinderBehavior (PartialMockDeps { _findIds, _findById, _findByIdNI }) = desc
 
   it "Concurrent execution correctly calls and collects results from mocks (async)" do
     result <- runMockT do
-      _ <- _findById $ do
+      _findById $ do
         onCase $ (1 :: Int) ~> "id1"
         onCase $ (2 :: Int) ~> "id2"
       withRunInIO $ \runInIO -> do
@@ -191,14 +192,14 @@ specFinderBehavior (PartialMockDeps { _findIds, _findById, _findByIdNI }) = desc
       let argError :: Selector ErrorCall
           argError err = "was not called with the expected arguments" `isInfixOf` displayException (err :: ErrorCall)
       (runMockT @IO do
-        _ <- _findById $ do
+        _findById $ do
           onCase $ (1 :: Int) ~> "id1"
         -- calling findValue will hit findById for id 2 which is not covered by mock
         findValue @Int @String) `shouldThrow` argError
 
     it "duplicate cases prefer first" do
       result <- runMockT $ do
-        _ <- _findById $ do
+        _findById $ do
           onCase $ (1 :: Int) ~> "first"
           onCase $ (1 :: Int) ~> "second"
         findById 1
@@ -206,7 +207,7 @@ specFinderBehavior (PartialMockDeps { _findIds, _findById, _findByIdNI }) = desc
 
     it "findValue returns empty when findIds returns empty list" do
       result <- runMockT $ do
-        _ <- _findIds ([] :: [Int])
+        _findIds ([] :: [Int])
         findValue @Int @String
       result `shouldBe` []
 
@@ -214,7 +215,7 @@ specFinderBehavior (PartialMockDeps { _findIds, _findById, _findByIdNI }) = desc
     it "error message contains mock name when unexpected arg is used" do
       let nameMsg = "function `_findById` was not called with the expected arguments"
       (runMockT @IO do
-        _ <- _findById $ do
+        _findById $ do
           onCase $ (1 :: Int) ~> "id1"
         -- call with unexpected arg to trigger message
         findById (2 :: Int)) `shouldThrow` (\(err :: ErrorCall) -> nameMsg `isInfixOf` displayException err)
@@ -224,7 +225,7 @@ specFinderBehavior (PartialMockDeps { _findIds, _findById, _findByIdNI }) = desc
       let argError :: Selector ErrorCall
           argError err = "was not called with the expected arguments" `isInfixOf` displayException (err :: ErrorCall)
       (runMockT @IO do
-        _ <- _findById $ do
+        _findById $ do
           onCase $ (1 :: Int) ~> "id1"
         -- calling findValue will hit findById for id 2 which is not covered by mock,
         -- and because a mock function exists for _findById, it will error rather than fallback.
@@ -233,7 +234,7 @@ specFinderBehavior (PartialMockDeps { _findIds, _findById, _findByIdNI }) = desc
   describe "Implicit monadic return options" do
     it "partial findById with explicit monadic returns (implicitMonadicReturn=False)" do
       result <- runMockT $ do
-        _ <- _findByIdNI $ do
+        _findByIdNI $ do
           onCase $ (1 :: Int) ~> pure @IO "id1"
           onCase $ (2 :: Int) ~> pure @IO "id2"
           onCase $ (3 :: Int) ~> pure @IO "id3"
@@ -260,7 +261,7 @@ specVerificationFailures (PartialMockDeps { _findIds, _findById }) = describe "V
 
   it "fails when _findIds is defined but findIds is never called" do
     (runMockT @IO do
-      _ <- _findIds (Head :> param ([1 :: Int, 2] :: [Int]))
+      _findIds (Head :> param ([1 :: Int, 2] :: [Int]))
         `expects` do
           called once
       -- findIds is never called
@@ -272,7 +273,7 @@ specVerificationFailures (PartialMockDeps { _findIds, _findById }) = describe "V
             onCase $ (1 :: Int) ~> "id1"
             onCase $ (2 :: Int) ~> "id2"
             onCase $ (3 :: Int) ~> "id3"
-      _ <- _findById casesDef `expects` do
+      _findById casesDef `expects` do
         called once
       -- findById is never called
       pure ()) `shouldThrow` missingCall "_findById"

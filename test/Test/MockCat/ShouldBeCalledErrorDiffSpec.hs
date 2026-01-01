@@ -1,4 +1,5 @@
 {-# LANGUAGE BlockArguments #-}
+{-# OPTIONS_GHC -Wno-unused-do-bind #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# OPTIONS_GHC -Wno-partial-fields #-}
@@ -31,7 +32,7 @@ spec = do
   describe "Error Message Diff" do
     it "shows diff for string arguments" do
       f <- mock ((any :: Param String) ~> "ok")
-      _ <- evaluate $ f "hello haskell"
+      evaluate $ f "hello haskell"
       let expectedError =
             "function was not called with the expected arguments.\n\
             \\n\
@@ -46,7 +47,7 @@ spec = do
 
     it "shows diff for user-defined type (Post)" do
       f <- mock (Post 2 "wrong" ~> "ok")
-      _ <- evaluate $ f (Post 2 "wrong")
+      evaluate $ f (Post 2 "wrong")
       let expectedError =
             "function was not called with the expected arguments.\n\
             \\n\
@@ -68,7 +69,7 @@ spec = do
 
     it "shows diff for long list" do
       f <- mock ((any :: Param [Int]) ~> "ok")
-      _ <- evaluate $ f [1, 2, 3, 4, 5, 0, 7, 8, 9, 10]
+      evaluate $ f [1, 2, 3, 4, 5, 0, 7, 8, 9, 10]
       let expectedError =
             "function was not called with the expected arguments.\n\
             \\n\
@@ -87,7 +88,7 @@ spec = do
 
     it "shows diff for record" do
       f <- mock ((any :: Param User) ~> "ok")
-      _ <- evaluate $ f (User "Fagen" 20)
+      evaluate $ f (User "Fagen" 20)
       let expectedError =
             "function was not called with the expected arguments.\n\
             \\n\
@@ -106,8 +107,8 @@ spec = do
 
     it "shows diff for inOrderWith" do
       f <- mock ((any :: Param String) ~> "ok")
-      _ <- evaluate $ f "a"
-      _ <- evaluate $ f "b"
+      evaluate $ f "a"
+      evaluate $ f "b"
       let expectedError =
             "function was not called with the expected arguments in the expected order.\n\
             \  expected 2nd call: \"c\"\n\
@@ -132,7 +133,7 @@ spec = do
 
     it "shows diff for nested record" do
       f <- mock ((any :: Param ComplexUser) ~> "ok")
-      _ <- evaluate $ f (ComplexUser "Alice" (Config "Light" 1))
+      evaluate $ f (ComplexUser "Alice" (Config "Light" 1))
       let expectedError =
             "function was not called with the expected arguments.\n\
             \\n\
@@ -151,7 +152,7 @@ spec = do
 
     it "shows diff for nested list" do
       f <- mock ((any :: Param [[Int]]) ~> "ok")
-      _ <- evaluate $ f [[1, 2], [3, 4]]
+      evaluate $ f [[1, 2], [3, 4]]
       let expectedError =
             "function was not called with the expected arguments.\n\
             \\n\
@@ -172,7 +173,7 @@ spec = do
       f <- mock ((any :: Param ComplexUser) ~> "ok")
       let actual = ComplexUser "Alice" (Config "Light" 2)
           expected = ComplexUser "Bob" (Config "Dark" 1)
-      _ <- evaluate $ f actual
+      evaluate $ f actual
       let expectedError =
             "function was not called with the expected arguments.\n\
             \\n\
@@ -200,7 +201,7 @@ spec = do
          f <- mock ((any :: Param String) ~> "ok")
          let actual = "{ name = \"Alice\""
              expected = "{ name = \"Bob\" }"
-         _ <- evaluate $ f actual
+         evaluate $ f actual
          let expectedError =
                "function was not called with the expected arguments.\n\
                \\n\
@@ -217,7 +218,7 @@ spec = do
          f <- mock ((any :: Param String) ~> "ok")
          let actual = "NotARecord {,,,,,}"
          let expected = "NotARecord { a = 1 }"
-         _ <- evaluate $ f actual
+         evaluate $ f actual
          let expectedError =
                "function was not called with the expected arguments.\n\
                \\n\
@@ -236,7 +237,7 @@ spec = do
         -- 5 layers deep
         let actual = Node{val = 1, next = Node{val = 2, next = Node{val = 3, next = Node{val = 4, next = Node{val = 5, next = Leaf 0}}}}}
             expected = Node{val = 1, next = Node{val = 2, next = Node{val = 3, next = Node{val = 4, next = Node{val = 5, next = Leaf 1}}}}}
-        _ <- evaluate $ f actual
+        evaluate $ f actual
         let expectedError =
               "function was not called with the expected arguments.\n" <>
               "\n" <>
@@ -257,7 +258,7 @@ spec = do
         f <- mock ((any :: Param MultiLayer) ~> "ok")
         let actual = MultiLayer {layer1 = "A", sub = SubLayer {layer2 = "B", items = [Node {val = 1, next = Leaf 2}]}}
             expected = MultiLayer {layer1 = "X", sub = SubLayer {layer2 = "Y", items = [Node {val = 1, next = Leaf 3}]}}
-        _ <- evaluate $ f actual
+        evaluate $ f actual
         let expectedError =
               "function was not called with the expected arguments.\n" <>
               "\n" <>
@@ -284,7 +285,7 @@ spec = do
         f <- mock ((any :: Param Config) ~> "ok")
         let actual = Config "Light" 1
             expected = Config "Dark" 99
-        _ <- evaluate $ f actual
+        evaluate $ f actual
         let expectedError =
               "function was not called with the expected arguments.\n" <>
               "\n" <>

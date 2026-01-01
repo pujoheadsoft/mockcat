@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-unused-do-bind #-}
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE TypeApplications #-}
 {-# OPTIONS_GHC -Wno-type-defaults #-}
@@ -13,9 +14,7 @@ spec :: Spec
 spec = describe "MockT + expects integration" do
   it "allows expects inside runMockT" do
     runMockT @IO do
-      f <-
-        mock (any @String ~> True)
-          `expects` do
-            called once `with` "foo"
-      _ <- liftIO $ evaluate (f "foo")
+      f <- mock (any @String ~> True)
+        `expects` called once `with` "foo"
+      liftIO $ evaluate (f "foo")
       pure ()

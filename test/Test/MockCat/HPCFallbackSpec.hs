@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-unused-do-bind #-}
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
@@ -34,8 +35,8 @@ spec = do
       f2 <- mock $ "2" ~> (2 :: Int)
 
       -- Execute both
-      _ <- evaluate $ f1 "1"
-      _ <- evaluate $ f2 "2"
+      evaluate $ f1 "1"
+      evaluate $ f2 "2"
 
       -- Verify f1. 
       -- If fallback picks f2 (latest or first), verification might fail or see wrong calls.
@@ -51,8 +52,8 @@ spec = do
       fA <- mock (label "mockA") $ "A" ~> (1 :: Int)
       fB <- mock (label "mockB") $ "B" ~> (2 :: Int)
 
-      _ <- evaluate $ fA "A"
-      _ <- evaluate $ fB "B"
+      evaluate $ fA "A"
+      evaluate $ fB "B"
 
       fA `shouldBeCalled` "A"
       fB `shouldBeCalled` "B"

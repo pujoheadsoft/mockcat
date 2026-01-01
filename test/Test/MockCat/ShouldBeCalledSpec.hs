@@ -9,6 +9,7 @@ module Test.MockCat.ShouldBeCalledSpec (spec) where
 import Control.Exception (ErrorCall(..), evaluate)
 import Data.List (isInfixOf)
 import Test.Hspec
+{-# OPTIONS_GHC -Wno-unused-do-bind #-}
 import Test.MockCat
 import Test.MockCat.Verify (verificationFailureMessage)
 import Prelude hiding (any)
@@ -212,52 +213,52 @@ spec = do
     describe "Monadic mocks" do
       it "shouldBeCalled with IO mock" do
         f <- mock $ "a" ~> (1 :: Int) ~> pure @IO True
-        _ <- f "a" (1 :: Int)
+        f "a" (1 :: Int)
         f `shouldBeCalled` ("a" ~> (1 :: Int))
 
       it "shouldBeCalled times with IO mock" do
         f <- mock $ "a" ~> (1 :: Int) ~> pure @IO True
-        _ <- f "a" (1 :: Int)
-        _ <- f "a" (1 :: Int)
-        _ <- f "a" (1 :: Int)
+        f "a" (1 :: Int)
+        f "a" (1 :: Int)
+        f "a" (1 :: Int)
         f `shouldBeCalled` (times 3 `withArgs` ("a" ~> (1 :: Int)))
 
       it "shouldBeCalled inOrderWith with IO mock" do
         f <- mock $ any ~> any ~> pure @IO True
-        _ <- f "a" (1 :: Int)
-        _ <- f "b" (2 :: Int)
-        _ <- f "c" (3 :: Int)
+        f "a" (1 :: Int)
+        f "b" (2 :: Int)
+        f "c" (3 :: Int)
         f `shouldBeCalled` inOrderWith ["a" ~> (1 :: Int), "b" ~> (2 :: Int), "c" ~> (3 :: Int)]
 
       it "shouldBeCalled inPartialOrderWith with IO mock" do
         f <- mock $ any ~> any ~> pure @IO True
-        _ <- f "a" (1 :: Int)
-        _ <- f "b" (2 :: Int)
-        _ <- f "c" (3 :: Int)
+        f "a" (1 :: Int)
+        f "b" (2 :: Int)
+        f "c" (3 :: Int)
         f `shouldBeCalled` inPartialOrderWith ["a" ~> (1 :: Int), "c" ~> (3 :: Int)]
 
       it "shouldBeCalled anything with IO mock" do
         f <- mock $ any ~> any ~> pure @IO True
-        _ <- f "a" (1 :: Int)
+        f "a" (1 :: Int)
         f `shouldBeCalled` anything
 
       it "shouldBeCalled times without args with IO mock" do
         f <- mock $ any ~> any ~> pure @IO True
-        _ <- f "a" (1 :: Int)
-        _ <- f "b" (2 :: Int)
-        _ <- f "c" (3 :: Int)
+        f "a" (1 :: Int)
+        f "b" (2 :: Int)
+        f "c" (3 :: Int)
         f `shouldBeCalled` times 3
 
     describe "Named mocks (error messages)" do
       it "shouldBeCalled with name in error message" do
         f <- mock (label "named mock") $ "a" ~> (1 :: Int) ~> pure @IO True
-        _ <- f "a" (1 :: Int)
+        f "a" (1 :: Int)
         f `shouldBeCalled` ("b" ~> (1 :: Int)) `shouldThrow` anyErrorCall
 
       it "shouldBeCalled times with name in error message" do
         f <- mock (label "named mock") $ "a" ~> (1 :: Int) ~> pure @IO True
-        _ <- f "a" (1 :: Int)
-        _ <- f "a" (1 :: Int)
+        f "a" (1 :: Int)
+        f "a" (1 :: Int)
         let e =
               "function `named mock` was not called the expected number of times with the expected arguments.\n\
               \  expected: 3\n\
@@ -266,15 +267,15 @@ spec = do
 
       it "shouldBeCalled inOrderWith with name in error message" do
         f <- mock (label "named mock") $ any ~> any ~> pure @IO True
-        _ <- f "b" (2 :: Int)
-        _ <- f "a" (1 :: Int)
-        _ <- f "c" (3 :: Int)
+        f "b" (2 :: Int)
+        f "a" (1 :: Int)
+        f "c" (3 :: Int)
         f `shouldBeCalled` inOrderWith ["a" ~> (1 :: Int), "b" ~> (2 :: Int), "c" ~> (3 :: Int)] `shouldThrow` errorContains "expected 1st call:"
 
       it "shouldBeCalled inPartialOrderWith with name in error message" do
         f <- mock (label "named mock") $ any ~> any ~> pure @IO True
-        _ <- f "b" (2 :: Int)
-        _ <- f "a" (1 :: Int)
+        f "b" (2 :: Int)
+        f "a" (1 :: Int)
         let e =
               "function `named mock` was not called with the expected arguments in the expected order.\n\
               \  expected order:\n\
@@ -304,8 +305,8 @@ spec = do
 
       it "shouldBeCalled times failure with detailed error message" do
         f <- mock $ "a" ~> (1 :: Int) ~> pure @IO True
-        _ <- f "a" (1 :: Int)
-        _ <- f "a" (1 :: Int)
+        f "a" (1 :: Int)
+        f "a" (1 :: Int)
         let e =
               "function was not called the expected number of times with the expected arguments.\n\
               \  expected: 3\n\
@@ -320,56 +321,56 @@ spec = do
     describe "Multiple arguments with typed values" do
       it "shouldBeCalled with multiple typed arguments" do
         f <- mock $ "a" ~> (1 :: Int) ~> pure @IO True
-        _ <- f "a" (1 :: Int)
+        f "a" (1 :: Int)
         f `shouldBeCalled` ("a" ~> (1 :: Int))
 
       it "shouldBeCalled times with multiple typed arguments" do
         f <- mock $ "a" ~> (1 :: Int) ~> pure @IO True
-        _ <- f "a" (1 :: Int)
-        _ <- f "a" (1 :: Int)
-        _ <- f "a" (1 :: Int)
+        f "a" (1 :: Int)
+        f "a" (1 :: Int)
+        f "a" (1 :: Int)
         f `shouldBeCalled` (times 3 `withArgs` ("a" ~> (1 :: Int)))
 
       it "shouldBeCalled atLeast with multiple typed arguments" do
         f <- mock $ "a" ~> (1 :: Int) ~> pure @IO True
-        _ <- f "a" (1 :: Int)
-        _ <- f "a" (1 :: Int)
-        _ <- f "a" (1 :: Int)
+        f "a" (1 :: Int)
+        f "a" (1 :: Int)
+        f "a" (1 :: Int)
         f `shouldBeCalled` (atLeast 3 `withArgs` ("a" ~> (1 :: Int)))
 
       it "shouldBeCalled atMost with multiple typed arguments" do
         f <- mock $ "a" ~> (1 :: Int) ~> pure @IO True
-        _ <- f "a" (1 :: Int)
-        _ <- f "a" (1 :: Int)
-        _ <- f "a" (1 :: Int)
+        f "a" (1 :: Int)
+        f "a" (1 :: Int)
+        f "a" (1 :: Int)
         f `shouldBeCalled` (atMost 3 `withArgs` ("a" ~> (1 :: Int)))
 
       it "shouldBeCalled greaterThan with multiple typed arguments" do
         f <- mock $ "a" ~> (1 :: Int) ~> pure @IO True
-        _ <- f "a" (1 :: Int)
-        _ <- f "a" (1 :: Int)
-        _ <- f "a" (1 :: Int)
+        f "a" (1 :: Int)
+        f "a" (1 :: Int)
+        f "a" (1 :: Int)
         f `shouldBeCalled` (greaterThan 2 `withArgs` ("a" ~> (1 :: Int)))
 
       it "shouldBeCalled lessThan with multiple typed arguments" do
         f <- mock $ "a" ~> (1 :: Int) ~> pure @IO True
-        _ <- f "a" (1 :: Int)
-        _ <- f "a" (1 :: Int)
-        _ <- f "a" (1 :: Int)
+        f "a" (1 :: Int)
+        f "a" (1 :: Int)
+        f "a" (1 :: Int)
         f `shouldBeCalled` (lessThan 4 `withArgs` ("a" ~> (1 :: Int)))
 
       it "shouldBeCalled inOrderWith with multiple typed arguments" do
         f <- mock $ any ~> any ~> pure @IO True
-        _ <- f "a" (1 :: Int)
-        _ <- f "b" (2 :: Int)
-        _ <- f "c" (3 :: Int)
+        f "a" (1 :: Int)
+        f "b" (2 :: Int)
+        f "c" (3 :: Int)
         f `shouldBeCalled` inOrderWith ["a" ~> (1 :: Int), "b" ~> (2 :: Int), "c" ~> (3 :: Int)]
 
       it "shouldBeCalled inPartialOrderWith with multiple typed arguments" do
         f <- mock $ any ~> any ~> pure @IO True
-        _ <- f "a" (1 :: Int)
-        _ <- f "b" (2 :: Int)
-        _ <- f "c" (3 :: Int)
+        f "a" (1 :: Int)
+        f "b" (2 :: Int)
+        f "c" (3 :: Int)
         f `shouldBeCalled` inPartialOrderWith ["a" ~> (1 :: Int), "c" ~> (3 :: Int)]
 
     describe "High arity mocks" do

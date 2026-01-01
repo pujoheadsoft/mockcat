@@ -1,4 +1,5 @@
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# OPTIONS_GHC -Wno-unused-do-bind #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -33,7 +34,7 @@ prop_concurrent_total_apply_count =
         let totalCalls = threads * callsPerThread
         -- Pre-declare expected count with `expects` inside `runMockT`, and have it automatically verified after concurrent calls.
         run $ runMockT $ do
-          _ <- _propAction ((MC.any ~> (1 :: Int)))
+          _propAction ((MC.any ~> (1 :: Int)))
             `expects` do
               called (times totalCalls)
           parallelInvoke threads callsPerThread

@@ -1,4 +1,5 @@
 {-# LANGUAGE BlockArguments #-}
+{-# OPTIONS_GHC -Wno-unused-do-bind #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Test.MockCat.MultipleMocksSpec (spec) where
@@ -27,8 +28,8 @@ spec = describe "Multiple Mocks Isolation" do
         called once
 
       -- Call them to satisfy expectations
-      _ <- liftIO $ evaluate $ f "A"
-      _ <- liftIO $ evaluate $ g "B"
+      liftIO $ evaluate $ f "A"
+      liftIO $ evaluate $ g "B"
       
       pure ()
 
@@ -40,13 +41,13 @@ spec = describe "Multiple Mocks Isolation" do
        f <- mock ("A" ~> (1 :: Int)) `expects` do
          called once
        
-       _ <- mock ("B" ~> (2 :: Int)) `expects` do
+       mock ("B" ~> (2 :: Int)) `expects` do
          called once
        
        -- We call f with "B". 
        -- f expects "A", so f should fail (unexpected arg).
        -- g expects "B", but g was not called, so g should fail (count mismatch).
-       _ <- liftIO $ evaluate $ f "B"
+       liftIO $ evaluate $ f "B"
        pure ()
 
     -- We expect failure because expectations were not met.

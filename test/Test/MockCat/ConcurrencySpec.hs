@@ -1,4 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
+{-# OPTIONS_GHC -Wno-unused-do-bind #-}
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -37,7 +38,7 @@ parallelCallActionWithDelay threads callsPerThread =
   withRunInIO \runInIO -> do
     as <- replicateM threads (async $ do
       replicateM_ callsPerThread $ do
-        _ <- runInIO (action 123)
+        runInIO (action 123)
         threadDelay 100)
     mapM_ wait as
 
@@ -52,7 +53,7 @@ spec = do
   describe "Concurrency / expects" do
     it "counts calls across parallel async threads" do
       result <- runMockT do
-        _ <- _action ((any ~> (1 :: Int)))
+        _action ((any ~> (1 :: Int)))
           `expects` do
             called (times 10)
         parallelActionSum 10
@@ -62,8 +63,8 @@ spec = do
       let threads = 50 :: Int
           callsPerThread = 20 :: Int
           total = threads * callsPerThread :: Int
-      _ <- (runMockT $ do
-        _ <- _action ((any ~> (1 :: Int)))
+      (runMockT $ do
+        _action ((any ~> (1 :: Int)))
           `expects` do
             called (times total)
         parallelCallActionWithDelay threads callsPerThread
@@ -72,7 +73,7 @@ spec = do
 
     it "fails verification when calls are fewer than declared" do
       runMockT (do
-        _ <- _action ((any ~> (1 :: Int)))
+        _action ((any ~> (1 :: Int)))
           `expects` do
             called (times 10)
         parallelCallActionN 9
@@ -82,7 +83,7 @@ spec = do
   describe "Concurrency / never expectation" do
     it "passes when stub not used in parallel context" do
       r <- runMockT do
-        _ <- _action ((any ~> (99 :: Int)))
+        _action ((any ~> (99 :: Int)))
           `expects` do
             called never
 

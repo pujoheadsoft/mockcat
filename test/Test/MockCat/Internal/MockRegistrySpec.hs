@@ -1,4 +1,5 @@
 {-# LANGUAGE BlockArguments #-}
+{-# OPTIONS_GHC -Wno-unused-do-bind #-}
 module Test.MockCat.Internal.MockRegistrySpec (spec) where
 
 import Test.Hspec
@@ -14,7 +15,7 @@ spec = do
     it "register and lookup" do
       let f = (+ 1) :: Int -> Int
       ref <- newTVarIO InvocationRecord { invocations = [] :: [Int], invocationCounts = empty }
-      _ <- attachVerifierToFn f (Just "name", InvocationRecorder ref ParametricFunction)
+      attachVerifierToFn f (Just "name", InvocationRecorder ref ParametricFunction)
       results <- lookupVerifierForFn f
       case results of
         [(mockName, dyn)] -> do

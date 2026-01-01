@@ -1,4 +1,5 @@
 {-# LANGUAGE BlockArguments #-}
+{-# OPTIONS_GHC -Wno-unused-do-bind #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -46,7 +47,7 @@ spec = do
             \    [Closest] 1. \"hello haskell\""
       withMock (do
         f <- mock ((any :: Param String) ~> "ok") `expects` (called once `with` "hello world")
-        _ <- liftIO $ evaluate $ f "hello haskell"
+        liftIO $ evaluate $ f "hello haskell"
         pure ()
         ) `shouldThrow` errorCall expectedError
 
@@ -67,7 +68,7 @@ spec = do
             \                           ^^^^^^^^^^^^^^^^^^^"
       withMock (do
         f <- mock (Post 1 "title" ~> "ok")
-        _ <- liftIO $ evaluate $ f (Post 2 "wrong")
+        liftIO $ evaluate $ f (Post 2 "wrong")
         pure ()
         ) `shouldThrow` errorCall expectedError
 
@@ -88,7 +89,7 @@ spec = do
             \    [Closest] 1. [1, 2, 3, 4, 5, 0, 7, 8, 9, 10]"
       withMock (do
         f <- mock ((any :: Param [Int]) ~> "ok") `expects` (called once `with` [1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
-        _ <- liftIO $ evaluate $ f [1, 2, 3, 4, 5, 0, 7, 8, 9, 10]
+        liftIO $ evaluate $ f [1, 2, 3, 4, 5, 0, 7, 8, 9, 10]
         pure ()
         ) `shouldThrow` errorCall expectedError
 
@@ -109,7 +110,7 @@ spec = do
             \    [Closest] 1. User {name = \"Fagen\", age = 20}"
       withMock (do
         f <- mock ((any :: Param User) ~> "ok") `expects` (called once `with` User "Fagen" 30)
-        _ <- liftIO $ evaluate $ f (User "Fagen" 20)
+        liftIO $ evaluate $ f (User "Fagen" 20)
         pure ()
         ) `shouldThrow` errorCall expectedError
 
@@ -121,8 +122,8 @@ spec = do
             \                      ^^"
       withMock (do
         f <- mock ((any :: Param String) ~> "ok") `expects` calledInOrder ["a", "c"]
-        _ <- liftIO $ evaluate $ f "a"
-        _ <- liftIO $ evaluate $ f "b"
+        liftIO $ evaluate $ f "a"
+        liftIO $ evaluate $ f "b"
         pure ()
         ) `shouldThrow` errorCall expectedError
 
@@ -139,7 +140,7 @@ spec = do
         f <- mock $ do
           onCase $ "aaa" ~> (100 :: Int) ~> "ok"
           onCase $ "bbb" ~> (200 :: Int) ~> "ok"
-        _ <- liftIO $ evaluate (f "aaa" 200)
+        liftIO $ evaluate (f "aaa" 200)
         pure ()
         ) `shouldThrow` errorCall expectedError
 
@@ -160,7 +161,7 @@ spec = do
             \    [Closest] 1. ComplexUser {name = \"Alice\", config = Config {theme = \"Light\", level = 1}}"
       withMock (do
         f <- mock ((any :: Param ComplexUser) ~> "ok") `expects` (called once `with` ComplexUser "Alice" (Config "Dark" 1))
-        _ <- liftIO $ evaluate $ f (ComplexUser "Alice" (Config "Light" 1))
+        liftIO $ evaluate $ f (ComplexUser "Alice" (Config "Light" 1))
         pure ()
         ) `shouldThrow` errorCall expectedError
 
@@ -181,7 +182,7 @@ spec = do
             \    [Closest] 1. [[1,2], [3,4]]"
       withMock (do
         f <- mock ((any :: Param [[Int]]) ~> "ok") `expects` (called once `with` [[1, 2], [3, 5]])
-        _ <- liftIO $ evaluate $ f [[1, 2], [3, 4]]
+        liftIO $ evaluate $ f [[1, 2], [3, 4]]
         pure ()
         ) `shouldThrow` errorCall expectedError
 
@@ -210,46 +211,50 @@ spec = do
             \    [Closest] 1. ComplexUser {name = \"Alice\", config = Config {theme = \"Light\", level = 2}}"
       withMock (do
         f <- mock ((any :: Param ComplexUser) ~> "ok") `expects` (called once `with` expected)
-        _ <- liftIO $ evaluate $ f actual
+        liftIO $ evaluate $ f actual
         pure ()
         ) `shouldThrow` errorCall expectedError
 
     describe "robustness (broken formats)" do
       it "handles unbalanced braces gracefully (fallback to standard message)" do
+         f <- mock ((any :: Param String) ~> "ok")
          let actual = "{ name = \"Alice\""
              expected = "{ name = \"Bob\" }"
-             expectedError =
-                "function was not called with the expected arguments.\n\
-                \\n\
-                \  Closest match:\n\
-                \    expected: \"{ name = \\\"Bob\\\" }\"\n\
-                \     but got: \"{ name = \\\"Alice\\\"\"\n\
-                \            " <> replicate 14 ' ' <> "^^^^^^^^\n\
-                \\n\
-                \  Call history (1 calls):\n\
-                \    [Closest] 1. \"{ name = \\\"Alice\\\"\""
+         evaluate $ f actual
+         let expectedError =
+               "function was not called with the expected arguments.\n\
+               \\n\
+               \  Closest match:\n\
+               \    expected: \"{ name = \\\"Bob\\\" }\"\n\
+               \     but got: \"{ name = \\\"Alice\\\"\"\n\
+               \            " <> replicate 14 ' ' <> "^^^^^^^^\n\
+               \\n\
+               \  Call history (1 calls):\n\
+               \    [Closest] 1. \"{ name = \\\"Alice\\\"\""
          withMock (do
-           f <- mock ((any :: Param String) ~> "ok") `expects` (called once `with` expected)
-           _ <- liftIO $ evaluate $ f actual
+           f' <- mock ((any :: Param String) ~> "ok") `expects` (called once `with` expected)
+           liftIO $ evaluate $ f' actual
            pure ()
            ) `shouldThrow` errorCall expectedError
 
       it "handles completely broken structure strings" do
+         f <- mock ((any :: Param String) ~> "ok")
          let actual = "NotARecord {,,,,,}"
          let expected = "NotARecord { a = 1 }"
+         evaluate $ f actual
          let expectedError =
-                "function was not called with the expected arguments.\n\
-                \\n\
-                \  Closest match:\n\
-                \    expected: \"NotARecord { a = 1 }\"\n\
-                \     but got: \"NotARecord {,,,,,}\"\n\
-                \            " <> replicate 15 ' ' <> "^^^^^^^^^\n\
-                \\n\
-                \  Call history (1 calls):\n\
-                \    [Closest] 1. \"NotARecord {,,,,,}\""
+               "function was not called with the expected arguments.\n\
+               \\n\
+               \  Closest match:\n\
+               \    expected: \"NotARecord { a = 1 }\"\n\
+               \     but got: \"NotARecord {,,,,,}\"\n\
+               \            " <> replicate 15 ' ' <> "^^^^^^^^^\n\
+               \\n\
+               \  Call history (1 calls):\n\
+               \    [Closest] 1. \"NotARecord {,,,,,}\""
          withMock (do
-           f <- mock ((any :: Param String) ~> "ok") `expects` (called once `with` expected)
-           _ <- liftIO $ evaluate $ f actual
+           f'' <- mock ((any :: Param String) ~> "ok") `expects` (called once `with` expected)
+           liftIO $ evaluate $ f'' actual
            pure ()
            ) `shouldThrow` errorCall expectedError
 
@@ -274,7 +279,7 @@ spec = do
               \    [Closest] 1. Node {val = 1, next = Node {val = 2, next = Node {val = 3, next = Node {val = 4, next = Node {val = 5, next = Leaf 0}}}}}"
         withMock (do
           f <- mock ((any :: Param DeepNode) ~> "ok") `expects` (called once `with` expected)
-          _ <- liftIO $ evaluate $ f actual
+          liftIO $ evaluate $ f actual
           pure ()
           ) `shouldThrow` errorCall expectedError
 
@@ -303,7 +308,7 @@ spec = do
               \    [Closest] 1. MultiLayer {layer1 = \"A\", sub = SubLayer {layer2 = \"B\", items = [Node {val = 1, next = Leaf 2}]}}"
         withMock (do
           f <- mock ((any :: Param MultiLayer) ~> "ok") `expects` (called once `with` expected)
-          _ <- liftIO $ evaluate $ f actual
+          liftIO $ evaluate $ f actual
           pure ()
           ) `shouldThrow` errorCall expectedError
 
@@ -329,6 +334,6 @@ spec = do
               \    [Closest] 1. Config {theme = \"Light\", level = 1}"
         withMock (do
           f <- mock ((any :: Param Config) ~> "ok") `expects` (called once `with` expected)
-          _ <- liftIO $ evaluate $ f actual
+          liftIO $ evaluate $ f actual
           pure ()
           ) `shouldThrow` errorCall expectedError
