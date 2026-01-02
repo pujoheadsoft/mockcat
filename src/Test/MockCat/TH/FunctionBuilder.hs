@@ -304,7 +304,7 @@ doCreateConstantMockFnDecs Total funNameStr mockFunName ty monadVarName = do
       let resultType =
             AppT
               (AppT ArrowT (VarT params))
-              (AppT (AppT (ConT ''MockT) (VarT monadVarName)) tySanitized)
+              (AppT (AppT (ConT ''MockT) (VarT monadVarName)) (AppT (ConT ''Unit') (AppT (ConT ''ResolvableParamsOf) tySanitized)))
           
           mockTType = AppT (ConT ''MockT) (VarT monadVarName)
           flag = AppT (ConT ''IsMockSpec) (VarT params)

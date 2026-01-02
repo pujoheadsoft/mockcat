@@ -21,36 +21,35 @@ import qualified Test.MockCat.PartialMockCommonSpec as PartialMockCommonSpec
 import Test.MockCat.SharedSpecDefs
 import Test.MockCat.Impl ()
 import Prelude hiding (readFile, writeFile)
-import Test.Hspec (Spec)
+import Test.Hspec (Spec, describe)
+import Test.MockCat.Impl ()
+
+instance UserInputGetter IO where
+  getInput = getLine
+  toUserInput "" = pure Nothing
+  toUserInput a = (pure . Just . UserInput) a
+
+instance ExplicitlyReturnMonadicValuesPartialTest IO where
+  echoExplicitPartial _ = pure () 
+  getByExplicitPartial s = pure $ length s
+
+
+makeAutoLiftPartialMock [t|UserInputGetter|]
+makeAutoLiftPartialMock [t|Finder|]
+makeAutoLiftPartialMock [t|FileOperation|]
+makePartialMock [t|ExplicitlyReturnMonadicValuesPartialTest|]
+makePartialMock [t|FinderNoImplicit|]
 
 spec :: Spec
-spec = pure ()
-
--- instance UserInputGetter IO where
---   getInput = getLine
---   toUserInput "" = pure Nothing
---   toUserInput a = (pure . Just . UserInput) a
-
--- instance ExplicitlyReturnMonadicValuesPartialTest IO where
---   echoExplicitPartial _ = pure () 
---   getByExplicitPartial s = pure $ length s
-
-
--- makeAutoLiftPartialMock [t|UserInputGetter|]
--- makeAutoLiftPartialMock [t|Finder|]
--- makeAutoLiftPartialMock [t|FileOperation|]
--- makePartialMock [t|ExplicitlyReturnMonadicValuesPartialTest|]
--- makePartialMock [t|FinderNoImplicit|]
-
--- spec :: Spec
--- spec = PartialMockCommonSpec.spec deps (program "input.txt" "output.text")
---   where
---     deps = PartialMockCommonSpec.PartialMockDeps
---       { PartialMockCommonSpec._getInput = Test.MockCat.PartialMockTHSpec._getInput
---       , PartialMockCommonSpec._getBy = _getByExplicitPartial
---       , PartialMockCommonSpec._echo = _echoExplicitPartial
---       , PartialMockCommonSpec._writeFile = Test.MockCat.PartialMockTHSpec._writeFile
---       , PartialMockCommonSpec._findIds = Test.MockCat.PartialMockTHSpec._findIds
---       , PartialMockCommonSpec._findById = Test.MockCat.PartialMockTHSpec._findById
---       , PartialMockCommonSpec._findByIdNI = Test.MockCat.PartialMockTHSpec._findByIdNI
---       }
+spec = describe "PartialMockTHSpec" $
+  PartialMockCommonSpec.spec deps (program "input.txt" "output.text")
+  where
+    deps = PartialMockCommonSpec.PartialMockDeps
+      { PartialMockCommonSpec._getInput = Test.MockCat.PartialMockTHSpec._getInput
+      , PartialMockCommonSpec._getBy = _getByExplicitPartial
+      , PartialMockCommonSpec._echo = _echoExplicitPartial
+      , PartialMockCommonSpec._writeFile = Test.MockCat.PartialMockTHSpec._writeFile
+      , PartialMockCommonSpec._findIds = Test.MockCat.PartialMockTHSpec._findIds
+      , PartialMockCommonSpec._findById = Test.MockCat.PartialMockTHSpec._findById
+      , PartialMockCommonSpec._findByIdNI = Test.MockCat.PartialMockTHSpec._findByIdNI
+      }

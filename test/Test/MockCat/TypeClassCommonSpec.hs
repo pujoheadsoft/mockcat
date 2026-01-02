@@ -17,7 +17,6 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 {-# OPTIONS_GHC -Wno-missing-export-lists #-}
-{-# OPTIONS_GHC -Wno-unused-do-bind #-}
 {- HLINT ignore "Use newtype instead of data" -}
 
 module Test.MockCat.TypeClassCommonSpec where
@@ -25,6 +24,7 @@ module Test.MockCat.TypeClassCommonSpec where
 import Prelude hiding (readFile, writeFile, any)
 import Test.Hspec
 import Test.MockCat
+import Test.MockCat.Verify (ResolvableParamsOf)
 
 import Data.Kind (Type)
 import Data.Text (Text, pack, isInfixOf)
@@ -133,9 +133,9 @@ type family ArgsOfF (f :: Type) :: Type where
   ArgsOfF r = ()
 
 -- Generic Mock alias for a function type f
-type MockFor f = forall params. (MockDispatch (IsMockSpec params) params (MockT IO) f) => params -> MockT IO f
+type MockFor f = forall params. (MockDispatch (IsMockSpec params) params (MockT IO) f) => params -> MockT IO (Unit' (ResolvableParamsOf f))
 -- Generic Mock alias for an arbitrary base monad m
-type MockForM m f = forall params. (MockDispatch (IsMockSpec params) params (MockT m) f) => params -> MockT m f
+type MockForM m f = forall params. (MockDispatch (IsMockSpec params) params (MockT m) f) => params -> MockT m (Unit' (ResolvableParamsOf f))
 
 -- Per-spec dependency records to group required builders/mocks
 data BasicDeps = BasicDeps
