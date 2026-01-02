@@ -376,8 +376,8 @@ specMixedMockingStrategies (MixedDeps { _readFile, _writeFile, _post }) = do
 
     result <- runMockT do
       _readFile $ "input.txt" ~> pack "content"
-      _writeFile $ ("output.text" ~> pack "modifiedContent" ~> ())
-      _post $ (pack "modifiedContent" ~> ())
+      _writeFile ("output.text" ~> pack "modifiedContent" ~> ())
+      _post (pack "modifiedContent" ~> ())
       operationProgram2 "input.txt" "output.text" modifyContentStub
 
     result `shouldBe` ()

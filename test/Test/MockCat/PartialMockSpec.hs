@@ -10,7 +10,6 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
-{-# OPTIONS_GHC -Wno-unused-do-bind #-}
 
 module Test.MockCat.PartialMockSpec (spec) where
 
@@ -27,10 +26,7 @@ import Prelude hiding (readFile, writeFile)
 import Data.Data
 import GHC.TypeLits (KnownSymbol, symbolVal)
 import Unsafe.Coerce (unsafeCoerce)
-
 import qualified Test.MockCat.Verify as Verify
-
-
 
 ensureVerifiable ::
   ( MonadIO m
@@ -45,7 +41,6 @@ ensureVerifiable target =
       [] -> Verify.verificationFailure
       _ -> pure ()
 
-
 instance UserInputGetter IO where
   getInput = getLine
   toUserInput "" = pure Nothing
@@ -54,7 +49,6 @@ instance UserInputGetter IO where
 instance ExplicitlyReturnMonadicValuesPartialTest IO where
   echoExplicitPartial _ = pure ()
   getByExplicitPartial s = pure (length s)
-
 
 instance (MonadIO m, FileOperation m) => FileOperation (MockT m) where
   readFile path = MockT do

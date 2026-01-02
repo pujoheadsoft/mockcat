@@ -9,7 +9,6 @@ module Test.MockCat.ShouldBeCalledSpec (spec) where
 import Control.Exception (ErrorCall(..), evaluate)
 import Data.List (isInfixOf)
 import Test.Hspec
-{-# OPTIONS_GHC -Wno-unused-do-bind #-}
 import Test.MockCat
 import Test.MockCat.Verify (verificationFailureMessage)
 import Prelude hiding (any)

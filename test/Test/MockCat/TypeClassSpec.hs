@@ -16,7 +16,6 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
-{-# OPTIONS_GHC -Wno-unused-do-bind #-}
 
 module Test.MockCat.TypeClassSpec (spec) where
 

@@ -12,14 +12,12 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 {-# OPTIONS_GHC -Wno-missing-export-lists #-}
-{-# OPTIONS_GHC -Wno-unused-do-bind #-}
 
 module Test.MockCat.PartialMockTHSpec (spec) where
 
 import Test.MockCat
 import qualified Test.MockCat.PartialMockCommonSpec as PartialMockCommonSpec
 import Test.MockCat.SharedSpecDefs
-import Test.MockCat.Impl ()
 import Prelude hiding (readFile, writeFile)
 import Test.Hspec (Spec, describe)
 import Test.MockCat.Impl ()
