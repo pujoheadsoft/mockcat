@@ -1,7 +1,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE ConstraintKinds #-}
@@ -11,7 +10,6 @@
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE GADTs #-}
@@ -144,7 +142,7 @@ requireResolved target = do
   candidates <- resolveForVerification target
   case candidates of
     [] -> verificationFailure
-    _ -> pure $ map (\(name, recorder) -> ResolvedMock name recorder) candidates
+    _ -> pure $ map (uncurry ResolvedMock) candidates
 
 resolveForVerification ::
   forall target params.
@@ -399,20 +397,20 @@ verifySpec (ResolvedMock mockName recorder) spec = do
       if compareCount method callCount
         then pure Nothing
         else pure $ Just $ countWithArgsMismatchMessage mockName method callCount
-    
+
     CountAnyVerification method ->
       tryVerifyCallCount mockName recorder method
-      
+
     OrderVerification method argsList ->
       case doVerifyOrder method mockName invocationList argsList of
         Nothing -> pure Nothing
         Just (VerifyFailed msg) -> pure $ Just msg
-        
+
     SimpleVerification args ->
       case doVerify mockName invocationList (MatchAny args) of
         Nothing -> pure Nothing
         Just (VerifyFailed msg) -> pure $ Just msg
-        
+
     AnyVerification -> do
       if null invocationList
         then pure $ Just $ intercalate "\n" ["Function" <> mockNameLabel mockName <> " was never called"]

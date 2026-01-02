@@ -42,12 +42,8 @@ import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.Reader (ReaderT(..), runReaderT)
 import Control.Concurrent.STM (newTVarIO, readTVarIO, atomically, modifyTVar')
 import Control.Monad.State (get, put, modify)
-
-import Test.MockCat.Verify (TimesSpec(..), times, once, never, atLeast, atMost, greaterThan, lessThan, anything)
-import Test.MockCat.Verify (ResolvableMock, ResolvableParamsOf)
-import Test.MockCat.Internal.Verify
-  ( verifyExpectationDirect
-  )
+import Test.MockCat.Verify (TimesSpec(..), times, once, never, atLeast, atMost, greaterThan, lessThan, anything, ResolvableMock, ResolvableParamsOf)
+import Test.MockCat.Internal.Verify (verifyExpectationDirect)
 import Test.MockCat.Internal.Types
   ( VerifyOrderMethod(..)
   , WithMockContext(..)
@@ -112,7 +108,7 @@ instance {-# OVERLAPPABLE #-} forall fn params. (ResolvableParamsOf fn ~ params)
   buildExpectations _ = runExpectations
 
 -- | Instance for function form when fn is MockResult
-instance {-# OVERLAPPING #-} forall params. BuildExpectations (MockResult params) ((MockResult params) -> Expectations params ()) params where
+instance {-# OVERLAPPING #-} forall params. BuildExpectations (MockResult params) (MockResult params -> Expectations params ()) params where
   buildExpectations _ f = runExpectations (f (MockResult ()))
 
 -- | Instance for direct Expectations value when fn is MockResult
@@ -170,11 +166,11 @@ instance
     -- Get the recorder from the thread-local store (set by mock/register)
     -- This avoids StableName lookup and is HPC-safe
     (mockName, mRecorder) <- liftIO $ MockRegistry.getLastRecorder @(InvocationRecorder params)
-    
+
     let resolved = case mRecorder of
           Just recorder -> ResolvedMock mockName recorder
           Nothing -> errorWithoutStackTrace "expects: mock recorder not found. Use mock inside withMock/runMockT."
-  
+
     let expectations = buildExpectations mockFn exp
     let actions = map (verifyExpectationDirect resolved) expectations
     liftIO $ atomically $ modifyTVar' ctxVar (++ actions)
@@ -194,7 +190,7 @@ instance
   expectsDispatchImpl mockFnM exp = do
     (WithMockContext ctxVar) <- askWithMockContext
     _ <- mockFnM
-    (mockName, mRecorder) <- liftIO $ MockRegistry.getLastRecorderRaw
+    (mockName, mRecorder) <- liftIO MockRegistry.getLastRecorderRaw
     resolved <- case mRecorder of
       Just raw -> do
          let recorder = unsafeCoerce raw :: InvocationRecorder params
@@ -220,7 +216,7 @@ instance
   expectsDispatchImpl mockFnM exp = do
     (WithMockContext ctxVar) <- askWithMockContext
     _ <- mockFnM
-    (mockName, mRecorder) <- liftIO $ MockRegistry.getLastRecorderRaw
+    (mockName, mRecorder) <- liftIO MockRegistry.getLastRecorderRaw
     resolved <- case mRecorder of
       Just raw -> do
          let recorder = unsafeCoerce raw :: InvocationRecorder params
