@@ -2,6 +2,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -17,6 +18,7 @@
 module Test.MockCat.WithMock
   ( withMock
   , expects
+  , Unit'(..)
   , called
   , with
   , calledInOrder
@@ -41,7 +43,8 @@ import Control.Monad.Reader (ReaderT(..), runReaderT)
 import Control.Concurrent.STM (newTVarIO, readTVarIO, atomically, modifyTVar')
 import Control.Monad.State (get, put, modify)
 
-import Test.MockCat.Verify (TimesSpec(..), times, once, never, atLeast, atMost, greaterThan, lessThan, anything, ResolvableMock, ResolvableParamsOf)
+import Test.MockCat.Verify (TimesSpec(..), times, once, never, atLeast, atMost, greaterThan, lessThan, anything)
+import Test.MockCat.Verify (ResolvableMock, ResolvableParamsOf)
 import Test.MockCat.Internal.Verify
   ( verifyExpectationDirect
   )
@@ -62,6 +65,11 @@ import Unsafe.Coerce (unsafeCoerce)
 import Test.MockCat.Param (Param(..), param, EqParams(..))
 import Data.Kind (Type)
 import Data.Proxy (Proxy(..))
+
+-- | A specialized Unit type that carries the parameter type information.
+--   This is used to improve type inference for unit-returning mock helpers.
+newtype Unit' params = Unit' ()
+  deriving (Show, Eq)
 
 
 
@@ -95,71 +103,134 @@ instance ExtractParams (fn -> Expectations params ()) where
 
 -- | Register expectations for a mock function
 --   Accepts an Expectations builder
---   The params type is inferred from the mock function type or the expectation
-class BuildExpectations fn exp where
-  buildExpectations :: fn -> exp -> [Expectation (ResolvableParamsOf fn)]
+--   The params type is usually inferred from the mock function, but can be overridden
+class BuildExpectations fn exp params | fn exp -> params where
+  buildExpectations :: fn -> exp -> [Expectation params]
 
 -- | Instance for direct Expectations value
---   The params type must match ResolvableParamsOf fn
-instance forall fn params. (ResolvableParamsOf fn ~ params) => BuildExpectations fn (Expectations params ()) where
+instance {-# OVERLAPPABLE #-} forall fn params. (ResolvableParamsOf fn ~ params) => BuildExpectations fn (Expectations params ()) params where
+  buildExpectations _ = runExpectations
+
+-- | Instance for function form when fn is unit
+instance {-# OVERLAPPING #-} forall params. BuildExpectations (Unit' params) ((Unit' params) -> Expectations params ()) params where
+  buildExpectations _ f = runExpectations (f (Unit' ()))
+
+-- | Instance for direct Expectations value when fn is Unit'
+instance {-# OVERLAPPING #-} forall params. BuildExpectations (Unit' params) (Expectations params ()) params where
+  buildExpectations _ = runExpectations
+
+-- | Instance for direct Expectations value when fn is ()
+instance {-# OVERLAPPING #-} forall params. BuildExpectations () (Expectations params ()) params where
   buildExpectations _ = runExpectations
 
 -- | Instance for function form (fn -> Expectations params ())
---   This allows passing a function that receives the mock function
-instance forall fn params. (ResolvableParamsOf fn ~ params) => BuildExpectations fn (fn -> Expectations params ()) where
+instance {-# OVERLAPPABLE #-} forall fn params. (ResolvableParamsOf fn ~ params) => BuildExpectations fn (fn -> Expectations params ()) params where
   buildExpectations fn f = runExpectations (f fn)
 
-expects ::
-  forall m fn exp params.
+-- | Type class for dispatching expectations based on mock function type
+class ExpectsDispatch fn exp m where
+  expects :: m fn -> exp -> m fn
+
+-- | Specialized instance for Unit' helpers (handles type inference)
+instance {-# OVERLAPPING #-} (exp ~ Expectations params (), ExpectsDispatchImpl 'True (Unit' params) (Expectations params ()) m) => ExpectsDispatch (Unit' params) exp m where
+  expects = expectsDispatchImpl @'True
+
+-- | Specialized instance for Unit helpers (fallback)
+instance {-# OVERLAPPING #-} (exp ~ Expectations params (), ExpectsDispatchImpl 'True () (Expectations params ()) m) => ExpectsDispatch () exp m where
+  expects = expectsDispatchImpl @'True
+
+-- | Generic instance for normal mocks
+instance {-# OVERLAPPABLE #-} (ExpectsDispatchImpl 'False fn exp m) => ExpectsDispatch fn exp m where
+  expects = expectsDispatchImpl @'False
+
+-- | Internal class for implementation dispatch
+class ExpectsDispatchImpl (flag :: Bool) fn exp m where
+  expectsDispatchImpl :: m fn -> exp -> m fn
+
+-- | Instance for normal mocks (flag ~ 'False)
+--   Strict matching of params
+instance
   ( MonadIO m
   , MonadWithMockContext m
   , ResolvableMock fn
   , ResolvableParamsOf fn ~ params
   , ExtractParams exp
   , ExpParams exp ~ params
-  , BuildExpectations fn exp
+  , BuildExpectations fn exp params
   , Show params
   , EqParams params
   ) =>
-  m fn ->
-  exp ->
-  m fn
-expects mockFnM exp = do
-  (WithMockContext ctxVar) <- askWithMockContext
-  -- Try to help type inference by using exp first
-  let _ = extractParams exp :: Proxy params
-  mockFn <- mockFnM
-  -- Get the recorder from the thread-local store (set by mock/register)
-  -- This avoids StableName lookup and is HPC-safe
-  (mockName, mRecorder) <- liftIO $ MockRegistry.getLastRecorder @(InvocationRecorder params)
+  ExpectsDispatchImpl 'False fn exp m
+  where
+  expectsDispatchImpl mockFnM exp = do
+    (WithMockContext ctxVar) <- askWithMockContext
+    -- Try to help type inference by using exp first
+    let _ = extractParams exp :: Proxy params
+    mockFn <- mockFnM
+    -- Get the recorder from the thread-local store (set by mock/register)
+    -- This avoids StableName lookup and is HPC-safe
+    (mockName, mRecorder) <- liftIO $ MockRegistry.getLastRecorder @(InvocationRecorder params)
+    
+    let resolved = case mRecorder of
+          Just recorder -> ResolvedMock mockName recorder
+          Nothing -> errorWithoutStackTrace "expects: mock recorder not found. Use mock inside withMock/runMockT."
   
-  resolved <- case mRecorder of
-    Just recorder -> pure $ ResolvedMock mockName recorder
-    Nothing -> do
-      -- Fallback: The user might be using `expects` on a wrapper helper that returns ()
-      -- (like _readFile in TypeClassSpec), so `params` inferred here is `()`.
-      -- But the real recorder is for the actual function (e.g. FilePath -> Text).
-      -- In this case, we check if there is ANY recorder available.
-      (dynName, dynRecorder) <- liftIO $ MockRegistry.getLastRecorderRaw
-      case dynRecorder of
-        Just dyn -> do
-          -- We have a recorder, but the type didn't match `InvocationRecorder params`.
-          -- If we are in this fallback, it means we likely have a type mismatch.
-          -- We can try to coerce it if the user is only checking counts or generic expectations.
-          -- Since we cannot inspect the internal `MethodCall` type safely without knowning generic logic,
-          -- we rely on unsafeCoerce to treat the recorded calls as `MethodCall params`.
-          -- This is safe ONLY if we don't inspect the arguments inside (e.g. generic `called` check).
-          -- If the user tries `calledWith`, this might crash if types differ in memory layout.
-          -- But for `called once` (Count check), it iterates the list without inspecting arguments.
-          let coercedRecorder = unsafeCoerce dyn :: InvocationRecorder params
-          pure $ ResolvedMock dynName coercedRecorder
+    let expectations = buildExpectations mockFn exp
+    let actions = map (verifyExpectationDirect resolved) expectations
+    liftIO $ atomically $ modifyTVar' ctxVar (++ actions)
+    pure mockFn
 
-        Nothing -> error "expects: mock recorder not found. Use mock inside withMock/runMockT."
+-- | Instance for Unit' mocks (flag ~ 'True)
+--   Dynamic resolution using expectation params
+instance
+  ( MonadIO m
+  , MonadWithMockContext m
+  , BuildExpectations (Unit' params) (Expectations params ()) params
+  , Show params
+  , EqParams params
+  ) =>
+  ExpectsDispatchImpl 'True (Unit' params) (Expectations params ()) m
+  where
+  expectsDispatchImpl mockFnM exp = do
+    (WithMockContext ctxVar) <- askWithMockContext
+    _ <- mockFnM
+    (mockName, mRecorder) <- liftIO $ MockRegistry.getLastRecorderRaw
+    resolved <- case mRecorder of
+      Just raw -> do
+         let recorder = unsafeCoerce raw :: InvocationRecorder params
+         pure $ ResolvedMock mockName recorder
+      Nothing -> errorWithoutStackTrace "expects: mock recorder not found (Dynamic Resolution Failed). Ensure the mock helper function was called."
+    -- Use the expectations directly since we know the context
+    let expectations = runExpectations exp
+    let actions = map (verifyExpectationDirect resolved) expectations
+    liftIO $ atomically $ modifyTVar' ctxVar (++ actions)
+    pure (Unit' ())
 
-  let expectations = buildExpectations mockFn exp
-  let actions = map (verifyExpectationDirect resolved) expectations
-  liftIO $ atomically $ modifyTVar' ctxVar (++ actions)
-  pure mockFn
+-- | Instance for Unit mocks (flag ~ 'True)
+--   Dynamic resolution using expectation params
+instance
+  ( MonadIO m
+  , MonadWithMockContext m
+  , BuildExpectations () (Expectations params ()) params
+  , Show params
+  , EqParams params
+  ) =>
+  ExpectsDispatchImpl 'True () (Expectations params ()) m
+  where
+  expectsDispatchImpl mockFnM exp = do
+    (WithMockContext ctxVar) <- askWithMockContext
+    _ <- mockFnM
+    (mockName, mRecorder) <- liftIO $ MockRegistry.getLastRecorderRaw
+    resolved <- case mRecorder of
+      Just raw -> do
+         let recorder = unsafeCoerce raw :: InvocationRecorder params
+         pure $ ResolvedMock mockName recorder
+      Nothing -> errorWithoutStackTrace "expects: mock recorder not found (Dynamic Resolution Failed). Ensure the mock helper function was called."
+    let expectations = buildExpectations () exp
+    let actions = map (verifyExpectationDirect resolved) expectations
+    liftIO $ atomically $ modifyTVar' ctxVar (++ actions)
+    pure ()
+
 
 
 -- | Create a count expectation builder

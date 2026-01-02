@@ -15,13 +15,17 @@
 module Test.MockCat.TypeClassSpec (spec) where
 
 import Test.Hspec
-import Test.MockCat
+import Test.MockCat hiding (any)
 import Data.Text (Text, pack)
-import Prelude hiding (readFile, writeFile)
+import Test.MockCat.Verify (ResolvableParamsOf)
+import Prelude hiding (readFile, writeFile, any)
 
 import Data.Proxy (Proxy(..))
-import Control.Exception (ErrorCall, displayException)
+import Control.Exception (ErrorCall, displayException, evaluate)
 import Data.List (isInfixOf)
+import Data.Typeable (cast)
+import GHC.TypeLits (symbolVal)
+import Control.Monad.IO.Class (liftIO)
 
 -- Helper for error matching
 missingCallHandwritten :: String -> Selector ErrorCall
@@ -37,26 +41,34 @@ ensureVerifiable :: Applicative m => a -> m ()
 ensureVerifiable _ = pure ()
 
 _readFile ::
-  ( MockDispatch (IsMockSpec params) params (MockT IO) (FilePath -> Text)
+  ( MockDispatch (IsMockSpec spec) spec (MockT IO) (FilePath -> Text)
   ) =>
-  params ->
-  MockT IO ()
+  spec ->
+  MockT IO (Unit' (ResolvableParamsOf (FilePath -> Text)))
 _readFile p = MockT $ do
   fn <- unMockT (mock (label "readFile") p :: MockT IO (FilePath -> Text))
   ensureVerifiable fn
   addDefinition (Definition (Proxy :: Proxy "readFile") fn NoVerification)
-  pure ()
+  pure (Unit' ())
 
 _writeFile ::
-  ( MockDispatch (IsMockSpec params) params (MockT IO) (FilePath -> Text -> ())
+  ( MockDispatch (IsMockSpec spec) spec (MockT IO) (FilePath -> Text -> ())
   ) =>
-  params ->
-  MockT IO ()
+  spec ->
+  MockT IO (Unit' (ResolvableParamsOf (FilePath -> Text -> ())))
 _writeFile p = MockT $ do
   fn <- unMockT (mock (label "writeFile") p :: MockT IO (FilePath -> Text -> ()))
   ensureVerifiable fn
   addDefinition (Definition (Proxy :: Proxy "writeFile") fn NoVerification)
-  pure ()
+  pure (Unit' ())
+
+readFile :: FilePath -> MockT IO Text
+readFile path = do
+  defs <- getDefinitions
+  let stubs = reverse [f | Definition (p :: Proxy sym) fn _ <- defs, symbolVal p == "readFile", Just f <- [cast fn :: Maybe (FilePath -> Text)]]
+  case stubs of
+    [] -> error "readFile: no stub defined or type mismatch"
+    (f : _) -> pure (f path)
 
 spec :: Spec
 spec = do
@@ -71,7 +83,18 @@ spec = do
     it "Error when read stub is defined but target function readFile is never called (expects used)" do
       (runMockT @IO do
         _readFile ("input.txt" ~> pack "content")
-          `expects` do
-            called once
+          `expects` called once
         -- readFile is never called
         pure ()) `shouldThrow` missingCallHandwritten "readFile"
+
+    it "Arguments can be verified even if the helper returns () (Dynamic Resolution + Coercion)" do
+      runMockT do
+        _readFile ("input.txt" ~> pack "content") `expects` called once
+        _ <- readFile "input.txt" >>= liftIO . evaluate
+        pure ()
+
+    it "Arguments can be verified with 'with' (Dynamic Resolution + Coercion)" do
+      runMockT do
+        _readFile ("input.txt" ~> pack "content") `expects` (called once `with` "input.txt")
+        _ <- readFile "input.txt" >>= liftIO . evaluate
+        pure ()

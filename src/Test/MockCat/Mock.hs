@@ -172,6 +172,11 @@ instance
     _ <- liftIO $ MockRegistry.register (Just name) recorder fn
     pure fn
 
+
+
+    
+
+
 -- Specific instance for MockSpec (flag ~ 'True)
 instance
   ( MonadIO m
@@ -192,8 +197,6 @@ instance
     WithMockContext ctxRef <- askWithMockContext
     let resolved = ResolvedMock (Just name) recorder
     let verifyAction = mapM_ (verifyExpectationDirect resolved) exps
-    liftIO $ atomically $ modifyTVar' ctxRef (++ [verifyAction])
-
     liftIO $ atomically $ modifyTVar' ctxRef (++ [verifyAction])
 
     pure fn
