@@ -246,7 +246,13 @@ withMock $ do
 
 > [!NOTE]
 > `runMockT` ブロックの中でも、同様に `expects` を使った宣言的検証が可能です。
-> つまり、「モック生成」と「期待値宣言」が１つのブロック内で完結する統一された体験を提供します。
+> 生成された型クラスのモック関数（`_xxx`）に対してもそのまま使用できます。
+>
+> ```haskell
+> runMockT do
+>   _readFile "config.txt" ~> pure "value"
+>     `expects` called once
+> ```
 
 ### 4. 柔軟な検証（マッチャー）
 
@@ -358,17 +364,37 @@ f <- mock (label "myAPI") ("arg" ~> True)
 
 ### 宣言的検証 DSL (`expects`)
 
-`expects` ブロックでは、呼び出しに関する期待を宣言的に記述できます。
-`expects` で使用できる構文は、`shouldBeCalled` と同じ語彙を共有しています。
+`expects` ブロックでは、ビルダースタイルの構文を使って宣言的に期待値を記述できます。
+`shouldBeCalled` と共通の語彙を使用しています。
 
-| 構文 | 意味 |
-| :--- | :--- |
-| `called` | 呼び出しに関する期待の開始 |
-| `once` | 1 回だけ呼ばれる |
-| `times n` | n 回呼ばれる |
-| `never` | 呼ばれない |
-| `with arg` | 引数の期待値 |
-| `with matcher` | マッチャを用いた引数検証 |
+#### 基本的な使い方
+
+`called` で開始し、条件を連鎖させて記述します。
+
+```haskell
+-- 回数のみ
+mock (any ~> True) `expects` called once
+
+-- 引数を指定
+mock (any ~> True) `expects` (called once `with` "arg")
+
+-- 複数の期待値 (do ブロック)
+mock (any ~> True) `expects` do
+  called once `with` "A"
+  called once `with` "B"
+```
+
+#### 構文リファレンス
+
+| Builder | 説明 | 例 |
+| :--- | :--- | :--- |
+| **`called`** | **[必須]** 期待値ビルダーを開始します。 | `called ...` |
+| **`times n`** | 回数を指定します。 | `called . times 2` |
+| **`once`** | `times 1` のエイリアス。 | `called . once` |
+| **`never`** | 0回を期待します。 | `called . never` |
+| **`with arg`** | 引数を指定します。 | `called `with` "value"` |
+| **`with matcher`** | マッチャを使って引数を検証します。 | `called `with` expect (>5) "gt 5"` |
+| **`inOrder`** | 呼び出し順序を検証 (リスト内で使用) | (順序検証の項を参照) |
 
 ### よくある質問 (FAQ)
 

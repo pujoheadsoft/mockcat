@@ -248,7 +248,13 @@ withMock $ do
 
 > [!NOTE]
 > You can also use `expects` for declarative verification inside `runMockT` blocks.
-> This provides a unified experience where "Mock Creation" and "Expectation Declaration" complete within a single block.
+> This works seamlessly with generated typeclass mocks as well.
+>
+> ```haskell
+> runMockT do
+>   _readFile "config.txt" ~> pure "value"
+>     `expects` called once
+> ```
 
 ### 4. Flexible Verification (Matchers)
 
@@ -360,17 +366,37 @@ f <- mock (label "myAPI") ("arg" ~> True)
 
 ### Declarative Verification DSL (`expects`)
 
-In `expects` blocks, you can describe expectations declaratively.
-The syntax used in `expects` shares the same vocabulary as `shouldBeCalled`.
+In `expects` blocks, you can describe expectations declaratively using a builder-style syntax.
+It shares the same vocabulary as `shouldBeCalled`.
 
-| Syntax | Description |
-| :--- | :--- |
-| `called` | Start expectation |
-| `once` | Called exactly once |
-| `times n` | Called n times |
-| `never` | Never called |
-| `with arg` | Expected argument |
-| `with matcher` | Argument verification with matcher |
+#### Basic Usage
+
+Start with `called` and chain conditions.
+
+```haskell
+-- Call count only
+mock (any ~> True) `expects` called once
+
+-- With arguments
+mock (any ~> True) `expects` (called once `with` "arg")
+
+-- Multiple expectations (in do block)
+mock (any ~> True) `expects` do
+  called once `with` "A"
+  called once `with` "B"
+```
+
+#### Syntax Reference
+
+| Builder | Description | Example |
+| :--- | :--- | :--- |
+| **`called`** | **[Required]** Starts the expectation builder. | `called ...` |
+| **`times n`** | Expects exact call count. | `called . times 2` |
+| **`once`** | Alias for `times 1`. | `called . once` |
+| **`never`** | Expects 0 calls. | `called . never` |
+| **`with arg`** | Expects specific argument(s). | `called `with` "value"` |
+| **`with matcher`** | Uses a matcher for argument verification. | `called `with` expect (>5) "gt 5"` |
+| **`inOrder`** | Verify usage order (when used in a list) | (See "Order Verification" section) |
 
 ### FAQ
 
