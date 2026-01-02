@@ -4,8 +4,9 @@ import Test.MockCat.ConsSpec as Cons
 import Test.MockCat.ParamSpec as Param
 import Test.MockCat.AssociationListSpec as AssociationList
 import Test.MockCat.ExampleSpec as Example
+import Test.MockCat.TypeClassMinimalSpec as TypeClassMinimal
 import Test.MockCat.TypeClassSpec as TypeClass
-import Test.MockCat.TypeClassLegacySpec as TypeClassLegacy
+
 import Test.MockCat.TypeClassTHSpec as TypeClassTH
 import Test.MockCat.PartialMockSpec as PartialMock
 import Test.MockCat.PartialMockTHSpec as PartialMockTH
@@ -46,8 +47,8 @@ main = hspec $ do
     Mock.spec
     AssociationList.spec
     Example.spec
+    TypeClassMinimal.spec
     TypeClass.spec
-    TypeClassLegacy.spec
     TypeClassTH.spec
     PartialMock.spec
     PartialMockTH.spec
