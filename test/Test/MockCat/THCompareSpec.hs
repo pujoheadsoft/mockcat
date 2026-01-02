@@ -375,7 +375,7 @@ spec = describe "TH generated vs handwritten instances" do
     it "_findIds signature matches handwritten" $
       assertHelperSigMatches partialMockSpecPath generatedFinderSigMap "_findIds"
 
-    it "_toUserInput signature contains ResolvableParamsOf (due to Unit' wrapper)" do
+    it "_toUserInput signature contains ResolvableParamsOf (due to MockResult wrapper)" do
       let genSig =
             Map.lookup "_toUserInput" generatedUserInputSigMap
       case genSig of

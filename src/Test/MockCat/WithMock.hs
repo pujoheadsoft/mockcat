@@ -18,7 +18,7 @@
 module Test.MockCat.WithMock
   ( withMock
   , expects
-  , Unit'(..)
+  , MockResult(..)
   , called
   , with
   , calledInOrder
@@ -68,7 +68,7 @@ import Data.Proxy (Proxy(..))
 
 -- | A specialized Unit type that carries the parameter type information.
 --   This is used to improve type inference for unit-returning mock helpers.
-newtype Unit' params = Unit' ()
+newtype MockResult params = MockResult ()
   deriving (Show, Eq)
 
 
@@ -111,12 +111,12 @@ class BuildExpectations fn exp params | fn exp -> params where
 instance {-# OVERLAPPABLE #-} forall fn params. (ResolvableParamsOf fn ~ params) => BuildExpectations fn (Expectations params ()) params where
   buildExpectations _ = runExpectations
 
--- | Instance for function form when fn is unit
-instance {-# OVERLAPPING #-} forall params. BuildExpectations (Unit' params) ((Unit' params) -> Expectations params ()) params where
-  buildExpectations _ f = runExpectations (f (Unit' ()))
+-- | Instance for function form when fn is MockResult
+instance {-# OVERLAPPING #-} forall params. BuildExpectations (MockResult params) ((MockResult params) -> Expectations params ()) params where
+  buildExpectations _ f = runExpectations (f (MockResult ()))
 
--- | Instance for direct Expectations value when fn is Unit'
-instance {-# OVERLAPPING #-} forall params. BuildExpectations (Unit' params) (Expectations params ()) params where
+-- | Instance for direct Expectations value when fn is MockResult
+instance {-# OVERLAPPING #-} forall params. BuildExpectations (MockResult params) (Expectations params ()) params where
   buildExpectations _ = runExpectations
 
 -- | Instance for direct Expectations value when fn is ()
@@ -131,8 +131,8 @@ instance {-# OVERLAPPABLE #-} forall fn params. (ResolvableParamsOf fn ~ params)
 class ExpectsDispatch fn exp m where
   expects :: m fn -> exp -> m fn
 
--- | Specialized instance for Unit' helpers (handles type inference)
-instance {-# OVERLAPPING #-} (exp ~ Expectations params (), ExpectsDispatchImpl 'True (Unit' params) (Expectations params ()) m) => ExpectsDispatch (Unit' params) exp m where
+-- | Specialized instance for MockResult helpers (handles type inference)
+instance {-# OVERLAPPING #-} (exp ~ Expectations params (), ExpectsDispatchImpl 'True (MockResult params) (Expectations params ()) m) => ExpectsDispatch (MockResult params) exp m where
   expects = expectsDispatchImpl @'True
 
 -- | Specialized instance for Unit helpers (fallback)
@@ -180,16 +180,16 @@ instance
     liftIO $ atomically $ modifyTVar' ctxVar (++ actions)
     pure mockFn
 
--- | Instance for Unit' mocks (flag ~ 'True)
+-- | Instance for MockResult mocks (flag ~ 'True)
 --   Dynamic resolution using expectation params
 instance
   ( MonadIO m
   , MonadWithMockContext m
-  , BuildExpectations (Unit' params) (Expectations params ()) params
+  , BuildExpectations (MockResult params) (Expectations params ()) params
   , Show params
   , EqParams params
   ) =>
-  ExpectsDispatchImpl 'True (Unit' params) (Expectations params ()) m
+  ExpectsDispatchImpl 'True (MockResult params) (Expectations params ()) m
   where
   expectsDispatchImpl mockFnM exp = do
     (WithMockContext ctxVar) <- askWithMockContext
@@ -204,7 +204,7 @@ instance
     let expectations = runExpectations exp
     let actions = map (verifyExpectationDirect resolved) expectations
     liftIO $ atomically $ modifyTVar' ctxVar (++ actions)
-    pure (Unit' ())
+    pure (MockResult ())
 
 -- | Instance for Unit mocks (flag ~ 'True)
 --   Dynamic resolution using expectation params

@@ -78,7 +78,7 @@ import Test.MockCat.TH.ClassAnalysis
     updateType
   )
 import Test.MockCat.Verify (ResolvableParamsOf)
-import Test.MockCat.WithMock (Unit'(..))
+import Test.MockCat.WithMock (MockResult(..))
 import Data.Dynamic (Dynamic, toDyn)
 import Data.Proxy (Proxy(..))
 import Data.List (find, nubBy, nub)
@@ -211,7 +211,7 @@ doCreateMockFnDecs mockType funNameStr mockFunName params funTypeInput monadVarN
   let resultType =
         AppT
           (AppT ArrowT (VarT params))
-          (AppT (AppT (ConT ''MockT) (VarT monadVarName)) (AppT (ConT ''Unit') (AppT (ConT ''ResolvableParamsOf) funType)))
+          (AppT (AppT (ConT ''MockT) (VarT monadVarName)) (AppT (ConT ''MockResult) (AppT (ConT ''ResolvableParamsOf) funType)))
       
       mockTType = AppT (ConT ''MockT) (VarT monadVarName)
       flag = AppT (ConT ''IsMockSpec) (VarT params)
@@ -256,7 +256,7 @@ doCreateConstantMockFnDecs Partial funNameStr mockFunName ty monadVarName = do
   let resultType =
         AppT
           (AppT ArrowT (VarT stubVar))
-          (AppT (AppT (ConT ''MockT) (VarT monadVarName)) (AppT (ConT ''Unit') (AppT (ConT ''ResolvableParamsOf) tySanitized)))
+          (AppT (AppT (ConT ''MockT) (VarT monadVarName)) (AppT (ConT ''MockResult) (AppT (ConT ''ResolvableParamsOf) tySanitized)))
       
   let mockTType = AppT (ConT ''MockT) (VarT monadVarName)
   let flag = AppT (ConT ''IsMockSpec) (VarT stubVar)
@@ -304,7 +304,7 @@ doCreateConstantMockFnDecs Total funNameStr mockFunName ty monadVarName = do
       let resultType =
             AppT
               (AppT ArrowT (VarT params))
-              (AppT (AppT (ConT ''MockT) (VarT monadVarName)) (AppT (ConT ''Unit') (AppT (ConT ''ResolvableParamsOf) tySanitized)))
+              (AppT (AppT (ConT ''MockT) (VarT monadVarName)) (AppT (ConT ''MockResult) (AppT (ConT ''ResolvableParamsOf) tySanitized)))
           
           mockTType = AppT (ConT ''MockT) (VarT monadVarName)
           flag = AppT (ConT ''IsMockSpec) (VarT params)
@@ -344,7 +344,7 @@ doCreateEmptyVerifyParamMockFnDecs funNameStr mockFunName params funTypeInput mo
         resultType =
           AppT
             (AppT ArrowT (VarT params))
-            (AppT (AppT (ConT ''MockT) (VarT monadVarName)) (AppT (ConT ''Unit') (AppT (ConT ''ResolvableParamsOf) funType)))
+            (AppT (AppT (ConT ''MockT) (VarT monadVarName)) (AppT (ConT ''MockResult) (AppT (ConT ''ResolvableParamsOf) funType)))
         
         mockTType = AppT (ConT ''MockT) (VarT monadVarName)
         flag = AppT (ConT ''IsMockSpec) (VarT params)
@@ -388,7 +388,7 @@ createMockBody funNameStr paramsExp paramsType = do
             mockInstance
             NoVerification
         )
-      pure (Unit' ())
+      pure (MockResult ())
     |]
 
 createFnName :: Name -> MockOptions -> String

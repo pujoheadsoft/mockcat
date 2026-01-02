@@ -39,21 +39,21 @@ _readFile ::
   ( MockDispatch (IsMockSpec spec) spec (MockT IO) (FilePath -> Text)
   ) =>
   spec ->
-  MockT IO (Unit' (ResolvableParamsOf (FilePath -> Text)))
+  MockT IO (MockResult (ResolvableParamsOf (FilePath -> Text)))
 _readFile p = MockT $ do
   fn <- unMockT (mock (label "readFile") p :: MockT IO (FilePath -> Text))
   addDefinition (Definition (Proxy :: Proxy "readFile") fn NoVerification)
-  pure (Unit' ())
+  pure (MockResult ())
 
 _writeFile ::
   ( MockDispatch (IsMockSpec spec) spec (MockT IO) (FilePath -> Text -> ())
   ) =>
   spec ->
-  MockT IO (Unit' (ResolvableParamsOf (FilePath -> Text -> ())))
+  MockT IO (MockResult (ResolvableParamsOf (FilePath -> Text -> ())))
 _writeFile p = MockT $ do
   fn <- unMockT (mock (label "writeFile") p :: MockT IO (FilePath -> Text -> ()))
   addDefinition (Definition (Proxy :: Proxy "writeFile") fn NoVerification)
-  pure (Unit' ())
+  pure (MockResult ())
 
 readFile :: FilePath -> MockT IO Text
 readFile path = do

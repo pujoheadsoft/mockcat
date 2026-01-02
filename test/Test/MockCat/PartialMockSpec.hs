@@ -128,12 +128,12 @@ _writeFile ::
   , MonadIO m
   ) =>
   params ->
-  MockT m (Unit' (Verify.ResolvableParamsOf (FilePath -> Text -> ())))
+  MockT m (MockResult (Verify.ResolvableParamsOf (FilePath -> Text -> ())))
 _writeFile p = MockT $ do
   mockInstance <- unMockT $ mock (label "writeFile") p
   ensureVerifiable mockInstance
   addDefinition (Definition (Proxy :: Proxy "writeFile") mockInstance NoVerification)
-  pure (Unit' ())
+  pure (MockResult ())
 
 _getInput ::
   ( MockDispatch (IsMockSpec params) params (MockT m) String
@@ -141,12 +141,12 @@ _getInput ::
   , Typeable (Verify.ResolvableParamsOf String)
   ) =>
   params ->
-  MockT m (Unit' (Verify.ResolvableParamsOf String))
+  MockT m (MockResult (Verify.ResolvableParamsOf String))
 _getInput value = MockT $ do
   mockInstance <- unMockT $ mock (label "getInput") value
   ensureVerifiable mockInstance
   addDefinition (Definition (Proxy :: Proxy "getInput") mockInstance NoVerification)
-  pure (Unit' ())
+  pure (MockResult ())
 
 _toUserInput ::
   ( MockDispatch (IsMockSpec params) params (MockT m) (String -> m (Maybe UserInput))
@@ -166,23 +166,23 @@ _getByPartial ::
   ( MockDispatch (IsMockSpec params) params (MockT IO) (String -> IO Int)
   ) =>
   params ->
-  MockT IO (Unit' (Verify.ResolvableParamsOf (String -> IO Int)))
+  MockT IO (MockResult (Verify.ResolvableParamsOf (String -> IO Int)))
 _getByPartial p = MockT $ do
   mockInstance <- unMockT $ mock (label "getBy") p
   ensureVerifiable mockInstance
   addDefinition (Definition (Proxy :: Proxy "getBy") mockInstance NoVerification)
-  pure (Unit' ())
+  pure (MockResult ())
 
 _echoPartial ::
   ( MockDispatch (IsMockSpec params) params (MockT IO) (String -> IO ())
   ) =>
   params ->
-  MockT IO (Unit' (Verify.ResolvableParamsOf (String -> IO ())))
+  MockT IO (MockResult (Verify.ResolvableParamsOf (String -> IO ())))
 _echoPartial p = MockT $ do
   mockInstance <- unMockT $ mock (label "echo") p
   ensureVerifiable mockInstance
   addDefinition (Definition (Proxy :: Proxy "echo") mockInstance NoVerification)
-  pure (Unit' ())
+  pure (MockResult ())
 
 findParam :: KnownSymbol sym => Proxy sym -> [Definition] -> Maybe a
 findParam pa definitions = do
@@ -215,7 +215,7 @@ _findIds ::
   , Typeable [a]
   ) =>
   p ->
-  MockT m (Unit' (Verify.ResolvableParamsOf [a]))
+  MockT m (MockResult (Verify.ResolvableParamsOf [a]))
 _findIds p = MockT $ do
   mockInstance <- unMockT $ mock (label "_findIds") p
 
@@ -226,14 +226,14 @@ _findIds p = MockT $ do
         mockInstance
         NoVerification
     )
-  pure (Unit' ())
+  pure (MockResult ())
 
 _findById ::
   ( MockDispatch (IsMockSpec params) params (MockT m) (Int -> String)
   , MonadIO m
   ) =>
   params ->
-  MockT m (Unit' (Verify.ResolvableParamsOf (Int -> String)))
+  MockT m (MockResult (Verify.ResolvableParamsOf (Int -> String)))
 _findById p = MockT $ do
   mockInstance <- unMockT $ mock (label "_findById") p
   ensureVerifiable mockInstance
@@ -243,13 +243,13 @@ _findById p = MockT $ do
         mockInstance
         NoVerification
     )
-  pure (Unit' ())
+  pure (MockResult ())
 
 _findByIdNI ::
   ( MockDispatch (IsMockSpec params) params (MockT IO) (Int -> IO String)
   ) =>
   params ->
-  MockT IO (Unit' (Verify.ResolvableParamsOf (Int -> IO String)))
+  MockT IO (MockResult (Verify.ResolvableParamsOf (Int -> IO String)))
 _findByIdNI p = MockT $ do
   mockInstance <- unMockT $ mock (label "_findByIdNI") p
   ensureVerifiable mockInstance
@@ -259,7 +259,7 @@ _findByIdNI p = MockT $ do
         mockInstance
         NoVerification
     )
-  pure (Unit' ())
+  pure (MockResult ())
 
 spec :: Spec
 spec = PartialMockCommonSpec.spec deps (program "input.txt" "output.text")

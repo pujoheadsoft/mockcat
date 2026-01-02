@@ -43,13 +43,13 @@ import Unsafe.Coerce (unsafeCoerce)
 
 -- Dependency record to group builders
 data PartialMockDeps = PartialMockDeps
-  { _getInput    :: forall params m. (MockDispatch (IsMockSpec params) params (MockT m) String, MonadIO m, Typeable (Verify.ResolvableParamsOf String), Typeable params, Show params, Eq params) => params -> MockT m (Unit' (Verify.ResolvableParamsOf String))
-  , _getBy       :: forall params. (MockDispatch (IsMockSpec params) params (MockT IO) (String -> IO Int)) => params -> MockT IO (Unit' (Verify.ResolvableParamsOf (String -> IO Int)))
-  , _echo        :: forall params. (MockDispatch (IsMockSpec params) params (MockT IO) (String -> IO ())) => params -> MockT IO (Unit' (Verify.ResolvableParamsOf (String -> IO ())))
-  , _writeFile   :: forall params m. (MockDispatch (IsMockSpec params) params (MockT m) (FilePath -> Text -> ()), MonadIO m) => params -> MockT m (Unit' (Verify.ResolvableParamsOf (FilePath -> Text -> ())))
-  , _findIds     :: forall p a m. (MockDispatch (IsMockSpec p) p (MockT m) [a], MonadIO m, Typeable p, Show p, Eq p, Typeable (InvocationRecorder (Verify.ResolvableParamsOf [a])), Typeable (Verify.ResolvableParamsOf [a]), Typeable [a], Typeable a) => p -> MockT m (Unit' (Verify.ResolvableParamsOf [a]))
-  , _findById    :: forall params m. (MockDispatch (IsMockSpec params) params (MockT m) (Int -> String), MonadIO m) => params -> MockT m (Unit' (Verify.ResolvableParamsOf (Int -> String)))
-  , _findByIdNI  :: forall params. (MockDispatch (IsMockSpec params) params (MockT IO) (Int -> IO String)) => params -> MockT IO (Unit' (Verify.ResolvableParamsOf (Int -> IO String)))
+  { _getInput    :: forall params m. (MockDispatch (IsMockSpec params) params (MockT m) String, MonadIO m, Typeable (Verify.ResolvableParamsOf String), Typeable params, Show params, Eq params) => params -> MockT m (MockResult (Verify.ResolvableParamsOf String))
+  , _getBy       :: forall params. (MockDispatch (IsMockSpec params) params (MockT IO) (String -> IO Int)) => params -> MockT IO (MockResult (Verify.ResolvableParamsOf (String -> IO Int)))
+  , _echo        :: forall params. (MockDispatch (IsMockSpec params) params (MockT IO) (String -> IO ())) => params -> MockT IO (MockResult (Verify.ResolvableParamsOf (String -> IO ())))
+  , _writeFile   :: forall params m. (MockDispatch (IsMockSpec params) params (MockT m) (FilePath -> Text -> ()), MonadIO m) => params -> MockT m (MockResult (Verify.ResolvableParamsOf (FilePath -> Text -> ())))
+  , _findIds     :: forall p a m. (MockDispatch (IsMockSpec p) p (MockT m) [a], MonadIO m, Typeable p, Show p, Eq p, Typeable (InvocationRecorder (Verify.ResolvableParamsOf [a])), Typeable (Verify.ResolvableParamsOf [a]), Typeable [a], Typeable a) => p -> MockT m (MockResult (Verify.ResolvableParamsOf [a]))
+  , _findById    :: forall params m. (MockDispatch (IsMockSpec params) params (MockT m) (Int -> String), MonadIO m) => params -> MockT m (MockResult (Verify.ResolvableParamsOf (Int -> String)))
+  , _findByIdNI  :: forall params. (MockDispatch (IsMockSpec params) params (MockT IO) (Int -> IO String)) => params -> MockT IO (MockResult (Verify.ResolvableParamsOf (Int -> IO String)))
   }
 
 -- Main Entry Point

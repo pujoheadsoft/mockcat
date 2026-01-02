@@ -133,9 +133,9 @@ type family ArgsOfF (f :: Type) :: Type where
   ArgsOfF r = ()
 
 -- Generic Mock alias for a function type f
-type MockFor f = forall params. (MockDispatch (IsMockSpec params) params (MockT IO) f) => params -> MockT IO (Unit' (ResolvableParamsOf f))
+type MockFor f = forall params. (MockDispatch (IsMockSpec params) params (MockT IO) f) => params -> MockT IO (MockResult (ResolvableParamsOf f))
 -- Generic Mock alias for an arbitrary base monad m
-type MockForM m f = forall params. (MockDispatch (IsMockSpec params) params (MockT m) f) => params -> MockT m (Unit' (ResolvableParamsOf f))
+type MockForM m f = forall params. (MockDispatch (IsMockSpec params) params (MockT m) f) => params -> MockT m (MockResult (ResolvableParamsOf f))
 
 -- Per-spec dependency records to group required builders/mocks
 data BasicDeps = BasicDeps
