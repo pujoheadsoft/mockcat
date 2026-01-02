@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to the
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
+## [1.3.0.0] - 2026-01-03
+### Changed
+- **Breaking Change**: Generated mock helpers now return `MockResult params` instead of `()`.
+    - This change improves type inference when using `expects`, allowing the compiler to determine parameter types without explicit type annotations in many cases.
+    - Users utilizing `makeMock` will need to be aware that helper functions (e.g., `_myMethod`) no longer return `()`.
+- **Refactoring**: Reorganized internal test verification logic to utilize `MockResult` properties.
+- **Internal**: Refactored test suite organization for better maintainability.
+
 ## [1.2.1.0] - 2026-01-01
 ### Added
 - **Dynamic Language Extension Detection**: `mockcat` now automatically identifies and requests only necessary extensions (e.g., `MultiParamTypeClasses`, `UndecidableInstances`) based on the target class definition.
