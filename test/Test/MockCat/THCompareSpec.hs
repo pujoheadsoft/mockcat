@@ -313,7 +313,7 @@ partialMockSpecPath :: FilePath
 partialMockSpecPath = "test/Test/MockCat/PartialMockSpec.hs"
 
 typeClassSpecPath :: FilePath
-typeClassSpecPath = "test/Test/MockCat/TypeClassSpec.hs"
+typeClassSpecPath = "test/Test/MockCat/TypeClassLegacySpec.hs"
 
 -- extract textual instance context for handwritten module
 extractHandwrittenInstanceCxts :: FilePath -> String -> IO [String]

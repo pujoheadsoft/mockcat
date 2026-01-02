@@ -120,6 +120,7 @@ test-suite mockcat-test
       Test.MockCat.TH.TypeUtilsSpec
       Test.MockCat.THCompareSpec
       Test.MockCat.TypeClassCommonSpec
+      Test.MockCat.TypeClassLegacySpec
       Test.MockCat.TypeClassSpec
       Test.MockCat.TypeClassTHSpec
       Test.MockCat.UnsafeCheck

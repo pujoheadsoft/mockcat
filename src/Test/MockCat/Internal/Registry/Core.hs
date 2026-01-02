@@ -20,6 +20,7 @@ module Test.MockCat.Internal.Registry.Core
   , markUnitUsed
   , isGuardActive
   , getLastRecorder
+  , getLastRecorderRaw
   , resetMockHistory
   ) where
 
@@ -35,8 +36,10 @@ import Control.Concurrent.STM
 import Control.Exception (bracket_)
 import Control.Monad (forM_)
 import Control.Concurrent (ThreadId, myThreadId)
-import Data.Dynamic (Dynamic, toDyn, fromDynamic)
+import Data.Dynamic (Dynamic(..), toDyn, fromDynamic)
 import Data.Typeable (Typeable)
+import GHC.Exts (Any)
+import Unsafe.Coerce (unsafeCoerce)
 import Data.IntMap.Strict (IntMap)
 import qualified Data.IntMap.Strict as IntMap
 import qualified Data.Map.Strict as Map
@@ -94,6 +97,7 @@ addToHistory name dyn = do
     Map.insertWith (++) tid [(name, dyn)] m
 
 -- | Get the last registered recorder (peek only, does not remove).
+-- | Get the last registered recorder (peek only, does not remove).
 getLastRecorder :: Typeable a => IO (Maybe MockName, Maybe a)
 getLastRecorder = do
   tid <- myThreadId
@@ -103,6 +107,17 @@ getLastRecorder = do
       Nothing -> pure (Nothing, Nothing)
       Just [] -> pure (Nothing, Nothing)
       Just ((name, dyn) : _) -> pure (name, fromDynamic dyn)
+
+-- | Get the last registered recorder as raw Any (unwrapped from Dynamic).
+getLastRecorderRaw :: IO (Maybe MockName, Maybe Any)
+getLastRecorderRaw = do
+  tid <- myThreadId
+  atomically $ do
+    store <- readTVar threadMockHistory
+    case Map.lookup tid store of
+      Nothing -> pure (Nothing, Nothing)
+      Just [] -> pure (Nothing, Nothing)
+      Just ((name, Dynamic _ v) : _) -> pure (name, Just (unsafeCoerce v))
 
 -- | Reset the mock history for the current thread.
 resetMockHistory :: IO ()

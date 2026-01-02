@@ -8,6 +8,7 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE RankNTypes #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
@@ -134,6 +135,13 @@ class CreateMockFn a where
 class CreateStubFn a where
   stubImpl :: a
 
+-- | Type class for extracting result or unit.
+
+
+
+
+
+
 -- | Type family to distinguish MockSpec from other parameters.
 type family IsMockSpec p :: Bool where
   IsMockSpec (MockSpec p e) = 'True
@@ -142,7 +150,7 @@ type family IsMockSpec p :: Bool where
 -- | Internal class for dispatching named mocks based on parameter type.
 --   This resolves overlapping instances between generic params and MockSpec.
 --   The 'flag' parameter avoids instance overlap.
-class MockDispatch (flag :: Bool) p m fn where
+class MockDispatch (flag :: Bool) p m fn | flag p m -> fn where
   mockDispatchImpl :: Label -> p -> m fn
 
 -- Generic instance for named mocks (flag ~ 'False)
@@ -160,8 +168,9 @@ instance
   where
   mockDispatchImpl (Label name) p = do
     let params = toParams p
-    BuiltMock { builtMockFn = fn, builtMockRecorder = recorder } <- buildMock (Just name) params
-    liftIO $ MockRegistry.register (Just name) recorder fn
+    BuiltMock { builtMockFn = fn, builtMockRecorder = recorder } <- buildMock (Just name) params :: m (BuiltMock fn verifyParams)
+    _ <- liftIO $ MockRegistry.register (Just name) recorder fn
+    pure fn
 
 -- Specific instance for MockSpec (flag ~ 'True)
 instance
@@ -177,12 +186,14 @@ instance
   MockDispatch 'True (MockSpec params [Expectation verifyParams]) m fn
   where
   mockDispatchImpl (Label name) (MockSpec params exps) = do
-    BuiltMock { builtMockFn = fn, builtMockRecorder = recorder } <- buildMock (Just name) (toParams params)
+    BuiltMock { builtMockFn = fn, builtMockRecorder = recorder } <- buildMock (Just name) (toParams params) :: m (BuiltMock fn verifyParams)
     _ <- liftIO $ MockRegistry.register (Just name) recorder fn
     
     WithMockContext ctxRef <- askWithMockContext
     let resolved = ResolvedMock (Just name) recorder
     let verifyAction = mapM_ (verifyExpectationDirect resolved) exps
+    liftIO $ atomically $ modifyTVar' ctxRef (++ [verifyAction])
+
     liftIO $ atomically $ modifyTVar' ctxRef (++ [verifyAction])
 
     pure fn
@@ -206,7 +217,7 @@ instance {-# OVERLAPPABLE #-}
   where
   mockImpl p = do
     let params = toParams p
-    BuiltMock { builtMockFn = fn, builtMockRecorder = recorder } <- buildMock Nothing params
+    BuiltMock { builtMockFn = fn, builtMockRecorder = recorder } <- buildMock Nothing params :: m (BuiltMock fn verifyParams)
     _ <- liftIO $ MockRegistry.register Nothing recorder fn
     pure fn
 
@@ -229,7 +240,7 @@ instance {-# OVERLAPPING #-}
   CreateMockFn (MockSpec params [Expectation verifyParams] -> m fn)
   where
   mockImpl (MockSpec params exps) = do
-    BuiltMock { builtMockFn = fn, builtMockRecorder = recorder } <- buildMock Nothing (toParams params)
+    BuiltMock { builtMockFn = fn, builtMockRecorder = recorder } <- buildMock Nothing (toParams params) :: m (BuiltMock fn verifyParams)
     _ <- liftIO $ MockRegistry.register Nothing recorder fn
     
     WithMockContext ctxRef <- askWithMockContext

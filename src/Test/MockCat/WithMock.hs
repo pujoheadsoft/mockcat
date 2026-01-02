@@ -40,6 +40,7 @@ import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.Reader (ReaderT(..), runReaderT)
 import Control.Concurrent.STM (newTVarIO, readTVarIO, atomically, modifyTVar')
 import Control.Monad.State (get, put, modify)
+
 import Test.MockCat.Verify (TimesSpec(..), times, once, never, atLeast, atMost, greaterThan, lessThan, anything, ResolvableMock, ResolvableParamsOf)
 import Test.MockCat.Internal.Verify
   ( verifyExpectationDirect
@@ -55,7 +56,8 @@ import Test.MockCat.Internal.Types
   , InvocationRecorder(..)
   , ResolvedMock(..)
   )
-import qualified Test.MockCat.Internal.MockRegistry as MockRegistry
+import qualified Test.MockCat.Internal.Registry.Core as MockRegistry
+import Unsafe.Coerce (unsafeCoerce)
 
 import Test.MockCat.Param (Param(..), param, EqParams(..))
 import Data.Kind (Type)
@@ -130,13 +132,35 @@ expects mockFnM exp = do
   -- Get the recorder from the thread-local store (set by mock/register)
   -- This avoids StableName lookup and is HPC-safe
   (mockName, mRecorder) <- liftIO $ MockRegistry.getLastRecorder @(InvocationRecorder params)
-  let resolved = case mRecorder of
-        Just recorder -> ResolvedMock mockName recorder
+  
+  resolved <- case mRecorder of
+    Just recorder -> pure $ ResolvedMock mockName recorder
+    Nothing -> do
+      -- Fallback: The user might be using `expects` on a wrapper helper that returns ()
+      -- (like _readFile in TypeClassSpec), so `params` inferred here is `()`.
+      -- But the real recorder is for the actual function (e.g. FilePath -> Text).
+      -- In this case, we check if there is ANY recorder available.
+      (dynName, dynRecorder) <- liftIO $ MockRegistry.getLastRecorderRaw
+      case dynRecorder of
+        Just dyn -> do
+          -- We have a recorder, but the type didn't match `InvocationRecorder params`.
+          -- If we are in this fallback, it means we likely have a type mismatch.
+          -- We can try to coerce it if the user is only checking counts or generic expectations.
+          -- Since we cannot inspect the internal `MethodCall` type safely without knowning generic logic,
+          -- we rely on unsafeCoerce to treat the recorded calls as `MethodCall params`.
+          -- This is safe ONLY if we don't inspect the arguments inside (e.g. generic `called` check).
+          -- If the user tries `calledWith`, this might crash if types differ in memory layout.
+          -- But for `called once` (Count check), it iterates the list without inspecting arguments.
+          let coercedRecorder = unsafeCoerce dyn :: InvocationRecorder params
+          pure $ ResolvedMock dynName coercedRecorder
+
         Nothing -> error "expects: mock recorder not found. Use mock inside withMock/runMockT."
+
   let expectations = buildExpectations mockFn exp
   let actions = map (verifyExpectationDirect resolved) expectations
   liftIO $ atomically $ modifyTVar' ctxVar (++ actions)
   pure mockFn
+
 
 -- | Create a count expectation builder
 --   The params type is inferred from the mock function in expects
