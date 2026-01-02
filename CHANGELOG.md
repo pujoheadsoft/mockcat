@@ -7,10 +7,13 @@ and this project adheres to the
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
 ## [1.3.0.0] - 2026-01-03
+### Added
+- **Type-Safe Verification Result**: Generated mock helpers now return `MockResult params`. This type carries parameter information, enabling robust type inference and compile-time safety checks when using declarative verification (`expects`).
+    - *This change is part of an ongoing effort to make misuse of mocks impossible at the type level.*
+
 ### Changed
-- **Breaking Change**: Generated mock helpers now return `MockResult params` instead of `()`.
-    - This change improves type inference when using `expects`, allowing the compiler to determine parameter types without explicit type annotations in many cases.
-    - Users utilizing `makeMock` will need to be aware that helper functions (e.g., `_myMethod`) no longer return `()`.
+- **Breaking Change**: Due to the introduction of `MockResult`, generated mock helpers (e.g., `_myMethod`) no longer return the mock function itself (`MockT m (FunctionType)`).
+    - Code that previously relied on capturing the returned function (e.g., `fn <- _myMethod ...`) will need to be updated.
 - **Refactoring**: Reorganized internal test verification logic to utilize `MockResult` properties.
 - **Internal**: Refactored test suite organization for better maintainability.
 
