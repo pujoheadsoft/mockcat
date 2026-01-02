@@ -3,12 +3,11 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeOperators #-}
-{-# OPTIONS_GHC -Wno-unused-do-bind #-}
-{-# OPTIONS_GHC -Wno-name-shadowing #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# OPTIONS_GHC -Wno-name-shadowing #-}
 {-# OPTIONS_GHC -Wno-simplifiable-class-constraints #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
@@ -42,8 +41,6 @@ echoProgram = do
 
 makeMock [t|Teletype|]
 
-
-
 class Monad m => StrictTest m where
   strictFunc :: String -> m ()
 
@@ -51,8 +48,6 @@ instance StrictTest IO where
   strictFunc _ = pure ()
 
 makeMock [t|StrictTest|]
-
-
 
 spec :: Spec
 spec = do
@@ -102,9 +97,10 @@ spec = do
 
   it "echo2" do
     result <- runMockT do
-      _readTTY $ do
+      _readTTY (do
         onCase $ pure @IO "a"
-        onCase $ pure @IO ""
+        onCase $ pure @IO "")
+        `expects` called (times 2)
 
       _writeTTY $ "a" ~> pure @IO ()
       echoProgram
