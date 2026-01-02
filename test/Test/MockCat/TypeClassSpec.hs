@@ -15,7 +15,7 @@
 module Test.MockCat.TypeClassSpec (spec) where
 
 import Test.Hspec
-import Test.MockCat hiding (any)
+import Test.MockCat
 import Data.Text (Text, pack)
 import Test.MockCat.Verify (ResolvableParamsOf)
 import Prelude hiding (readFile, writeFile, any)
@@ -35,11 +35,6 @@ missingCallHandwritten name err =
    in (needle1 `isInfixOf` displayException err) || (needle2 `isInfixOf` displayException err)
 
 -- Handwritten polymorphic return helpers
--- | No-op. Previously used StableName-based verification check, which breaks under HPC.
---   TH-generated code doesn't need this, so we make it a no-op for consistency.
-ensureVerifiable :: Applicative m => a -> m ()
-ensureVerifiable _ = pure ()
-
 _readFile ::
   ( MockDispatch (IsMockSpec spec) spec (MockT IO) (FilePath -> Text)
   ) =>
@@ -47,7 +42,6 @@ _readFile ::
   MockT IO (Unit' (ResolvableParamsOf (FilePath -> Text)))
 _readFile p = MockT $ do
   fn <- unMockT (mock (label "readFile") p :: MockT IO (FilePath -> Text))
-  ensureVerifiable fn
   addDefinition (Definition (Proxy :: Proxy "readFile") fn NoVerification)
   pure (Unit' ())
 
@@ -58,7 +52,6 @@ _writeFile ::
   MockT IO (Unit' (ResolvableParamsOf (FilePath -> Text -> ())))
 _writeFile p = MockT $ do
   fn <- unMockT (mock (label "writeFile") p :: MockT IO (FilePath -> Text -> ()))
-  ensureVerifiable fn
   addDefinition (Definition (Proxy :: Proxy "writeFile") fn NoVerification)
   pure (Unit' ())
 
@@ -69,6 +62,14 @@ readFile path = do
   case stubs of
     [] -> error "readFile: no stub defined or type mismatch"
     (f : _) -> pure (f path)
+
+writeFile :: FilePath -> Text -> MockT IO ()
+writeFile path content = do
+  defs <- getDefinitions
+  let stubs = reverse [f | Definition (p :: Proxy sym) fn _ <- defs, symbolVal p == "writeFile", Just f <- [cast fn :: Maybe (FilePath -> Text -> ())]]
+  case stubs of
+    [] -> error "writeFile: no stub defined or type mismatch"
+    (f : _) -> pure (f path content)
 
 spec :: Spec
 spec = do
@@ -97,4 +98,11 @@ spec = do
       runMockT do
         _readFile ("input.txt" ~> pack "content") `expects` (called once `with` "input.txt")
         _ <- readFile "input.txt" >>= liftIO . evaluate
+        pure ()
+
+    it "Can verify arguments for functions returning () without type annotations (writeFile)" do
+      runMockT do
+        _writeFile ("output.txt" ~> pack "content" ~> ()) `expects` called once
+        -- Execute the function and force evaluation
+        writeFile "output.txt" (pack "content") >>= liftIO . evaluate
         pure ()
