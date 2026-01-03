@@ -135,7 +135,7 @@ spec = do
 | Matcher | Description | Example |
 | :--- | :--- | :--- |
 | **`any`** | どんな値でも許可 | `f <- mock (any ~> True)` |
-| **`expect`** | 条件(述語)で検証 | `f <- mock (expect (> 5) "gt 5" ~> True)` |
+| **`when`** | 条件(述語)で検証 | `f <- mock (when (> 5) "gt 5" ~> True)` |
 | **`"val"`** | 値の一致 (Eq) | `f <- mock ("val" ~> True)` |
 | **`inOrder`** | 順序検証 | ``f `shouldBeCalled` inOrderWith ["a", "b"]`` |
 | **`inPartial`**| 部分順序 | ``f `shouldBeCalled` inPartialOrderWith ["a", "c"]`` |
@@ -167,8 +167,8 @@ f <- mock ("a" ~> "b" ~> True)
 -- 任意の文字列 (param any)
 f <- mock (any ~> True)
 
--- 条件式 (expect)
-f <- mock (expect (> 5) "> 5" ~> True)
+-- 条件式 (when)
+f <- mock (when (> 5) "> 5" ~> True)
 ```
 
 ### 2. 型クラスのモック (`makeMock`)
@@ -269,7 +269,7 @@ f <- mock (any ~> True)
 f `shouldBeCalled` any
 ```
 
-#### 条件を指定して検証 (`expect`)
+#### 条件を指定して検証 (`when`)
 
 任意の値ではなく、「条件（述語）」を使って検証できます。
 `Eq` を持たない型（関数など）や、部分的な一致を確認したい場合に強力です。
@@ -277,8 +277,14 @@ f `shouldBeCalled` any
 ```haskell
 -- 引数が "error" で始まる場合のみ False を返す
 f <- mock do
-  onCase $ expect (\s -> "error" `isPrefixOf` s) "start with error" ~> False
+  onCase $ when (\s -> "error" `isPrefixOf` s) "start with error" ~> False
   onCase $ any ~> True
+```
+
+ラベル（エラー時に表示される説明）が不要な場合は、`when_` を使用することもできます。
+
+```haskell
+f <- mock (when_ (> 5) ~> True)
 ```
 
 ### 5. 高度な機能 - [応用]
@@ -359,8 +365,8 @@ f <- mock (label "myAPI") ("arg" ~> True)
 | マッチャ | 説明 | 例 |
 | :--- | :--- | :--- |
 | `any` | 任意の値 | `any ~> True` |
-| `expect pred label` | 条件式 | `expect (>0) "positive" ~> True` |
-| `expect_ pred` | ラベルなし | `expect_ (>0) ~> True` |
+| `when pred label` | 条件式 | `when (>0) "positive" ~> True` |
+| `when_ pred` | ラベルなし | `when_ (>0) ~> True` |
 
 ### 宣言的検証 DSL (`expects`)
 
@@ -393,7 +399,7 @@ mock (any ~> True) `expects` do
 | **`once`** | `times 1` のエイリアス。 | `called . once` |
 | **`never`** | 0回を期待します。 | `called . never` |
 | **`with arg`** | 引数を指定します。 | `called `with` "value"` |
-| **`with matcher`** | マッチャを使って引数を検証します。 | `called `with` expect (>5) "gt 5"` |
+| **`with matcher`** | マッチャを使って引数を検証します。 | `called `with` when (>5) "gt 5"` |
 | **`inOrder`** | 呼び出し順序を検証 (リスト内で使用) | (順序検証の項を参照) |
 
 ### よくある質問 (FAQ)
@@ -434,6 +440,16 @@ A. はい、xUnit Patterns 等の定義に従えば、事後検証を行う Mock
 import Prelude hiding (any)
 -- または
 import qualified Test.MockCat as MC
+```
+
+### `when` と `Control.Monad.when` の名前衝突
+`Test.MockCat` は `when` (パラメータマッチャ) をエクスポートするため、`Control.Monad` の `when` (条件分岐) と衝突することがあります。
+その場合は `Test.MockCat` からの `when` を隠すか、修飾名を使用してください。
+
+```haskell
+import Test.MockCat hiding (when)
+-- または
+import Control.Monad hiding (when) -- モックの方を使いたい場合
 ```
 
 ### `OverloadedStrings` 使用時の型推論エラー

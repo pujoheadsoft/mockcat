@@ -3,6 +3,7 @@
 {-# OPTIONS_GHC -Wno-type-defaults #-}
 {-# OPTIONS_GHC -Wno-unused-do-bind #-}
 {-# OPTIONS_GHC -fno-hpc #-}
+{-# OPTIONS_GHC -Wno-deprecations #-}
 
 module Test.MockCat.ShouldBeCalledSpec (spec) where
 

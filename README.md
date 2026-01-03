@@ -135,7 +135,7 @@ spec = do
 | Matcher | Description | Example |
 | :--- | :--- | :--- |
 | **`any`** | Matches any value | `f <- mock (any ~> True)` |
-| **`expect`** | Matches condition | `f <- mock (expect (> 5) "gt 5" ~> True)` |
+| **`when`** | Matches condition | `f <- mock (when (> 5) "gt 5" ~> True)` |
 | **`"val"`** | Matches value (Eq) | `f <- mock ("val" ~> True)` |
 | **`inOrder`** | Order verification | ``f `shouldBeCalled` inOrderWith ["a", "b"]`` |
 | **`inPartial`**| Partial order | ``f `shouldBeCalled` inPartialOrderWith ["a", "c"]`` |
@@ -169,8 +169,8 @@ You can specify conditions (predicates) instead of concrete values.
 -- Arbitrary string (param any)
 f <- mock (any ~> True)
 
--- Condition (expect)
-f <- mock (expect (> 5) "> 5" ~> True)
+-- Condition (when)
+f <- mock (when (> 5) "> 5" ~> True)
 ```
 
 ### 2. Typeclass Mocking (`makeMock`)
@@ -271,7 +271,7 @@ f <- mock (any ~> True)
 f `shouldBeCalled` any
 ```
 
-#### Verify with Conditions (`expect`)
+#### Verify with Conditions (`when`)
 
 You can verify using "conditions (predicates)" instead of arbitrary values.
 Powerfully useful for types without `Eq` (like functions) or when checking partial matches.
@@ -279,8 +279,14 @@ Powerfully useful for types without `Eq` (like functions) or when checking parti
 ```haskell
 -- Return False only if the argument starts with "error"
 f <- mock do
-  onCase $ expect (\s -> "error" `isPrefixOf` s) "start with error" ~> False
+  onCase $ when (\s -> "error" `isPrefixOf` s) "start with error" ~> False
   onCase $ any ~> True
+```
+
+If you don't need a label (description shown on error), you can use `when_`.
+
+```haskell
+f <- mock (when_ (> 5) ~> True)
 ```
 
 ### 5. Advanced Features - [Advanced]
@@ -361,8 +367,8 @@ f <- mock (label "myAPI") ("arg" ~> True)
 | Matcher | Description | Example |
 | :--- | :--- | :--- |
 | `any` | Any value | `any ~> True` |
-| `expect pred label` | Condition | `expect (>0) "positive" ~> True` |
-| `expect_ pred` | No label | `expect_ (>0) ~> True` |
+| `when pred label` | Condition | `when (>0) "positive" ~> True` |
+| `when_ pred` | No label | `when_ (>0) ~> True` |
 
 ### Declarative Verification DSL (`expects`)
 
@@ -395,7 +401,7 @@ mock (any ~> True) `expects` do
 | **`once`** | Alias for `times 1`. | `called . once` |
 | **`never`** | Expects 0 calls. | `called . never` |
 | **`with arg`** | Expects specific argument(s). | `called `with` "value"` |
-| **`with matcher`** | Uses a matcher for argument verification. | `called `with` expect (>5) "gt 5"` |
+| **`with matcher`** | Uses a matcher for argument verification. | `called `with` when (>5) "gt 5"` |
 | **`inOrder`** | Verify usage order (when used in a list) | (See "Order Verification" section) |
 
 ### FAQ
@@ -436,6 +442,16 @@ To resolve this, hide `any` from Prelude or use a qualified name.
 import Prelude hiding (any)
 -- or
 import qualified Test.MockCat as MC
+```
+
+### Name collision with `Control.Monad.when`
+`Test.MockCat` exports `when` (parameter matcher), which may conflict with `Control.Monad.when`.
+To avoid this, hide `when` from `Test.MockCat` or use qualified import.
+
+```haskell
+import Test.MockCat hiding (when)
+-- or
+import Control.Monad hiding (when) -- if you want to use the matcher
 ```
 
 ### Ambiguous types with `OverloadedStrings`

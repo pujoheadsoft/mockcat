@@ -21,6 +21,9 @@ module Test.MockCat.Param
     param,
     ConsGen(..),
     MockSpec(..),
+    -- * Matchers
+    when,
+    when_,
     expect,
     expect_,
     ToParamParam(..),
@@ -241,6 +244,7 @@ any = ExpectCondition (const True) "any"
 
     > expect (>5) ">5"
 -}
+{-# DEPRECATED expect "Use 'when' instead" #-}
 expect :: (a -> Bool) -> String -> Param a
 expect = ExpectCondition
 
@@ -249,8 +253,26 @@ expect = ExpectCondition
 
   > expect_ (>5)
 -}
+{-# DEPRECATED expect_ "Use 'when_' instead" #-}
 expect_ :: (a -> Bool) -> Param a
 expect_ f = ExpectCondition f "[some condition]"
+
+{- | Create a conditional parameter with a label.
+    When calling a mock function, if the argument does not satisfy this condition, an error occurs.
+    In this case, the specified label is included in the error message.
+
+    > when (>5) ">5"
+-}
+when :: (a -> Bool) -> String -> Param a
+when = ExpectCondition
+
+{- | Create a conditional parameter without a label.
+  The error message is displayed as "[some condition]".
+
+  > when_ (>5)
+-}
+when_ :: (a -> Bool) -> Param a
+when_ f = ExpectCondition f "[some condition]"
 
 -- | The type of the argument parameters of the parameters.
 type family ArgsOf params where

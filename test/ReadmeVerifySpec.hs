@@ -11,10 +11,11 @@
 {-# OPTIONS_GHC -Wno-missing-export-lists #-}
 {-# OPTIONS_GHC -Wno-unused-do-bind #-}
 {-# OPTIONS_GHC -fno-hpc #-}
+{-# OPTIONS_GHC -Wno-deprecations #-}
 module ReadmeVerifySpec where
 
 import Test.Hspec
-import Test.MockCat
+import Test.MockCat hiding (when)
 import Prelude hiding (readFile, writeFile, any)
 import Control.Monad (when)
 

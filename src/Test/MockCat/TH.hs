@@ -88,7 +88,7 @@ import Test.MockCat.TH.FunctionBuilder
   )
 import Test.MockCat.TH.Types (MockOptions(..), options)
 import Test.MockCat.Verify ()
-import Test.MockCat.Param
+import Test.MockCat.Param hiding (when)
 import Prelude as P
 
 

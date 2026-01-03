@@ -5,6 +5,7 @@
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 {-# OPTIONS_GHC -Wno-type-defaults #-}
 {-# OPTIONS_GHC -fno-hpc #-}
+{-# OPTIONS_GHC -Wno-deprecations #-}
 module Property.AdditionalProps
   ( prop_predicate_param_match_counts
   , prop_multicase_progression

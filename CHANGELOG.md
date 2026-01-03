@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to the
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
+## [1.3.1.0] - 2026-01-03
+### Added
+- **New Parameter Matcher**: Introduced `when` and `when_` as the primary functions for condition-based matching.
+    - These replace `expect` and `expect_` to improve readability (e.g., `mock (when (>5) ~> True)` reads naturally as "mock when > 5").
+
+### Changed
+- **Renaming / Deprecation**: `expect` and `expect_` have been renamed to `when` and `when_`.
+    - The old `expect` and `expect_` are now **DEPRECATED** and will trigger a compiler warning. They will be removed in a future major release.
+- **Documentation**: Updated `when` / `when_` usage and added guidance on resolving name collisions with `Control.Monad.when`.
 ## [1.3.0.0] - 2026-01-03
 ### Added
 - **Type-Safe Verification Result**: Generated mock helpers now return `MockResult params`. This type carries parameter information, enabling robust type inference and compile-time safety checks when using declarative verification (`expects`).

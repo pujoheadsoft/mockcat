@@ -5,7 +5,7 @@ cabal-version: 1.12
 -- see: https://github.com/sol/hpack
 
 name:           mockcat
-version:        1.3.0.0
+version:        1.3.1.0
 synopsis:       Declarative mocking with a single arrow `~>`.
 description:    Mockcat is a minimal, architecture-agnostic mocking library for Haskell.
                 It enables declarative verification and intent-driven matching, allowing you to define function behavior and expectations without specific architectural dependencies.

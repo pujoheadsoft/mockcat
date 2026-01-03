@@ -19,7 +19,7 @@ for v in "${VERSIONS[@]}"; do
   # Run in background, piping output to sed to add a prefix
   # set -o pipefail ensures that if cabal fails, the pipeline fails
   (
-    cabal v2-test --enable-tests --enable-coverage --disable-optimization --ghc-options="-Werror" -w ~/.ghcup/bin/ghc-$v 2>&1 | sed -u "s/^/[$v] /"
+    cabal v2-test --enable-tests --enable-coverage --disable-optimization --ghc-options="-Werror" -w ~/.ghcup/bin/ghc-$v 2>&1 | tee "build_log_$v.txt" | sed -u "s/^/[$v] /"
   ) &
   pid=$!
   PIDS+=("$pid")
@@ -40,6 +40,31 @@ for pid in "${PIDS[@]}"; do
     FAILURE=1
   fi
 done
+
+# If there were failures, print error details before the summary
+if [ "$FAILURE" -eq 1 ]; then
+  echo ""
+  echo "========================================"
+  echo "FAILURE DETAILS (Last 20 lines)"
+  echo "========================================"
+  for pid in "${PIDS[@]}"; do
+    if [ "${PID_RESULTS[$pid]}" -ne 0 ]; then
+      v="${PID_TO_VERSION[$pid]}"
+      echo ""
+      echo "--- [GHC $v] Error Log ---"
+      if [ -f "build_log_$v.txt" ]; then
+        # improved error extraction: look for "error:" or "FAIL" but fallback to tail
+        # actually tail is safest
+        tail -n 20 "build_log_$v.txt"
+      else
+        echo "Log file not found."
+      fi
+    fi
+  done
+fi
+
+# Clean up logs
+rm -f build_log_*.txt
 
 # Now output the summary
 echo ""

@@ -1,6 +1,7 @@
 {-# LANGUAGE BlockArguments #-}
 {-# OPTIONS_GHC -Wno-type-defaults #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# OPTIONS_GHC -Wno-deprecations #-}
 module Test.MockCat.ParamSpec (spec) where
 
 import Prelude hiding (and, or)

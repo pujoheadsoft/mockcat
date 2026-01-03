@@ -8,6 +8,7 @@
 {-# OPTIONS_GHC -Wno-type-defaults #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# OPTIONS_GHC -Wno-deprecations #-}
 {- HLINT ignore "Use newtype instead of data" -}
 
 module Test.MockCat.MockSpec (spec) where
@@ -67,8 +68,8 @@ spec = do
         f <- mock $ any @NoEq ~> "result"
         f (NoEq "val") `shouldBe` "result"
       
-      it "can mock function with NoEq argument using expect" do
-        f <- mock $ expect_ (const True) ~> "result"
+      it "can mock function with NoEq argument using when" do
+        f <- mock $ when_ (const True) ~> "result"
         f (NoEq "val") `shouldBe` "result"
 
       it "can stub function with NoEq argument" do
@@ -76,15 +77,25 @@ spec = do
         f (NoEq "val") `shouldBe` "result"
     
       it "can mock function with NoEq argument matching its value" do
-        -- Even without an Eq instance, you can match based on field values using 'expect'.
-        f <- mock $ expect (\(NoEq val) -> val == "target") "NoEq with 'target'" ~> "hit"
+        -- Even without an Eq instance, you can match based on field values using 'when'.
+        f <- mock $ when (\(NoEq val) -> val == "target") "NoEq with 'target" ~> "hit"
         f (NoEq "target") `shouldBe` "hit"
         evaluate (f (NoEq "other")) `shouldThrow` anyErrorCall
 
       it "can mock function taking a function" do
-        f <- mock $ expect_ (\(g :: Int -> Int) -> g (5 :: Int) == (25 :: Int)) ~> "result"
+        f <- mock $ when_ (\(g :: Int -> Int) -> g (5 :: Int) == (25 :: Int)) ~> "result"
         let g x = x * x
         f g `shouldBe` "result"
+
+    describe "Deprecated expect support" do
+      it "expect works like when" do
+        f <- mock $ expect (\(NoEq val) -> val == "target") "NoEq with 'target'" ~> "hit"
+        f (NoEq "target") `shouldBe` "hit"
+        evaluate (f (NoEq "other")) `shouldThrow` anyErrorCall
+
+      it "expect_ works like when_" do
+        f <- mock $ expect_ (const True) ~> "result"
+        f (NoEq "val") `shouldBe` "result"
 
   describe "Monad" do
     it "Return IO Monad." do

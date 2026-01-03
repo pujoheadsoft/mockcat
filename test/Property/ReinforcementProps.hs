@@ -9,6 +9,7 @@
 {-# OPTIONS_GHC -Wno-missing-export-lists #-}
 {-# OPTIONS_GHC -Wno-simplifiable-class-constraints #-}
 {-# OPTIONS_GHC -fno-hpc #-}
+{-# OPTIONS_GHC -Wno-deprecations #-}
 module Property.ReinforcementProps
   where
 
