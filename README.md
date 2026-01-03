@@ -341,6 +341,8 @@ class Monad m => MonadLogger m where
 deriveMockInstances [t|MonadLogger|]
 ```
 This generates an instance for `MockT m` that calls `lift . logInfo`.
+> [!NOTE]
+> `deriveMockInstances` currently does not support type classes with Type Families.
 
 ##### Explicit No-op Instances (`deriveNoopInstance`)
 Sometimes you want a mock to do nothing for certain methods (especially those returning `m ()`) without having to define explicit stubs or provide a base implementation.
@@ -353,12 +355,6 @@ deriveNoopInstance [t|MonadAuditor|]
 ```
 This generates an instance for `MockT m` where `audit` simply returns `pure ()`.
 
-##### Utility Instances (`Test.MockCat.Instances`)
-Common test-friendly instances (like a sequential `MonadAsync`) are provided in the `Test.MockCat.Instances` module.
-
-```haskell
-import Test.MockCat.Instances
-```
 
 ---
 

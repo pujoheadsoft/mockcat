@@ -339,6 +339,8 @@ class Monad m => MonadLogger m where
 deriveMockInstances [t|MonadLogger|]
 ```
 これにより、`lift . logInfo` を呼び出す `MockT m` のインスタンスが自動生成されます。
+> [!NOTE]
+> 現在、`deriveMockInstances` は Type Families を持つ型クラスをサポートしていません。
 
 ##### 明示的な No-op インスタンス (`deriveNoopInstance`)
 メソッド（特に `m ()` を返すもの）に対して、明示的なスタブ定義やベース実装を用意することなく、「何もしない」モックを作成したい場合があります。
@@ -351,12 +353,6 @@ deriveNoopInstance [t|MonadAuditor|]
 ```
 これにより、`audit` が単に `pure ()` を返す `MockT m` のインスタンスが生成されます。
 
-##### ユーティリティインスタンス (`Test.MockCat.Instances`)
-テストで便利な共通のインスタンス（順次実行される `MonadAsync` 等）が `Test.MockCat.Instances` モジュールで提供されています。
-
-```haskell
-import Test.MockCat.Instances
-```
 
 ---
 

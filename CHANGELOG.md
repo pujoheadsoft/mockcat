@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to the
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
+## [1.3.2.0] - 2026-01-04
+### Added
+- **New Derivation Macros**:
+    - `deriveMockInstances`: Automatically derives `MockT` instances for user-defined "Capability" type classes (e.g., `MonadLogger`). It lifts operations to the base monad.
+        - *Note*: Type Families are currently not supported.
+    - `deriveNoopInstance`: Generates "No-op" instances where methods (returning `m ()`) do nothing. Useful for ignoring specific interactions (e.g., `MonadAuditor`).
+
+### Improved
+- **Compile-Time Verification**: Enhanced robustness of internal verification scripts (`verify_th_errors.sh`) to ensure consistent error reporting across GHC versions.
+- **Documentation**: Clarified "Capability vs. Control" design philosophy and limitations regarding Type Families in `deriveMockInstances`.
+
 ## [1.3.1.0] - 2026-01-03
 ### Added
 - **New Parameter Matcher**: Introduced `when` and `when_` as the primary functions for condition-based matching.
