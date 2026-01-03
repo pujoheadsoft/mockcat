@@ -9,6 +9,7 @@
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE UndecidableInstances #-}
 module Test.MockCat.MockT (
   MockT(..), Definition(..), Verification(..),
   runMockT,
@@ -23,7 +24,10 @@ import Control.Concurrent.STM
   )
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans.Class (MonadTrans(..))
-import Control.Monad.Reader (ReaderT(..), runReaderT, asks)
+import Control.Monad.Reader (ReaderT(..), runReaderT, asks, MonadReader(..))
+import Control.Monad.Error.Class (MonadError(..))
+import Control.Monad.State.Class (MonadState(..))
+import Control.Monad.Writer.Class (MonadWriter(..))
 import GHC.TypeLits (KnownSymbol, symbolVal)
 import Data.Data (Proxy, Typeable)
 import Data.IORef (newIORef, IORef)
@@ -72,6 +76,26 @@ instance MonadUnliftIO m => MonadUnliftIO (MockT m) where
 
 instance {-# OVERLAPPING #-} Monad m => MonadWithMockContext (MockT m) where
   askWithMockContext = MockT $ asks envWithMockContext
+
+instance {-# OVERLAPPABLE #-} MonadReader r m => MonadReader r (MockT m) where
+  ask = lift ask
+  local f (MockT (ReaderT m)) = MockT $ ReaderT $ \env -> local f (m env)
+  reader = lift . reader
+
+instance {-# OVERLAPPABLE #-} MonadError e m => MonadError e (MockT m) where
+  throwError = lift . throwError
+  catchError (MockT m) h = MockT $ catchError m (unMockT . h)
+
+instance {-# OVERLAPPABLE #-} MonadState s m => MonadState s (MockT m) where
+  get = lift get
+  put = lift . put
+  state = lift . state
+
+instance {-# OVERLAPPABLE #-} MonadWriter w m => MonadWriter w (MockT m) where
+  writer = lift . writer
+  tell = lift . tell
+  listen (MockT m) = MockT $ listen m
+  pass (MockT m) = MockT $ pass m
 
 
 data Definition =

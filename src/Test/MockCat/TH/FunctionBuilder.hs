@@ -207,7 +207,7 @@ isAtomicNonFunction _ = pure False
 
 doCreateMockFnDecs :: MockType -> String -> Name -> Name -> Type -> Name -> Type -> Q [Dec]
 doCreateMockFnDecs mockType funNameStr mockFunName params funTypeInput monadVarName _ = do
-  let funType = sanitizeType [monadVarName] funTypeInput
+  let funType = sanitizeType [monadVarName] (stripTopLevelForall funTypeInput)
   let resultType =
         AppT
           (AppT ArrowT (VarT params))
@@ -250,9 +250,9 @@ doCreateMockFnDecs mockType funNameStr mockFunName params funTypeInput monadVarN
   pure $ newFunSig : [newFun]
 
 doCreateConstantMockFnDecs :: MockType -> String -> Name -> Type -> Name -> Q [Dec]
-doCreateConstantMockFnDecs Partial funNameStr mockFunName ty monadVarName = do
+doCreateConstantMockFnDecs Partial funNameStr mockFunName tyInput monadVarName = do
   let stubVar = mkName "p" 
-  let tySanitized = sanitizeType [monadVarName] ty
+  let tySanitized = sanitizeType [monadVarName] (stripTopLevelForall tyInput)
   let resultType =
         AppT
           (AppT ArrowT (VarT stubVar))
@@ -295,12 +295,12 @@ doCreateConstantMockFnDecs Partial funNameStr mockFunName ty monadVarName = do
   mockBody <- createMockBody funNameStr [|p|] (VarT stubVar)
   newFun <- funD mockFunName [clause [varP $ mkName "p"] (normalB (pure mockBody)) []]
   pure $ newFunSig : [newFun]
-doCreateConstantMockFnDecs Total funNameStr mockFunName ty monadVarName = do
-  case ty of
+doCreateConstantMockFnDecs Total funNameStr mockFunName tyInput monadVarName = do
+  case tyInput of
     -- Case 3: Generic (Polymorphic p)
     _ -> do
       let params = mkName "p"
-      let tySanitized = sanitizeType [monadVarName] ty
+      let tySanitized = sanitizeType [monadVarName] (stripTopLevelForall tyInput)
       let resultType =
             AppT
               (AppT ArrowT (VarT params))
@@ -337,8 +337,9 @@ doCreateConstantMockFnDecs Total funNameStr mockFunName ty monadVarName = do
       pure [newFunSig, newFun]
 
 doCreateEmptyVerifyParamMockFnDecs :: String -> Name -> Name -> Type -> Name -> Type -> Q [Dec]
-doCreateEmptyVerifyParamMockFnDecs funNameStr mockFunName params funTypeInput monadVarName updatedType = do
-  let funType = sanitizeType [monadVarName] funTypeInput
+doCreateEmptyVerifyParamMockFnDecs funNameStr mockFunName params funTypeInput monadVarName updatedTypeInput = do
+  let funType = sanitizeType [monadVarName] (stripTopLevelForall funTypeInput)
+  let updatedType = stripTopLevelForall updatedTypeInput
   newFunSig <- do
     let verifyParams = createMockBuilderVerifyParams updatedType
         resultType =
@@ -440,6 +441,10 @@ safeIndex (x : _) 0 = Just x
 safeIndex (_ : xs) n
   | n < 0 = Nothing
   | otherwise = safeIndex xs (n - 1)
+
+stripTopLevelForall :: Type -> Type
+stripTopLevelForall (ForallT _ _ t) = stripTopLevelForall t
+stripTopLevelForall t = t
 
 
 generateInstanceMockFnBody :: String -> [Q Exp] -> Name -> MockOptions -> Q Exp

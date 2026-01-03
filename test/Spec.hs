@@ -1,5 +1,6 @@
 import Test.Hspec (hspec, describe, it)
 import Test.MockCat.MockSpec as Mock
+import Test.MockCat.DeriveSpec as Derive
 import Test.MockCat.ConsSpec as Cons
 import Test.MockCat.ParamSpec as Param
 import Test.MockCat.AssociationListSpec as AssociationList
@@ -44,6 +45,7 @@ main :: IO ()
 main = hspec $ do
     Cons.spec
     Param.spec
+    Derive.spec
     Mock.spec
     AssociationList.spec
     Example.spec

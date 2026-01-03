@@ -18,16 +18,21 @@ module Test.MockCat.TH
     makeAutoLiftMock,
     makePartialMock,
     makeAutoLiftPartialMock,
+    deriveMockInstances,
+    deriveNoopInstance,
   )
 where
 
-import Control.Monad (unless, when)
+import Control.Monad (replicateM, unless, when)
+import Control.Monad.Trans (lift)
 import Data.List (elemIndex, nub)
 import Data.Maybe (catMaybes)
 import qualified Data.Map.Strict as Map
 
 import Language.Haskell.TH
-  ( Cxt,
+  ( Clause (..),
+    Body (..),
+    Cxt,
     Dec (..),
     Exp (..),
     Extension (..),
@@ -44,6 +49,7 @@ import Language.Haskell.TH
     Type (..),
     isExtEnabled,
     mkName,
+    newName,
     pprint,
     reify,
   )
@@ -181,7 +187,7 @@ makeMock t = doMakeMock t Total options
 --
 --  - MockT instance of the given typeclass
 --  - A stub function corresponding to a function of the original class type.
--- The name of stub function is the name of the original function with a "_" appended.
+-- THE name of stub function is the name of the original function with a "_" appended.
 --
 --  This function automatically wraps the return value in a monad (Implicit Monadic Return).
 --
@@ -606,3 +612,63 @@ mockDec _ _ _ _ dec = fail $ "unsupport dec: " <> pprint dec
 
 verifyExtension :: Extension -> Q ()
 verifyExtension e = isExtEnabled e >>= flip unless (fail $ "Language extensions `" ++ show e ++ "` is required.")
+
+deriveMockInstances :: Q Type -> Q [Dec]
+deriveMockInstances qType = do
+  ty <- qType
+  let className = getClassName ty
+  classMetadata <- loadClassMetadata className
+  monadVarName <- selectMonadVarName classMetadata
+  let classParamNames = filter (className /=) (getClassNames ty)
+      newTypeVars = drop (length classParamNames) (cmTypeVars classMetadata)
+  let sigDecs = [dec | dec@(SigD _ _) <- cmDecs classMetadata]
+  instanceBodyDecs <- mapM (createLiftInstanceFnDec monadVarName) sigDecs
+  instanceHead <- createInstanceType ty monadVarName newTypeVars
+  let instanceConstraint = foldl AppT ty (map (VarT . getTypeVarName) newTypeVars)
+  instanceDec <- instanceD
+    (pure (instanceConstraint : cmContext classMetadata))
+    (pure instanceHead)
+    (map pure instanceBodyDecs)
+  pure [instanceDec]
+
+createLiftInstanceFnDec :: Name -> Dec -> Q Dec
+createLiftInstanceFnDec _ (SigD fnName ty) = do
+  let n = countArgs ty
+  argNames <- replicateM n (newName "a")
+  let params = map VarP argNames
+      args = map VarE argNames
+      body = NormalB $ AppE (VarE 'lift) (foldl AppE (VarE fnName) args)
+  pure $ FunD fnName [Clause params body []]
+createLiftInstanceFnDec _ dec = fail $ "Unsupported declaration: " <> pprint dec
+
+deriveNoopInstance :: Q Type -> Q [Dec]
+deriveNoopInstance qType = do
+  ty <- qType
+  let className = getClassName ty
+  classMetadata <- loadClassMetadata className
+  monadVarName <- selectMonadVarName classMetadata
+  let classParamNames = filter (className /=) (getClassNames ty)
+      newTypeVars = drop (length classParamNames) (cmTypeVars classMetadata)
+  let sigDecs = [dec | dec@(SigD _ _) <- cmDecs classMetadata]
+  instanceBodyDecs <- mapM createNoopInstanceFnDec sigDecs
+  instanceHead <- createInstanceType ty monadVarName newTypeVars
+  instanceDec <- instanceD
+    (pure (cmContext classMetadata))
+    (pure instanceHead)
+    (map pure instanceBodyDecs)
+  pure [instanceDec]
+
+createNoopInstanceFnDec :: Dec -> Q Dec
+createNoopInstanceFnDec (SigD fnName ty) = do
+  let n = countArgs ty
+  let params = replicate n WildP
+      body = NormalB $ AppE (VarE 'pure) (ConE '())
+  pure $ FunD fnName [Clause params body []]
+createNoopInstanceFnDec dec = fail $ "Unsupported declaration: " <> pprint dec
+
+countArgs :: Type -> Int
+countArgs (AppT (AppT ArrowT _) t) = 1 + countArgs t
+countArgs (ForallT _ _ t) = countArgs t
+countArgs (SigT t _) = countArgs t
+countArgs (ParensT t) = countArgs t
+countArgs _ = 0

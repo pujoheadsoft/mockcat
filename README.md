@@ -324,6 +324,56 @@ test = runMockT do
   program -- writeFile runs the real IO instance
 ```
 
+#### Derivation and Custom Instances
+
+When using `MockT`, you might need to handle type classes that are not directly related to the side effects you are mocking. Mockcat provides macros to help with these cases.
+
+##### MTL Instances (`MonadReader`, `MonadError`, etc.)
+`MockT` provides standard `mtl` instances (`MonadReader`, `MonadError`, `MonadState`, `MonadWriter`) out of the box. These instances automatically lift operations to the base monad.
+
+##### Custom Type Class Derivation (`deriveMockInstances`)
+For custom "Capability" type classes (like `MonadLogger`, `MonadConfig`) that should just be lifted to the base monad, use `deriveMockInstances`.
+
+```haskell
+class Monad m => MonadLogger m where
+  logInfo :: String -> m ()
+
+deriveMockInstances [t|MonadLogger|]
+```
+This generates an instance for `MockT m` that calls `lift . logInfo`.
+
+##### Explicit No-op Instances (`deriveNoopInstance`)
+Sometimes you want a mock to do nothing for certain methods (especially those returning `m ()`) without having to define explicit stubs or provide a base implementation.
+
+```haskell
+class Monad m => MonadAuditor m where
+  audit :: String -> m ()
+
+deriveNoopInstance [t|MonadAuditor|]
+```
+This generates an instance for `MockT m` where `audit` simply returns `pure ()`.
+
+##### Utility Instances (`Test.MockCat.Instances`)
+Common test-friendly instances (like a sequential `MonadAsync`) are provided in the `Test.MockCat.Instances` module.
+
+```haskell
+import Test.MockCat.Instances
+```
+
+---
+
+#### Design Philosophy: Capability vs. Control
+
+Mockcat makes a distinction between **Capability** and **Control** when it comes to type class derivation.
+
+*   **Capability (Inject/Lift)**: Type classes that provide context or tools (e.g., `MonadReader`, `MonadLogger`).
+    *   **Approach**: Use `deriveMockInstances` or standard `mtl` instances. These should be lifted to the base monad to keep the environment consistent.
+*   **Control (Mock)**: Type classes that represent external side effects or business logic boundaries (e.g., `UserRepository`, `PaymentGateway`).
+    *   **Approach**: Use `makeMock`. These must be explicitly stubbed or verified to ensure the test isolates the logic under test.
+
+---
+
+
 #### Monadic Return (`IO a`)
 
 Used when you want a function returning `IO` to have different side effects (results) for each call.

@@ -322,6 +322,56 @@ test = runMockT do
   program -- writeFile は本物の IO インスタンスが走る
 ```
 
+#### 派生とカスタムインスタンス (Derivation and Custom Instances)
+
+`MockT` を使用する際、モック対象の副作用とは直接関係のない型クラスを扱わなければならないことがあります。Mockcat は、これらのケースを補助するためのマクロを提供しています。
+
+##### MTL インスタンス (`MonadReader`, `MonadError` 等)
+`MockT` は、標準的な `mtl` の型クラス（`MonadReader`, `MonadError`, `MonadState`, `MonadWriter`）のインスタンスを標準で備えています。これらのインスタンスは、操作を自動的にベースモナドへリフト（持ち上げ）します。
+
+##### カスタム型クラスの派生 (`deriveMockInstances`)
+ベースモナドへリフトするだけでよいカスタムの "Capability" 型クラス（`MonadLogger`, `MonadConfig` 等）については、`deriveMockInstances` を使用できます。
+
+```haskell
+class Monad m => MonadLogger m where
+  logInfo :: String -> m ()
+
+deriveMockInstances [t|MonadLogger|]
+```
+これにより、`lift . logInfo` を呼び出す `MockT m` のインスタンスが自動生成されます。
+
+##### 明示的な No-op インスタンス (`deriveNoopInstance`)
+メソッド（特に `m ()` を返すもの）に対して、明示的なスタブ定義やベース実装を用意することなく、「何もしない」モックを作成したい場合があります。
+
+```haskell
+class Monad m => MonadAuditor m where
+  audit :: String -> m ()
+
+deriveNoopInstance [t|MonadAuditor|]
+```
+これにより、`audit` が単に `pure ()` を返す `MockT m` のインスタンスが生成されます。
+
+##### ユーティリティインスタンス (`Test.MockCat.Instances`)
+テストで便利な共通のインスタンス（順次実行される `MonadAsync` 等）が `Test.MockCat.Instances` モジュールで提供されています。
+
+```haskell
+import Test.MockCat.Instances
+```
+
+---
+
+#### 設計思想: Capability vs. Control
+
+Mockcat は、型クラスの派生において **Capability (能力)** と **Control (制御)** を区別します。
+
+*   **Capability (注入/リフト)**: コンテキストやツールを提供する型クラス（例：`MonadReader`, `MonadLogger`）。
+    *   **アプローチ**: `deriveMockInstances` や標準の `mtl` インスタンスを使用します。環境の一貫性を保つため、これらはベースモナドへリフトされるべきです。
+*   **Control (モック)**: 外部への副作用やビジネスロジックの境界を表す型クラス（例：`UserRepository`, `PaymentGateway`）。
+    *   **アプローチ**: `makeMock` を使用します。テスト対象のロジックを隔離するため、これらは明示的にスタブ定義や検証が行われる必要があります。
+
+---
+
+
 #### IO アクションを返す (Monadic Return)
 
 `IO` を返す関数で、呼び出しごとに副作用（結果）を変えたい場合に使います。

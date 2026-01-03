@@ -31,8 +31,7 @@ import Data.Text (Text, pack, isInfixOf)
 import Control.Exception (ErrorCall(..), displayException)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Reader (MonadReader, ask)
-import Control.Monad.State (MonadState(..), StateT, evalStateT)
-import Control.Monad.Trans.Class (lift)
+import Control.Monad.State (StateT, evalStateT)
 import Test.MockCat.SharedSpecDefs
 import qualified Data.List as List
 import Control.Concurrent.Async (async, wait)
@@ -48,11 +47,6 @@ missingCall name err =
    in (needle1 `List.isInfixOf` displayException err) || (needle2 `List.isInfixOf` displayException err)
 
 -- Orphan Instances needed for testing
-
-instance MonadState s m => MonadState s (MockT m) where
-  get = lift get
-  put = lift . put
-  state f = lift (state f)
 
 -- Programs under test
 
