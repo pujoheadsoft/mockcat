@@ -52,11 +52,9 @@ import Language.Haskell.TH
     newName,
     pprint,
     reify,
-    TyLit(..),
   )
 import Language.Haskell.TH.Lib
 import Language.Haskell.TH.PprLib (Doc, hcat, parens, text)
-import GHC.TypeLits (TypeError, ErrorMessage(Text))
 import Language.Haskell.TH.Syntax (nameBase)
 import Test.MockCat.Mock ()
 import Test.MockCat.MockT
@@ -632,9 +630,10 @@ deriveMockInstances qType = do
   let unsupportedDecs = filter (not . isSupportedDec) (cmDecs classMetadata)
   
   instanceBodyDecsResult <- 
-    if not (null unsupportedDecs)
-      then pure $ Left $ "deriveMockInstances: Unsupported declaration in class: " <> pprint (head unsupportedDecs)
-      else sequence <$> mapM (createLiftInstanceFnDec monadVarName) sigDecs
+    case unsupportedDecs of
+      (x:_) -> pure $ Left $ "deriveMockInstances: Unsupported declaration in class: " <> pprint x <> 
+                        ". This error is reported at the usage site, but the cause is the macro definition for `" <> show className <> "`."
+      [] -> sequence <$> mapM (createLiftInstanceFnDec monadVarName) sigDecs
 
   case instanceBodyDecsResult of
     Right decs -> do
@@ -645,19 +644,7 @@ deriveMockInstances qType = do
         (pure instanceHead)
         (map pure decs)
       pure [instanceDec]
-    Left err -> do
-      instanceHead <- createInstanceType ty monadVarName newTypeVars
-      let errorMessage = AppT (PromotedT 'Text) (LitT (StrTyLit err))
-          typeError = AppT (ConT ''TypeError) errorMessage
-      let typeFamilyHeads = 
-            [head | OpenTypeFamilyD head <- cmDecs classMetadata] ++ 
-            [head | ClosedTypeFamilyD head _ <- cmDecs classMetadata]
-      typeInstDecs <- mapM (createTypeInstanceDec monadVarName) typeFamilyHeads
-      instanceDec <- instanceD
-        (pure (typeError : cmContext classMetadata))
-        (pure instanceHead)
-        (map pure (typeInstDecs ++ map (flip createErrorMethod err) sigDecs))
-      pure [instanceDec]
+    Left err -> fail err
 
 createLiftInstanceFnDec :: Name -> Dec -> Q (Either String Dec)
 createLiftInstanceFnDec _ (SigD fnName ty) = do
@@ -689,15 +676,7 @@ deriveNoopInstance qType = do
         (pure instanceHead)
         (map pure decs)
       pure [instanceDec]
-    Left err -> do
-      instanceHead <- createInstanceType ty monadVarName newTypeVars
-      let errorMessage = AppT (PromotedT 'Text) (LitT (StrTyLit err))
-          typeError = AppT (ConT ''TypeError) errorMessage
-      instanceDec <- instanceD
-        (pure (typeError : cmContext classMetadata))
-        (pure instanceHead)
-        (map (pure . flip createErrorMethod err) sigDecs)
-      pure [instanceDec]
+    Left err -> fail err
 
 createNoopInstanceFnDec :: Dec -> Q (Either String Dec)
 createNoopInstanceFnDec (SigD fnName ty) = do
@@ -723,7 +702,3 @@ countArgs (SigT t _) = countArgs t
 countArgs (ParensT t) = countArgs t
 countArgs _ = 0
 
-createErrorMethod :: Dec -> String -> Dec
-createErrorMethod (SigD name _) msg = 
-  FunD name [Clause [] (NormalB (AppE (VarE 'error) (LitE (StringL msg)))) []]
-createErrorMethod dec _ = error $ "createErrorMethod: Unexpected declaration: " <> pprint dec

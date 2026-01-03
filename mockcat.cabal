@@ -96,7 +96,6 @@ test-suite mockcat-test
       Test.MockCat.ConcurrencySpec
       Test.MockCat.ConfirmTHSpec
       Test.MockCat.ConsSpec
-      Test.MockCat.DeferredTypeErrorsSpec
       Test.MockCat.DeriveSpec
       Test.MockCat.ExampleSpec
       Test.MockCat.HPCFallbackSpec

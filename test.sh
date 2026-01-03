@@ -11,8 +11,10 @@ fi
 
 echo "Starting parallel tests for versions: ${VERSIONS[*]}"
 
+FAILURE=0
 PIDS=()
 declare -A PID_TO_VERSION
+declare -A PID_RESULTS
 
 for v in "${VERSIONS[@]}"; do
   echo "  [GHC $v] Launching..."
@@ -20,26 +22,22 @@ for v in "${VERSIONS[@]}"; do
   # set -o pipefail ensures that if cabal fails, the pipeline fails
   (
     cabal v2-test --enable-tests --enable-coverage --disable-optimization --ghc-options="-Werror" -w ~/.ghcup/bin/ghc-$v 2>&1 | tee "build_log_$v.txt" | sed -u "s/^/[$v] /"
-  ) &
-  pid=$!
-  PIDS+=("$pid")
-  PID_TO_VERSION["$pid"]=$v
+  )
+  STATUS=$?
+  if [ $STATUS -eq 0 ]; then
+    PID_RESULTS["$v"]=0
+  else
+    PID_RESULTS["$v"]=1
+    FAILURE=1
+  fi
 done
 
 echo "Waiting for ${#PIDS[@]} jobs to complete..."
 
-FAILURE=0
-declare -A PID_RESULTS
+
 
 # First, wait for all processes to finish and collect exit codes
-for pid in "${PIDS[@]}"; do
-  if wait "$pid"; then
-    PID_RESULTS["$pid"]=0
-  else
-    PID_RESULTS["$pid"]=1
-    FAILURE=1
-  fi
-done
+# Sequential execution completed.
 
 # If there were failures, print error details before the summary
 if [ "$FAILURE" -eq 1 ]; then
@@ -47,9 +45,8 @@ if [ "$FAILURE" -eq 1 ]; then
   echo "========================================"
   echo "FAILURE DETAILS (Last 20 lines)"
   echo "========================================"
-  for pid in "${PIDS[@]}"; do
-    if [ "${PID_RESULTS[$pid]}" -ne 0 ]; then
-      v="${PID_TO_VERSION[$pid]}"
+  for v in "${VERSIONS[@]}"; do
+    if [ "${PID_RESULTS[$v]}" -ne 0 ]; then
       echo ""
       echo "--- [GHC $v] Error Log ---"
       if [ -f "build_log_$v.txt" ]; then
@@ -74,9 +71,8 @@ echo "========================================"
 
 FAILED_VERSIONS=()
 
-for pid in "${PIDS[@]}"; do
-  v="${PID_TO_VERSION[$pid]}"
-  if [ "${PID_RESULTS[$pid]}" -eq 0 ]; then
+for v in "${VERSIONS[@]}"; do
+  if [ "${PID_RESULTS[$v]}" -eq 0 ]; then
     echo "[$v] ✅ PASSED"
   else
     echo "[$v] ❌ FAILED"
@@ -92,6 +88,15 @@ if [ "$FAILURE" -eq 1 ]; then
   echo "Failed versions: ${FAILED_VERSIONS[*]}"
   exit 1
 else
+  echo ""
+  echo "running TH error verification..."
+  if ./verify_th_errors.sh; then
+      echo "TH verification passed."
+  else
+      echo "TH verification FAILED."
+      exit 1
+  fi
+
   echo ""
   echo "🎉 All tests passed across all versions!"
   exit 0
