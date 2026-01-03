@@ -52,9 +52,11 @@ import Language.Haskell.TH
     newName,
     pprint,
     reify,
+    TyLit(..),
   )
 import Language.Haskell.TH.Lib
 import Language.Haskell.TH.PprLib (Doc, hcat, parens, text)
+import GHC.TypeLits (TypeError, ErrorMessage(Text))
 import Language.Haskell.TH.Syntax (nameBase)
 import Test.MockCat.Mock ()
 import Test.MockCat.MockT
@@ -79,7 +81,8 @@ import Test.MockCat.TH.ContextBuilder
   )
 import Test.MockCat.TH.TypeUtils
   ( splitApps,
-    substituteType
+    substituteType,
+    getReturnType
   )
 import Test.MockCat.TH.FunctionBuilder
   ( createFnName,
@@ -622,24 +625,51 @@ deriveMockInstances qType = do
   let classParamNames = filter (className /=) (getClassNames ty)
       newTypeVars = drop (length classParamNames) (cmTypeVars classMetadata)
   let sigDecs = [dec | dec@(SigD _ _) <- cmDecs classMetadata]
-  instanceBodyDecs <- mapM (createLiftInstanceFnDec monadVarName) sigDecs
-  instanceHead <- createInstanceType ty monadVarName newTypeVars
-  let instanceConstraint = foldl AppT ty (map (VarT . getTypeVarName) newTypeVars)
-  instanceDec <- instanceD
-    (pure (instanceConstraint : cmContext classMetadata))
-    (pure instanceHead)
-    (map pure instanceBodyDecs)
-  pure [instanceDec]
+  
+  let isSupportedDec (SigD _ _) = True
+      isSupportedDec (PragmaD _) = True
+      isSupportedDec _ = False
+  let unsupportedDecs = filter (not . isSupportedDec) (cmDecs classMetadata)
+  
+  instanceBodyDecsResult <- 
+    if not (null unsupportedDecs)
+      then pure $ Left $ "deriveMockInstances: Unsupported declaration in class: " <> pprint (head unsupportedDecs)
+      else sequence <$> mapM (createLiftInstanceFnDec monadVarName) sigDecs
 
-createLiftInstanceFnDec :: Name -> Dec -> Q Dec
+  case instanceBodyDecsResult of
+    Right decs -> do
+      instanceHead <- createInstanceType ty monadVarName newTypeVars
+      let instanceConstraint = foldl AppT ty (map (VarT . getTypeVarName) newTypeVars)
+      instanceDec <- instanceD
+        (pure (instanceConstraint : cmContext classMetadata))
+        (pure instanceHead)
+        (map pure decs)
+      pure [instanceDec]
+    Left err -> do
+      instanceHead <- createInstanceType ty monadVarName newTypeVars
+      let errorMessage = AppT (PromotedT 'Text) (LitT (StrTyLit err))
+          typeError = AppT (ConT ''TypeError) errorMessage
+      let typeFamilyHeads = 
+            [head | OpenTypeFamilyD head <- cmDecs classMetadata] ++ 
+            [head | ClosedTypeFamilyD head _ <- cmDecs classMetadata]
+      typeInstDecs <- mapM (createTypeInstanceDec monadVarName) typeFamilyHeads
+      instanceDec <- instanceD
+        (pure (typeError : cmContext classMetadata))
+        (pure instanceHead)
+        (map pure (typeInstDecs ++ map (flip createErrorMethod err) sigDecs))
+      pure [instanceDec]
+
+createLiftInstanceFnDec :: Name -> Dec -> Q (Either String Dec)
 createLiftInstanceFnDec _ (SigD fnName ty) = do
   let n = countArgs ty
   argNames <- replicateM n (newName "a")
   let params = map VarP argNames
       args = map VarE argNames
       body = NormalB $ AppE (VarE 'lift) (foldl AppE (VarE fnName) args)
-  pure $ FunD fnName [Clause params body []]
-createLiftInstanceFnDec _ dec = fail $ "Unsupported declaration: " <> pprint dec
+  pure $ Right $ FunD fnName [Clause params body []]
+createLiftInstanceFnDec _ dec = pure $ Left $ 
+  "deriveMockInstances: Unsupported declaration in class: " <> pprint dec <> 
+  ". Currently only standard method signatures are supported for automatic derivation."
 
 deriveNoopInstance :: Q Type -> Q [Dec]
 deriveNoopInstance qType = do
@@ -651,20 +681,40 @@ deriveNoopInstance qType = do
       newTypeVars = drop (length classParamNames) (cmTypeVars classMetadata)
   let sigDecs = [dec | dec@(SigD _ _) <- cmDecs classMetadata]
   instanceBodyDecs <- mapM createNoopInstanceFnDec sigDecs
-  instanceHead <- createInstanceType ty monadVarName newTypeVars
-  instanceDec <- instanceD
-    (pure (cmContext classMetadata))
-    (pure instanceHead)
-    (map pure instanceBodyDecs)
-  pure [instanceDec]
+  case sequence instanceBodyDecs of
+    Right decs -> do
+      instanceHead <- createInstanceType ty monadVarName newTypeVars
+      instanceDec <- instanceD
+        (pure (cmContext classMetadata))
+        (pure instanceHead)
+        (map pure decs)
+      pure [instanceDec]
+    Left err -> do
+      instanceHead <- createInstanceType ty monadVarName newTypeVars
+      let errorMessage = AppT (PromotedT 'Text) (LitT (StrTyLit err))
+          typeError = AppT (ConT ''TypeError) errorMessage
+      instanceDec <- instanceD
+        (pure (typeError : cmContext classMetadata))
+        (pure instanceHead)
+        (map (pure . flip createErrorMethod err) sigDecs)
+      pure [instanceDec]
 
-createNoopInstanceFnDec :: Dec -> Q Dec
+createNoopInstanceFnDec :: Dec -> Q (Either String Dec)
 createNoopInstanceFnDec (SigD fnName ty) = do
   let n = countArgs ty
-  let params = replicate n WildP
-      body = NormalB $ AppE (VarE 'pure) (ConE '())
-  pure $ FunD fnName [Clause params body []]
-createNoopInstanceFnDec dec = fail $ "Unsupported declaration: " <> pprint dec
+  let returnType = getReturnType ty
+  case returnType of
+    AppT _ (TupleT 0) -> do
+      let params = replicate n WildP
+          body = NormalB $ AppE (VarE 'pure) (ConE '())
+      pure $ Right $ FunD fnName [Clause params body []]
+    _ -> pure $ Left $ 
+      "deriveNoopInstance: Function `" <> nameBase fnName <> "` does not return `m ()` (actual return type: " <> pprint returnType <> "). " <> 
+      "`deriveNoopInstance` only supports functions that return `m ()`. " <> 
+      "Please implement this instance manually or exclude this function from the derivation target."
+createNoopInstanceFnDec dec = pure $ Left $ 
+  "deriveNoopInstance: Unsupported declaration in class: " <> pprint dec <> 
+  ". Currently only standard method signatures are supported for automatic derivation."
 
 countArgs :: Type -> Int
 countArgs (AppT (AppT ArrowT _) t) = 1 + countArgs t
@@ -672,3 +722,8 @@ countArgs (ForallT _ _ t) = countArgs t
 countArgs (SigT t _) = countArgs t
 countArgs (ParensT t) = countArgs t
 countArgs _ = 0
+
+createErrorMethod :: Dec -> String -> Dec
+createErrorMethod (SigD name _) msg = 
+  FunD name [Clause [] (NormalB (AppE (VarE 'error) (LitE (StringL msg)))) []]
+createErrorMethod dec _ = error $ "createErrorMethod: Unexpected declaration: " <> pprint dec

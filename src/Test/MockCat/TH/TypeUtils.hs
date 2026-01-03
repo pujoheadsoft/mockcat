@@ -7,7 +7,8 @@ module Test.MockCat.TH.TypeUtils
     needsTypeable,
     collectTypeableTargets,
     isStandardTypeCon,
-    isTypeFamily
+    isTypeFamily,
+    getReturnType
 
   )
 where
@@ -125,3 +126,10 @@ isStandardTypeCon (ConT n) =
     ]
 isStandardTypeCon _ = False
 
+
+getReturnType :: Type -> Type
+getReturnType (AppT (AppT ArrowT _) t) = getReturnType t
+getReturnType (ForallT _ _ t) = getReturnType t
+getReturnType (SigT t _) = getReturnType t
+getReturnType (ParensT t) = getReturnType t
+getReturnType t = t

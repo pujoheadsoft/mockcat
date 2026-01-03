@@ -33,6 +33,17 @@ instance Logger IO where
 
 deriveMockInstances [t|Logger|]
 
+-- Complex patterns for deriveMockInstances
+class Monad m => ComplexLogger m where
+  logMany :: String -> [Int] -> m ()
+  logIf :: Bool -> String -> m ()
+
+instance ComplexLogger IO where
+  logMany _ _ = pure ()
+  logIf _ _ = pure ()
+
+deriveMockInstances [t|ComplexLogger|]
+
 -- Target class for deriveNoopInstance
 class Monad m => Auditor m where
   audit :: String -> m ()
@@ -42,9 +53,7 @@ deriveNoopInstance [t|Auditor|]
 -- Custom error for testing
 data CustomError = CustomError String deriving (Eq, Show)
 
--- [Direct Proof] Verify MonadError can be mocked.
--- For monad type classes (methods return 'm a'), makeAutoLiftMock is recommended.
--- This verifies the fix for "Not in scope: type variable ‘a’" in polymorphic methods.
+-- Direct MonadError mock test
 makeAutoLiftMock [t|MonadError CustomError|]
 
 -- Isolated monad to avoid MonadError IOException IO conflict
@@ -64,8 +73,14 @@ spec = do
       runReaderT action "env" `shouldReturn` "env"
 
   describe "deriveMockInstances" $ do
-    it "can derive custom typeclass instances (lifts to base monad)" $ do
+    it "can derive basic custom typeclass instances" $ do
       runMockT (logInfo "hello" :: MockT IO ()) `shouldReturn` ()
+
+    it "can derive complex custom typeclass instances (multi-args, list)" $ do
+      runMockT (do
+        logMany "counts" [1, 2, 3]
+        logIf True "active"
+        pure ()) `shouldReturn` ()
 
   describe "deriveNoopInstance" $ do
     it "doesn't require stubs for noop methods" $ do
@@ -75,11 +90,6 @@ spec = do
     it "can mock standard MonadError directly using isolated TestM" $ do
       let action :: MockT TestM ()
           action = do
-            -- 1. Setup stub for throwError
-            -- Note: throwError (CustomError "fail") returns MockT TestM (), so the stub return type must match.
             _throwError (CustomError "fail" ~> (pure () :: MockT TestM ()))
-
-            -- 2. Call throwError
             void (throwError (CustomError "fail") :: MockT TestM ())
-
       runTestM (runMockT action) `shouldReturn` ()
