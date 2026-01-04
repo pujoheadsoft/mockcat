@@ -235,6 +235,16 @@ withMock $ do
 
   -- 実行
   f "arg"
+
+#### `withMockIO`: IO テストの簡略化
+`withMockIO` は `withMock` を IO に特化させたバージョンです。`liftIO` を使わずにモックコンテキスト内で直接 IO アクションを実行できます。
+
+```haskell
+it "IO test" $ withMockIO do
+  f <- mock (any ~> pure "result")
+  res <- someIOCall f
+  res `shouldBe` "result"
+```
 ```
 
 > [!IMPORTANT]
@@ -339,8 +349,6 @@ class Monad m => MonadLogger m where
 deriveMockInstances [t|MonadLogger|]
 ```
 これにより、`lift . logInfo` を呼び出す `MockT m` のインスタンスが自動生成されます。
-> [!NOTE]
-> 現在、`deriveMockInstances` は Type Families を持つ型クラスをサポートしていません。
 
 ##### 明示的な No-op インスタンス (`deriveNoopInstance`)
 メソッド（特に `m ()` を返すもの）に対して、明示的なスタブ定義やベース実装を用意することなく、「何もしない」モックを作成したい場合があります。

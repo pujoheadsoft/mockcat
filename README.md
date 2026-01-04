@@ -237,6 +237,16 @@ withMock $ do
 
   -- Execution
   f "arg"
+
+#### `withMockIO`: Simplified IO Testing
+`withMockIO` is an IO-specialized version of `withMock`. It allows you to run IO actions directly within the mock context without needing `liftIO`.
+
+```haskell
+it "IO test" $ withMockIO do
+  f <- mock (any ~> pure "result")
+  res <- someIOCall f
+  res `shouldBe` "result"
+```
 ```
 
 > [!IMPORTANT]
@@ -341,8 +351,6 @@ class Monad m => MonadLogger m where
 deriveMockInstances [t|MonadLogger|]
 ```
 This generates an instance for `MockT m` that calls `lift . logInfo`.
-> [!NOTE]
-> `deriveMockInstances` currently does not support type classes with Type Families.
 
 ##### Explicit No-op Instances (`deriveNoopInstance`)
 Sometimes you want a mock to do nothing for certain methods (especially those returning `m ()`) without having to define explicit stubs or provide a base implementation.
@@ -517,9 +525,9 @@ mockcat is continuously tested in CI across these configurations:
 |-----|-------|----|
 | 9.2.8 | 3.10.3.0 / 3.12.1.0 | Ubuntu, macOS, Windows |
 | 9.4.8 | 3.10.3.0 / 3.12.1.0 | Ubuntu, macOS, Windows |
-| 9.6.3 | 3.10.3.0 / 3.12.1.0 | Ubuntu, macOS, Windows |
-| 9.8.2 | 3.10.3.0 / 3.12.1.0 | Ubuntu, macOS, Windows |
-| 9.10.1 | 3.10.3.0 / 3.12.1.0 | Ubuntu, macOS, Windows |
+| 9.6.7 | 3.12.1.0 | Ubuntu, macOS, Windows |
+| 9.8.4 | 3.12.1.0 | Ubuntu, macOS, Windows |
+| 9.10.3 | 3.12.1.0 | Ubuntu, macOS, Windows |
 | 9.12.2 | 3.12.1.0 | Ubuntu, macOS, Windows |
 
 _Happy Mocking!_ 🐱

@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to the
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
+## [1.3.3.0] - 2026-01-04
+### Added
+- **Type Families Support**: `deriveMockInstances` now supports type classes containing Associated Type Families.
+- **Improved `withMockIO`**: `withMockIO` now enables direct execution of IO actions within mock contexts without `liftIO`.
+
 ## [1.3.2.0] - 2026-01-04
 ### Added
 - **New Derivation Macros**:
