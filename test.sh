@@ -22,22 +22,24 @@ for v in "${VERSIONS[@]}"; do
   # set -o pipefail ensures that if cabal fails, the pipeline fails
   (
     cabal v2-test --enable-tests --enable-coverage --disable-optimization --ghc-options="-Werror" -w ~/.ghcup/bin/ghc-$v 2>&1 | tee "build_log_$v.txt" | sed -u "s/^/[$v] /"
-  )
-  STATUS=$?
-  if [ $STATUS -eq 0 ]; then
-    PID_RESULTS["$v"]=0
-  else
-    PID_RESULTS["$v"]=1
-    FAILURE=1
-  fi
+  ) &
+  PID=$!
+  PIDS+=("$PID")
+  PID_TO_VERSION["$PID"]="$v"
 done
 
 echo "Waiting for ${#PIDS[@]} jobs to complete..."
 
-
-
 # First, wait for all processes to finish and collect exit codes
-# Sequential execution completed.
+for pid in "${PIDS[@]}"; do
+  wait "$pid"
+  STATUS=$?
+  v="${PID_TO_VERSION[$pid]}"
+  PID_RESULTS["$v"]=$STATUS
+  if [ $STATUS -ne 0 ]; then
+    FAILURE=1
+  fi
+done
 
 # If there were failures, print error details before the summary
 if [ "$FAILURE" -eq 1 ]; then
