@@ -22,6 +22,7 @@ import Test.MockCat.TH.FunctionBuilderSpec as THFunctionBuilder
 import Test.MockCat.ShouldBeCalledSpec as ShouldBeCalled
 import Test.MockCat.ShouldBeCalledMockMSpec as ShouldBeCalledMockM
 import Test.MockCat.WithMockSpec as WithMock
+import Test.MockCat.WithMockIOSpec as WithMockIO
 import Test.MockCat.ShouldBeCalledErrorDiffSpec as ShouldBeCalledErrorDiff
 import Test.MockCat.WithMockErrorDiffSpec as WithMockErrorDiff
 import Test.MockCat.THCompareSpec as THCompare
@@ -65,6 +66,7 @@ main = hspec $ do
     ShouldBeCalled.spec
     ShouldBeCalledMockM.spec
     WithMock.spec
+    WithMockIO.spec
     ShouldBeCalledErrorDiff.spec
     WithMockErrorDiff.spec
     ReadmeVerify.spec

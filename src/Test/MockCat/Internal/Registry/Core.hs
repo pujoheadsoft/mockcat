@@ -22,6 +22,9 @@ module Test.MockCat.Internal.Registry.Core
   , getLastRecorder
   , getLastRecorderRaw
   , resetMockHistory
+  , getThreadWithMockContext
+  , setThreadWithMockContext
+  , clearThreadWithMockContext
   ) where
 
 import Control.Concurrent.STM
@@ -44,7 +47,7 @@ import Data.IntMap.Strict (IntMap)
 import qualified Data.IntMap.Strict as IntMap
 import qualified Data.Map.Strict as Map
 import System.IO.Unsafe (unsafePerformIO)
-import Test.MockCat.Internal.Types (MockName, InvocationRecorder(..))
+import Test.MockCat.Internal.Types (MockName, InvocationRecorder(..), WithMockContext(..))
 import Test.MockCat.Internal.GHC.StableName (StableName, eqStableName, hashStableName, makeStableName)
 
 data SomeStableName = forall a. SomeStableName (StableName a)
@@ -123,7 +126,32 @@ getLastRecorderRaw = do
 resetMockHistory :: IO ()
 resetMockHistory = do
   tid <- myThreadId
-  atomically $ modifyTVar' threadMockHistory (Map.delete tid)
+  atomically $ do
+    modifyTVar' threadMockHistory (Map.delete tid)
+    modifyTVar' threadWithMockStore (Map.delete tid)
+
+-- | Thread-local storage for WithMockContext
+threadWithMockStore :: TVar (Map.Map ThreadId WithMockContext)
+threadWithMockStore = unsafePerformIO $ newTVarIO Map.empty
+{-# NOINLINE threadWithMockStore #-}
+
+-- | Get the WithMockContext for the current thread.
+getThreadWithMockContext :: IO (Maybe WithMockContext)
+getThreadWithMockContext = do
+  tid <- myThreadId
+  atomically $ Map.lookup tid <$> readTVar threadWithMockStore
+
+-- | Set the WithMockContext for the current thread.
+setThreadWithMockContext :: WithMockContext -> IO ()
+setThreadWithMockContext ctx = do
+  tid <- myThreadId
+  atomically $ modifyTVar' threadWithMockStore (Map.insert tid ctx)
+
+-- | Clear the WithMockContext for the current thread.
+clearThreadWithMockContext :: IO ()
+clearThreadWithMockContext = do
+  tid <- myThreadId
+  atomically $ modifyTVar' threadWithMockStore (Map.delete tid)
 
 
 

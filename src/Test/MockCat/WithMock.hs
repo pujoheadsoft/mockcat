@@ -17,6 +17,7 @@
 -}
 module Test.MockCat.WithMock
   ( withMock
+  , withMockIO
   , expects
   , MockResult(..)
   , called
@@ -56,6 +57,7 @@ import Test.MockCat.Internal.Types
   , ResolvedMock(..)
   )
 import qualified Test.MockCat.Internal.Registry.Core as MockRegistry
+import Test.MockCat.Internal.Registry.Core (getThreadWithMockContext, setThreadWithMockContext, clearThreadWithMockContext)
 import Unsafe.Coerce (unsafeCoerce)
 
 import Test.MockCat.Param (Param(..), param, EqParams(..))
@@ -78,6 +80,27 @@ withMock action = do
   -- Verify all registered verification actions
   actions <- readTVarIO ctxVar
   sequence_ actions
+  pure result
+
+-- | IO instance for MonadWithMockContext
+instance MonadWithMockContext IO where
+  askWithMockContext = do
+    mCtx <- getThreadWithMockContext
+    case mCtx of
+      Just ctx -> pure ctx
+      Nothing -> error "askWithMockContext: No WithMockContext found in current thread. Use withMockIO."
+
+-- | IO version of withMock
+withMockIO :: IO a -> IO a
+withMockIO action = do
+  ctxVar <- newTVarIO []
+  let ctx = WithMockContext ctxVar
+  setThreadWithMockContext ctx
+  result <- action
+  -- Verify all registered verification actions
+  actions <- readTVarIO ctxVar
+  sequence_ actions
+  clearThreadWithMockContext
   pure result
 
 -- | Attach expectations to a mock function

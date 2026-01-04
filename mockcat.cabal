@@ -125,6 +125,7 @@ test-suite mockcat-test
       Test.MockCat.TypeClassTHSpec
       Test.MockCat.UnsafeCheck
       Test.MockCat.WithMockErrorDiffSpec
+      Test.MockCat.WithMockIOSpec
       Test.MockCat.WithMockSpec
       Paths_mockcat
   hs-source-dirs:
