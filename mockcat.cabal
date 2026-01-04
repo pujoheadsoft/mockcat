@@ -123,6 +123,7 @@ test-suite mockcat-test
       Test.MockCat.TypeClassMinimalSpec
       Test.MockCat.TypeClassSpec
       Test.MockCat.TypeClassTHSpec
+      Test.MockCat.TypeFamilySpec
       Test.MockCat.UnsafeCheck
       Test.MockCat.WithMockErrorDiffSpec
       Test.MockCat.WithMockIOSpec

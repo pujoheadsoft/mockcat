@@ -626,6 +626,7 @@ deriveMockInstances qType = do
   
   let isSupportedDec (SigD _ _) = True
       isSupportedDec (PragmaD _) = True
+      isSupportedDec (OpenTypeFamilyD _) = True
       isSupportedDec _ = False
   let unsupportedDecs = filter (not . isSupportedDec) (cmDecs classMetadata)
   
@@ -633,14 +634,21 @@ deriveMockInstances qType = do
     case unsupportedDecs of
       (x:_) -> pure $ Left $ "deriveMockInstances: Unsupported declaration in class: " <> pprint x <> 
                         ". This error is reported at the usage site, but the cause is the macro definition for `" <> show className <> "`."
-      [] -> sequence <$> mapM (createLiftInstanceFnDec monadVarName) sigDecs
+      [] -> do
+        let typeFamilyHeads = [head | OpenTypeFamilyD head <- cmDecs classMetadata]
+        typeInstDecs <- sequence <$> mapM (\h -> Right <$> createTypeInstanceDec monadVarName h) typeFamilyHeads
+        sigInstDecs <- sequence <$> mapM (createLiftInstanceFnDec monadVarName) sigDecs
+        case (typeInstDecs, sigInstDecs) of
+          (Right tDecs, Right sDecs) -> pure $ Right (tDecs ++ sDecs)
+          (Left err, _) -> pure $ Left err
+          (_, Left err) -> pure $ Left err
 
   case instanceBodyDecsResult of
     Right decs -> do
       instanceHead <- createInstanceType ty monadVarName newTypeVars
       let instanceConstraint = foldl AppT ty (map (VarT . getTypeVarName) newTypeVars)
       instanceDec <- instanceD
-        (pure (instanceConstraint : cmContext classMetadata))
+        (pure [instanceConstraint])
         (pure instanceHead)
         (map pure decs)
       pure [instanceDec]

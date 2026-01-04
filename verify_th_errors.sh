@@ -16,21 +16,5 @@ else
 fi
 
 echo ""
-
-# Case 2: THFailureTypeFamily.hs
-echo "Verifying THFailureTypeFamily.hs (deriveMockInstances)..."
-OUTPUT2=$(echo ":load test-failure-cases/THFailureTypeFamily.hs" | stack repl --no-load --work-dir .stack-work-verify 2>&1 || true)
-EXPECTED_ERR_2='deriveMockInstances: Unsupported declaration in class: type family THFailureTypeFamily.UnsupportedType'
-
-if echo "$OUTPUT2" | grep -qF "$EXPECTED_ERR_2"; then
-  echo "✔ Case 2 PASSED: deriveMockInstances failure detected."
-else
-  echo "✘ Case 2 FAILED: Expected error not found."
-  echo "Output was:"
-  echo "$OUTPUT2"
-  exit 1
-fi
-
-echo ""
 echo "All TH failure cases verified successfully."
 exit 0
