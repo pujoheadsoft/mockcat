@@ -18,7 +18,6 @@ import GHC.IO (unsafePerformIO)
 import Test.MockCat.AssociationList (AssociationList)
 import Prelude hiding (lookup)
 import Control.Monad.State ( State, MonadState, execState, modify )
-import Control.Monad.Reader (MonadReader, ask)
 
 type MockName = String
 
@@ -113,12 +112,6 @@ perform = unsafePerformIO
 --   of the `withMock` block. Storing `IO ()` avoids forcing concrete param
 --   types at registration time.
 newtype WithMockContext = WithMockContext (TVar [IO ()])
-
-class MonadWithMockContext m where
-  askWithMockContext :: m WithMockContext
-
-instance {-# OVERLAPPABLE #-} (MonadReader WithMockContext m) => MonadWithMockContext m where
-  askWithMockContext = ask
 
 -- | Expectation specification
 data Expectation params where

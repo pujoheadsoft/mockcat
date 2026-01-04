@@ -18,6 +18,7 @@
 module Test.MockCat.WithMock
   ( withMock
   , withMockIO
+  , askWithMockContext
   , expects
   , MockResult(..)
   , called
@@ -33,7 +34,6 @@ module Test.MockCat.WithMock
   , lessThan
   , anything
   , WithMockContext(..)
-  , MonadWithMockContext(..)
   , Expectation(..)
   , Expectations(..)
   , verifyExpectationDirect
@@ -41,6 +41,7 @@ module Test.MockCat.WithMock
 
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.Reader (ReaderT(..), runReaderT)
+import Control.Exception (bracket_)
 import Control.Concurrent.STM (newTVarIO, readTVarIO, atomically, modifyTVar')
 import Control.Monad.State (get, put, modify)
 import Test.MockCat.Verify (TimesSpec(..), times, once, never, atLeast, atMost, greaterThan, lessThan, anything, ResolvableMock, ResolvableParamsOf)
@@ -48,7 +49,6 @@ import Test.MockCat.Internal.Verify (verifyExpectationDirect)
 import Test.MockCat.Internal.Types
   ( VerifyOrderMethod(..)
   , WithMockContext(..)
-  , MonadWithMockContext(..)
   , Expectation(..)
   , Expectations(..)
   , runExpectations
@@ -76,32 +76,33 @@ withMock :: ReaderT WithMockContext IO a -> IO a
 withMock action = do
   ctxVar <- newTVarIO []
   let ctx = WithMockContext ctxVar
-  result <- runReaderT action ctx
-  -- Verify all registered verification actions
-  actions <- readTVarIO ctxVar
-  sequence_ actions
-  pure result
-
--- | IO instance for MonadWithMockContext
-instance MonadWithMockContext IO where
-  askWithMockContext = do
-    mCtx <- getThreadWithMockContext
-    case mCtx of
-      Just ctx -> pure ctx
-      Nothing -> error "askWithMockContext: No WithMockContext found in current thread. Use withMockIO."
+  bracket_ (setThreadWithMockContext ctx) clearThreadWithMockContext $ do
+    result <- runReaderT action ctx
+    -- Verify all registered verification actions
+    actions <- readTVarIO ctxVar
+    sequence_ actions
+    pure result
 
 -- | IO version of withMock
 withMockIO :: IO a -> IO a
 withMockIO action = do
   ctxVar <- newTVarIO []
   let ctx = WithMockContext ctxVar
-  setThreadWithMockContext ctx
-  result <- action
-  -- Verify all registered verification actions
-  actions <- readTVarIO ctxVar
-  sequence_ actions
-  clearThreadWithMockContext
-  pure result
+  bracket_ (setThreadWithMockContext ctx) clearThreadWithMockContext $ do
+    result <- action
+    -- Verify all registered verification actions
+    actions <- readTVarIO ctxVar
+    sequence_ actions
+    pure result
+
+-- | Retrieve the current mock context from thread-local storage.
+--   Throws an error if no context is found.
+askWithMockContext :: IO WithMockContext
+askWithMockContext = do
+  mCtx <- getThreadWithMockContext
+  case mCtx of
+    Just ctx -> pure ctx
+    Nothing -> errorWithoutStackTrace "askWithMockContext: No WithMockContext found in current thread. Use withMock or withMockIO."
 
 -- | Attach expectations to a mock function
 --   Supports both single expectation and multiple expectations in a do block
@@ -170,7 +171,6 @@ class ExpectsDispatchImpl (flag :: Bool) fn exp m where
 --   Strict matching of params
 instance
   ( MonadIO m
-  , MonadWithMockContext m
   , ResolvableMock fn
   , ResolvableParamsOf fn ~ params
   , ExtractParams exp
@@ -182,7 +182,7 @@ instance
   ExpectsDispatchImpl 'False fn exp m
   where
   expectsDispatchImpl mockFnM exp = do
-    (WithMockContext ctxVar) <- askWithMockContext
+    WithMockContext ctxVar <- liftIO askWithMockContext
     -- Try to help type inference by using exp first
     let _ = extractParams exp :: Proxy params
     mockFn <- mockFnM
@@ -203,7 +203,6 @@ instance
 --   Dynamic resolution using expectation params
 instance
   ( MonadIO m
-  , MonadWithMockContext m
   , BuildExpectations (MockResult params) (Expectations params ()) params
   , Show params
   , EqParams params
@@ -211,7 +210,7 @@ instance
   ExpectsDispatchImpl 'True (MockResult params) (Expectations params ()) m
   where
   expectsDispatchImpl mockFnM exp = do
-    (WithMockContext ctxVar) <- askWithMockContext
+    WithMockContext ctxVar <- liftIO askWithMockContext
     _ <- mockFnM
     (mockName, mRecorder) <- liftIO MockRegistry.getLastRecorderRaw
     resolved <- case mRecorder of
@@ -229,7 +228,6 @@ instance
 --   Dynamic resolution using expectation params
 instance
   ( MonadIO m
-  , MonadWithMockContext m
   , BuildExpectations () (Expectations params ()) params
   , Show params
   , EqParams params
@@ -237,7 +235,7 @@ instance
   ExpectsDispatchImpl 'True () (Expectations params ()) m
   where
   expectsDispatchImpl mockFnM exp = do
-    (WithMockContext ctxVar) <- askWithMockContext
+    WithMockContext ctxVar <- liftIO askWithMockContext
     _ <- mockFnM
     (mockName, mRecorder) <- liftIO MockRegistry.getLastRecorderRaw
     resolved <- case mRecorder of

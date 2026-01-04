@@ -24,7 +24,7 @@ import Control.Concurrent.STM
   )
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans.Class (MonadTrans(..))
-import Control.Monad.Reader (ReaderT(..), runReaderT, asks, MonadReader(..))
+import Control.Monad.Reader (ReaderT(..), runReaderT, MonadReader(..))
 import Control.Monad.Error.Class (MonadError(..))
 import Control.Monad.State.Class (MonadState(..))
 import Control.Monad.Writer.Class (MonadWriter(..))
@@ -33,7 +33,7 @@ import Data.Data (Proxy, Typeable)
 import Data.IORef (newIORef, IORef)
 import Data.Dynamic (Dynamic)
 import UnliftIO (MonadUnliftIO(..))
-import Test.MockCat.Internal.Types (InvocationRecorder, WithMockContext(..), MonadWithMockContext(..))
+import Test.MockCat.Internal.Types (InvocationRecorder, WithMockContext(..))
 import Test.MockCat.Verify (ResolvableParamsOf)
 import Control.Concurrent.MVar (MVar)
 import qualified Data.Map.Strict as Map
@@ -74,8 +74,6 @@ instance MonadUnliftIO m => MonadUnliftIO (MockT m) where
   withRunInIO inner = MockT $ ReaderT $ \env ->
     withRunInIO $ \run -> inner (\(MockT r) -> run (runReaderT r env))
 
-instance {-# OVERLAPPING #-} Monad m => MonadWithMockContext (MockT m) where
-  askWithMockContext = MockT $ asks envWithMockContext
 
 instance {-# OVERLAPPABLE #-} MonadReader r m => MonadReader r (MockT m) where
   ask = lift ask
@@ -154,22 +152,25 @@ data Verification f
 runMockT :: MonadIO m => MockT m a -> m a
 runMockT (MockT r) = do
   liftIO Registry.resetMockHistory
-  defsVar <- liftIO $ newTVarIO []
   expectsVar <- liftIO $ newTVarIO []
+  let withMockCtx = WithMockContext expectsVar
+  defsVar <- liftIO $ newTVarIO []
   fwdRef <- liftIO $ newIORef Map.empty
   let env =
         MockTEnv
           { envDefinitions = defsVar
-          , envWithMockContext = WithMockContext expectsVar
+          , envWithMockContext = withMockCtx
           , envNameForwarders = fwdRef
           }
   -- Run user code with a per-run overlay registry active so registry writes/read
   -- during this MockT invocation are isolated to this run.
   overlay <- liftIO Registry.createOverlay
   liftIO $ Registry.installOverlay overlay
+  liftIO $ Registry.setThreadWithMockContext withMockCtx
   a <- runReaderT r env
   actions <- liftIO $ readTVarIO expectsVar
   liftIO $ sequence_ actions
+  liftIO Registry.clearThreadWithMockContext
   liftIO Registry.clearOverlay
   pure a
 

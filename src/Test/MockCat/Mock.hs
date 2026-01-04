@@ -64,6 +64,7 @@ import Test.MockCat.Internal.Builder
 import Test.MockCat.Internal.Verify (verifyExpectationDirect)
 import qualified Test.MockCat.Internal.MockRegistry as MockRegistry ( register )
 import Test.MockCat.Internal.Types
+import Test.MockCat.WithMock (askWithMockContext)
 import Test.MockCat.Param
 import Test.MockCat.Verify
 import Test.MockCat.Cons (Head(..), (:>)(..))
@@ -172,15 +173,9 @@ instance
     _ <- liftIO $ MockRegistry.register (Just name) recorder fn
     pure fn
 
-
-
-    
-
-
 -- Specific instance for MockSpec (flag ~ 'True)
 instance
   ( MonadIO m
-  , MonadWithMockContext m
   , CreateMock params
   , MockBuilder (ToMockParams params) fn verifyParams
   , Show verifyParams
@@ -194,7 +189,7 @@ instance
     BuiltMock { builtMockFn = fn, builtMockRecorder = recorder } <- buildMock (Just name) (toParams params) :: m (BuiltMock fn verifyParams)
     _ <- liftIO $ MockRegistry.register (Just name) recorder fn
     
-    WithMockContext ctxRef <- askWithMockContext
+    WithMockContext ctxRef <- liftIO askWithMockContext
     let resolved = ResolvedMock (Just name) recorder
     let verifyAction = mapM_ (verifyExpectationDirect resolved) exps
     liftIO $ atomically $ modifyTVar' ctxRef (++ [verifyAction])
@@ -232,7 +227,6 @@ instance {-# OVERLAPPABLE #-}
 --   > f <- mock $ any ~> True `expects` do called once
 instance {-# OVERLAPPING #-}
   ( MonadIO m
-  , MonadWithMockContext m
   , CreateMock params
   , MockBuilder (ToMockParams params) fn verifyParams
   , Show verifyParams
@@ -246,7 +240,7 @@ instance {-# OVERLAPPING #-}
     BuiltMock { builtMockFn = fn, builtMockRecorder = recorder } <- buildMock Nothing (toParams params) :: m (BuiltMock fn verifyParams)
     _ <- liftIO $ MockRegistry.register Nothing recorder fn
     
-    WithMockContext ctxRef <- askWithMockContext
+    WithMockContext ctxRef <- liftIO askWithMockContext
     let resolved = ResolvedMock Nothing recorder
     let verifyAction = mapM_ (verifyExpectationDirect resolved) exps
     liftIO $ atomically $ modifyTVar' ctxRef (++ [verifyAction])
