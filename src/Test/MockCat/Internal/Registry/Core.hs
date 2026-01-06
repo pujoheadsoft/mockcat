@@ -291,8 +291,6 @@ withUnitGuard meta =
 withAllUnitGuards :: IO a -> IO a
 withAllUnitGuards = bracket_ (setAllUnitGuards True) (setAllUnitGuards False)
 
-
-
 isGuardActive :: UnitMeta -> IO Bool
 isGuardActive (UnitMeta guardRef) = readTVarIO guardRef
 
