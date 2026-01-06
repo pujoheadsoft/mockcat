@@ -13,7 +13,6 @@ module Test.MockCat.Internal.MockRegistry
   , UnitMeta
   , withUnitGuard
   , withAllUnitGuards
-  , markUnitUsed
   , isGuardActive
   , getLastRecorder
   , resetMockHistory
@@ -27,7 +26,6 @@ import Test.MockCat.Internal.Registry.Core
   , UnitMeta
   , withUnitGuard
   , withAllUnitGuards
-  , markUnitUsed
   , isGuardActive
   , getLastRecorder
   , resetMockHistory
@@ -52,8 +50,8 @@ isIOType _ =
 
 -- | Wrap a function value for unit-typed stubs so that calls are tracked.
 -- This uses the UnitMeta guard to avoid double-counting when both the tracked
--- and base values are registered. The wrapper will mark the unit meta used and
--- append an invocation to the recorder's TVar when appropriate.
+-- and base values are registered. The wrapper will append an invocation to the
+-- recorder's TVar when appropriate.
 wrapUnitStub ::
   forall fn.
   Typeable fn =>
@@ -67,7 +65,6 @@ wrapUnitStub ref meta value =
         if guardActive || isIOType (Proxy :: Proxy fn)
           then pure value
           else do
-            markUnitUsed meta
             appendCalledParams ref ()
             pure value
   in

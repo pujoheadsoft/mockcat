@@ -15,9 +15,10 @@ import Control.Monad (ap)
 import Control.Concurrent.STM (TVar)
 import Data.Maybe (listToMaybe)
 import GHC.IO (unsafePerformIO)
-import Test.MockCat.AssociationList (AssociationList)
 import Prelude hiding (lookup)
 import Control.Monad.State ( State, MonadState, execState, modify )
+
+type AssociationList k a = [(k, a)]
 
 type MockName = String
 

@@ -162,16 +162,12 @@ runMockT (MockT r) = do
           , envWithMockContext = withMockCtx
           , envNameForwarders = fwdRef
           }
-  -- Run user code with a per-run overlay registry active so registry writes/read
-  -- during this MockT invocation are isolated to this run.
-  overlay <- liftIO Registry.createOverlay
-  liftIO $ Registry.installOverlay overlay
+  -- Run user code. 
   liftIO $ Registry.setThreadWithMockContext withMockCtx
   a <- runReaderT r env
   actions <- liftIO $ readTVarIO expectsVar
   liftIO $ sequence_ actions
   liftIO Registry.clearThreadWithMockContext
-  liftIO Registry.clearOverlay
   pure a
 
 instance MonadIO m => MonadMockDefs (MockT m) where

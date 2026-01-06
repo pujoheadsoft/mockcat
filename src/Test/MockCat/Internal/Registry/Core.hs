@@ -9,15 +9,11 @@ module Test.MockCat.Internal.Registry.Core
   ( attachVerifierToFn
   , lookupVerifierForFn
   , attachDynamicVerifierToFn
-  , createOverlay
-  , installOverlay
-  , clearOverlay
   , registerUnitMeta
   , lookupUnitMeta
   , UnitMeta
   , withUnitGuard
   , withAllUnitGuards
-  , markUnitUsed
   , isGuardActive
   , getLastRecorder
   , getLastRecorderRaw
@@ -233,7 +229,6 @@ type UnitStableName = SomeStableName
 
 data UnitMeta = UnitMeta
   { unitGuardRef :: TVar Bool
-  , unitUsedRef :: TVar Bool
   }
 
 data UnitEntry = UnitEntry !UnitStableName !UnitMeta
@@ -255,19 +250,7 @@ type UnitRegistry = IntMap [UnitEntry]
 unitRegistry :: TVar UnitRegistry
 unitRegistry = (unsafePerformIO $ newTVarIO IntMap.empty) :: TVar UnitRegistry
 
--- | Per-run overlay registry (optional).
-data Overlay = Overlay
 
--- | Run the given IO action with a per-run overlay registry active.
--- The overlay is cleaned up after the action completes.
-createOverlay :: IO Overlay
-createOverlay = pure Overlay
-
-installOverlay :: Overlay -> IO ()
-installOverlay _ = pure ()
-
-clearOverlay :: IO ()
-clearOverlay = pure ()
 
 
 
@@ -308,17 +291,15 @@ withUnitGuard meta =
 withAllUnitGuards :: IO a -> IO a
 withAllUnitGuards = bracket_ (setAllUnitGuards True) (setAllUnitGuards False)
 
-markUnitUsed :: UnitMeta -> IO ()
-markUnitUsed meta = atomically $ writeTVar (unitUsedRef meta) True
+
 
 isGuardActive :: UnitMeta -> IO Bool
-isGuardActive meta = readTVarIO (unitGuardRef meta)
+isGuardActive (UnitMeta guardRef) = readTVarIO guardRef
 
 createUnitMeta :: IO UnitMeta
 createUnitMeta = do
   guardRef <- newTVarIO False
-  usedRef <- newTVarIO False
-  pure UnitMeta {unitGuardRef = guardRef, unitUsedRef = usedRef}
+  pure $ UnitMeta guardRef
 
 findUnit :: UnitStableName -> [UnitEntry] -> Maybe UnitMeta
 findUnit _ [] = Nothing

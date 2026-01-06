@@ -29,7 +29,6 @@ import Control.Concurrent.STM
 import Data.Maybe
 import Test.MockCat.Cons (Head(..), (:>)(..))
 import Test.MockCat.Param
-import Test.MockCat.AssociationList (lookup, update, insert, empty, member)
 import Prelude hiding (lookup)
 import Control.Monad.State
 import Test.MockCat.Internal.Types
@@ -155,20 +154,6 @@ instance
     pure (BuiltMock fn recorder)
 
 
-
--- | Instance for building a stub for a value (backward compatibility).
-instance
-  MockBuilder (Param r) r ()
-  where
-  build _ params = do
-    ref <- liftIO $ newTVarIO invocationRecord
-    let v = value params
-        fn = perform $ do
-          liftIO $ appendCalledParams ref ()
-          pure v
-        recorder = InvocationRecorder ref PureConstant
-    pure (BuiltMock fn recorder)
-
 -- | Instance for building a stub for `Cases (IO a) ()`.
 instance MockBuilder (Cases (IO a) ()) (IO a) () where
   build _ cases = do
@@ -257,7 +242,7 @@ invocationRecord :: InvocationRecord params
 invocationRecord =
   InvocationRecord
     { invocations = mempty
-    , invocationCounts = empty
+    , invocationCounts = []
     }
 
 appendCalledParams :: TVar (InvocationRecord params) -> params -> IO ()
@@ -268,23 +253,18 @@ appendCalledParams ref inputParams =
         { invocations = invocations record ++ [inputParams]
         }
 
-readInvocationCount :: Eq params => TVar (InvocationRecord params) -> params -> IO Int
+readInvocationCount :: EqParams params => TVar (InvocationRecord params) -> params -> IO Int
 readInvocationCount ref params = do
   record <- readTVarIO ref
-  pure $ fromMaybe 0 (lookup params (invocationCounts record))
+  pure $ fromMaybe 0 (lookupEqParams params (invocationCounts record))
 
-incrementInvocationCount :: Eq params => TVar (InvocationRecord params) -> params -> IO ()
+incrementInvocationCount :: EqParams params => TVar (InvocationRecord params) -> params -> IO ()
 incrementInvocationCount ref inputParams =
   atomically $
     modifyTVar' ref $ \record ->
       record
-        { invocationCounts = incrementCount inputParams (invocationCounts record)
+        { invocationCounts = incrementCountEqParams inputParams (invocationCounts record)
         }
-
-incrementCount :: Eq k => k -> InvocationCounts k -> InvocationCounts k
-incrementCount key list =
-  if member key list then update (+ 1) key list
-  else insert key 1 list
 
 runCase :: Cases a b -> [a]
 runCase (Cases s) = execState s []

@@ -38,7 +38,6 @@ source-repository head
 library
   exposed-modules:
       Test.MockCat
-      Test.MockCat.AssociationList
       Test.MockCat.Cons
       Test.MockCat.Internal.Builder
       Test.MockCat.Internal.GHC.StableName
@@ -92,7 +91,6 @@ test-suite mockcat-test
       ReadmeVerifySpec
       Support.ParamSpec
       Support.ParamSpecNormalize
-      Test.MockCat.AssociationListSpec
       Test.MockCat.ConcurrencySpec
       Test.MockCat.ConfirmTHSpec
       Test.MockCat.ConsSpec

@@ -6,7 +6,6 @@ import Test.Hspec
 import Test.MockCat.Internal.MockRegistry
 import Control.Concurrent.STM (newTVarIO, readTVarIO)
 import Data.Dynamic (fromDynamic)
-import Test.MockCat.AssociationList (empty)
 import Test.MockCat.Internal.Types (InvocationRecorder(..), FunctionNature(..), InvocationRecord(..))
 
 spec :: Spec
@@ -14,7 +13,7 @@ spec = do
   describe "MockRegistry" do
     it "register and lookup" do
       let f = (+ 1) :: Int -> Int
-      ref <- newTVarIO InvocationRecord { invocations = [] :: [Int], invocationCounts = empty }
+      ref <- newTVarIO InvocationRecord { invocations = [] :: [Int], invocationCounts = [] }
       attachVerifierToFn f (Just "name", InvocationRecorder ref ParametricFunction)
       results <- lookupVerifierForFn f
       case results of
@@ -23,7 +22,7 @@ spec = do
           case (fromDynamic dyn :: Maybe (InvocationRecorder Int)) of
             Just (InvocationRecorder vref _) -> do
               r <- readTVarIO vref
-              r `shouldBe` InvocationRecord { invocations = [] :: [Int], invocationCounts = empty }
+              r `shouldBe` InvocationRecord { invocations = [] :: [Int], invocationCounts = [] }
             Nothing -> expectationFailure "payload dynamic mismatch"
         _ -> expectationFailure "lookupStubFn returned unexpected number of results"
 
