@@ -28,6 +28,7 @@ import Test.MockCat.ShouldBeCalledErrorDiffSpec as ShouldBeCalledErrorDiff
 import Test.MockCat.WithMockErrorDiffSpec as WithMockErrorDiff
 import Test.MockCat.THCompareSpec as THCompare
 import ReadmeVerifySpec as ReadmeVerify
+import ReadmeVerifyAutoLiftSpec as ReadmeVerifyAutoLift
 import qualified Test.MockCat.MultipleMocksSpec as MultipleMocks
 import qualified Test.MockCat.TypeFamilySpec as TypeFamily
 import Test.MockCat.UnsafeCheck ()
@@ -99,3 +100,4 @@ main = do
         ShouldBeCalledMockM.spec
         ShouldBeCalledErrorDiff.spec
         ReadmeVerify.spec
+        ReadmeVerifyAutoLift.spec

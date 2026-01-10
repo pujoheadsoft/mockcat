@@ -98,10 +98,7 @@ spec = do
         myProgram "config.txt"
       result `shouldBe` ()
 
-    it "User Guide 2. makeAutoLiftMock" $ do
-      -- Logic check only. In same module we can't have both makeMock and makeAutoLiftMock for same class.
-      -- So we skip actual compilation of this part in this verification spec.
-      pendingWith "makeAutoLiftMock example logic check (skipped due to conflict)"
+
 
     it "Matchers: when with label" $ do
        f <- mock do

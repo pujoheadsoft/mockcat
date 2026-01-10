@@ -88,6 +88,7 @@ test-suite mockcat-test
       Property.ParamSpecRangeMergeRandomProp
       Property.ReinforcementProps
       Property.ScriptProps
+      ReadmeVerifyAutoLiftSpec
       ReadmeVerifySpec
       Support.ParamSpec
       Support.ParamSpecNormalize
