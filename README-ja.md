@@ -256,7 +256,7 @@ import Test.MockCat
 spec :: Spec
 spec = do
   it "Function Mocking" $ do
-    -- "Hello" に対して 1 を返す関数を定義 (expects は書かない)
+    -- "Hello" に対して True を返す関数を定義 (expects は書かない)
     f <- mock ("Hello" ~> True)
     
     -- 実行
