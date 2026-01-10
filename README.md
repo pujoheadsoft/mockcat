@@ -111,14 +111,8 @@ build-depends:
 ### First Test (`Main.hs` / `Spec.hs`)
 
 ```haskell
-{-# LANGUAGE BlockArguments #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications #-}
 import Test.Hspec
 import Test.MockCat
-
-main :: IO ()
-main = hspec spec
 
 spec :: Spec
 spec = do
@@ -126,28 +120,16 @@ spec = do
     withMockIO $ do
       -- 1. Create a mock (Return 42 when receiving "Hello")
       --    Simultaneously declare "it should be called once"
-      (f :: String -> Int) <- mock ("Hello" ~> (42 :: Int))
+      f <- mock ("Hello" ~> (42 :: Int))
         `expects` called once
 
-      -- 2. Use it as a function
-      let result = f "Hello"
-      
-      -- 3. Verify result
-      result `shouldBe` 42
+      -- 2. Call f "Hello" and get 42
+      f "Hello" `shouldBe` 42
+
+      -- 3. Verification happens automatically when exiting the scope
 ```
 
----
 
-### At a Glance: Matchers
-| Matcher | Description | Example |
-| :--- | :--- | :--- |
-| **`any`** | Matches any value | `f <- mock (any ~> True)` |
-| **`when`** | Matches condition | `f <- mock (when (> 5) "gt 5" ~> True)` |
-| **`"val"`** | Matches value (Eq) | `f <- mock ("val" ~> True)` |
-| **`inOrder`** | Order verification | Used within `expects` block (see below) |
-| **`inPartial`**| Partial order | Used within `expects` block (see below) |
-
----
 
 ## User Guide
 
@@ -159,25 +141,41 @@ A style where you describe expectations at definition time. Verification runs au
 Useful when you want "Definition" and "Verification" to be written close together.
 
 ```haskell
-  it "User Guide 1" $ do
-    withMockIO $ do
-      -- Define a mock that returns 1 for "Hello"
-      (f :: String -> Int) <- mock ("Hello" ~> (1 :: Int))
+import Test.Hspec
+import Test.MockCat
+import Control.Monad.IO.Class (MonadIO(liftIO))
+
+spec :: Spec
+spec = do
+  it "User Guide (withMock)" $ do
+    withMock $ do
+      -- Define a mock that returns True for "Hello"
+      f <- mock ("Hello" ~> True)
         `expects` called once
 
+      -- Execution
       let result = f "Hello"
-      result `shouldBe` 1
+
+      liftIO $ result `shouldBe` True
 ```
 
 #### `withMockIO`: Simplified IO Testing
 `withMockIO` is an IO-specialized version of `withMock`. It allows you to run IO actions directly within the mock context without needing `liftIO`.
 
 ```haskell
-it "IO test" $ withMockIO do
-  (f :: String -> IO String) <- mock (any ~> (return "result" :: IO String))
-  let someIOCall f = f "arg"
-  res <- someIOCall f
-  res `shouldBe` "result"
+import Test.Hspec
+import Test.MockCat
+
+spec :: Spec
+spec = do
+  it "User Guide (withMockIO)" $ do
+    withMockIO $ do
+      f <- mock ("Hello" ~> True)
+        `expects` called once
+
+      let result = f "Hello"
+
+      result `shouldBe` True
 ```
 
 > [!IMPORTANT]
@@ -253,17 +251,20 @@ The most basic usage. Creates a function that returns values for specific argume
 Combining it with Post-Verification (`shouldBeCalled`) makes it suitable for exploratory testing or prototyping.
 
 ```haskell
-  it "Function Mocking" $ do
-    withMock $ do
-      -- Define a mock that returns 1 for "Hello" (No 'expects' here)
-      f <- mock ("Hello" ~> return (1 :: Int))
-      
-      -- Execution
-      result <- f "Hello"
+import Test.Hspec
+import Test.MockCat
 
-      -- Post-Verification (shouldBeCalled)
-      liftIO $ f `shouldBeCalled` "Hello"
-      liftIO $ result `shouldBe` 1
+spec :: Spec
+spec = do
+  it "Function Mocking" $ do
+    -- Define a mock that returns True for "Hello" (No 'expects' here)
+    f <- mock ("Hello" ~> True)
+    
+    -- Execution
+    f "Hello" `shouldBe` True
+
+    -- Post-Verification (shouldBeCalled)
+    f `shouldBeCalled` "Hello"
 ```
 
 > [!WARNING]
@@ -276,11 +277,21 @@ Combining it with Post-Verification (`shouldBeCalled`) makes it suitable for exp
 You can specify conditions (predicates) instead of concrete values.
 
 ```haskell
--- Arbitrary string (param any)
-f <- mock (any ~> True)
+{-# LANGUAGE TypeApplications #-}
+import Test.Hspec
+import Test.MockCat
+import Prelude hiding (any)
 
--- Condition (when)
-f <- mock (when (> 5) "> 5" ~> True)
+spec :: Spec
+spec = do
+  it "Matcher Examples" $ do
+    -- Arbitrary string (param any)
+    f <- mock (any @String ~> True)
+    f "foo" `shouldBe` True
+
+    -- Condition (when)
+    g <- mock (when (> (5 :: Int)) "> 5" ~> True)
+    g 6 `shouldBe` True
 ```
 
 ### 4. Flexible Verification (Matchers)
@@ -419,28 +430,6 @@ f <- mock (label "myAPI") ("arg" ~> True)
 
 ※ Use this section as a dictionary when you get stuck.
 
-### Verification Matchers (`shouldBeCalled`)
-
-| Matcher | Description | Example |
-| :--- | :--- | :--- |
-| `x` (Value itself) | Was called with that value | ``f `shouldBeCalled` (10 :: Int)`` |
-| `times n` | Exact count | ``f `shouldBeCalled` (times 3 `with` "arg")`` |
-| `once` | Exactly once | ``f `shouldBeCalled` (once `with` "arg")`` |
-| `never` | Never called | ``f `shouldBeCalled` never`` |
-| `atLeast n` | n or more times | ``f `shouldBeCalled` atLeast 2`` |
-| `atMost n` | n or fewer times | ``f `shouldBeCalled` atMost 5`` |
-| `anything` | Any argument (count ignored) | ``f `shouldBeCalled` anything`` |
-| `inOrderWith [...]` | Strict order | ``f `shouldBeCalled` inOrderWith ["a", "b"]`` |
-| `inPartialOrderWith [...]` | Partial order (skips allowed) | ``f `shouldBeCalled` inPartialOrderWith ["a", "c"]`` |
-
-### Parameter Matchers (Definition)
-
-| Matcher | Description | Example |
-| :--- | :--- | :--- |
-| `any` | Any value | `any ~> True` |
-| `when pred label` | Condition | `when (>0) "positive" ~> True` |
-| `when_ pred` | No label | `when_ (>0) ~> True` |
-
 ### Declarative Verification DSL (`expects`)
 
 In `expects` blocks, you can describe expectations declaratively using a builder-style syntax.
@@ -474,6 +463,28 @@ mock (any ~> True) `expects` do
 | **`with arg`** | Expects specific argument(s). | `called `with` "value"` |
 | **`with matcher`** | Uses a matcher for argument verification. | `called `with` when (>5) "gt 5"` |
 | **`inOrder`** | Verify usage order (when used in a list) | (See "Order Verification" section) |
+
+### Verification Matchers (`shouldBeCalled`)
+
+| Matcher | Description | Example |
+| :--- | :--- | :--- |
+| `x` (Value itself) | Was called with that value | ``f `shouldBeCalled` (10 :: Int)`` |
+| `times n` | Exact count | ``f `shouldBeCalled` (times 3 `with` "arg")`` |
+| `once` | Exactly once | ``f `shouldBeCalled` (once `with` "arg")`` |
+| `never` | Never called | ``f `shouldBeCalled` never`` |
+| `atLeast n` | n or more times | ``f `shouldBeCalled` atLeast 2`` |
+| `atMost n` | n or fewer times | ``f `shouldBeCalled` atMost 5`` |
+| `anything` | Any argument (count ignored) | ``f `shouldBeCalled` anything`` |
+| `inOrderWith [...]` | Strict order | ``f `shouldBeCalled` inOrderWith ["a", "b"]`` |
+| `inPartialOrderWith [...]` | Partial order (skips allowed) | ``f `shouldBeCalled` inPartialOrderWith ["a", "c"]`` |
+
+### Parameter Matchers (Definition)
+
+| Matcher | Description | Example |
+| :--- | :--- | :--- |
+| `any` | Any value | `any ~> True` |
+| `when pred label` | Condition | `when (>0) "positive" ~> True` |
+| `when_ pred` | No label | `when_ (>0) ~> True` |
 
 ### FAQ
 

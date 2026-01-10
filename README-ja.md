@@ -128,18 +128,7 @@ spec = do
       -- 3. スコープを抜ける際、宣言した期待に対する検証が自動で行われる
 ```
 
----
 
-### At a Glance: Matchers
-| Matcher | Description | Example |
-| :--- | :--- | :--- |
-| **`any`** | どんな値でも許可 | `f <- mock (any ~> True)` |
-| **`when`** | 条件(述語)で検証 | `f <- mock (when (> 5) "gt 5" ~> True)` |
-| **`"val"`** | 値の一致 (Eq) | `f <- mock ("val" ~> True)` |
-| **`inOrder`** | 順序検証 | `expects` ブロック内で使用 (後述) |
-| **`inPartial`**| 部分順序 | `expects` ブロック内で使用 (後述) |
-
----
 
 ## 使い方ガイド (User Guide)
 
@@ -445,28 +434,6 @@ f <- mock (label "myAPI") ("arg" ~> True)
 
 ※ このセクションは、困ったときの辞書として使ってください。
 
-### 検証マッチャ一覧 (`shouldBeCalled`)
-
-| マッチャ | 説明 | 例 |
-| :--- | :--- | :--- |
-| `x` (値そのもの) | その値で呼ばれたか | ``f `shouldBeCalled` (10 :: Int)`` |
-| `times n` | 回数指定 | ``f `shouldBeCalled` (times 3 `with` "arg")`` |
-| `once` | 1回だけ | ``f `shouldBeCalled` (once `with` "arg")`` |
-| `never` | 呼ばれていない | ``f `shouldBeCalled` never`` |
-| `atLeast n` | n回以上 | ``f `shouldBeCalled` atLeast 2`` |
-| `atMost n` | n回以下 | ``f `shouldBeCalled` atMost 5`` |
-| `anything` | 引数は何でも良い(回数不問) | ``f `shouldBeCalled` anything`` |
-| `inOrderWith [...]` | 厳密な順序 | ``f `shouldBeCalled` inOrderWith ["a", "b"]`` |
-| `inPartialOrderWith [...]` | 部分的順序（間飛びOK） | ``f `shouldBeCalled` inPartialOrderWith ["a", "c"]`` |
-
-### パラメータマッチャ一覧（引数定義）
-
-| マッチャ | 説明 | 例 |
-| :--- | :--- | :--- |
-| `any` | 任意の値 | `any ~> True` |
-| `when pred label` | 条件式 | `when (>0) "positive" ~> True` |
-| `when_ pred` | ラベルなし | `when_ (>0) ~> True` |
-
 ### 宣言的検証 DSL (`expects`)
 
 `expects` ブロックでは、ビルダースタイルの構文を使って宣言的に期待値を記述できます。
@@ -500,6 +467,28 @@ mock (any ~> True) `expects` do
 | **`with arg`** | 引数を指定します。 | `called `with` "value"` |
 | **`with matcher`** | マッチャを使って引数を検証します。 | `called `with` when (>5) "gt 5"` |
 | **`inOrder`** | 呼び出し順序を検証 (リスト内で使用) | (順序検証の項を参照) |
+
+### 検証マッチャ一覧 (`shouldBeCalled`)
+
+| マッチャ | 説明 | 例 |
+| :--- | :--- | :--- |
+| `x` (値そのもの) | その値で呼ばれたか | ``f `shouldBeCalled` (10 :: Int)`` |
+| `times n` | 回数指定 | ``f `shouldBeCalled` (times 3 `with` "arg")`` |
+| `once` | 1回だけ | ``f `shouldBeCalled` (once `with` "arg")`` |
+| `never` | 呼ばれていない | ``f `shouldBeCalled` never`` |
+| `atLeast n` | n回以上 | ``f `shouldBeCalled` atLeast 2`` |
+| `atMost n` | n回以下 | ``f `shouldBeCalled` atMost 5`` |
+| `anything` | 引数は何でも良い(回数不問) | ``f `shouldBeCalled` anything`` |
+| `inOrderWith [...]` | 厳密な順序 | ``f `shouldBeCalled` inOrderWith ["a", "b"]`` |
+| `inPartialOrderWith [...]` | 部分的順序（間飛びOK） | ``f `shouldBeCalled` inPartialOrderWith ["a", "c"]`` |
+
+### パラメータマッチャ一覧（引数定義）
+
+| マッチャ | 説明 | 例 |
+| :--- | :--- | :--- |
+| `any` | 任意の値 | `any ~> True` |
+| `when pred label` | 条件式 | `when (>0) "positive" ~> True` |
+| `when_ pred` | ラベルなし | `when_ (>0) ~> True` |
 
 ### よくある質問 (FAQ)
 
