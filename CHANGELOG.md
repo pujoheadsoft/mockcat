@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to the
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
+## [1.4.0.0] - 2026-01-10
+### Changed
+- **Breaking Change**: Removed the verify fallback mechanism that searched thread history when `StableName` lookup failed.
+    - **Impact**: Strict verification is now enforced. Tests using `shouldBeCalled` or related matchers will now deterministically fail if the mock function's identity cannot be strictly resolved (e.g., in some HPC/Coverage environments without proper handling), rather than attempting to guess the intent.
+    - **Motivation**: To ensure absolute confidence in test results and support reliable HPC coverage analysis.
+
+### Improved
+- **HPC Code Coverage Support**: The library and test suite are now fully compatible with `stack test --coverage`.
+    - Verification logic has been hardened to handle HPC instrumentation.
+    - The test suite now automatically detects HPC mode and skips only those tests that strictly depend on `StableName` identity (which is inherently unstable under HPC), ensuring the rest of the suite runs safely.
+- **Test Suite Modernization**: Refactored Property-based tests and `WithMockIO` specs to use the `expects` pattern (definition-time expectation). This makes them robust enough to strictly verify behavior even in HPC environments.
+- **Granularity**: Improved module organization in `Spec.hs` for better maintainability.
+
 ## [1.3.3.0] - 2026-01-04
 ### Added
 - **Type Families Support**: `deriveMockInstances` now supports type classes containing Associated Type Families.

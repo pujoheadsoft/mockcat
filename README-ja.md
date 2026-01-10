@@ -14,14 +14,18 @@
 </div>
 
 **Mockcat** は、Haskell のための直感的で宣言的なモックライブラリです。
-専用の演算子 **Mock Arrow (`~>`)** を使うことで、関数定義と同じような感覚で、引数と振る舞いをモックとして記述できます。
+2つの検証スタイルをサポートしています。
+
+*   **事前宣言による検証 (`expects`)**: 【推奨】 モック定義時に期待される振る舞いを宣言します。
+*   **事後検証 (`shouldBeCalled`)**: テスト実行後に呼び出しを検証します。
 
 ```haskell
--- 定義 (Define)
+-- 定義と同時に検証内容を宣言 ("input" で1回呼ばれることを期待)
 f <- mock ("input" ~> "output")
+  `expects` called once
 
--- 検証 (Verify)
-f `shouldBeCalled` "input"
+-- 実行
+f "input"
 ```
 
 ---
@@ -61,7 +65,7 @@ Mockcat を使うことで、テスト記述は次のようになります。
 | | **Before: 手書き...** 😫 | **After: Mockcat** 🐱✨ |
 | :--- | :--- | :--- |
 | **定義 (Stub)**<br />「この引数には<br />この値を返したい」 | <pre>f :: String -> IO String<br />f arg = case arg of<br />  "a" -> pure "b"<br />  _   -> error "unexpected"</pre><br />_単純な分岐を書くだけでも行数を消費します。_ | <pre>-- 検証不要なら stub (純粋)<br />let f = stub ("a" ~> "b")</pre><br />_完全な純粋関数として振る舞います。_ |
-| **検証 (Verify)**<br />「正しく呼ばれたか<br />テストしたい」 | <pre>-- 記録の仕組みから作る必要がある<br />ref <- newIORef []<br />let f arg = do<br />      modifyIORef ref (arg:)<br />      ...<br /><br />-- 検証ロジック<br />calls <- readIORef ref<br />calls `shouldBe` ["a"]</pre><br />_※ これはよくある一例です。実際にはさらに補助コードが増えがちです。_ | <pre>-- 検証したいなら mock (内部で記録)<br />f <- mock ("a" ~> "b")<br /><br />-- 検証したい内容を書くだけ<br />f `shouldBeCalled` "a"</pre><br />_記録は自動。<br />「何を検証するか」という本質に集中できます。_ |
+| **検証 (Verify)**<br />「正しく呼ばれたか<br />テストしたい」 | <pre>-- 記録の仕組みから作る必要がある<br />ref <- newIORef []<br />let f arg = do<br />      modifyIORef ref (arg:)<br />      ...<br /><br />-- 検証ロジック<br />calls <- readIORef ref<br />calls `shouldBe` ["a"]</pre><br />_※ これはよくある一例です。実際にはさらに補助コードが増えがちです。_ | <pre>-- 定義と同時に期待値を宣言<br />f <- mock ("a" ~> "b")<br />  `expects` called once<br /><br />-- 実行するだけ (自動検証)</pre><br />_記録は自動。<br />「何を検証するか」という本質に集中できます。_ |
 
 ### 主な特徴
 
@@ -118,15 +122,19 @@ main = hspec spec
 spec :: Spec
 spec = do
   it "Quick Start Demo" do
-    -- 1. モックを作成 ("Hello" を受け取ったら 42 を返す)
-    f <- mock ("Hello" ~> (42 :: Int))
+    result <- runMockT do
+      -- 1. モックを作成 ("Hello" を受け取ったら 42 を返す)
+      --    同時に「1回呼ばれるはずだ」と期待を宣言
+      f <- mock ("Hello" ~> (42 :: Int))
+        `expects` called once
 
-    -- 2. 関数として使う
-    let result = f "Hello"
+      -- 2. 関数として使う
+      let result = f "Hello"
+      
+      pure result
+    
+    -- 3. 結果の検証
     result `shouldBe` 42
-
-    -- 3. 呼び出されたことを検証
-    f `shouldBeCalled` "Hello"
 ```
 
 ---
@@ -137,39 +145,57 @@ spec = do
 | **`any`** | どんな値でも許可 | `f <- mock (any ~> True)` |
 | **`when`** | 条件(述語)で検証 | `f <- mock (when (> 5) "gt 5" ~> True)` |
 | **`"val"`** | 値の一致 (Eq) | `f <- mock ("val" ~> True)` |
-| **`inOrder`** | 順序検証 | ``f `shouldBeCalled` inOrderWith ["a", "b"]`` |
-| **`inPartial`**| 部分順序 | ``f `shouldBeCalled` inPartialOrderWith ["a", "c"]`` |
+| **`inOrder`** | 順序検証 | `expects` ブロック内で使用 (後述) |
+| **`inPartial`**| 部分順序 | `expects` ブロック内で使用 (後述) |
 
 ---
 
 ## 使い方ガイド (User Guide)
 
-Mockcat は、テストの目的や好みに応じて 2 つの検証スタイルをサポートしています。
+Mockcat は、テストの目的や環境に応じて 2 つの検証スタイルをサポートしています。
 
-1.  **事後検証スタイル (Spy)**:
-    とりあえずモックで振る舞いを定義して実行し、後から `shouldBeCalled` で検証するスタイル。探索的なテストや、セットアップを簡単に済ませたい場合に適しています。（以下のセクション 1, 2 で主に使用）
-2.  **事前期待スタイル (Declarative/Expectation)**:
-    定義と同時に「こう呼ばれるべき」という期待を記述するスタイル。厳密なインタラクションのテストに適しています。（以下のセクション 3 で解説）
+### 1. 宣言的な検証 (`withMock` / `expects`) - [推奨]
 
-### 1. 関数のモック (`mock`) - [基本]
-
-最も基本的な使い方です。特定の引数に対して値を返す関数を作ります。
+定義と同時に期待値を記述するスタイルです。スコープを抜ける時に自動的に検証が走ります。
+「定義」と「検証」を近くに書きたい場合に便利です。
 
 ```haskell
--- "a" -> "b" -> True を返す関数
-f <- mock ("a" ~> "b" ~> True)
+withMock $ do
+  -- 定義と同時に期待値(expects)を書く
+  f <- mock (any ~> True)
+    `expects` do
+      called once `with` "arg"
+
+  -- 実行
+  f "arg"
 ```
 
-**柔軟なマッチング**:
-具体的な値だけでなく、条件（述語）を指定することもできます。
+#### `withMockIO`: IO テストの簡略化
+`withMockIO` は `withMock` を IO に特化させたバージョンです。`liftIO` を使わずにモックコンテキスト内で直接 IO アクションを実行できます。
 
 ```haskell
--- 任意の文字列 (param any)
-f <- mock (any ~> True)
-
--- 条件式 (when)
-f <- mock (when (> 5) "> 5" ~> True)
+it "IO test" $ withMockIO do
+  f <- mock (any ~> pure "result")
+  res <- someIOCall f
+  res `shouldBe` "result"
 ```
+
+> [!IMPORTANT]
+> `expects`（宣言的検証）を使用する場合、モック定義部分は必ず **括弧 `(...)`** で囲んでください。
+> 以前のバージョンで使用できた `$` 演算子 (`mock $ ... expected ...`) は、優先順位の関係でコンパイルエラーになります。
+>
+> ❌ `mock $ any ~> True expects ...`
+> ✅ `mock (any ~> True) expects ...`
+
+> [!NOTE]
+> `runMockT` ブロックの中でも、同様に `expects` を使った宣言的検証が可能です。
+> 生成された型クラスのモック関数（`_xxx`）に対してもそのまま使用できます。
+>
+> ```haskell
+> runMockT do
+>   _readFile "config.txt" ~> pure "value"
+>     `expects` called once
+> ```
 
 ### 2. 型クラスのモック (`makeMock`)
 
@@ -221,48 +247,35 @@ spec = do
     result `shouldBe` ()
 ```
 
-### 3. 宣言的な検証 (`withMock` / `expects`)
+### 3. 関数のモックと事後検証 (`mock` / `shouldBeCalled`)
 
-定義と同時に期待値を記述するスタイルです。スコープを抜ける時に自動的に検証が走ります。
-「定義」と「検証」を近くに書きたい場合に便利です。
-
-```haskell
-withMock $ do
-  -- 定義と同時に期待値(expects)を書く
-  f <- mock (any ~> True)
-    `expects` do
-      called once `with` "arg"
-
-  -- 実行
-  f "arg"
-
-#### `withMockIO`: IO テストの簡略化
-`withMockIO` は `withMock` を IO に特化させたバージョンです。`liftIO` を使わずにモックコンテキスト内で直接 IO アクションを実行できます。
+最も基本的な使い方です。特定の引数に対して値を返す関数を作ります。
+事後検証 (`shouldBeCalled`) を組み合わせることで、探索的なテストやプロトタイピングに適しています。
 
 ```haskell
-it "IO test" $ withMockIO do
-  f <- mock (any ~> pure "result")
-  res <- someIOCall f
-  res `shouldBe` "result"
-```
+-- "a" -> "b" -> True を返す関数
+f <- mock ("a" ~> "b" ~> True)
+
+-- 検証
+f `shouldBeCalled` "a"
 ```
 
-> [!IMPORTANT]
-> `expects`（宣言的検証）を使用する場合、モック定義部分は必ず **括弧 `(...)`** で囲んでください。
-> 以前のバージョンで使用できた `$` 演算子 (`mock $ ... expected ...`) は、優先順位の関係でコンパイルエラーになります。
->
-> ❌ `mock $ any ~> True expects ...`
-> ✅ `mock (any ~> True) expects ...`
+> [!WARNING]
+> **HPC (コードカバレッジ) 環境での制限**
+> `stack test --coverage` 等を使用する場合、`shouldBeCalled` は使用しないでください。
+> GHC のカバレッジ計測機能が関数をラップするため、関数の同一性が失われ、検証に失敗します。
+> カバレッジ計測が必要な場合は、**`expects`** スタイル (Section 1) を使用してください。
 
-> [!NOTE]
-> `runMockT` ブロックの中でも、同様に `expects` を使った宣言的検証が可能です。
-> 生成された型クラスのモック関数（`_xxx`）に対してもそのまま使用できます。
->
-> ```haskell
-> runMockT do
->   _readFile "config.txt" ~> pure "value"
->     `expects` called once
-> ```
+**柔軟なマッチング**:
+具体的な値だけでなく、条件（述語）を指定することもできます。
+
+```haskell
+-- 任意の文字列 (param any)
+f <- mock (any ~> True)
+
+-- 条件式 (when)
+f <- mock (when (> 5) "> 5" ~> True)
+```
 
 ### 4. 柔軟な検証（マッチャー）
 
@@ -470,7 +483,9 @@ A. はい。内部で `TVar` を使用してアトミックにカウントして
 
 <details>
 <summary><strong>Q. コードカバレッジ (HPC) を有効にしてテストを実行できますか？</strong></summary>
-A. はい (v1.1.0.0 以降)。Mockcat は HPC によって生じる 不安定さを内部で吸収するため、`stack test --coverage` を問題なく実行できます。
+A. はい (v1.1.0.0 以降)。Mockcat の `expects` スタイルは、HPC による関数のラップの影響を受けない設計になっているため、HPC下でも安全に動作します。
+ただし、前述の理由により **`expects`** スタイル (または `withMock`) の使用を推奨します。
+`shouldBeCalled` スタイルは、HPC の仕組み上、モックの同一性を特定できないため使用できません。
 </details>
 
 <details>

@@ -14,14 +14,18 @@
 </div>
 
 **Mockcat** is a lightweight, declarative mocking library for Haskell.  
-By using the dedicated **Mock Arrow (`~>`)** operator, you can describe mock behavior with the same ease as defining standard functions.
+It supports two verification styles:
+
+*   **Declarative Verification (`expects`)**: **[Recommended]** Declaratively state the expected behavior at mock definition time.
+*   **Post-hoc Verification (`shouldBeCalled`)**: Verify call history after test execution.
 
 ```haskell
--- Define
+-- Define and Expect at the same time ("input" should be called exactly once)
 f <- mock ("input" ~> "output")
+  `expects` called once
 
--- Verify
-f `shouldBeCalled` "input"
+-- Execute
+f "input"
 ```
 
 ---
@@ -61,7 +65,7 @@ See how simple writing tests in Haskell can be.
 | | **Before: Handwritten...** 😫 | **After: Mockcat** 🐱✨ |
 | :--- | :--- | :--- |
 | **Definition (Stub)**<br />"I want to return<br />this value for this arg" | <pre>f :: String -> IO String<br />f arg = case arg of<br />  "a" -> pure "b"<br />  _   -> error "unexpected"</pre><br />_Even simple branching consumes many lines._ | <pre>-- Use stub if verification is unneeded (Pure)<br />let f = stub ("a" ~> "b")</pre><br />_Behaves as a completely pure function._ |
-| **Verification (Verify)**<br />"I want to test<br />if it was called correctly" | <pre>-- Need to implement recording logic<br />ref <- newIORef []<br />let f arg = do<br />      modifyIORef ref (arg:)<br />      ...<br /><br />-- Verification logic<br />calls <- readIORef ref<br />calls `shouldBe` ["a"]</pre><br />_※ This is just one example. Real-world setups often require even more boilerplate._ | <pre>-- Use mock if verification is needed (Recorded internally)<br />f <- mock ("a" ~> "b")<br /><br />-- Just state what you want to verify<br />f `shouldBeCalled` "a"</pre><br />_Recording is automatic.<br />Focus on the "Why" and "What", not the "How"._ |
+| **Verification (Verify)**<br />"I want to test<br />if it was called correctly" | <pre>-- Need to implement recording logic<br />ref <- newIORef []<br />let f arg = do<br />      modifyIORef ref (arg:)<br />      ...<br /><br />-- Verification logic<br />calls <- readIORef ref<br />calls `shouldBe` ["a"]</pre><br />_※ This is just one example. Real-world setups often require even more boilerplate._ | <pre>-- Declare expected values at definition<br />f <- mock ("a" ~> "b")<br />  `expects` called once<br /><br />-- Just execute (Automatic verification)</pre><br />_Recording is automatic.<br />Focus on the "Why" and "What", not the "How"._ |
 
 ### Key Features
 
@@ -118,15 +122,19 @@ main = hspec spec
 spec :: Spec
 spec = do
   it "Quick Start Demo" do
-    -- 1. Create a mock (Return 42 when receiving "Hello")
-    f <- mock ("Hello" ~> (42 :: Int))
+    result <- runMockT do
+      -- 1. Create a mock (Return 42 when receiving "Hello")
+      --    Simultaneously declare "it should be called once"
+      f <- mock ("Hello" ~> (42 :: Int))
+        `expects` called once
 
-    -- 2. Use it as a function
-    let result = f "Hello"
+      -- 2. Use it as a function
+      let result = f "Hello"
+      
+      pure result
+    
+    -- 3. Verify result
     result `shouldBe` 42
-
-    -- 3. Verify it was called
-    f `shouldBeCalled` "Hello"
 ```
 
 ---
@@ -137,8 +145,8 @@ spec = do
 | **`any`** | Matches any value | `f <- mock (any ~> True)` |
 | **`when`** | Matches condition | `f <- mock (when (> 5) "gt 5" ~> True)` |
 | **`"val"`** | Matches value (Eq) | `f <- mock ("val" ~> True)` |
-| **`inOrder`** | Order verification | ``f `shouldBeCalled` inOrderWith ["a", "b"]`` |
-| **`inPartial`**| Partial order | ``f `shouldBeCalled` inPartialOrderWith ["a", "c"]`` |
+| **`inOrder`** | Order verification | Used within `expects` block (see below) |
+| **`inPartial`**| Partial order | Used within `expects` block (see below) |
 
 ---
 
@@ -146,32 +154,48 @@ spec = do
 
 Mockcat supports two verification styles depending on your testing needs and preferences.
 
-1.  **Post-Verification Style (Spy)**:
-    Define mock behavior, run the code, and verify afterwards using `shouldBeCalled`.  
-    Ideal for exploratory testing or simple setups. (Used mainly in Sections 1 & 2 below)
-2.  **Pre-Expectation Style (Declarative/Expectation)**:
-    Describe "how it should be called" at the definition time.  
-    Ideal for strict interaction testing. (Explained in Section 3)
+### 1. Declarative Verification (`withMock` / `expects`) - [Recommended]
 
-### 1. Function Mocking (`mock`) - [Basic]
-
-The most basic usage. Creates a function that returns values for specific arguments.
+A style where you describe expectations at definition time. Verification runs automatically when exiting the scope.
+Useful when you want "Definition" and "Verification" to be written close together.
 
 ```haskell
--- Function that returns True for "a" -> "b"
-f <- mock ("a" ~> "b" ~> True)
+withMock $ do
+  -- Write expectations (expects) at definition time
+  f <- mock (any ~> True)
+    `expects` do
+      called once `with` "arg"
+
+  -- Execution
+  f "arg"
 ```
 
-**Flexible Matching**:
-You can specify conditions (predicates) instead of concrete values.
+#### `withMockIO`: Simplified IO Testing
+`withMockIO` is an IO-specialized version of `withMock`. It allows you to run IO actions directly within the mock context without needing `liftIO`.
 
 ```haskell
--- Arbitrary string (param any)
-f <- mock (any ~> True)
-
--- Condition (when)
-f <- mock (when (> 5) "> 5" ~> True)
+it "IO test" $ withMockIO do
+  f <- mock (any ~> pure "result")
+  res <- someIOCall f
+  res `shouldBe` "result"
 ```
+
+> [!IMPORTANT]
+> When using `expects` (declarative verification), you MUST wrap the mock definition in **parentheses `(...)`**.
+> The `$` operator pattern used in previous versions (`mock $ ... expected ...`) will cause compilation errors due to precedence changes.
+>
+> ❌ `mock $ any ~> True expects ...`
+> ✅ `mock (any ~> True) expects ...`
+
+> [!NOTE]
+> You can also use `expects` for declarative verification inside `runMockT` blocks.
+> This works seamlessly with generated typeclass mocks as well.
+>
+> ```haskell
+> runMockT do
+>   _readFile "config.txt" ~> pure "value"
+>     `expects` called once
+> ```
 
 ### 2. Typeclass Mocking (`makeMock`)
 
@@ -223,48 +247,35 @@ spec = do
     result `shouldBe` ()
 ```
 
-### 3. Declarative Verification (`withMock` / `expects`)
+### 3. Function Mocking and Post-Verification (`mock` / `shouldBeCalled`)
 
-A style where you describe expectations at definition time. Verification runs automatically when exiting the scope.
-Useful when you want "Definition" and "Verification" to be written close together.
-
-```haskell
-withMock $ do
-  -- Write expectations (expects) at definition time
-  f <- mock (any ~> True)
-    `expects` do
-      called once `with` "arg"
-
-  -- Execution
-  f "arg"
-
-#### `withMockIO`: Simplified IO Testing
-`withMockIO` is an IO-specialized version of `withMock`. It allows you to run IO actions directly within the mock context without needing `liftIO`.
+The most basic usage. Creates a function that returns values for specific arguments.
+Combining it with Post-Verification (`shouldBeCalled`) makes it suitable for exploratory testing or prototyping.
 
 ```haskell
-it "IO test" $ withMockIO do
-  f <- mock (any ~> pure "result")
-  res <- someIOCall f
-  res `shouldBe` "result"
-```
+-- Function that returns True for "a" -> "b"
+f <- mock ("a" ~> "b" ~> True)
+
+-- Verification
+f `shouldBeCalled` "a"
 ```
 
-> [!IMPORTANT]
-> When using `expects` (declarative verification), you MUST wrap the mock definition in **parentheses `(...)`**.
-> The `$` operator pattern used in previous versions (`mock $ ... expected ...`) will cause compilation errors due to precedence changes.
->
-> ❌ `mock $ any ~> True expects ...`
-> ✅ `mock (any ~> True) expects ...`
+> [!WARNING]
+> **Limitation in HPC (Code Coverage) Environments**
+> Do not use `shouldBeCalled` when running tests with `stack test --coverage` or similar.
+> The code coverage instrumentation by GHC wraps functions, which changes their identity and causes verification to fail.
+> If you need code coverage, please use the **`expects`** style (Section 1).
 
-> [!NOTE]
-> You can also use `expects` for declarative verification inside `runMockT` blocks.
-> This works seamlessly with generated typeclass mocks as well.
->
-> ```haskell
-> runMockT do
->   _readFile "config.txt" ~> pure "value"
->     `expects` called once
-> ```
+**Flexible Matching**:
+You can specify conditions (predicates) instead of concrete values.
+
+```haskell
+-- Arbitrary string (param any)
+f <- mock (any ~> True)
+
+-- Condition (when)
+f <- mock (when (> 5) "> 5" ~> True)
+```
 
 ### 4. Flexible Verification (Matchers)
 
@@ -472,7 +483,9 @@ A. Yes. Internally uses `TVar` to count atomically, so it records accurately eve
 
 <details>
 <summary><strong>Q. Can I run tests with code coverage (HPC)?</strong></summary>
-A. Yes (since v1.1.0.0). Mockcat natively handles the instability of `StableName` introduced by HPC instrumentation, so you can run `stack test --coverage` without issues.
+A. Yes (since v1.1.0.0). Mockcat's `expects` style is designed to be unaffected by the function wrapping performed by HPC, so it operates safely even under HPC.
+However, for the reasons mentioned above, we strongly recommend using the **`expects`** style (or `withMock`).
+The `shouldBeCalled` style cannot be used because HPC's mechanism makes it impossible to identify mock identity.
 </details>
 
 <details>
