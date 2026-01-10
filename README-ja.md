@@ -65,7 +65,7 @@ Mockcat を使うことで、テスト記述は次のようになります。
 | | **Before: 手書き...** 😫 | **After: Mockcat** 🐱✨ |
 | :--- | :--- | :--- |
 | **定義 (Stub)**<br />「この引数には<br />この値を返したい」 | <pre>f :: String -> IO String<br />f arg = case arg of<br />  "a" -> pure "b"<br />  _   -> error "unexpected"</pre><br />_単純な分岐を書くだけでも行数を消費します。_ | <pre>-- 検証不要なら stub (純粋)<br />let f = stub ("a" ~> "b")</pre><br />_完全な純粋関数として振る舞います。_ |
-| **検証 (Verify)**<br />「正しく呼ばれたか<br />テストしたい」 | <pre>-- 記録の仕組みから作る必要がある<br />ref <- newIORef []<br />let f arg = do<br />      modifyIORef ref (arg:)<br />      ...<br /><br />-- 検証ロジック<br />calls <- readIORef ref<br />calls `shouldBe` ["a"]</pre><br />_※ これはよくある一例です。実際にはさらに補助コードが増えがちです。_ | <pre>-- 定義と同時に期待値を宣言<br />f <- mock ("a" ~> "b")<br />  `expects` called once<br /><br />-- 実行するだけ (自動検証)</pre><br />_記録は自動。<br />「何を検証するか」という本質に集中できます。_ |
+| **検証 (Verify)**<br />「正しく呼ばれたか<br />テストしたい」 | <pre>-- 記録の仕組みから作る必要がある<br />ref <- newIORef []<br />let f arg = do<br />      modifyIORef ref (arg:)<br />      ...<br /><br />-- 検証ロジック<br />calls <- readIORef ref<br />calls `shouldBe` ["a"]</pre><br />_※ これはよくある一例です。実際にはさらに補助コードが増えがちです。_ | <pre>withMock $ do<br />  -- 定義と同時に期待値を宣言<br />  f <- mock ("a" ~> "b")<br />    &#96;expects&#96; called once<br /><br />  -- 実行するだけ (自動検証)</pre><br />_記録は自動。<br />「何を検証するか」という本質に集中できます。_ |
 
 ### 主な特徴
 
@@ -257,7 +257,7 @@ spec = do
 f <- mock ("a" ~> "b" ~> True)
 
 -- 検証
-f `shouldBeCalled` "a"
+f `shouldBeCalled` "a" ~> "b"
 ```
 
 > [!WARNING]
