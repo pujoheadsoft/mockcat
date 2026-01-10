@@ -27,8 +27,6 @@ import Test.MockCat.WithMockIOSpec as WithMockIO
 import Test.MockCat.ShouldBeCalledErrorDiffSpec as ShouldBeCalledErrorDiff
 import Test.MockCat.WithMockErrorDiffSpec as WithMockErrorDiff
 import Test.MockCat.THCompareSpec as THCompare
-import ReadmeVerifySpec as ReadmeVerify
-import ReadmeVerifyAutoLiftSpec as ReadmeVerifyAutoLift
 import qualified Test.MockCat.MultipleMocksSpec as MultipleMocks
 import qualified Test.MockCat.TypeFamilySpec as TypeFamily
 import Test.MockCat.UnsafeCheck ()
@@ -43,6 +41,7 @@ import qualified Property.ParamSpecNormalizeProp as ParamSpecNormalizeProp
 import qualified Property.ParamSpecMergeProp as ParamSpecMergeProp
 import qualified Property.ParamSpecRangeMergeRandomProp as ParamSpecRangeMergeRandomProp
 import qualified Test.MockCat.HpcSpec as HpcSpec
+import qualified Test.MockCat.Readme.ReadmeSpec as Readme
 
 main :: IO ()
 main = do
@@ -92,12 +91,12 @@ main = do
     ParamSpecNormalizeProp.spec
     ParamSpecMergeProp.spec
     ParamSpecRangeMergeRandomProp.spec
-    
+
     -- CONDITIONAL RUN: Standard Tests using 'shouldBeCalled' (Unsafe under HPC)
     conditionalSpec $ do
-        Registry.spec
-        ShouldBeCalled.spec
-        ShouldBeCalledMockM.spec
-        ShouldBeCalledErrorDiff.spec
-        ReadmeVerify.spec
-        ReadmeVerifyAutoLift.spec
+      Registry.spec
+      ShouldBeCalled.spec
+      ShouldBeCalledMockM.spec
+      ShouldBeCalledErrorDiff.spec
+
+    Readme.spec strictWorks

@@ -108,33 +108,24 @@ build-depends:
     mockcat
 ```
 
-### 最初のテスト (`Main.hs` / `Spec.hs`)
-
+### 最初のテスト
 ```haskell
-{-# LANGUAGE BlockArguments #-}
-{-# LANGUAGE TypeApplications #-}
 import Test.Hspec
 import Test.MockCat
 
-main :: IO ()
-main = hspec spec
-
 spec :: Spec
 spec = do
-  it "Quick Start Demo" do
-    result <- runMockT do
+  it "Quick Start Demo" $ do
+    withMockIO $ do
       -- 1. モックを作成 ("Hello" を受け取ったら 42 を返す)
       --    同時に「1回呼ばれるはずだ」と期待を宣言
       f <- mock ("Hello" ~> (42 :: Int))
         `expects` called once
 
-      -- 2. 関数として使う
-      let result = f "Hello"
-      
-      pure result
-    
-    -- 3. 結果の検証
-    result `shouldBe` 42
+      -- 2. f "Hello" を呼び出し、42 を得る
+      f "Hello" `shouldBe` 42
+
+      -- 3. スコープを抜ける際、宣言した期待に対する検証が自動で行われる
 ```
 
 ---
@@ -154,30 +145,47 @@ spec = do
 
 Mockcat は、テストの目的や環境に応じて 2 つの検証スタイルをサポートしています。
 
-### 1. 宣言的な検証 (`withMock` / `expects`) - [推奨]
+### 1. 宣言的な検証 (`withMock` (`withMockIO`) / `expects`) - [推奨]
 
 定義と同時に期待値を記述するスタイルです。スコープを抜ける時に自動的に検証が走ります。
 「定義」と「検証」を近くに書きたい場合に便利です。
 
 ```haskell
-withMock $ do
-  -- 定義と同時に期待値(expects)を書く
-  f <- mock (any ~> True)
-    `expects` do
-      called once `with` "arg"
+import Test.Hspec
+import Test.MockCat
+import Control.Monad.IO.Class (MonadIO(liftIO))
 
-  -- 実行
-  f "arg"
+spec :: Spec
+spec = do
+  it "User Guide (withMock)" $ do
+    withMock $ do
+      -- "Hello" に対して True を返すモックを定義
+      f <- mock ("Hello" ~> True)
+        `expects` called once
+
+      -- 実行
+      let result = f "Hello"
+
+      liftIO $ result `shouldBe` True
 ```
 
 #### `withMockIO`: IO テストの簡略化
 `withMockIO` は `withMock` を IO に特化させたバージョンです。`liftIO` を使わずにモックコンテキスト内で直接 IO アクションを実行できます。
 
 ```haskell
-it "IO test" $ withMockIO do
-  f <- mock (any ~> pure "result")
-  res <- someIOCall f
-  res `shouldBe` "result"
+import Test.Hspec
+import Test.MockCat
+
+spec :: Spec
+spec = do
+  it "User Guide (withMockIO)" $ do
+    withMockIO $ do
+      f <- mock ("Hello" ~> True)
+        `expects` called once
+
+      let result = f "Hello"
+
+      result `shouldBe` True
 ```
 
 > [!IMPORTANT]
@@ -249,15 +257,24 @@ spec = do
 
 ### 3. 関数のモックと事後検証 (`mock` / `shouldBeCalled`)
 
-最も基本的な使い方です。特定の引数に対して値を返す関数を作ります。
-事後検証 (`shouldBeCalled`) を組み合わせることで、探索的なテストやプロトタイピングに適しています。
+`withMock` (`withMockIO`) を使用せずに、特定の引数に対して値を返す関数を作ることもできます。
+その場合は、事後検証 (`shouldBeCalled`) を組み合わせることになります。
 
 ```haskell
--- "a" -> "b" -> True を返す関数
-f <- mock ("a" ~> "b" ~> True)
+import Test.Hspec
+import Test.MockCat
 
--- 検証
-f `shouldBeCalled` "a" ~> "b"
+spec :: Spec
+spec = do
+  it "Function Mocking" $ do
+    -- "Hello" に対して 1 を返す関数を定義 (expects は書かない)
+    f <- mock ("Hello" ~> True)
+    
+    -- 実行
+    f "Hello" `shouldBe` True
+
+    -- 事後検証 (shouldBeCalled)
+    f `shouldBeCalled` "Hello"
 ```
 
 > [!WARNING]
@@ -270,11 +287,21 @@ f `shouldBeCalled` "a" ~> "b"
 具体的な値だけでなく、条件（述語）を指定することもできます。
 
 ```haskell
--- 任意の文字列 (param any)
-f <- mock (any ~> True)
+{-# LANGUAGE TypeApplications #-}
+import Test.Hspec
+import Test.MockCat
+import Prelude hiding (any)
 
--- 条件式 (when)
-f <- mock (when (> 5) "> 5" ~> True)
+spec :: Spec
+spec = do
+  it "Matcher Examples" $ do
+    -- 任意の文字列 (param any)
+    f <- mock (any @String ~> True)
+    f "foo" `shouldBe` True
+
+    -- 条件式 (when)
+    g <- mock (when (> (5 :: Int)) "> 5" ~> True)
+    g 6 `shouldBe` True
 ```
 
 ### 4. 柔軟な検証（マッチャー）
@@ -286,7 +313,7 @@ Mockcat は、値の一致だけでなく、関数の性質を検証するため
 
 ```haskell
 -- どんな引数で呼ばれても True を返す
-f <- mock (any ~> True)
+f <- mock (any @String ~> True)
 
 -- 何でもいいから呼ばれたことを検証
 f `shouldBeCalled` any
@@ -298,16 +325,21 @@ f `shouldBeCalled` any
 `Eq` を持たない型（関数など）や、部分的な一致を確認したい場合に強力です。
 
 ```haskell
--- 引数が "error" で始まる場合のみ False を返す
-f <- mock do
-  onCase $ when (\s -> "error" `isPrefixOf` s) "start with error" ~> False
-  onCase $ any ~> True
+it "When Example" $ do
+  -- 引数が "error" で始まる場合のみ False を返す
+  f <- mock $ do
+    onCase $ when (\s -> "error" `isPrefixOf` s) "start with error" ~> False
+    onCase $ any ~> True
+
+  f "error message" `shouldBe` False
+  f "success" `shouldBe` True
+  f "other" `shouldBe` True
 ```
 
 ラベル（エラー時に表示される説明）が不要な場合は、`when_` を使用することもできます。
 
 ```haskell
-f <- mock (when_ (> 5) ~> True)
+f <- mock (when_ (> (5 :: Int)) ~> True)
 ```
 
 ### 5. 高度な機能 - [応用]

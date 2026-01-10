@@ -112,6 +112,7 @@ build-depends:
 
 ```haskell
 {-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 import Test.Hspec
 import Test.MockCat
@@ -121,20 +122,18 @@ main = hspec spec
 
 spec :: Spec
 spec = do
-  it "Quick Start Demo" do
-    result <- runMockT do
+  it "Quick Start Demo" $ do
+    withMockIO $ do
       -- 1. Create a mock (Return 42 when receiving "Hello")
       --    Simultaneously declare "it should be called once"
-      f <- mock ("Hello" ~> (42 :: Int))
+      (f :: String -> Int) <- mock ("Hello" ~> (42 :: Int))
         `expects` called once
 
       -- 2. Use it as a function
       let result = f "Hello"
       
-      pure result
-    
-    -- 3. Verify result
-    result `shouldBe` 42
+      -- 3. Verify result
+      result `shouldBe` 42
 ```
 
 ---
@@ -160,14 +159,14 @@ A style where you describe expectations at definition time. Verification runs au
 Useful when you want "Definition" and "Verification" to be written close together.
 
 ```haskell
-withMock $ do
-  -- Write expectations (expects) at definition time
-  f <- mock (any ~> True)
-    `expects` do
-      called once `with` "arg"
+  it "User Guide 1" $ do
+    withMockIO $ do
+      -- Define a mock that returns 1 for "Hello"
+      (f :: String -> Int) <- mock ("Hello" ~> (1 :: Int))
+        `expects` called once
 
-  -- Execution
-  f "arg"
+      let result = f "Hello"
+      result `shouldBe` 1
 ```
 
 #### `withMockIO`: Simplified IO Testing
@@ -175,7 +174,8 @@ withMock $ do
 
 ```haskell
 it "IO test" $ withMockIO do
-  f <- mock (any ~> pure "result")
+  (f :: String -> IO String) <- mock (any ~> (return "result" :: IO String))
+  let someIOCall f = f "arg"
   res <- someIOCall f
   res `shouldBe` "result"
 ```
@@ -193,7 +193,7 @@ it "IO test" $ withMockIO do
 >
 > ```haskell
 > runMockT do
->   _readFile "config.txt" ~> pure "value"
+>   _readFile ("config.txt" ~> pure "value")
 >     `expects` called once
 > ```
 
@@ -253,11 +253,17 @@ The most basic usage. Creates a function that returns values for specific argume
 Combining it with Post-Verification (`shouldBeCalled`) makes it suitable for exploratory testing or prototyping.
 
 ```haskell
--- Function that returns True for "a" -> "b"
-f <- mock ("a" ~> "b" ~> True)
+  it "Function Mocking" $ do
+    withMock $ do
+      -- Define a mock that returns 1 for "Hello" (No 'expects' here)
+      f <- mock ("Hello" ~> return (1 :: Int))
+      
+      -- Execution
+      result <- f "Hello"
 
--- Verification
-f `shouldBeCalled` "a"
+      -- Post-Verification (shouldBeCalled)
+      liftIO $ f `shouldBeCalled` "Hello"
+      liftIO $ result `shouldBe` 1
 ```
 
 > [!WARNING]

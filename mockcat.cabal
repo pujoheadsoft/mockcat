@@ -88,8 +88,6 @@ test-suite mockcat-test
       Property.ParamSpecRangeMergeRandomProp
       Property.ReinforcementProps
       Property.ScriptProps
-      ReadmeVerifyAutoLiftSpec
-      ReadmeVerifySpec
       Support.ParamSpec
       Support.ParamSpecNormalize
       Test.MockCat.ConcurrencySpec
@@ -108,6 +106,14 @@ test-suite mockcat-test
       Test.MockCat.PartialMockCommonSpec
       Test.MockCat.PartialMockSpec
       Test.MockCat.PartialMockTHSpec
+      Test.MockCat.Readme.MakeAutoLiftMockSpec
+      Test.MockCat.Readme.MakeMockSpec
+      Test.MockCat.Readme.MatcherSpec
+      Test.MockCat.Readme.QuickStartDemoSpec
+      Test.MockCat.Readme.ReadmeSpec
+      Test.MockCat.Readme.ShouldBeCalledSpec
+      Test.MockCat.Readme.WithMockIOSpec
+      Test.MockCat.Readme.WithMockSpec
       Test.MockCat.SharedSpecDefs
       Test.MockCat.ShouldBeCalledErrorDiffSpec
       Test.MockCat.ShouldBeCalledMockMSpec
