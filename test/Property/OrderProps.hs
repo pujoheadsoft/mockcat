@@ -1,7 +1,8 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# OPTIONS_GHC -fno-hpc #-}
 module Property.OrderProps
-  ( prop_inorder_succeeds
+  ( spec
+  , prop_inorder_succeeds
   , prop_adjacent_swap_fails
   , prop_partial_order_subset_succeeds
   , prop_partial_order_reversed_pair_fails
@@ -12,31 +13,48 @@ import Test.QuickCheck.Monadic (monadicIO, run, assert)
 import Control.Exception (try, SomeException)
 import Data.Maybe (listToMaybe)
 import Data.List (nub)
-import Test.MockCat (shouldBeCalled, inOrderWith, inPartialOrderWith, param)
+-- import Test.MockCat (shouldBeCalled, inOrderWith, inPartialOrderWith, param)
+import Test.MockCat
 import Property.Generators
+import Control.Monad.IO.Class (liftIO)
+import Test.Hspec (Spec, describe, it)
+
+spec :: Spec
+spec = do
+    describe "Property Order / PartialOrder" $ do
+      it "in-order script succeeds" $ property prop_inorder_succeeds
+      it "adjacent swap fails order verification" $ property prop_adjacent_swap_fails
+      it "subset partial order succeeds" $ property prop_partial_order_subset_succeeds
+      it "reversed pair fails partial order" $ property prop_partial_order_reversed_pair_fails
 
 -- | Property: executing a non-empty script yields exact order success.
 prop_inorder_succeeds :: Property
 prop_inorder_succeeds = forAll scriptGen $ \scr@(Script xs) -> not (null xs) ==> monadicIO $ do
-  run resetMockHistory
-  f <- run $ buildUnaryMock scr
-  run $ runScript f scr
-  run $ f `shouldBeCalled` inOrderWith (param <$> xs)
+  -- Use withMock for safe verification
+  run $ withMock $ do
+     -- Expect calls in exact order
+     f <- mock (cases [ param a ~> True | a <- xs ])
+            `expects` calledInOrder xs
+     liftIO $ runScript f scr
   assert True
 
 -- | Property: a single adjacent swap causes order verification failure.
 prop_adjacent_swap_fails :: Property
 prop_adjacent_swap_fails = forAll scriptGen $ \(Script xs) -> length xs >= 2 ==> monadicIO $ do
-  run resetMockHistory
   let distinct = nub xs
   if length distinct /= length xs
     then assert True  -- discard scripts with duplicates; they can mask order errors
     else do
       i <- run $ generate $ chooseInt (0, length xs - 2)
       let swapped = take i xs ++ [xs !! (i+1), xs !! i] ++ drop (i+2) xs
-      f <- run $ buildUnaryMock (Script xs)
-      run $ runScript f (Script xs)
-      e <- run $ (try (f `shouldBeCalled` inOrderWith (param <$> swapped)) :: IO (Either SomeException ()))
+      
+      -- Verify that expectation fails for swapped order
+      e <- run ((try $ withMock $ do
+          f <- mock (cases [ param a ~> True | a <- xs ])
+                 `expects` calledInOrder swapped
+          liftIO $ runScript f (Script xs)
+          ) :: IO (Either SomeException ()))
+      
       case e of
         Left _ -> assert True
         Right _ -> assert False
@@ -52,17 +70,16 @@ chooseSubsequence xs = do
 -- | Property: any non-empty subsequence (order-preserving) passes partial order check.
 prop_partial_order_subset_succeeds :: Property
 prop_partial_order_subset_succeeds = forAll scriptGen $ \scr@(Script xs) -> not (null xs) ==> monadicIO $ do
-  run resetMockHistory
   subset <- run $ generate $ chooseSubsequence xs
-  f <- run $ buildUnaryMock scr
-  run $ runScript f scr
-  run $ f `shouldBeCalled` inPartialOrderWith (param <$> subset)
+  run $ withMock $ do
+    f <- mock (cases [ param a ~> True | a <- xs ])
+           `expects` calledInSequence subset
+    liftIO $ runScript f scr
   assert True
 
 -- | Property: selecting two distinct values and reversing them causes partial order failure.
 prop_partial_order_reversed_pair_fails :: Property
 prop_partial_order_reversed_pair_fails = forAll scriptGen $ \scr@(Script xs) -> length xs >= 2 ==> monadicIO $ do
-  run resetMockHistory
   if length (nub xs) /= length xs
     then assert True -- discard non-unique scripts to avoid accidental subsequences
     else do
@@ -70,10 +87,14 @@ prop_partial_order_reversed_pair_fails = forAll scriptGen $ \scr@(Script xs) -> 
       case listToMaybe pairs of
         Nothing -> assert True
         Just (i,j) -> do
-          f <- run $ buildUnaryMock scr
-          run $ runScript f scr
           let reversed = [xs!!j, xs!!i]
-          e <- run $ (try (f `shouldBeCalled` inPartialOrderWith (param <$> reversed)) :: IO (Either SomeException ()))
+          -- Verify failure
+          e <- run ((try $ withMock $ do
+              f <- mock (cases [ param a ~> True | a <- xs ])
+                     `expects` calledInSequence reversed
+              liftIO $ runScript f scr
+              ) :: IO (Either SomeException ()))
+          
           case e of
             Left _ -> assert True
             Right _ -> assert False

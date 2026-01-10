@@ -8,11 +8,14 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# OPTIONS_GHC -Wno-missing-export-lists #-}
 {-# OPTIONS_GHC -Wno-simplifiable-class-constraints #-}
-module Property.LazyEvalProp where
+module Property.LazyEvalProp (spec, prop_lazy_unforced_not_counted, prop_lazy_forced_counted) where
 
 import Test.QuickCheck hiding (once)
 import Test.QuickCheck.Monadic (monadicIO, run, assert)
 import Test.MockCat hiding (any)
+import Test.Hspec (Spec, describe, it)
+
+
 
 -- | Unary action so we can register a concrete expected argument & return value.
 --   We test that constructing (but not forcing) the call does not count.
@@ -45,3 +48,9 @@ prop_lazy_forced_counted = monadicIO $ do
     v <- lazyUnaryAction 10   -- forcing the monadic action executes the mock
     v `seq` pure ()           -- ensure result is evaluated (WHNF for Int)
   assert True
+
+spec :: Spec
+spec = do
+    describe "Property Lazy Evaluation" $ do
+      it "unforced stub action is not counted" $ property prop_lazy_unforced_not_counted
+      it "forced stub action is counted" $ property prop_lazy_forced_counted

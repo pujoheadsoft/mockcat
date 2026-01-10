@@ -3,6 +3,7 @@
 {-# LANGUAGE MonoLocalBinds #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ExistentialQuantification #-}
+{- HLINT ignore "Use newtype instead of data" -}
 
 
 module Test.MockCat.Internal.Registry.Core
@@ -149,8 +150,6 @@ clearThreadWithMockContext = do
   tid <- myThreadId
   atomically $ modifyTVar' threadWithMockStore (Map.delete tid)
 
-
-
 attachVerifierToFn ::
   forall fn params.
   (Typeable (InvocationRecorder params)) =>
@@ -177,15 +176,7 @@ lookupVerifierForFn fn = do
       
   case mbMatch of
     Just match -> pure [match]
-    Nothing -> do
-      -- 2. Fallback: return thread's mock history
-      --    This handles case where StableName is unstable (e.g. HPC enabled)
-      tid <- myThreadId
-      atomically $ do
-        hist <- readTVar threadMockHistory
-        case Map.lookup tid hist of
-           Nothing -> pure []
-           Just list -> pure list
+    Nothing -> pure []
 
 attachDynamicVerifierToFn :: forall fn. fn -> (Maybe MockName, Dynamic) -> IO ()
 attachDynamicVerifierToFn fn (name, payload) = do
@@ -219,12 +210,6 @@ findMatch target  (entry : rest)
   | sameFnStable target (stableFnName entry) = Just (mockName entry, entryPayload entry)
   | otherwise = findMatch target rest
 
-
-
-
-
-
-
 type UnitStableName = SomeStableName
 
 data UnitMeta = UnitMeta
@@ -249,10 +234,6 @@ type UnitRegistry = IntMap [UnitEntry]
 
 unitRegistry :: TVar UnitRegistry
 unitRegistry = (unsafePerformIO $ newTVarIO IntMap.empty) :: TVar UnitRegistry
-
-
-
-
 
 registerUnitMeta :: TVar ref -> IO UnitMeta
 registerUnitMeta ref = do
@@ -311,5 +292,3 @@ setAllUnitGuards flag =
     store <- readTVar unitRegistry
     forM_ (concat (IntMap.elems store)) $ \entry ->
       writeTVar (unitGuardRef (unitEntryMeta entry)) flag
-
-

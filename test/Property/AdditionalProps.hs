@@ -7,21 +7,31 @@
 {-# OPTIONS_GHC -fno-hpc #-}
 {-# OPTIONS_GHC -Wno-deprecations #-}
 module Property.AdditionalProps
-  ( prop_predicate_param_match_counts
+  ( spec
+  , prop_predicate_param_match_counts
   , prop_multicase_progression
   , prop_runMockT_isolation
   , prop_partial_order_duplicates
   ) where
 
-import Test.QuickCheck
+import Test.QuickCheck hiding (once)
 import Test.QuickCheck.Monadic (monadicIO, run, assert)
 import Control.Exception (try, SomeException, evaluate)
 import Control.Monad (forM, forM_)
 import Data.List (nub)
-import Data.Proxy (Proxy(..))
+
 import Test.MockCat
 import Control.Monad.IO.Class (liftIO)
 import Property.Generators (resetMockHistory)
+import Test.Hspec (Spec, describe, it)
+
+spec :: Spec
+spec = do
+    describe "Property Additional (Predicate / Multi-case / Isolation / Duplicates)" $ do
+      it "predicate param counts match" $ property prop_predicate_param_match_counts
+      it "multi-case progression saturates" $ property prop_multicase_progression
+      it "runMockT isolation of counts" $ property prop_runMockT_isolation
+      it "partial order with duplicates behaves" $ property prop_partial_order_duplicates
 
 perCall :: Int -> a -> a
 perCall i x = case i of
@@ -33,19 +43,26 @@ perCall i x = case i of
 
 -- | Property: A predicate Param (expect even) accepts only matching values and
 -- the total recorded calls equals count of even inputs attempted.
+-- | Property: A predicate Param (expect even) accepts only matching values and
+-- the total recorded calls equals count of even inputs attempted.
 prop_predicate_param_match_counts :: Property
 prop_predicate_param_match_counts = forAll genVals $ \xs -> monadicIO $ do
-  run resetMockHistory
-  -- build predicate mock: (Int -> Bool) returning True for all evens
-  f <- run $ mock (expect even "even" ~> True)
-  results <- run $ mapM (\x -> try (evaluate (f x)) :: IO (Either SomeException Bool)) xs
-  let successes = length [ () | Right _ <- results ]
-      expected  = length (filter even xs)
-  -- sanity: every success came from an even value
-  assert (all even [ x | (x, Right _) <- zip xs results ])
-  -- counts should match
-  run $ f `shouldBeCalled` times expected
-  assert (successes == expected)
+  -- Use withMock
+  let expected  = length (filter even xs)
+  run $ withMock $ do
+     -- build predicate mock
+     f <- mock (expect even "even" ~> True)
+            `expects` called (times expected)
+            
+     results <- liftIO $ mapM (\x -> try (evaluate (f x)) :: IO (Either SomeException Bool)) xs
+     
+     let successes = length [ () | Right _ <- results ]
+     -- sanity checks (optional, but runMockT handles main verification)
+     liftIO $ do
+       if successes /= expected 
+         then error $ "Success count mismatch: " ++ show successes ++ " vs " ++ show expected
+         else pure ()
+  assert True
   where
     genVals = resize 40 $ listOf (arbitrary :: Gen Int)
 
@@ -57,23 +74,23 @@ prop_predicate_param_match_counts = forAll genVals $ \xs -> monadicIO $ do
 -- saturate at the last value.
 prop_multicase_progression :: Property
 prop_multicase_progression = forAll genSeq $ \(arg, rs, extra) -> monadicIO $ do
-  run resetMockHistory
-  f <- run $ mock $ cases [ param arg ~> r | r <- rs ]
   let totalCalls = length rs + extra
-  -- NOTE [GHC9.4 duplicate-call counting]
-  -- On GHC 9.4 we observed that using @replicateM totalCalls (evaluate (f arg))@
-  -- can result in only a single side‑effect (call recording) when all
-  -- of (argument,result) pairs are identical. The optimizer (or full laziness
-  -- even under -O0) may float the pure expression @f arg@ and share it.
-  -- We intentionally inject the loop index via a seq so each iteration has a
-  -- syntactically distinct thunk, ensuring the unsafePerformIO body runs per call.
-  vals <- run $
-    forM [1 .. totalCalls] $ \i ->
-      evaluate (perCall i (f arg))
-  let (prefix, suffix) = splitAt (length rs) vals
-  assert (prefix == rs)
-  assert (all (== last rs) suffix)
-  run $ f `shouldBeCalled` times totalCalls
+  run $ withMock $ do
+    f <- mock (cases [ param arg ~> r | r <- rs ])
+           `expects` called (times totalCalls)
+           
+    -- Run loop
+    vals <- liftIO $
+      forM [1 .. totalCalls] $ \i ->
+        evaluate (perCall i (f arg))
+        
+    liftIO $ do
+      let (prefix, suffix) = splitAt (length rs) vals
+      if prefix /= rs || not (all (== last rs) suffix)
+         then error "Result sequence mismatch"
+         else pure ()
+         
+  assert True
   where
     genSeq = do
       arg <- arbitrary :: Gen Int
@@ -93,18 +110,23 @@ prop_runMockT_isolation :: Property
 prop_runMockT_isolation = monadicIO $ do
   run resetMockHistory
   -- Run 1: expect one call
-  r1 <- run $ try $ runMockT $ do
-    f <- liftIO $ mock (param (1 :: Int) ~> True)
-    addDefinition Definition { symbol = Proxy @"iso", mockFunction = f, verification = Verification (\m' -> m' `shouldBeCalled` times 1) }
+  r1 <- run ((try $ runMockT $ do
+    f <- mock (param (1 :: Int) ~> True)
+          `expects` called once
     liftIO $ f 1 `seq` pure ()
+    ) :: IO (Either SomeException ()))
+
   case r1 of
     Left (_ :: SomeException) -> assert False
     Right () -> assert True
+    
   -- Run 2: expect zero (if leaked, would see 1 and fail)
-  r2 <- run $ try $ runMockT $ do
-    f <- liftIO $ mock (param (1 :: Int) ~> True)
-    addDefinition Definition { symbol = Proxy @"iso", mockFunction = f, verification = Verification (\m' -> m' `shouldBeCalled` times 0) }
+  r2 <- run ((try $ runMockT $ do
+    _f <- mock (param (1 :: Int) ~> True)
+          `expects` called never
     pure ()
+    ) :: IO (Either SomeException ()))
+    
   case r2 of
     Left (_ :: SomeException) -> assert False
     Right () -> assert True
@@ -118,19 +140,24 @@ prop_runMockT_isolation = monadicIO $ do
 -- list of first occurrences; reversing that list (when length >=2) fails.
 prop_partial_order_duplicates :: Property
 prop_partial_order_duplicates = forAll genDupScript $ \xs -> length xs >= 2 ==> monadicIO $ do
-  run resetMockHistory
-  -- build mock over sequence
-  f <- run $ mock $ cases [ param x ~> True | x <- xs ]
-  run $ forM_ xs $ \x -> f x `seq` pure ()
   let uniques = nub xs
   -- success case
-  run $ f `shouldBeCalled` inPartialOrderWith (param <$> uniques)
+  run $ withMock $ do
+      f <- mock (cases [ param x ~> True | x <- xs ])
+             `expects` calledInSequence uniques
+      liftIO $ forM_ xs $ \x -> f x `seq` pure ()
   assert True
+  
   -- failure case (if we have at least two unique values)
   case uniques of
     (_:_:_) | isClusterOrdered uniques xs -> do
       let reversed = reverse uniques
-      e <- run (try (f `shouldBeCalled` inPartialOrderWith (param <$> reversed)) :: IO (Either SomeException ()))
+      e <- run ((try $ withMock $ do
+          f <- mock (cases [ param x ~> True | x <- xs ])
+                `expects` calledInSequence reversed
+          liftIO $ forM_ xs $ \x -> f x `seq` pure ()
+          ) :: IO (Either SomeException ()))
+          
       case e of
         Left _ -> assert True
         Right _ -> assert False

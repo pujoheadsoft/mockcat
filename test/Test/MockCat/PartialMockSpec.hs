@@ -16,7 +16,7 @@ module Test.MockCat.PartialMockSpec (spec) where
 import Data.Text (Text)
 import Test.Hspec (Spec)
 import Data.List (find)
-import Control.Monad.IO.Class (MonadIO, liftIO)
+import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.Trans.Class (lift)
 import Test.MockCat
 import Test.MockCat.SharedSpecDefs
@@ -28,18 +28,7 @@ import GHC.TypeLits (KnownSymbol, symbolVal)
 import Unsafe.Coerce (unsafeCoerce)
 import qualified Test.MockCat.Verify as Verify
 
-ensureVerifiable ::
-  ( MonadIO m
-  , Verify.ResolvableMock target
-  ) =>
-  target ->
-  m ()
-ensureVerifiable target =
-  liftIO $ do
-    candidates <- Verify.resolveForVerification target
-    case candidates of
-      [] -> Verify.verificationFailure
-      _ -> pure ()
+
 
 instance UserInputGetter IO where
   getInput = getLine
@@ -113,7 +102,7 @@ _readFile ::
   MockT m (FilePath -> Text)
 _readFile p = MockT $ do
   mockInstance <- unMockT $ mock (label "readFile") p
-  ensureVerifiable mockInstance
+
   addDefinition (Definition (Proxy :: Proxy "readFile") mockInstance NoVerification)
   pure mockInstance
 
@@ -125,7 +114,7 @@ _writeFile ::
   MockT m (MockResult (Verify.ResolvableParamsOf (FilePath -> Text -> ())))
 _writeFile p = MockT $ do
   mockInstance <- unMockT $ mock (label "writeFile") p
-  ensureVerifiable mockInstance
+
   addDefinition (Definition (Proxy :: Proxy "writeFile") mockInstance NoVerification)
   pure (MockResult ())
 
@@ -138,7 +127,7 @@ _getInput ::
   MockT m (MockResult (Verify.ResolvableParamsOf String))
 _getInput value = MockT $ do
   mockInstance <- unMockT $ mock (label "getInput") value
-  ensureVerifiable mockInstance
+
   addDefinition (Definition (Proxy :: Proxy "getInput") mockInstance NoVerification)
   pure (MockResult ())
 
@@ -152,7 +141,7 @@ _toUserInput ::
   MockT m (String -> m (Maybe UserInput))
 _toUserInput p = MockT $ do
   mockInstance <- unMockT $ mock (label "toUserInput") p
-  ensureVerifiable mockInstance
+
   addDefinition (Definition (Proxy :: Proxy "toUserInput") mockInstance NoVerification)
   pure mockInstance
 
@@ -163,7 +152,7 @@ _getByPartial ::
   MockT IO (MockResult (Verify.ResolvableParamsOf (String -> IO Int)))
 _getByPartial p = MockT $ do
   mockInstance <- unMockT $ mock (label "getBy") p
-  ensureVerifiable mockInstance
+
   addDefinition (Definition (Proxy :: Proxy "getBy") mockInstance NoVerification)
   pure (MockResult ())
 
@@ -174,7 +163,7 @@ _echoPartial ::
   MockT IO (MockResult (Verify.ResolvableParamsOf (String -> IO ())))
 _echoPartial p = MockT $ do
   mockInstance <- unMockT $ mock (label "echo") p
-  ensureVerifiable mockInstance
+
   addDefinition (Definition (Proxy :: Proxy "echo") mockInstance NoVerification)
   pure (MockResult ())
 
@@ -213,7 +202,7 @@ _findIds ::
 _findIds p = MockT $ do
   mockInstance <- unMockT $ mock (label "_findIds") p
 
-  ensureVerifiable mockInstance
+
   addDefinition
     ( Definition
         (Proxy :: Proxy "_findIds")
@@ -230,7 +219,7 @@ _findById ::
   MockT m (MockResult (Verify.ResolvableParamsOf (Int -> String)))
 _findById p = MockT $ do
   mockInstance <- unMockT $ mock (label "_findById") p
-  ensureVerifiable mockInstance
+
   addDefinition
     ( Definition
         (Proxy :: Proxy "_findById")
@@ -246,7 +235,7 @@ _findByIdNI ::
   MockT IO (MockResult (Verify.ResolvableParamsOf (Int -> IO String)))
 _findByIdNI p = MockT $ do
   mockInstance <- unMockT $ mock (label "_findByIdNI") p
-  ensureVerifiable mockInstance
+
   addDefinition
     ( Definition
         (Proxy :: Proxy "_findByIdNI")

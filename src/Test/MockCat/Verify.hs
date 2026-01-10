@@ -174,28 +174,19 @@ verificationFailureMessage :: String
 verificationFailureMessage =
   intercalate
     "\n"
-    [ "Error: 'shouldBeCalled' can only verify functions created by 'mock'.",
+    [ "Error: Mock verification failed.",
       "",
-      "The value you passed could not be recognized as a mock function.",
+      "The function passed to 'shouldBeCalled' could not be recognized as a registered mock.",
       "",
-      "This usually happens in one of the following cases:",
-      "  - You passed a normal (non-mock) function.",
-      "  - You passed a stub or value not created via 'mock' / 'mockIO'.",
-      "  - You are trying to verify a value that was never registered as a mock.",
+      "Possible causes:",
+      "  1. You passed a raw wrapper function around the mock.",
+      "  2. You passed a normal (non-mock) function.",
+      "  3. HPC (Coverage) is enabled. (HPC instrumentation changes function identity)",
       "",
-      "How to fix it:",
-      "  1. Make sure you created the function with 'mock' (or 'mockIO' for IO)",
-      "     before calling 'shouldBeCalled'.",
-      "  2. Pass that mock value directly to 'shouldBeCalled'",
-      "     (not the original function or a plain value).",
-      "",
-      "If this message still appears, check that:",
-      "  - You are not passing a pure constant.",
-      "  - The mock value is still in scope where 'shouldBeCalled' is used.",
-      "",
-      "Tip: If you prefer automatic verification,",
-      "consider using 'withMock', which runs all expectations at the end",
-      "of the block."
+      "Solution:",
+      "  - If you are using HPC or Wrappers, please use 'expects' or 'withMock' style.",
+      "    'expects' is robust against HPC and wrappers as it does not rely on function identity lookup.",
+      "  - Ensure you are passing the mock function directly created by 'mock'."
     ]
 
 -- ============================================

@@ -8,7 +8,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# OPTIONS_GHC -Wno-missing-export-lists #-}
 {-# OPTIONS_GHC -Wno-simplifiable-class-constraints #-}
-module Property.ConcurrentCountProp where
+module Property.ConcurrentCountProp (spec, prop_concurrent_total_apply_count) where
 
 import Test.QuickCheck
 import Test.QuickCheck.Monadic (monadicIO, run, assert)
@@ -17,6 +17,8 @@ import Control.Monad (replicateM_, replicateM)
 import Control.Monad.IO.Unlift (withRunInIO, MonadUnliftIO)
 import Test.MockCat hiding (any)
 import qualified Test.MockCat as MC (any)
+import Test.Hspec (Spec, describe, it)
+
 
 -- Class for local concurrent actions (defined independently instead of reusing existing ConcurrencySpec)
 class Monad m => PropConcurrencyAction m where
@@ -46,3 +48,8 @@ parallelInvoke :: (PropConcurrencyAction m, MonadUnliftIO m) => Int -> Int -> m 
 parallelInvoke threads callsPerThread = withRunInIO $ \runInIO -> do
   as <- replicateM threads (async $ runInIO $ replicateM_ callsPerThread (propAction 42 >> pure ()))
   mapM_ wait as
+
+spec :: Spec
+spec = do
+  describe "Property Concurrency" $ do
+    it "total apply count is preserved across threads" $ property prop_concurrent_total_apply_count

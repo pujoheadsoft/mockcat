@@ -96,8 +96,8 @@ test-suite mockcat-test
       Test.MockCat.ConsSpec
       Test.MockCat.DeriveSpec
       Test.MockCat.ExampleSpec
-      Test.MockCat.HPCFallbackSpec
       Test.MockCat.HPCNestSpec
+      Test.MockCat.HpcSpec
       Test.MockCat.Impl
       Test.MockCat.Internal.MockRegistrySpec
       Test.MockCat.MockSpec
@@ -112,6 +112,7 @@ test-suite mockcat-test
       Test.MockCat.ShouldBeCalledMockMSpec
       Test.MockCat.ShouldBeCalledSpec
       Test.MockCat.StubSpec
+      Test.MockCat.TestHelper
       Test.MockCat.TH.ClassAnalysisSpec
       Test.MockCat.TH.ContextBuilderSpec
       Test.MockCat.TH.FunctionBuilderSpec

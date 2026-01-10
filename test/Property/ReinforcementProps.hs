@@ -10,8 +10,7 @@
 {-# OPTIONS_GHC -Wno-simplifiable-class-constraints #-}
 {-# OPTIONS_GHC -fno-hpc #-}
 {-# OPTIONS_GHC -Wno-deprecations #-}
-module Property.ReinforcementProps
-  where
+module Property.ReinforcementProps (spec, prop_predicate_negative_not_counted, prop_lazy_partial_force_concurrency, prop_partial_order_interleaved_duplicates) where
 
 import Test.QuickCheck
 import Test.QuickCheck.Monadic (monadicIO, run, assert)
@@ -20,6 +19,10 @@ import Control.Concurrent.Async (forConcurrently_)
 import UnliftIO (withRunInIO)
 import Test.MockCat hiding (any)
 import Property.Generators (resetMockHistory)
+import Control.Monad.IO.Class (liftIO)
+import Test.Hspec (Spec, describe, it)
+
+
 
 --------------------------------------------------------------------------------
 -- 1. Predicate negative: failing inputs raise & are not counted
@@ -27,22 +30,25 @@ import Property.Generators (resetMockHistory)
 
 prop_predicate_negative_not_counted :: Property
 prop_predicate_negative_not_counted = forAll genVals $ \xs -> monadicIO $ do
-  run resetMockHistory
-  f <- run $ mock (expect even "even" ~> True)
-  outcomes <- run $ mapM (\x -> (try (evaluate (f x)) :: IO (Either SomeException Bool))) xs
   let evens = length (filter even xs)
-      successes = length [ () | (x, Right _) <- zip xs outcomes, even x ]
-      oddSuccesses = [ x | (x, Right _) <- zip xs outcomes, odd x ]
-      failures = length [ () | (_, Left _) <- zip xs outcomes ]
-      odds = length (filter odd xs)
-  -- No odd value should succeed
-  assert (null oddSuccesses)
-  -- Failures count equals number of odd inputs
-  assert (failures == odds)
-  -- Successes count equals even inputs
-  assert (successes == evens)
-  -- Called count equals successes (only even)
-  run $ f `shouldBeCalled` times evens
+  run $ withMock $ do
+    f <- mock (expect even "even" ~> True)
+          `expects` called (times evens)
+          
+    outcomes <- liftIO $ mapM (\x -> (try (evaluate (f x)) :: IO (Either SomeException Bool))) xs
+    
+    {- Analysis (optional checks) -}
+    liftIO $ do
+      let successes = length [ () | (x, Right _) <- zip xs outcomes, even x ]
+          oddSuccesses = [ x | (x, Right _) <- zip xs outcomes, odd x ]
+          failures = length [ () | (_, Left _) <- zip xs outcomes ]
+          odds = length (filter odd xs)
+      -- No odd value should succeed
+      if not (null oddSuccesses) then error "oddSuccesses not null" else pure ()
+      -- Failures count equals number of odd inputs
+      if failures /= odds then error "failures /= odds" else pure ()
+      -- Successes count equals even inputs
+      if successes /= evens then error "successes /= evens" else pure ()
   assert True
   where
     genVals = resize 60 $ listOf (arbitrary :: Gen Int)
@@ -88,14 +94,22 @@ prop_lazy_partial_force_concurrency = forAll genPlan $ \(arg, mask) -> monadicIO
 
 prop_partial_order_interleaved_duplicates :: Property
 prop_partial_order_interleaved_duplicates = forAll genPair $ \(a,b) -> a /= b ==> monadicIO $ do
-  run resetMockHistory
   -- Pattern a a b : [a,b] subsequence succeeds, [b,a] fails.
-  f <- run $ mock $ cases [ param a ~> True
-                                , param a ~> True
-                                , param b ~> True ]
-  run $ f a `seq` f a `seq` f b `seq` pure ()
-  run $ f `shouldBeCalled` inPartialOrderWith [param a, param b]
-  e <- run $ (try (f `shouldBeCalled` inPartialOrderWith [param b, param a]) :: IO (Either SomeException ()))
+  run $ withMock $ do
+      f <- mock (cases [ param a ~> True
+                                    , param a ~> True
+                                    , param b ~> True ])
+             `expects` calledInSequence [a, b]
+      liftIO $ f a `seq` f a `seq` f b `seq` pure ()
+
+  e <- run ((try $ withMock $ do
+      f <- mock (cases [ param a ~> True
+                                    , param a ~> True
+                                    , param b ~> True ])
+             `expects` calledInSequence [b, a]
+      liftIO $ f a `seq` f a `seq` f b `seq` pure ()
+      ) :: IO (Either SomeException ()))
+
   case e of
     Left _  -> assert True
     Right _ -> assert False
@@ -105,3 +119,10 @@ prop_partial_order_interleaved_duplicates = forAll genPair $ \(a,b) -> a /= b ==
       a <- arbitrary :: Gen Int
       b <- arbitrary :: Gen Int
       pure (a,b)
+
+spec :: Spec
+spec = do
+    describe "Property Reinforcement (Negative predicate / Partial force / Interleave)" $ do
+      it "predicate negative not counted" $ property prop_predicate_negative_not_counted
+      it "lazy partial force in concurrency counts only forced" $ property prop_lazy_partial_force_concurrency
+      it "interleaved duplicate partial order semantics" $ property prop_partial_order_interleaved_duplicates

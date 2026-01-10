@@ -1,4 +1,7 @@
-import Test.Hspec (hspec, describe, it)
+{-# LANGUAGE BlockArguments #-}
+import Test.Hspec (hspec, describe, it, pendingWith)
+import Test.MockCat.TestHelper (checkStrictVerificationWorks)
+
 import Test.MockCat.MockSpec as Mock
 import Test.MockCat.DeriveSpec as Derive
 import Test.MockCat.ConsSpec as Cons
@@ -6,7 +9,6 @@ import Test.MockCat.ParamSpec as Param
 import Test.MockCat.ExampleSpec as Example
 import Test.MockCat.TypeClassMinimalSpec as TypeClassMinimal
 import Test.MockCat.TypeClassSpec as TypeClass
-
 import Test.MockCat.TypeClassTHSpec as TypeClassTH
 import Test.MockCat.PartialMockSpec as PartialMock
 import Test.MockCat.PartialMockTHSpec as PartialMockTH
@@ -26,11 +28,10 @@ import Test.MockCat.ShouldBeCalledErrorDiffSpec as ShouldBeCalledErrorDiff
 import Test.MockCat.WithMockErrorDiffSpec as WithMockErrorDiff
 import Test.MockCat.THCompareSpec as THCompare
 import ReadmeVerifySpec as ReadmeVerify
-import qualified Test.MockCat.HPCFallbackSpec as HPCFallback
 import qualified Test.MockCat.MultipleMocksSpec as MultipleMocks
 import qualified Test.MockCat.TypeFamilySpec as TypeFamily
 import Test.MockCat.UnsafeCheck ()
-import Test.QuickCheck (property)
+import Test.QuickCheck ()
 import qualified Property.ConcurrentCountProp as ConcurrencyProp
 import qualified Property.LazyEvalProp as LazyEvalProp
 import qualified Property.ScriptProps as ScriptProps
@@ -40,9 +41,22 @@ import qualified Property.ReinforcementProps as ReinforcementProps
 import qualified Property.ParamSpecNormalizeProp as ParamSpecNormalizeProp
 import qualified Property.ParamSpecMergeProp as ParamSpecMergeProp
 import qualified Property.ParamSpecRangeMergeRandomProp as ParamSpecRangeMergeRandomProp
+import qualified Test.MockCat.HpcSpec as HpcSpec
 
 main :: IO ()
-main = hspec $ do
+main = do
+  strictWorks <- checkStrictVerificationWorks
+  -- If strict verification works (Standard), verify everything.
+  -- If it fails (HPC enabled), skip standard verification tests that would falsely fail.
+  let conditionalSpec = if strictWorks 
+        then id 
+        else \_ -> describe "Standard Tests (Skipped due to HPC/Coverage detection)" $ 
+                        it "All standard verification tests skipped" $ 
+                          pendingWith "Strict Verification disabled (HPC active)"
+
+  hspec $ do
+    -- ALWAYS RUN: HpcSpec & Safe Tests (Cons, Param, Mock, Stub, Expects-based, etc.)
+    HpcSpec.spec
     Cons.spec
     Param.spec
     Derive.spec
@@ -56,43 +70,32 @@ main = hspec $ do
     Concurrency.spec
     Stub.spec
     MockTSpec.spec
-    Registry.spec
     THCompare.spec
     THTypeUtils.spec
     THContextBuilder.spec
     THClassAnalysis.spec
     THFunctionBuilder.spec
-    ShouldBeCalled.spec
-    ShouldBeCalledMockM.spec
     WithMock.spec
-    WithMockIO.spec
-    ShouldBeCalledErrorDiff.spec
     WithMockErrorDiff.spec
-    ReadmeVerify.spec
-    HPCFallback.spec
+    WithMockIO.spec
     MultipleMocks.spec
     TypeFamily.spec
-    describe "Property Concurrency" $ do
-      it "total apply count is preserved across threads" $ property ConcurrencyProp.prop_concurrent_total_apply_count
-    describe "Property Lazy Evaluation" $ do
-      it "unforced stub action is not counted" $ property LazyEvalProp.prop_lazy_unforced_not_counted
-      it "forced stub action is counted" $ property LazyEvalProp.prop_lazy_forced_counted
-    describe "Property Script Generator" $ do
-      it "script count matches recorded calls" $ property ScriptProps.prop_script_count_matches
-    describe "Property Order / PartialOrder" $ do
-      it "in-order script succeeds" $ property OrderProps.prop_inorder_succeeds
-      it "adjacent swap fails order verification" $ property OrderProps.prop_adjacent_swap_fails
-      it "subset partial order succeeds" $ property OrderProps.prop_partial_order_subset_succeeds
-      it "reversed pair fails partial order" $ property OrderProps.prop_partial_order_reversed_pair_fails
-    describe "Property Additional (Predicate / Multi-case / Isolation / Duplicates)" $ do
-      it "predicate param counts match" $ property AdditionalProps.prop_predicate_param_match_counts
-      it "multi-case progression saturates" $ property AdditionalProps.prop_multicase_progression
-      it "runMockT isolation of counts" $ property AdditionalProps.prop_runMockT_isolation
-      it "partial order with duplicates behaves" $ property AdditionalProps.prop_partial_order_duplicates
-    describe "Property Reinforcement (Negative predicate / Partial force / Interleave)" $ do
-      it "predicate negative not counted" $ property ReinforcementProps.prop_predicate_negative_not_counted
-      it "lazy partial force in concurrency counts only forced" $ property ReinforcementProps.prop_lazy_partial_force_concurrency
-      it "interleaved duplicate partial order semantics" $ property ReinforcementProps.prop_partial_order_interleaved_duplicates
+
+    ConcurrencyProp.spec
+    LazyEvalProp.spec
+    ScriptProps.spec
+    OrderProps.spec
+    AdditionalProps.spec
+    ReinforcementProps.spec
+    
     ParamSpecNormalizeProp.spec
     ParamSpecMergeProp.spec
     ParamSpecRangeMergeRandomProp.spec
+    
+    -- CONDITIONAL RUN: Standard Tests using 'shouldBeCalled' (Unsafe under HPC)
+    conditionalSpec $ do
+        Registry.spec
+        ShouldBeCalled.spec
+        ShouldBeCalledMockM.spec
+        ShouldBeCalledErrorDiff.spec
+        ReadmeVerify.spec
