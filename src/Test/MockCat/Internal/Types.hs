@@ -106,7 +106,8 @@ safeIndex xs n
   | n < 0 = Nothing
   | otherwise = listToMaybe (drop n xs)
 
-{-# NOINLINE perform #-}
+
+
 perform :: IO a -> a
 perform = unsafePerformIO
 

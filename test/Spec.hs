@@ -29,7 +29,7 @@ import Test.MockCat.WithMockErrorDiffSpec as WithMockErrorDiff
 import Test.MockCat.THCompareSpec as THCompare
 import qualified Test.MockCat.MultipleMocksSpec as MultipleMocks
 import qualified Test.MockCat.TypeFamilySpec as TypeFamily
-import Test.MockCat.UnsafeCheck ()
+import Test.MockCat.SafetyAnalysis ()
 import Test.QuickCheck ()
 import qualified Property.ConcurrentCountProp as ConcurrencyProp
 import qualified Property.LazyEvalProp as LazyEvalProp

@@ -83,7 +83,7 @@ class MonadIO m => RegisterMock m where
 
 -- | Safe implementation for ReaderT WithMockContext
 --   Uses local context, no unsafePerformIO!
-instance {-# OVERLAPPING #-} (MonadIO m, Typeable params) => 
+instance {-# OVERLAPPING #-} MonadIO m => 
   RegisterMock (ReaderT WithMockContext m) where
   registerMockInternal name verifier fn = do
     -- Still need to call MockRegistry.register for StableName lookup compatibility

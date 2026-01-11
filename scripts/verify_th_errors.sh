@@ -2,6 +2,11 @@
 set -e
 
 # Case 1: THFailureNoop.hs
+if [ ! -d "test-failure-cases" ]; then
+    echo "Error: test-failure-cases directory not found. Please run this script from the project root."
+    exit 1
+fi
+
 echo "Verifying THFailureNoop.hs (deriveNoopInstance)..."
 OUTPUT1=$(echo ":load test-failure-cases/THFailureNoop.hs" | stack repl --no-load --work-dir .stack-work-verify 2>&1 || true)
 EXPECTED_ERR_1='deriveNoopInstance: Function `bad` does not return `m ()`'
