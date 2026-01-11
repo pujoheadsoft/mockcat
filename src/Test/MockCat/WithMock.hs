@@ -40,7 +40,7 @@ module Test.MockCat.WithMock
   ) where
 
 import Control.Monad.IO.Class (MonadIO, liftIO)
-import Control.Monad.Reader (ReaderT(..), runReaderT)
+import Control.Monad.Reader (ReaderT(..), runReaderT, ask)
 import Control.Exception (bracket_)
 import Control.Concurrent.STM (newTVarIO, readTVarIO, atomically, modifyTVar')
 import Control.Monad.State (get, put, modify)
@@ -167,10 +167,11 @@ instance {-# OVERLAPPABLE #-} (ExpectsDispatchImpl 'False fn exp m) => ExpectsDi
 class ExpectsDispatchImpl (flag :: Bool) fn exp m where
   expectsDispatchImpl :: m fn -> exp -> m fn
 
--- | Instance for normal mocks (flag ~ 'False)
---   Strict matching of params
+-- | Instance for normal mocks (flag ~ 'False) - ReaderT specialized version
+--   Uses ask to obtain WithMockContext, avoiding unsafePerformIO
 instance
-  ( MonadIO m
+  {-# OVERLAPPING #-}
+  ( MonadIO m'
   , ResolvableMock fn
   , ResolvableParamsOf fn ~ params
   , ExtractParams exp
@@ -179,10 +180,10 @@ instance
   , Show params
   , EqParams params
   ) =>
-  ExpectsDispatchImpl 'False fn exp m
+  ExpectsDispatchImpl 'False fn exp (ReaderT WithMockContext m')
   where
   expectsDispatchImpl mockFnM exp = do
-    WithMockContext ctxVar <- liftIO askWithMockContext
+    WithMockContext ctxVar <- ask  -- ReaderT経由で取得、unsafePerformIO不要！
     -- Try to help type inference by using exp first
     let _ = extractParams exp :: Proxy params
     mockFn <- mockFnM
@@ -199,18 +200,52 @@ instance
     liftIO $ atomically $ modifyTVar' ctxVar (++ actions)
     pure mockFn
 
--- | Instance for MockResult mocks (flag ~ 'True)
+-- | Instance for normal mocks (flag ~ 'False) - Generic fallback
+--   Uses global registry (unsafePerformIO) for withMockIO compatibility
+instance
+  {-# OVERLAPPABLE #-}
+  ( MonadIO m
+  , ResolvableMock fn
+  , ResolvableParamsOf fn ~ params
+  , ExtractParams exp
+  , ExpParams exp ~ params
+  , BuildExpectations fn exp params
+  , Show params
+  , EqParams params
+  ) =>
+  ExpectsDispatchImpl 'False fn exp m
+  where
+  expectsDispatchImpl mockFnM exp = do
+    WithMockContext ctxVar <- liftIO askWithMockContext  -- グローバルレジストリ経由
+    -- Try to help type inference by using exp first
+    let _ = extractParams exp :: Proxy params
+    mockFn <- mockFnM
+    -- Get the recorder from the thread-local store (set by mock/register)
+    -- This avoids StableName lookup and is HPC-safe
+    (mockName, mRecorder) <- liftIO $ MockRegistry.getLastRecorder @(InvocationRecorder params)
+
+    let resolved = case mRecorder of
+          Just recorder -> ResolvedMock mockName recorder
+          Nothing -> errorWithoutStackTrace "expects: mock recorder not found. Use mock inside withMock/runMockT."
+
+    let expectations = buildExpectations mockFn exp
+    let actions = map (verifyExpectationDirect resolved) expectations
+    liftIO $ atomically $ modifyTVar' ctxVar (++ actions)
+    pure mockFn
+
+-- | Instance for MockResult mocks (flag ~ 'True) - ReaderT specialized version
 --   Dynamic resolution using expectation params
 instance
-  ( MonadIO m
+  {-# OVERLAPPING #-}
+  ( MonadIO m'
   , BuildExpectations (MockResult params) (Expectations params ()) params
   , Show params
   , EqParams params
   ) =>
-  ExpectsDispatchImpl 'True (MockResult params) (Expectations params ()) m
+  ExpectsDispatchImpl 'True (MockResult params) (Expectations params ()) (ReaderT WithMockContext m')
   where
   expectsDispatchImpl mockFnM exp = do
-    WithMockContext ctxVar <- liftIO askWithMockContext
+    WithMockContext ctxVar <- ask  -- ReaderT経由
     _ <- mockFnM
     (mockName, mRecorder) <- liftIO MockRegistry.getLastRecorderRaw
     resolved <- case mRecorder of
@@ -224,9 +259,61 @@ instance
     liftIO $ atomically $ modifyTVar' ctxVar (++ actions)
     pure (MockResult ())
 
--- | Instance for Unit mocks (flag ~ 'True)
+-- | Instance for MockResult mocks (flag ~ 'True) - Generic fallback
 --   Dynamic resolution using expectation params
 instance
+  {-# OVERLAPPABLE #-}
+  ( MonadIO m
+  , BuildExpectations (MockResult params) (Expectations params ()) params
+  , Show params
+  , EqParams params
+  ) =>
+  ExpectsDispatchImpl 'True (MockResult params) (Expectations params ()) m
+  where
+  expectsDispatchImpl mockFnM exp = do
+    WithMockContext ctxVar <- liftIO askWithMockContext  -- グローバルレジストリ
+    _ <- mockFnM
+    (mockName, mRecorder) <- liftIO MockRegistry.getLastRecorderRaw
+    resolved <- case mRecorder of
+      Just raw -> do
+         let recorder = unsafeCoerce raw :: InvocationRecorder params
+         pure $ ResolvedMock mockName recorder
+      Nothing -> errorWithoutStackTrace "expects: mock recorder not found (Dynamic Resolution Failed). Ensure the mock helper function was called."
+    -- Use the expectations directly since we know the context
+    let expectations = runExpectations exp
+    let actions = map (verifyExpectationDirect resolved) expectations
+    liftIO $ atomically $ modifyTVar' ctxVar (++ actions)
+    pure (MockResult ())
+
+-- | Instance for Unit mocks (flag ~ 'True) - ReaderT specialized version
+--   Dynamic resolution using expectation params
+instance
+  {-# OVERLAPPING #-}
+  ( MonadIO m'
+  , BuildExpectations () (Expectations params ()) params
+  , Show params
+  , EqParams params
+  ) =>
+  ExpectsDispatchImpl 'True () (Expectations params ()) (ReaderT WithMockContext m')
+  where
+  expectsDispatchImpl mockFnM exp = do
+    WithMockContext ctxVar <- ask  -- ReaderT経由
+    _ <- mockFnM
+    (mockName, mRecorder) <- liftIO MockRegistry.getLastRecorderRaw
+    resolved <- case mRecorder of
+      Just raw -> do
+         let recorder = unsafeCoerce raw :: InvocationRecorder params
+         pure $ ResolvedMock mockName recorder
+      Nothing -> errorWithoutStackTrace "expects: mock recorder not found (Dynamic Resolution Failed). Ensure the mock helper function was called."
+    let expectations = buildExpectations () exp
+    let actions = map (verifyExpectationDirect resolved) expectations
+    liftIO $ atomically $ modifyTVar' ctxVar (++ actions)
+    pure ()
+
+-- | Instance for Unit mocks (flag ~ 'True) - Generic fallback
+--   Dynamic resolution using expectation params
+instance
+  {-# OVERLAPPABLE #-}
   ( MonadIO m
   , BuildExpectations () (Expectations params ()) params
   , Show params
@@ -235,7 +322,7 @@ instance
   ExpectsDispatchImpl 'True () (Expectations params ()) m
   where
   expectsDispatchImpl mockFnM exp = do
-    WithMockContext ctxVar <- liftIO askWithMockContext
+    WithMockContext ctxVar <- liftIO askWithMockContext  -- グローバルレジストリ
     _ <- mockFnM
     (mockName, mRecorder) <- liftIO MockRegistry.getLastRecorderRaw
     resolved <- case mRecorder of
