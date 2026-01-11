@@ -34,6 +34,7 @@ import Data.IORef (newIORef, IORef)
 import Data.Dynamic (Dynamic)
 import UnliftIO (MonadUnliftIO(..))
 import Test.MockCat.Internal.Types (InvocationRecorder, WithMockContext(..))
+import qualified Test.MockCat.WithMock
 import Test.MockCat.Verify (ResolvableParamsOf)
 import Control.Concurrent.MVar (MVar)
 import qualified Data.Map.Strict as Map
@@ -74,6 +75,12 @@ instance MonadUnliftIO m => MonadUnliftIO (MockT m) where
   withRunInIO inner = MockT $ ReaderT $ \env ->
     withRunInIO $ \run -> inner (\(MockT r) -> run (runReaderT r env))
 
+-- | MockT has access to WithMockContext through MockTEnv
+--   This instance is safe (doesn't use unsafePerformIO) because
+--   MockT internally uses ReaderT MockTEnv, and MockTEnv contains
+--   the WithMockContext that was set up by runMockT.
+instance Monad m => Test.MockCat.WithMock.HasMockContext (MockT m) where
+  getMockContext = MockT $ ReaderT $ \env -> pure (envWithMockContext env)
 
 instance {-# OVERLAPPABLE #-} MonadReader r m => MonadReader r (MockT m) where
   ask = lift ask
