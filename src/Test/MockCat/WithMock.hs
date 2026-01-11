@@ -73,16 +73,17 @@ newtype MockResult params = MockResult ()
 
 
 -- | Run a block with mock expectations that are automatically verified
+--   This implementation does NOT use threadWithMockStore (no unsafePerformIO)
+--   because the context is passed via ReaderT environment.
 withMock :: ReaderT WithMockContext IO a -> IO a
 withMock action = do
   ctxVar <- newTVarIO []
   let ctx = WithMockContext ctxVar
-  bracket_ (setThreadWithMockContext ctx) clearThreadWithMockContext $ do
-    result <- runReaderT action ctx
-    -- Verify all registered verification actions
-    actions <- readTVarIO ctxVar
-    sequence_ actions
-    pure result
+  result <- runReaderT action ctx
+  -- Verify all registered verification actions
+  actions <- readTVarIO ctxVar
+  sequence_ actions
+  pure result
 
 -- | IO version of withMock
 withMockIO :: IO a -> IO a
