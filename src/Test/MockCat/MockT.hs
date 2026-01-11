@@ -160,7 +160,8 @@ runMockT :: MonadIO m => MockT m a -> m a
 runMockT (MockT r) = do
   liftIO Registry.resetMockHistory
   expectsVar <- liftIO $ newTVarIO []
-  let withMockCtx = WithMockContext expectsVar
+  recordersVar <- liftIO $ newTVarIO []
+  let withMockCtx = WithMockContext expectsVar recordersVar
   defsVar <- liftIO $ newTVarIO []
   fwdRef <- liftIO $ newIORef Map.empty
   let env =

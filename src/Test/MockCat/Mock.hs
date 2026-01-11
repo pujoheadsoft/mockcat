@@ -54,20 +54,49 @@ module Test.MockCat.Mock
   ) where
 
 import Control.Monad.IO.Class (MonadIO(..))
+import Control.Monad.Reader (ReaderT)
 import Control.Monad.State (get, put)
 import Control.Concurrent.STM (atomically, modifyTVar')
 import Data.Kind (Type)
 import Data.Proxy (Proxy(..))
 import Data.Typeable (Typeable)
+import Data.Dynamic (toDyn)
 import Prelude hiding (lookup)
 import Test.MockCat.Internal.Builder
 import Test.MockCat.Internal.Verify (verifyExpectationDirect)
 import qualified Test.MockCat.Internal.MockRegistry as MockRegistry ( register )
 import Test.MockCat.Internal.Types
-import Test.MockCat.WithMock (askWithMockContext)
+import Test.MockCat.WithMock (askWithMockContext, addRecorderLocal)
 import Test.MockCat.Param
 import Test.MockCat.Verify
 import Test.MockCat.Cons (Head(..), (:>)(..))
+
+
+-- | Internal helper class for mock registration dispatch
+--   This class abstracts the registration logic to allow for different
+--   implementations based on the monad context.
+--   - In ReaderT WithMockContext: uses local context (no unsafePerformIO)
+--   - In other MonadIO contexts: uses global registry (unsafePerformIO)
+class MonadIO m => RegisterMock m where
+  registerMockInternal :: (Typeable params, Typeable fn)
+    => Maybe MockName -> InvocationRecorder params -> fn -> m fn
+
+-- | Safe implementation for ReaderT WithMockContext
+--   Uses local context, no unsafePerformIO!
+instance {-# OVERLAPPING #-} (MonadIO m, Typeable params) => 
+  RegisterMock (ReaderT WithMockContext m) where
+  registerMockInternal name verifier fn = do
+    -- Still need to call MockRegistry.register for StableName lookup compatibility
+    result <- liftIO $ MockRegistry.register name verifier fn
+    -- Add to local context (no unsafePerformIO!)
+    addRecorderLocal name (toDyn verifier)
+    pure result
+
+-- | Fallback implementation for all other MonadIO contexts
+--   Uses global registry (unsafePerformIO) for backward compatibility
+instance {-# OVERLAPPABLE #-} MonadIO m => RegisterMock m where
+  registerMockInternal name verifier fn =
+    liftIO $ MockRegistry.register name verifier fn
 
 
 -- | Type family to convert raw values to mock parameters.
@@ -189,7 +218,7 @@ instance
     BuiltMock { builtMockFn = fn, builtMockRecorder = recorder } <- buildMock (Just name) (toParams params) :: m (BuiltMock fn verifyParams)
     _ <- liftIO $ MockRegistry.register (Just name) recorder fn
     
-    WithMockContext ctxRef <- liftIO askWithMockContext
+    WithMockContext {contextVerifications = ctxRef} <- liftIO askWithMockContext
     let resolved = ResolvedMock (Just name) recorder
     let verifyAction = mapM_ (verifyExpectationDirect resolved) exps
     liftIO $ atomically $ modifyTVar' ctxRef (++ [verifyAction])
@@ -240,7 +269,7 @@ instance {-# OVERLAPPING #-}
     BuiltMock { builtMockFn = fn, builtMockRecorder = recorder } <- buildMock Nothing (toParams params) :: m (BuiltMock fn verifyParams)
     _ <- liftIO $ MockRegistry.register Nothing recorder fn
     
-    WithMockContext ctxRef <- liftIO askWithMockContext
+    WithMockContext {contextVerifications = ctxRef} <- liftIO askWithMockContext
     let resolved = ResolvedMock Nothing recorder
     let verifyAction = mapM_ (verifyExpectationDirect resolved) exps
     liftIO $ atomically $ modifyTVar' ctxRef (++ [verifyAction])
@@ -284,7 +313,7 @@ class CreateMockFnM a where
   mockMImpl :: a
 
 instance
-  ( MonadIO m
+  ( RegisterMock m
   , CreateMock p
   , MockIOBuilder (ToMockParams p) fn verifyParams
   , LiftFunTo fn fnM m
@@ -297,10 +326,10 @@ instance
     let params = toParams p
     BuiltMock { builtMockFn = fnIO, builtMockRecorder = verifier } <- buildIO Nothing params
     let lifted = liftFunTo (Proxy :: Proxy m) fnIO
-    liftIO $ MockRegistry.register Nothing verifier lifted
+    registerMockInternal Nothing verifier lifted
 
 instance {-# OVERLAPPING #-}
-  ( MonadIO m
+  ( RegisterMock m
   , CreateMock p
   , MockIOBuilder (ToMockParams p) fn verifyParams
   , LiftFunTo fn fnM m
@@ -313,7 +342,7 @@ instance {-# OVERLAPPING #-}
     let params = toParams p
     BuiltMock { builtMockFn = fnIO, builtMockRecorder = verifier } <- buildIO (Just name) params
     let lifted = liftFunTo (Proxy :: Proxy m) fnIO
-    liftIO $ MockRegistry.register (Just name) verifier lifted
+    registerMockInternal (Just name) verifier lifted
 
 mockM :: CreateMockFnM a => a
 mockM = mockMImpl

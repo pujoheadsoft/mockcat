@@ -20,6 +20,7 @@ module Test.MockCat.WithMock
   , withMockIO
   , askWithMockContext
   , HasMockContext(..)
+  , addRecorderLocal
   ,expects
   , MockResult(..)
   , called
@@ -45,11 +46,13 @@ import Control.Monad.Reader (ReaderT(..), runReaderT, ask)
 import Control.Exception (bracket_)
 import Control.Concurrent.STM (newTVarIO, readTVarIO, atomically, modifyTVar')
 import Control.Monad.State (get, put, modify)
+import Data.Dynamic (Dynamic)
 import Test.MockCat.Verify (TimesSpec(..), times, once, never, atLeast, atMost, greaterThan, lessThan, anything, ResolvableMock, ResolvableParamsOf)
 import Test.MockCat.Internal.Verify (verifyExpectationDirect)
 import Test.MockCat.Internal.Types
   ( VerifyOrderMethod(..)
   , WithMockContext(..)
+  , MockName
   , Expectation(..)
   , Expectations(..)
   , runExpectations
@@ -78,7 +81,8 @@ newtype MockResult params = MockResult ()
 withMock :: ReaderT WithMockContext IO a -> IO a
 withMock action = do
   ctxVar <- newTVarIO []
-  let ctx = WithMockContext ctxVar
+  recordersVar <- newTVarIO []
+  let ctx = WithMockContext ctxVar recordersVar
   result <- runReaderT action ctx
   -- Verify all registered verification actions
   actions <- readTVarIO ctxVar
@@ -89,7 +93,8 @@ withMock action = do
 withMockIO :: IO a -> IO a
 withMockIO action = do
   ctxVar <- newTVarIO []
-  let ctx = WithMockContext ctxVar
+  recordersVar <- newTVarIO []
+  let ctx = WithMockContext ctxVar recordersVar
   bracket_ (setThreadWithMockContext ctx) clearThreadWithMockContext $ do
     result <- action
     -- Verify all registered verification actions
@@ -132,6 +137,15 @@ askWithMockContext = do
   case mCtx of
     Just ctx -> pure ctx
     Nothing -> errorWithoutStackTrace "askWithMockContext: No WithMockContext found in current thread. Use withMock or withMockIO."
+
+-- | Add a recorder to the local context (ReaderT environment)
+--   This does NOT use unsafePerformIO or global registry.
+--   Used by RegisterMock instance for safe registration.
+addRecorderLocal :: (HasMockContext m, MonadIO m)
+  => Maybe MockName -> Dynamic -> m ()
+addRecorderLocal name dyn = do
+  WithMockContext {contextRecorders = ref} <- getMockContext
+  liftIO $ atomically $ modifyTVar' ref ((name, dyn):)
 
 -- | Attach expectations to a mock function
 --   Supports both single expectation and multiple expectations in a do block
@@ -214,7 +228,7 @@ instance
   ExpectsDispatchImpl 'False fn exp m
   where
   expectsDispatchImpl mockFnM exp = do
-    WithMockContext ctxVar <- getMockContext  -- Capability-based access
+    WithMockContext {contextVerifications = ctxVar} <- getMockContext  -- Updated pattern
     -- Try to help type inference by using exp first
     let _ = extractParams exp :: Proxy params
     mockFn <- mockFnM
@@ -244,7 +258,7 @@ instance
   ExpectsDispatchImpl 'True (MockResult params) (Expectations params ()) m
   where
   expectsDispatchImpl mockFnM exp = do
-    WithMockContext ctxVar <- getMockContext  -- Capability-based access
+    WithMockContext {contextVerifications = ctxVar} <- getMockContext  -- Updated pattern
     _ <- mockFnM
     (mockName, mRecorder) <- liftIO MockRegistry.getLastRecorderRaw
     resolved <- case mRecorder of
@@ -271,7 +285,7 @@ instance
   ExpectsDispatchImpl 'True () (Expectations params ()) m
   where
   expectsDispatchImpl mockFnM exp = do
-    WithMockContext ctxVar <- getMockContext  -- Capability-based access
+    WithMockContext {contextVerifications = ctxVar} <- getMockContext  -- Updated pattern
     _ <- mockFnM
     (mockName, mRecorder) <- liftIO MockRegistry.getLastRecorderRaw
     resolved <- case mRecorder of

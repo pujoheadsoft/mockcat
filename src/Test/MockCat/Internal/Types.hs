@@ -14,6 +14,7 @@ module Test.MockCat.Internal.Types where
 import Control.Monad (ap)
 import Control.Concurrent.STM (TVar)
 import Data.Maybe (listToMaybe)
+import Data.Dynamic (Dynamic)
 import GHC.IO (unsafePerformIO)
 import Prelude hiding (lookup)
 import Control.Monad.State ( State, MonadState, execState, modify )
@@ -110,9 +111,13 @@ perform :: IO a -> a
 perform = unsafePerformIO
 
 -- | Mock expectation context holds verification actions to run at the end
---   of the `withMock` block. Storing `IO ()` avoids forcing concrete param
---   types at registration time.
-newtype WithMockContext = WithMockContext (TVar [IO ()])
+--   of the `withMock` block, and a recorder list for local registration.
+--   - contextVerifications: stores verification actions
+--   - contextRecorders: stores mock recorders (for expects to retrieve)
+data WithMockContext = WithMockContext
+  { contextVerifications :: TVar [IO ()]
+  , contextRecorders :: TVar [(Maybe MockName, Dynamic)]
+  }
 
 -- | Expectation specification
 data Expectation params where
