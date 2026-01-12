@@ -64,7 +64,7 @@ spec = do
           total = threads * callsPerThread :: Int
 
       withMockIO $ do
-        mockFn <- mock ((any @String) ~> pure @IO True)
+        mockFn <- mockM (any @String ~> True)
           `expects` called (times total)
 
         withRunInIO $ \runInIO -> do

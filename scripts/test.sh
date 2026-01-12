@@ -3,10 +3,26 @@ set -o pipefail
 
 DEFAULT_VERSIONS=("9.2.8" "9.4.8" "9.6.7" "9.8.4" "9.10.3" "9.12.2")
 
-if [ "$#" -gt 0 ]; then
-  VERSIONS=("$@")
-else
+# Parse arguments
+CLEAN=0
+VERSIONS=()
+for arg in "$@"; do
+  if [ "$arg" == "--clean" ]; then
+    CLEAN=1
+  else
+    VERSIONS+=("$arg")
+  fi
+done
+
+# Default versions if none specified
+if [ ${#VERSIONS[@]} -eq 0 ]; then
   VERSIONS=("${DEFAULT_VERSIONS[@]}")
+fi
+
+# Clean if requested
+if [ "$CLEAN" -eq 1 ]; then
+  echo "Cleaning build artifacts (dist-newstyle/)..."
+  rm -rf dist-newstyle/
 fi
 
 echo "Starting tests for versions: ${VERSIONS[*]}"
@@ -110,14 +126,13 @@ else
   TARGET_V="9.6.7"
   echo "  [GHC $TARGET_V] Generating Core dumps for safety analysis..."
   # We need optimization and specific GHC flags for Core dumping.
-  # Use sed trick to make perform INLINE temporarily to improve visibility in Core
-  # Target this exact line: perform :: IO a -> a
-  sed -i '/^perform :: IO a -> a$/i {-# INLINE perform #-}' src/Test/MockCat/Internal/Types.hs
+  # Use sed trick to swap NOINLINE -> INLINE temporarily to improve visibility in Core
+  sed -i 's/{-# NOINLINE perform #-}/{-# INLINE perform #-}/' src/Test/MockCat/Internal/Types.hs
   
   cabal v2-build test:mockcat-test --enable-tests --disable-coverage -O1 --ghc-options="-ddump-simpl -ddump-to-file -dsuppress-all -fforce-recomp" -w ~/.ghcup/bin/ghc-"$TARGET_V"
   
-  # Restore
-  sed -i '/{-# INLINE perform #-}/d' src/Test/MockCat/Internal/Types.hs
+  # Restore NOINLINE
+  sed -i 's/{-# INLINE perform #-}/{-# NOINLINE perform #-}/' src/Test/MockCat/Internal/Types.hs
 
   if ./scripts/verify_mock_unsafe.sh; then
       echo "Safety Analysis passed."
