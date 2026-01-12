@@ -110,8 +110,15 @@ else
   TARGET_V="9.6.7"
   echo "  [GHC $TARGET_V] Generating Core dumps for safety analysis..."
   # We need optimization and specific GHC flags for Core dumping.
-  cabal v2-build test:mockcat-test --enable-tests --disable-coverage -O1 --ghc-options="-ddump-simpl -ddump-to-file -dsuppress-all" -w ~/.ghcup/bin/ghc-"$TARGET_V" > /dev/null 2>&1
+  # Use sed trick to make perform INLINE temporarily to improve visibility in Core
+  # Target this exact line: perform = unsafePerformIO
+  sed -i '/^perform = unsafePerformIO$/a {-# INLINE perform #-}' src/Test/MockCat/Internal/Types.hs
   
+  cabal v2-build test:mockcat-test --enable-tests --disable-coverage -O1 --ghc-options="-ddump-simpl -ddump-to-file -dsuppress-all -fforce-recomp" -w ~/.ghcup/bin/ghc-"$TARGET_V" > /dev/null 2>&1
+  
+  # Restore
+  sed -i '/{-# INLINE perform #-}/d' src/Test/MockCat/Internal/Types.hs
+
   if ./scripts/verify_mock_unsafe.sh; then
       echo "Safety Analysis passed."
   else
