@@ -111,10 +111,10 @@ else
   echo "  [GHC $TARGET_V] Generating Core dumps for safety analysis..."
   # We need optimization and specific GHC flags for Core dumping.
   # Use sed trick to make perform INLINE temporarily to improve visibility in Core
-  # Target this exact line: perform = unsafePerformIO
-  sed -i '/^perform = unsafePerformIO$/a {-# INLINE perform #-}' src/Test/MockCat/Internal/Types.hs
+  # Target this exact line: perform :: IO a -> a
+  sed -i '/^perform :: IO a -> a$/i {-# INLINE perform #-}' src/Test/MockCat/Internal/Types.hs
   
-  cabal v2-build test:mockcat-test --enable-tests --disable-coverage -O1 --ghc-options="-ddump-simpl -ddump-to-file -dsuppress-all -fforce-recomp" -w ~/.ghcup/bin/ghc-"$TARGET_V" > /dev/null 2>&1
+  cabal v2-build test:mockcat-test --enable-tests --disable-coverage -O1 --ghc-options="-ddump-simpl -ddump-to-file -dsuppress-all -fforce-recomp" -w ~/.ghcup/bin/ghc-"$TARGET_V"
   
   # Restore
   sed -i '/{-# INLINE perform #-}/d' src/Test/MockCat/Internal/Types.hs
