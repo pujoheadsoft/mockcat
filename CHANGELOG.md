@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to the
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
+## [1.4.1.0] - 2026-01-12
+### Improved
+- **Mock Context Isolation**: Redesigned mock tracking to use local context containers within `withMock` and `runMockT`. This significantly reduces reliance on global registries and thread-local storage, ensuring better test isolation and predictability.
+- **Optimization Resilience Guidance**: Added detailed documentation on choosing between `mock` and `mockM`. For functions returning `IO`, using `mockM` is the recommended way to ensure stability under GHC optimizations (like CSE) without requiring extra compiler flags.
+- **Robust Registration logic**: Re-implemented internal mock registration using a capability-based approach (`RegisterMock` and `HasMockContext`), making the library's core architecture more robust and easier to maintain.
+
 ## [1.4.0.0] - 2026-01-10
 ### Changed
 - **Breaking Change**: Removed the verify fallback mechanism that searched thread history when `StableName` lookup failed.
