@@ -337,8 +337,23 @@ Consider other functions only when you need finer control.
 | Function | Verification (`shouldBeCalled`) | IO Dependency | Characteristics |
 | :--- | :---: | :---: | :--- |
 | **`stub`** | ❌ | None | **Pure Stub**. No IO dependency. Sufficient if verification isn't needed. |
-| **`mock`** | ✅ | Yes (Hidden) | **Mock**. Behaves as a pure function, but internally manages call history via IO. |
+| **`mock`** | ✅ | None (External) | **Mock**. Behaves as a pure function. Automatically records history. |
 | **`mockM`** | ✅ | Yes (Explicit) | **Monadic Mock**. Used within `MockT` or `IO`, allowing explicit handling of side effects (e.g., logging). |
+
+#### Choosing between `mock` and `mockM`
+
+Choose the function according to the **return type** of the target function.
+
+*   **`mock` (For Pure Functions)**:
+    *   Use this when mocking **pure functions** like `String -> Int`.
+    *   It respects Haskell's lazy evaluation and records the call only when the result is actually evaluated. This prevents counting unnecessary calls that were never executed.
+
+*   **`mockM` (For IO/Monadic Functions)**:
+    *   Use this when mocking functions that return **`IO` or other `MonadIO` instances** (such as `ReaderT IO`), like `String -> IO Int`.
+    *   Since the recording logic is built directly into the returned action (`IO`), it provides extremely high predictability even in highly concurrent tests or environments with heavy GHC optimizations.
+
+> [!TIP]
+> When in doubt, remember: **"If the function returns IO, use `mockM`. Otherwise, use `mock`."**
 
 #### Partial Mocking: Mixing with Real Functions
 
