@@ -13,20 +13,33 @@
 
 </div>
 
-**Mockcat** is a lightweight, declarative mocking library for Haskell.  
-It supports two verification styles:
-
-*   **Declarative Verification (`expects`)**: **[Recommended]** Declaratively state the expected behavior at mock definition time.
-*   **Post-hoc Verification (`shouldBeCalled`)**: Verify call history after test execution.
+**Mockcat** is a lightweight, declarative mocking library for Haskell.
 
 ```haskell
--- Define and Expect at the same time ("input" should be called exactly once)
-f <- mock ("input" ~> "output")
-  `expects` called once
+-- Stub: Returns True when given "a"
+let f :: String -> Bool
+    f = stub ("a" ~> True)
 
--- Execute
-f "input"
+f "a"  -- => True
 ```
+
+That's it. Write the argument on the left of `~>`, the return value on the right.
+No verification—just a pure function.
+
+**To verify calls**, use `mock` with `expects`:
+
+```haskell
+withMockIO $ do
+  f <- mock ("a" ~> True)
+    `expects` called once   -- Declare "should be called exactly once"
+
+  f "a" `shouldBe` True
+  -- Verification runs when exiting the withMockIO scope
+```
+
+> **When to use which:**
+> - Just need a return value? Use `stub` (pure, no verification)
+> - Need to verify calls? Use `mock` (always with `expects`)
 
 ---
 
@@ -108,7 +121,7 @@ build-depends:
     mockcat
 ```
 
-### First Test (`Main.hs` / `Spec.hs`)
+### First Test (No Verification)
 
 ```haskell
 import Test.Hspec
@@ -116,17 +129,29 @@ import Test.MockCat
 
 spec :: Spec
 spec = do
-  it "Quick Start Demo" $ do
+  it "stub demo" $ do
+    let f :: String -> Int
+        f = stub ("Hello" ~> 42)
+
+    f "Hello" `shouldBe` 42
+```
+
+### First Test (With Verification)
+
+```haskell
+import Test.Hspec
+import Test.MockCat
+
+spec :: Spec
+spec = do
+  it "mock demo" $ do
     withMockIO $ do
-      -- 1. Create a mock (Return 42 when receiving "Hello")
-      --    Simultaneously declare "it should be called once"
+      -- Declare "should be called exactly once"
       f <- mock ("Hello" ~> (42 :: Int))
         `expects` called once
 
-      -- 2. Call f "Hello" and get 42
       f "Hello" `shouldBe` 42
-
-      -- 3. Verification happens automatically when exiting the scope
+      -- Verification runs when exiting the withMockIO scope
 ```
 
 
@@ -195,9 +220,10 @@ spec = do
 >     `expects` called once
 > ```
 
-### 2. Typeclass Mocking (`makeMock`)
+### 2. Mocking with Typeclass-Based Designs (`makeMock`)
 
-Useful when you want to bring existing typeclasses directly into your tests. Generates mocks from existing typeclasses using Template Haskell.
+For designs that express dependencies via typeclasses (MTL style or Capability pattern),
+you can bring them directly into tests. Generates mocks from typeclasses using Template Haskell.
 
 ```haskell
 {-# LANGUAGE TemplateHaskell #-}
@@ -331,8 +357,8 @@ f <- mock (when_ (> 5) ~> True)
 
 #### mock vs stub vs mockM
 
-In most cases, **`mock`** is all you need.
-Consider other functions only when you need finer control.
+Choose the function based on the nature of your test target.
+See the table below for details.
 
 | Function | Verification (`shouldBeCalled`) | IO Dependency | Characteristics |
 | :--- | :---: | :---: | :--- |
@@ -530,6 +556,19 @@ A. It generates a `MockT m` instance for the specified typeclass, and stub gener
 A. Yes, according to definitions like xUnit Patterns, Mockcat's mocks which verify after execution are classified as **Test Spies**.<br>
 However, since many modern libraries (Jest, Mockito, etc.) group these under "Mock", and to avoid confusion from terminology proliferation, this library unifies them under the term **"Mock"**.
 </details>
+
+## Real-World Examples
+
+Mockcat does not assume any specific architecture.
+It can be used as the core of your testing foundation, or as a lightweight helper within an existing framework.
+
+Here are real-world test suites using mockcat:
+
+- **MTL + Capability pattern**: Port-based application tests (using `MockT` / `ExceptT`)
+  👉 [UsecaseSpec.hs (cli-mtl)](https://github.com/pujoheadsoft/haskell-layered-examples/blob/main/cli-mtl/test/Application/UsecaseSpec.hs)
+
+- **Polysemy effects**: Use stub for data flow, mock only where verification is needed
+  👉 [UsecaseSpec.hs (cli-effect-polysemy)](https://github.com/pujoheadsoft/haskell-layered-examples/blob/main/cli-effect-polysemy/test/Application/UsecaseSpec.hs)
 
 ## Tips and Troubleshooting
 

@@ -14,19 +14,32 @@
 </div>
 
 **Mockcat** は、Haskell のための直感的で宣言的なモックライブラリです。
-2つの検証スタイルをサポートしています。
-
-*   **事前宣言による検証 (`expects`)**: 【推奨】 モック定義時に期待される振る舞いを宣言します。
-*   **事後検証 (`shouldBeCalled`)**: テスト実行後に呼び出しを検証します。
 
 ```haskell
--- 定義と同時に検証内容を宣言 ("input" で1回呼ばれることを期待)
-f <- mock ("input" ~> "output")
-  `expects` called once
+-- スタブ: 「"a" が来たら True を返す」
+let f :: String -> Bool
+    f = stub ("a" ~> True)
 
--- 実行
-f "input"
+f "a"  -- => True
 ```
+
+これだけです。`~>` の左に引数、右に戻り値を書くだけ。
+検証は行わず、純粋な関数を返します。
+
+**呼び出しを検証したい** なら、`mock` と `expects` を使います：
+
+```haskell
+withMockIO $ do
+  f <- mock ("a" ~> True)
+    `expects` called once   -- 「1回だけ呼ばれるはず」と宣言
+
+  f "a" `shouldBe` True
+  -- withMockIO のスコープ終了時に「1回呼ばれたか」がチェックされる
+```
+
+> **使い分け:**
+> - 値を返すだけなら `stub`（純粋、検証なし）
+> - 呼び出しを検証したいなら `mock`（常に `expects` とセットで）
 
 ---
 
@@ -108,24 +121,37 @@ build-depends:
     mockcat
 ```
 
-### 最初のテスト
+### 最初のテスト（検証なし）
+
 ```haskell
 import Test.Hspec
 import Test.MockCat
 
 spec :: Spec
 spec = do
-  it "Quick Start Demo" $ do
+  it "stub demo" $ do
+    let f :: String -> Int
+        f = stub ("Hello" ~> 42)
+
+    f "Hello" `shouldBe` 42
+```
+
+### 最初のテスト（検証あり）
+
+```haskell
+import Test.Hspec
+import Test.MockCat
+
+spec :: Spec
+spec = do
+  it "mock demo" $ do
     withMockIO $ do
-      -- 1. モックを作成 ("Hello" を受け取ったら 42 を返す)
-      --    同時に「1回呼ばれるはずだ」と期待を宣言
+      -- 「1回だけ呼ばれるはず」と期待を宣言
       f <- mock ("Hello" ~> (42 :: Int))
         `expects` called once
 
-      -- 2. f "Hello" を呼び出し、42 を得る
       f "Hello" `shouldBe` 42
-
-      -- 3. スコープを抜ける際、宣言した期待に対する検証が自動で行われる
+      -- withMockIO のスコープ終了時に「1回呼ばれたか」がチェックされる
 ```
 
 
@@ -194,9 +220,10 @@ spec = do
 >     `expects` called once
 > ```
 
-### 2. 型クラスのモック (`makeMock`)
+### 2. 型クラスを使った設計でのモック (`makeMock`)
 
-既存の型クラスをそのままテストに持ち込みたい場合に使います。Template Haskell を使って、既存の型クラスからモックを自動生成します。
+型クラスで依存を表現している設計（MTL スタイルや Capability パターン）において、
+そのままテストに持ち込みたい場合に使います。Template Haskell を使って、型クラスからモックを自動生成します。
 
 ```haskell
 {-# LANGUAGE TemplateHaskell #-}
@@ -335,8 +362,8 @@ f <- mock (when_ (> (5 :: Int)) ~> True)
 
 #### mock vs stub vs mockM の使い分け
 
-基本的には **`mock`** だけ覚えれば十分です。
-より細かい制御が必要になった場合に、他の関数を検討してください。
+使う関数は、テスト対象の性質に応じて選択するとよいでしょう。
+細かい違いは以下の表を参照してください。
 
 | 関数 | 検証 (`shouldBeCalled`) | IO 依存 | 特徴 |
 | :--- | :---: | :---: | :--- |
@@ -534,6 +561,19 @@ A. 指定された型クラスの `MockT m` インスタンスと、各メソッ
 A. はい、xUnit Patterns 等の定義に従えば、事後検証を行う Mockcat のモックは **Test Spy** に分類されます。<br>
 しかし、近年の多くのライブラリ（Jest, Mockito 等）がこれらを包括して「モック」と呼称していること、および用語の乱立による混乱を避けるため、本ライブラリでは **"Mock"** という用語で統一しています。
 </details>
+
+## 実践的な例
+
+Mockcat は特定のアーキテクチャを前提としません。
+テスト基盤の中核として使うことも、既存のフレームワーク内で軽量なヘルパーとして使うこともできます。
+
+以下は mockcat を使った実践的なテストスイートです：
+
+- **MTL + Capability パターン**: Port ベースのアプリケーションテスト（`MockT` / `ExceptT` を使用）
+  👉 [UsecaseSpec.hs (cli-mtl)](https://github.com/pujoheadsoft/haskell-layered-examples/blob/main/cli-mtl/test/Application/UsecaseSpec.hs)
+
+- **Polysemy エフェクト**: stub でデータを流し、mock で検証が必要な箇所だけを検証
+  👉 [UsecaseSpec.hs (cli-effect-polysemy)](https://github.com/pujoheadsoft/haskell-layered-examples/blob/main/cli-effect-polysemy/test/Application/UsecaseSpec.hs)
 
 ## ヒントとトラブルシューティング
 
