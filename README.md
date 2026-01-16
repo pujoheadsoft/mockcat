@@ -374,6 +374,17 @@ Choose the function according to the **return type** of the target function.
     *   Use this when mocking **pure functions** like `String -> Int`.
     *   It respects Haskell's lazy evaluation and records the call only when the result is actually evaluated. This prevents counting unnecessary calls that were never executed.
 
+> [!IMPORTANT]
+> Since `mock` behaves as a pure function (`a -> b`),
+> **it is subject to GHC's optimizations (CSE / CAF / full laziness)**.
+>
+> As a result, even if an expression appears multiple times in your source code,
+> **it may be evaluated only once** after compilation.
+>
+> Mockcat records and verifies **the actual number of evaluations**,
+> not the number of times the expression appears in the source code.
+
+
 *   **`mockM` (For IO/Monadic Functions)**:
     *   Use this when mocking functions that return **`IO` or other `MonadIO` instances** (such as `ReaderT IO`), like `String -> IO Int`.
     *   Since the recording logic is built directly into the returned action (`IO`), it provides extremely high predictability even in highly concurrent tests or environments with heavy GHC optimizations.
@@ -555,6 +566,26 @@ A. It generates a `MockT m` instance for the specified typeclass, and stub gener
 <summary><strong>Q. Isn't this strictly a Spy?</strong></summary>
 A. Yes, according to definitions like xUnit Patterns, Mockcat's mocks which verify after execution are classified as **Test Spies**.<br>
 However, since many modern libraries (Jest, Mockito, etc.) group these under "Mock", and to avoid confusion from terminology proliferation, this library unifies them under the term **"Mock"**.
+</details>
+
+<details>
+<summary><strong>Q. Call counts are lower than expected in tests</strong></summary>
+
+A. Since `mock` is treated as a pure function, GHC's optimizations may cause evaluations to be shared.
+This is Mockcat's intended behavior—it accurately reflects the actual execution result after compilation.
+
+Mockcat records **"the actual number of evaluations"** at runtime.
+Therefore, if the same expression is shared due to optimization, it is correctly counted as "1 call".
+
+If you want to suppress evaluation sharing for testing purposes, you can add the following
+**GHC pragmas** to your test file.
+
+```haskell
+{-# OPTIONS_GHC -fno-cse #-}
+{-# OPTIONS_GHC -fno-full-laziness #-}
+```
+
+This is a **test-only setting**, useful when you want to verify behavior closer to the source-level call count.
 </details>
 
 ## Real-World Examples

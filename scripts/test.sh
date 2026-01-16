@@ -34,8 +34,9 @@ declare -A RESULTS
 run_test_phase() {
     local phase_name=$1
     local enable_coverage=$2
-    local extra_args=$3
-    local log_prefix=$4
+    local optimization=$3
+    local extra_args=$4
+    local log_prefix=$5
     
     echo "=== Starting $phase_name Phase ==="
     
@@ -45,7 +46,7 @@ run_test_phase() {
     for v in "${VERSIONS[@]}"; do
         echo "  [GHC $v] Launching $phase_name..."
         (
-            cabal v2-build test:mockcat-test --enable-tests $enable_coverage --disable-optimization --ghc-options="-Werror" $extra_args -w ~/.ghcup/bin/ghc-$v 2>&1 | tee "build_log_${v}_${log_prefix}.txt" | sed -u "s/^/[$v][$log_prefix] /"
+            cabal v2-test test:mockcat-test --enable-tests $enable_coverage $optimization --ghc-options="-Werror" $extra_args -w ~/.ghcup/bin/ghc-$v 2>&1 | tee "build_log_${v}_${log_prefix}.txt" | sed -u "s/^/[$v][$log_prefix] /"
         ) &
         PID=$!
         PIDS+=("$PID")
@@ -73,18 +74,26 @@ run_test_phase() {
     rm -f build_log_*_${log_prefix}.txt
 }
 
-# --- Phase 1: Standard (No Coverage) ---
-# Validates that all tests pass normally when HPC is disabled.
-# (Automatic skipping mechanism in Spec.hs ensures this runs full suite)
-run_test_phase "Standard" "--disable-coverage" "" "std"
+# --- Phase 1: Standard (No Coverage, No Optimization) ---
+# Fast test run to validate basic correctness.
+run_test_phase "Standard" "--disable-coverage" "--disable-optimization" "" "std"
 
 if [ "$FAILURE" -eq 1 ]; then
-    echo "Standard Phase failed. Aborting HPC Phase."
+    echo "Standard Phase failed. Aborting remaining phases."
 else
-    # --- Phase 2: HPC (With Coverage) ---
+    # --- Phase 2: Optimized (No Coverage, With Optimization) ---
+    # Validates tests pass with optimization enabled (matches Stackage/Hackage conditions).
+    # This catches GHC optimization-related issues like LICM affecting unsafePerformIO.
+    run_test_phase "Optimized" "--disable-coverage" "--enable-optimization" "" "opt"
+fi
+
+if [ "$FAILURE" -eq 1 ]; then
+    echo "Optimized Phase failed. Aborting HPC Phase."
+else
+    # --- Phase 3: HPC (With Coverage) ---
     # Validates that Strict Verification detects HPC and gracefully skips standard tests,
     # while STILL running the critical HpcSpec.
-    run_test_phase "HPC" "--enable-coverage" "" "hpc"
+    run_test_phase "HPC" "--enable-coverage" "--disable-optimization" "" "hpc"
 fi
 
 echo ""
