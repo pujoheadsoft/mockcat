@@ -11,6 +11,7 @@
 {-# OPTIONS_GHC -Wno-simplifiable-class-constraints #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-# OPTIONS_GHC -Wno-deprecations #-}
+{-# OPTIONS_GHC -fno-cse #-}
 
 module Test.MockCat.ExampleSpec (spec) where
 
