@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to the
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
+## [1.4.1.1] - 2026-01-17
+### Fixed
+- **Test Suite Stability**: Added GHC optimization pragmas (`-fno-cse`, `-fno-full-laziness`) to ExampleSpec.hs and WithMockSpec.hs to prevent test failures on certain GHC builds (notably unofficial Ubuntu 24.04 bindists for GHC 9.2.8).
+
 ## [1.4.1.0] - 2026-01-12
 ### Improved
 - **Mock Context Isolation**: Redesigned mock tracking to use local context containers within `withMock` and `runMockT`. This significantly reduces reliance on global registries and thread-local storage, ensuring better test isolation and predictability.
